@@ -42,3 +42,6 @@ next-env.d.ts
 
 # customer data — never commit leads
 /data
+
+.vercel
+.env*.local
