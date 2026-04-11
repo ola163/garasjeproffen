@@ -18,7 +18,12 @@ export async function POST(request: Request) {
     // Validate parameters are within bounds
     for (const param of GARAGE_PARAMETERS) {
       const value = body.configuration?.parameters?.[param.id];
-      if (value !== undefined && (value < param.min || value > param.max)) {
+      if (
+        value !== undefined &&
+        param.min !== undefined &&
+        param.max !== undefined &&
+        (value < param.min || value > param.max)
+      ) {
         return NextResponse.json<QuoteResponse>(
           {
             success: false,
