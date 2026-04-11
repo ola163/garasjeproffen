@@ -1,0 +1,171 @@
+"use client";
+
+import { useMemo, useEffect } from "react";
+import dynamic from "next/dynamic";
+import LengthSlider from "./LengthSlider";
+import PriceSummary from "./PriceSummary";
+import QuoteForm from "../quote/QuoteForm";
+import { useConfigurator } from "@/hooks/useConfigurator";
+import { calculatePrice } from "@/lib/pricing";
+import { GARAGE_PARAMETERS } from "@/lib/parameters";
+
+const GarageViewer = dynamic(() => import("./GarageViewer"), { ssr: false });
+
+/** Minimum combined side clearance: widthMm >= doorWidthMm + MIN_CLEARANCE */
+const MIN_CLEARANCE = 300;
+
+export default function ConfiguratorShell() {
+  const { configuration, setParameter } = useConfigurator();
+
+  const pricing = useMemo(() => calculatePrice(configuration), [configuration]);
+
+  const lengthParam   = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
+  const widthParam    = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
+  const doorWidthParam  = GARAGE_PARAMETERS.find((p) => p.id === "doorWidth")!;
+  const doorHeightParam = GARAGE_PARAMETERS.find((p) => p.id === "doorHeight")!;
+
+  const lengthValue    = configuration.parameters.length    ?? lengthParam.defaultValue;
+  const widthValue     = configuration.parameters.width     ?? widthParam.defaultValue;
+  const doorWidthValue  = configuration.parameters.doorWidth  ?? doorWidthParam.defaultValue;
+  const doorHeightValue = configuration.parameters.doorHeight ?? doorHeightParam.defaultValue;
+
+  // Only show door-width options where the garage is wide enough
+  const validDoorWidthOptions = useMemo(
+    () => (doorWidthParam.options ?? []).filter((o) => widthValue >= o.value + MIN_CLEARANCE),
+    [widthValue, doorWidthParam.options]
+  );
+
+  // Auto-correct doorWidth when the current value is no longer valid
+  useEffect(() => {
+    if (validDoorWidthOptions.length === 0) return;
+    if (!validDoorWidthOptions.find((o) => o.value === doorWidthValue)) {
+      setParameter("doorWidth", validDoorWidthOptions[validDoorWidthOptions.length - 1].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widthValue]);
+
+  // VeggC = (VeggB − doorWidth) / 2
+  const veggCmm = (widthValue - doorWidthValue) / 2;
+
+  return (
+    <div className="flex h-[calc(100vh-11rem)] gap-0">
+      {/* 3D Viewer */}
+      <div className="relative flex-1 bg-stone-100">
+        <GarageViewer
+          lengthMm={lengthValue}
+          widthMm={widthValue}
+          doorWidthMm={doorWidthValue}
+          doorHeightMm={doorHeightValue}
+        />
+      </div>
+
+      {/* Sidebar */}
+      <div className="flex w-[360px] shrink-0 flex-col border-l border-gray-200 bg-white">
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Header with m² */}
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Konfigurasjon</h2>
+            <span className="text-sm text-gray-500">
+              <span className="font-semibold text-gray-800">
+                {((lengthValue / 1000) * (widthValue / 1000)).toFixed(1)}
+              </span>{" "}
+              m²
+            </span>
+          </div>
+
+          {/* Dimension sliders */}
+          <div className="mt-4 space-y-6">
+            <LengthSlider
+              label={lengthParam.label}
+              value={lengthValue}
+              min={lengthParam.min!}
+              max={lengthParam.max!}
+              step={lengthParam.step!}
+              unit={lengthParam.unit}
+              onChange={(value) => setParameter("length", value)}
+            />
+            <LengthSlider
+              label={widthParam.label}
+              value={widthValue}
+              min={widthParam.min!}
+              max={widthParam.max!}
+              step={widthParam.step!}
+              unit={widthParam.unit}
+              onChange={(value) => setParameter("width", value)}
+            />
+          </div>
+
+          {/* Garage door section */}
+          <div className="mt-6 border-t border-gray-100 pt-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">Garasjeport</h3>
+            <div className="space-y-4">
+
+              {/* Door width */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bredde på garasjeport
+                </label>
+                {validDoorWidthOptions.length === 0 ? (
+                  <p className="text-xs text-red-500">
+                    Garasjebredden må være minst{" "}
+                    {Math.min(...(doorWidthParam.options ?? []).map((o) => o.value)) + MIN_CLEARANCE} mm
+                    for å velge en port.
+                  </p>
+                ) : (
+                  <select
+                    value={doorWidthValue}
+                    onChange={(e) => setParameter("doorWidth", Number(e.target.value))}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e2520a]"
+                  >
+                    {validDoorWidthOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Door height */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Høyde på garasjeport
+                </label>
+                <select
+                  value={doorHeightValue}
+                  onChange={(e) => setParameter("doorHeight", Number(e.target.value))}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e2520a]"
+                >
+                  {(doorHeightParam.options ?? []).map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* VeggC info */}
+              {validDoorWidthOptions.length > 0 && (
+                <p className="text-xs text-gray-400">
+                  Sidevegg (VeggC):{" "}
+                  <span className="font-medium text-gray-500">
+                    {(veggCmm / 1000).toFixed(3)} m
+                  </span>{" "}
+                  per side
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <PriceSummary pricing={pricing} />
+          </div>
+
+          <div className="mt-8" id="quote">
+            <QuoteForm configuration={configuration} pricing={pricing} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
