@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { useMemo, Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import { OrbitControls, Environment, Grid } from "@react-three/drei";
@@ -12,19 +12,47 @@ interface LocalGarageViewerProps {
   doorHeightMm: number;
 }
 
-// ── Palette ────────────────────────────────────────────────────────────────
-const WALL_COLOR  = "#d6d3d1"; // stone-300
-const ROOF_COLOR  = "#78716c"; // stone-500
-const DOOR_COLOR  = "#57534e"; // stone-600
-const FLOOR_COLOR = "#e7e5e4"; // stone-200
+// ── Constants ─────────────────────────────────────────────────────────────────
+const WALL_H     = 3.0;           // wall height in metres
+const WALL_T     = 0.10;          // wall thickness
+const ROOF_T     = 0.10;          // roof panel thickness
+const OVERHANG   = 0.40;          // roof overhang at front/back
+const ROOF_ANGLE = 22 * (Math.PI / 180); // 22° in radians
 
-// ── Constants ──────────────────────────────────────────────────────────────
-const WALL_H  = 3.0;  // metres
-const WALL_T  = 0.08; // wall thickness
-const ROOF_T  = 0.15; // roof slab thickness
-const OVERHANG = 0.35; // roof overhang beyond walls
-const DOOR_PANELS = 4; // number of horizontal door panel sections
+// ── Colors from the logo ──────────────────────────────────────────────────────
+const WALL_COLOR  = "#f5f5f5"; // near-white walls (like the logo garage)
+const ROOF_COLOR  = "#e2520a"; // brand orange (roof and helmet in logo)
+const DOOR_COLOR  = "#1c1917"; // near-black door panel (dark opening in logo)
+const FLOOR_COLOR = "#e7e5e4"; // light stone floor
 
+// ── Triangular gable end above the wall ───────────────────────────────────────
+function GableEnd({
+  z,
+  halfW,
+  ridgeH,
+}: {
+  z: number;
+  halfW: number;
+  ridgeH: number;
+}) {
+  const shape = useMemo(() => {
+    const s = new THREE.Shape();
+    s.moveTo(-halfW, 0);
+    s.lineTo(halfW, 0);
+    s.lineTo(0, ridgeH);
+    s.closePath();
+    return s;
+  }, [halfW, ridgeH]);
+
+  return (
+    <mesh position={[0, WALL_H, z]} castShadow receiveShadow>
+      <shapeGeometry args={[shape]} />
+      <meshStandardMaterial color={WALL_COLOR} side={THREE.DoubleSide} />
+    </mesh>
+  );
+}
+
+// ── Full garage geometry ───────────────────────────────────────────────────────
 function GarageGeometry({
   lengthM,
   widthM,
@@ -41,36 +69,51 @@ function GarageGeometry({
   const halfW = widthM  / 2;
   const halfL = lengthM / 2;
   const sideW = (widthM - doorWidthM) / 2; // VeggC
-  const panelH = doorHeightM / DOOR_PANELS;
   const aboveDoor = H - doorHeightM;
+
+  // ── Pitched roof geometry ──────────────────────────────────────────────────
+  // ridgeH = halfW * tan(22°)  — height of ridge above wall top
+  // slopeLen = halfW / cos(22°) — length along the slope from eave to ridge
+  const ridgeH   = halfW * Math.tan(ROOF_ANGLE);
+  const slopeLen = halfW / Math.cos(ROOF_ANGLE);
+  const roofL    = lengthM + OVERHANG * 2; // roof length including overhangs
+
+  // Slope center X = halfW / 2 away from ridge (i.e. ±halfW/2)
+  // Slope center Y = H + ridgeH/2
+  // Rotation ±ROOF_ANGLE around Z tilts eave down, ridge up
+  const slopeCY = H + ridgeH / 2;
+
+  // ── Door panels ────────────────────────────────────────────────────────────
+  const PANELS = 4;
+  const panelH = doorHeightM / PANELS;
 
   return (
     <group>
-      {/* ── Floor ─────────────────────────────────────── */}
+      {/* ── Floor ─────────────────────────────────────────────────── */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} receiveShadow>
         <planeGeometry args={[widthM - T * 2, lengthM - T * 2]} />
         <meshStandardMaterial color={FLOOR_COLOR} />
       </mesh>
 
-      {/* ── Back wall ─────────────────────────────────── */}
+      {/* ── Back wall ─────────────────────────────────────────────── */}
       <mesh position={[0, H / 2, -halfL + T / 2]} castShadow receiveShadow>
         <boxGeometry args={[widthM, H, T]} />
         <meshStandardMaterial color={WALL_COLOR} />
       </mesh>
 
-      {/* ── Left wall ─────────────────────────────────── */}
+      {/* ── Left wall ─────────────────────────────────────────────── */}
       <mesh position={[-halfW + T / 2, H / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[T, H, lengthM]} />
         <meshStandardMaterial color={WALL_COLOR} />
       </mesh>
 
-      {/* ── Right wall ────────────────────────────────── */}
+      {/* ── Right wall ────────────────────────────────────────────── */}
       <mesh position={[halfW - T / 2, H / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[T, H, lengthM]} />
         <meshStandardMaterial color={WALL_COLOR} />
       </mesh>
 
-      {/* ── Front wall – left pier (VeggC) ────────────── */}
+      {/* ── Front – left pier (VeggC) ─────────────────────────────── */}
       {sideW > 0.01 && (
         <mesh position={[-halfW + sideW / 2, H / 2, halfL - T / 2]} castShadow receiveShadow>
           <boxGeometry args={[sideW, H, T]} />
@@ -78,7 +121,7 @@ function GarageGeometry({
         </mesh>
       )}
 
-      {/* ── Front wall – right pier (VeggC) ───────────── */}
+      {/* ── Front – right pier (VeggC) ────────────────────────────── */}
       {sideW > 0.01 && (
         <mesh position={[halfW - sideW / 2, H / 2, halfL - T / 2]} castShadow receiveShadow>
           <boxGeometry args={[sideW, H, T]} />
@@ -86,7 +129,7 @@ function GarageGeometry({
         </mesh>
       )}
 
-      {/* ── Front wall – lintel above door ────────────── */}
+      {/* ── Front – lintel above door ──────────────────────────────── */}
       {aboveDoor > 0.02 && (
         <mesh
           position={[0, doorHeightM + aboveDoor / 2, halfL - T / 2]}
@@ -98,53 +141,85 @@ function GarageGeometry({
         </mesh>
       )}
 
-      {/* ── Garage door – horizontal panels ───────────── */}
-      {Array.from({ length: DOOR_PANELS }).map((_, i) => (
+      {/* ── Garage door – horizontal panel sections ────────────────── */}
+      {Array.from({ length: PANELS }).map((_, i) => (
         <mesh
           key={i}
-          position={[0, i * panelH + panelH / 2, halfL - T / 2 + 0.005]}
+          position={[0, i * panelH + panelH / 2, halfL - T / 2 + 0.006]}
         >
-          <boxGeometry args={[doorWidthM - 0.06, panelH - 0.04, 0.025]} />
+          <boxGeometry args={[doorWidthM - 0.06, panelH - 0.05, 0.03]} />
           <meshStandardMaterial color={DOOR_COLOR} />
         </mesh>
       ))}
 
-      {/* ── Flat roof with overhang ────────────────────── */}
-      <mesh position={[0, H + ROOF_T / 2, 0]} castShadow receiveShadow>
-        <boxGeometry
-          args={[widthM + OVERHANG * 2, ROOF_T, lengthM + OVERHANG * 2]}
-        />
+      {/* ── Left roof slope ────────────────────────────────────────── */}
+      {/* Centre at (-halfW/2, H+ridgeH/2). Rotated +22° tilts right edge up to ridge. */}
+      <mesh
+        position={[-halfW / 2, slopeCY, 0]}
+        rotation={[0, 0, ROOF_ANGLE]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[slopeLen, ROOF_T, roofL]} />
         <meshStandardMaterial color={ROOF_COLOR} />
       </mesh>
+
+      {/* ── Right roof slope ───────────────────────────────────────── */}
+      <mesh
+        position={[halfW / 2, slopeCY, 0]}
+        rotation={[0, 0, -ROOF_ANGLE]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[slopeLen, ROOF_T, roofL]} />
+        <meshStandardMaterial color={ROOF_COLOR} />
+      </mesh>
+
+      {/* ── Ridge cap ─────────────────────────────────────────────── */}
+      <mesh position={[0, H + ridgeH + ROOF_T / 2, 0]} castShadow>
+        <boxGeometry args={[0.12, ROOF_T, roofL]} />
+        <meshStandardMaterial color={ROOF_COLOR} />
+      </mesh>
+
+      {/* ── Gable ends (triangle above wall top) ──────────────────── */}
+      <GableEnd z={-halfL + T / 2} halfW={halfW} ridgeH={ridgeH} />
+      <GableEnd z={ halfL - T / 2} halfW={halfW} ridgeH={ridgeH} />
     </group>
   );
 }
 
+// ── Viewer ─────────────────────────────────────────────────────────────────────
 export default function LocalGarageViewer({
   lengthMm,
   widthMm,
   doorWidthMm,
   doorHeightMm,
 }: LocalGarageViewerProps) {
-  const lengthM    = lengthMm    / 1000;
-  const widthM     = widthMm     / 1000;
-  const doorWidthM = doorWidthMm / 1000;
+  const lengthM     = lengthMm     / 1000;
+  const widthM      = widthMm      / 1000;
+  const doorWidthM  = doorWidthMm  / 1000;
   const doorHeightM = doorHeightMm / 1000;
 
   return (
     <div className="relative h-full w-full">
       <Canvas
         shadows
-        camera={{ position: [12, 7, 12], fov: 42 }}
+        camera={{ position: [14, 8, 14], fov: 40 }}
         gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       >
         <color attach="background" args={["#f5f5f4"]} />
-        <ambientLight intensity={0.65} />
+        <ambientLight intensity={0.55} />
         <directionalLight
-          position={[10, 15, 10]}
-          intensity={1.2}
+          position={[12, 18, 10]}
+          intensity={1.4}
           castShadow
           shadow-mapSize={[2048, 2048]}
+          shadow-camera-near={0.5}
+          shadow-camera-far={80}
+          shadow-camera-left={-20}
+          shadow-camera-right={20}
+          shadow-camera-top={20}
+          shadow-camera-bottom={-20}
         />
 
         <Suspense fallback={null}>
@@ -158,14 +233,14 @@ export default function LocalGarageViewer({
 
         <Grid
           position={[0, -0.02, 0]}
-          args={[30, 30]}
+          args={[40, 40]}
           cellSize={1}
           cellThickness={0.5}
           cellColor="#d1d5db"
           sectionSize={5}
           sectionThickness={1}
           sectionColor="#9ca3af"
-          fadeDistance={30}
+          fadeDistance={35}
           fadeStrength={1}
         />
 
@@ -177,8 +252,8 @@ export default function LocalGarageViewer({
           enableRotate
           minPolarAngle={0.1}
           maxPolarAngle={Math.PI / 2.2}
-          minDistance={4}
-          maxDistance={30}
+          minDistance={5}
+          maxDistance={40}
         />
       </Canvas>
     </div>
