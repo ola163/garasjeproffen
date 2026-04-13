@@ -12,51 +12,51 @@ interface LocalGarageViewerProps {
   doorHeightMm: number;
 }
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Dimensions ───────────────────────────────────────────────────────────────
 const WALL_H     = 3.0;
-const WALL_T     = 0.12;
-const ROOF_T     = 0.10;
-const OVERHANG   = 0.55;
-const ROOF_ANGLE = 36 * (Math.PI / 180);
-const BOARD_H    = 0.14;           // 140 mm liggende kledning
+const WALL_T     = 0.10;
+const ROOF_T     = 0.09;
+const OVERHANG   = 0.45;
+const ROOF_ANGLE = 22 * (Math.PI / 180);
+const BOARD_W    = 0.145;  // 145 mm stående kledning
 
-// ── Colors (matching reference image) ────────────────────────────────────────
-const WALL_COLOR  = "#EDE9E1";   // warm cream-white cladding
-const ROOF_DARK   = "#252728";   // near-black roof tiles
-const GDR_COLOR   = "#E2DDD5";   // garage door panels – slightly cooler cream
-const TRIM_WHITE  = "#F8F8F8";   // window/door frames
-const GLASS_COLOR = "#8AAFC2";   // window glass
-const FASCIA_COL  = "#1C1E1F";   // fascia / ridge cap
-const GROUND_COL  = "#7A5C42";   // earthy brown ground
+// ── Colors ───────────────────────────────────────────────────────────────────
+const BOARD_FACE_COLOR = "#7B4A2D"; // brun kledning
+const DOOR_COLOR       = "#FFFFFF"; // hvit port
+const FLOOR_COLOR      = "#e5e2de";
+const TILE_COLOR       = "#e2520a"; // brand orange tak
 
-// ── Liggende kledning (white horizontal board) texture ───────────────────────
+// ── Stående kledning texture ─────────────────────────────────────────────────
+// One board unit in canvas (wraps horizontally). The face color is brown,
+// shadow groove on the right edge.
 function buildCladdingTexture(): THREE.CanvasTexture {
-  const W = 64, H = 64;
-  const SHADOW = Math.floor(H * 0.16);
+  const W = 128, H = 16, GAP = 14;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d")!;
 
-  // Board face – warm white
-  ctx.fillStyle = WALL_COLOR;
-  ctx.fillRect(0, 0, W, H - SHADOW);
+  // Board face – brown
+  ctx.fillStyle = BOARD_FACE_COLOR;
+  ctx.fillRect(0, 0, W - GAP, H);
 
-  // Very subtle horizontal grain lines
-  for (let y = 8; y < H - SHADOW; y += 11) {
-    ctx.fillStyle = "rgba(0,0,0,0.025)";
-    ctx.fillRect(0, y, W, 1);
+  // Subtle horizontal grain lines
+  for (let y = 3; y < H; y += 5) {
+    ctx.fillStyle = "rgba(0,0,0,0.04)";
+    ctx.fillRect(0, y, W - GAP - 4, 1);
   }
 
-  // Slight top highlight (exposed board edge)
+  // Left chamfer highlight
   ctx.fillStyle = "rgba(255,255,255,0.18)";
-  ctx.fillRect(0, 0, W, 2);
+  ctx.fillRect(0, 0, 3, H);
 
-  // Bottom shadow (board overlaps the one below)
-  const shad = ctx.createLinearGradient(0, H - SHADOW, 0, H);
-  shad.addColorStop(0, "rgba(0,0,0,0.0)");
-  shad.addColorStop(1, "rgba(0,0,0,0.28)");
-  ctx.fillStyle = shad;
-  ctx.fillRect(0, H - SHADOW, W, SHADOW);
+  // Right shadow groove between boards
+  const grad = ctx.createLinearGradient(W - GAP, 0, W, 0);
+  grad.addColorStop(0.0, "rgba(0,0,0,0.0)");
+  grad.addColorStop(0.3, "rgba(0,0,0,0.22)");
+  grad.addColorStop(0.7, "rgba(0,0,0,0.60)");
+  grad.addColorStop(1.0, "rgba(0,0,0,0.85)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(W - GAP, 0, GAP, H);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
@@ -66,38 +66,46 @@ function buildCladdingTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-// ── Roof tile texture ─────────────────────────────────────────────────────────
+// ── Roof tile texture (panner) ───────────────────────────────────────────────
+// Each tile unit in canvas ≈ 32 cm wide × 30 cm tall on slope.
 function buildTileTexture(): THREE.CanvasTexture {
   const W = 128, H = 128;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d")!;
 
-  ctx.fillStyle = ROOF_DARK;
+  // Base tile colour
+  ctx.fillStyle = TILE_COLOR;
   ctx.fillRect(0, 0, W, H);
 
-  const grad = ctx.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0, "rgba(255,255,255,0.04)");
-  grad.addColorStop(1, "rgba(0,0,0,0.08)");
-  ctx.fillStyle = grad;
+  // Slight colour variation across tile surface
+  const bodyGrad = ctx.createLinearGradient(0, 0, W, H);
+  bodyGrad.addColorStop(0, "rgba(255,255,255,0.06)");
+  bodyGrad.addColorStop(1, "rgba(0,0,0,0.12)");
+  ctx.fillStyle = bodyGrad;
   ctx.fillRect(0, 0, W, H);
 
-  const top = ctx.createLinearGradient(0, 0, 0, H * 0.22);
-  top.addColorStop(0, "rgba(0,0,0,0.6)");
-  top.addColorStop(1, "rgba(0,0,0,0.0)");
-  ctx.fillStyle = top;
+  // Shadow at top (hidden under overlapping tile above)
+  const topShad = ctx.createLinearGradient(0, 0, 0, H * 0.22);
+  topShad.addColorStop(0, "rgba(0,0,0,0.55)");
+  topShad.addColorStop(1, "rgba(0,0,0,0.0)");
+  ctx.fillStyle = topShad;
   ctx.fillRect(0, 0, W, H * 0.22);
 
-  const btm = ctx.createLinearGradient(0, H * 0.8, 0, H);
-  btm.addColorStop(0, "rgba(255,255,255,0.0)");
-  btm.addColorStop(1, "rgba(255,255,255,0.07)");
-  ctx.fillStyle = btm;
-  ctx.fillRect(0, H * 0.8, W, H);
+  // Highlight near exposed bottom edge
+  const btmLight = ctx.createLinearGradient(0, H * 0.82, 0, H);
+  btmLight.addColorStop(0, "rgba(255,255,255,0.0)");
+  btmLight.addColorStop(1, "rgba(255,255,255,0.10)");
+  ctx.fillStyle = btmLight;
+  ctx.fillRect(0, H * 0.82, W, H);
 
-  ctx.fillStyle = "rgba(0,0,0,0.4)";
-  ctx.fillRect(0, 0, 2, H);
-  ctx.fillStyle = "rgba(255,255,255,0.06)";
-  ctx.fillRect(W - 2, 0, 2, H);
+  // Vertical joint line (left)
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(0, 0, 3, H);
+
+  // Tiny right highlight on the adjacent tile edge
+  ctx.fillStyle = "rgba(255,255,255,0.12)";
+  ctx.fillRect(W - 3, 0, 3, H);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
@@ -107,52 +115,19 @@ function buildTileTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-function makeWallMat(base: THREE.CanvasTexture, wallHeightM: number) {
+// ── Per-wall cladding material ────────────────────────────────────────────────
+function makeWallMat(base: THREE.CanvasTexture, wallWidthM: number, wallHeightM: number) {
   const t = base.clone();
-  t.repeat.set(1, wallHeightM / BOARD_H);
+  t.repeat.set(Math.max(1, wallWidthM / BOARD_W), wallHeightM);
   t.needsUpdate = true;
-  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.88, metalness: 0 });
+  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, metalness: 0 });
 }
 
-// ── Window ────────────────────────────────────────────────────────────────────
-function Window({ position, width, height, rotY = 0 }: {
-  position: [number, number, number];
-  width: number;
-  height: number;
-  rotY?: number;
-}) {
-  const matFrame = useMemo(() => new THREE.MeshStandardMaterial({ color: TRIM_WHITE, roughness: 0.45 }), []);
-  const matGlass = useMemo(() => new THREE.MeshStandardMaterial({
-    color: GLASS_COLOR, transparent: true, opacity: 0.75,
-    roughness: 0.05, metalness: 0.15,
-  }), []);
-
-  return (
-    <group position={position} rotation={[0, rotY, 0]}>
-      {/* Outer frame */}
-      <mesh material={matFrame} castShadow>
-        <boxGeometry args={[width + 0.12, height + 0.12, 0.07]} />
-      </mesh>
-      {/* Glass */}
-      <mesh position={[0, 0, 0.025]} material={matGlass}>
-        <planeGeometry args={[width - 0.06, height - 0.06]} />
-      </mesh>
-      {/* Horizontal divider */}
-      <mesh position={[0, 0, 0.04]} material={matFrame}>
-        <boxGeometry args={[width, 0.05, 0.03]} />
-      </mesh>
-      {/* Vertical divider */}
-      <mesh position={[0, 0, 0.04]} material={matFrame}>
-        <boxGeometry args={[0.05, height, 0.03]} />
-      </mesh>
-    </group>
-  );
-}
-
-// ── Gable end with cladding (continuous with walls) ──────────────────────────
-function GableEnd({ z, halfW, ridgeH, mat, showWindow }: {
-  z: number; halfW: number; ridgeH: number;
-  mat: THREE.Material; showWindow: boolean;
+// ── Gable end (triangle above wall top) with cladding ────────────────────────
+// ShapeGeometry auto-generates UVs from the shape's bounding box ([0,1]×[0,1]),
+// so applying a material with repeat.x = widthM/BOARD_W tiles correctly.
+function GableEnd({ z, halfW, ridgeH, mat }: {
+  z: number; halfW: number; ridgeH: number; mat: THREE.Material;
 }) {
   const shape = useMemo(() => {
     const s = new THREE.Shape();
@@ -164,20 +139,9 @@ function GableEnd({ z, halfW, ridgeH, mat, showWindow }: {
   }, [halfW, ridgeH]);
 
   return (
-    <group position={[0, WALL_H, z]}>
-      {/* Cladding triangle – continuous with walls below */}
-      <mesh material={mat} castShadow receiveShadow>
-        <shapeGeometry args={[shape]} />
-      </mesh>
-      {/* Small loft window in gable */}
-      {showWindow && (
-        <Window
-          position={[0, ridgeH * 0.50, 0.06]}
-          width={0.70}
-          height={0.70}
-        />
-      )}
-    </group>
+    <mesh position={[0, WALL_H, z]} material={mat} castShadow receiveShadow>
+      <shapeGeometry args={[shape]} />
+    </mesh>
   );
 }
 
@@ -192,139 +156,140 @@ function GarageGeometry({
   const halfW = widthM  / 2;
   const halfL = lengthM / 2;
   const sideW = (widthM - doorWidthM) / 2;   // VeggC
+  const aboveDoor = H - doorHeightM;
 
+  // Pitched roof
   const ridgeH   = halfW * Math.tan(ROOF_ANGLE);
   const slopeLen = halfW / Math.cos(ROOF_ANGLE);
   const roofL    = lengthM + OVERHANG * 2;
   const slopeCY  = H + ridgeH / 2;
 
-  const PANELS  = 5;
-  const panelH  = doorHeightM / PANELS;
-  const aboveDoor = H - doorHeightM;
+  // Total wall height including gable
+  const totalWallH = H + ridgeH;
 
-  // ── Textures / materials ──────────────────────────────────────────────────
+  // Door panels
+  const PANELS = 5;
+  const panelH = doorHeightM / PANELS;
+
+  // ── Textures ──────────────────────────────────────────────────────────────
   const baseTex = useMemo(buildCladdingTexture, []);
   const tileTex = useMemo(buildTileTexture, []);
 
-  const matWall   = useMemo(() => makeWallMat(baseTex, H),                              [baseTex]);
-  const matGable  = useMemo(() => makeWallMat(baseTex, ridgeH),                         [baseTex, ridgeH]);
-  const matLintel = useMemo(() => makeWallMat(baseTex, Math.max(aboveDoor, 0.01)),       [baseTex, aboveDoor]);
+  // Wall materials — height goes all the way to the roof apex for gable sections
+  const matBack   = useMemo(() => makeWallMat(baseTex, widthM,     H),          [baseTex, widthM]);
+  const matSide   = useMemo(() => makeWallMat(baseTex, lengthM,    H),          [baseTex, lengthM]);
+  const matPier   = useMemo(() => makeWallMat(baseTex, sideW,      H),          [baseTex, sideW]);
+  const matLintel = useMemo(() => makeWallMat(baseTex, doorWidthM, aboveDoor),  [baseTex, doorWidthM, aboveDoor]);
 
+  // Gable material – same texture with same X repeat so boards line up
+  const matGable  = useMemo(() => makeWallMat(baseTex, widthM,     ridgeH),     [baseTex, widthM, ridgeH]);
+
+  // Roof tile material
   const matTile = useMemo(() => {
     const t = tileTex.clone();
+    // Along slope (local X = slopeLen): one tile ≈ 0.30 m
+    // Along ridge (local Z = roofL):   one tile ≈ 0.32 m
     t.repeat.set(slopeLen / 0.30, roofL / 0.32);
     t.needsUpdate = true;
-    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.8, metalness: 0.05 });
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.75, metalness: 0.05 });
   }, [tileTex, slopeLen, roofL]);
 
-  const matGDoor  = useMemo(() => new THREE.MeshStandardMaterial({ color: GDR_COLOR,   roughness: 0.35, metalness: 0.06 }), []);
-  const matTrim   = useMemo(() => new THREE.MeshStandardMaterial({ color: TRIM_WHITE,   roughness: 0.45 }),                  []);
-  const matFascia = useMemo(() => new THREE.MeshStandardMaterial({ color: FASCIA_COL,   roughness: 0.70 }),                  []);
-  const matGround = useMemo(() => new THREE.MeshStandardMaterial({ color: GROUND_COL,   roughness: 0.95 }),                  []);
-
-  // Side window (right wall, mid-height, rear-third)
-  const sideWinZ = -halfL * 0.25;
+  const matDoor = useMemo(() =>
+    new THREE.MeshStandardMaterial({ color: DOOR_COLOR, roughness: 0.35, metalness: 0.05 }),
+    []
+  );
+  const matFloor = useMemo(() =>
+    new THREE.MeshStandardMaterial({ color: FLOOR_COLOR, roughness: 0.9 }),
+    []
+  );
+  const matRidge = useMemo(() =>
+    new THREE.MeshStandardMaterial({ color: TILE_COLOR, roughness: 0.7 }),
+    []
+  );
 
   return (
     <group>
-      {/* ── Ground patch ─────────────────────────────────────────── */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]} material={matGround} receiveShadow>
-        <planeGeometry args={[widthM + 4, lengthM + 4]} />
+      {/* ── Floor ──────────────────────────────────────────────────── */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}
+            material={matFloor} receiveShadow>
+        <planeGeometry args={[widthM - T * 2, lengthM - T * 2]} />
       </mesh>
 
-      {/* ── Back wall ────────────────────────────────────────────── */}
-      <mesh position={[0, H / 2, -halfL + T / 2]} material={matWall} castShadow receiveShadow>
+      {/* ── Back wall (full height rectangle) ──────────────────────── */}
+      <mesh position={[0, H / 2, -halfL + T / 2]}
+            material={matBack} castShadow receiveShadow>
         <boxGeometry args={[widthM, H, T]} />
       </mesh>
 
-      {/* ── Left wall ────────────────────────────────────────────── */}
-      <mesh position={[-halfW + T / 2, H / 2, 0]} material={matWall} castShadow receiveShadow>
+      {/* ── Back gable – triangle above wall top ───────────────────── */}
+      <GableEnd z={-halfL + T / 2} halfW={halfW} ridgeH={ridgeH} mat={matGable} />
+
+      {/* ── Left wall ──────────────────────────────────────────────── */}
+      <mesh position={[-halfW + T / 2, H / 2, 0]}
+            material={matSide} castShadow receiveShadow>
         <boxGeometry args={[T, H, lengthM]} />
       </mesh>
 
-      {/* ── Right wall ───────────────────────────────────────────── */}
-      <mesh position={[halfW - T / 2, H / 2, 0]} material={matWall} castShadow receiveShadow>
+      {/* ── Right wall ─────────────────────────────────────────────── */}
+      <mesh position={[halfW - T / 2, H / 2, 0]}
+            material={matSide} castShadow receiveShadow>
         <boxGeometry args={[T, H, lengthM]} />
       </mesh>
 
-      {/* ── Side window on right wall ────────────────────────────── */}
-      <Window
-        position={[halfW, H * 0.55, sideWinZ]}
-        width={0.80}
-        height={0.45}
-        rotY={Math.PI / 2}
-      />
-
-      {/* ── Front – left pier (VeggC) ────────────────────────────── */}
+      {/* ── Front – left pier (VeggC) ──────────────────────────────── */}
       {sideW > 0.01 && (
-        <mesh position={[-halfW + sideW / 2, H / 2, halfL - T / 2]} material={matWall} castShadow receiveShadow>
+        <mesh position={[-halfW + sideW / 2, H / 2, halfL - T / 2]}
+              material={matPier} castShadow receiveShadow>
           <boxGeometry args={[sideW, H, T]} />
         </mesh>
       )}
 
-      {/* ── Front – right pier (VeggC) ──────────────────────────── */}
+      {/* ── Front – right pier (VeggC) ─────────────────────────────── */}
       {sideW > 0.01 && (
-        <mesh position={[halfW - sideW / 2, H / 2, halfL - T / 2]} material={matWall} castShadow receiveShadow>
+        <mesh position={[halfW - sideW / 2, H / 2, halfL - T / 2]}
+              material={matPier} castShadow receiveShadow>
           <boxGeometry args={[sideW, H, T]} />
         </mesh>
       )}
 
-      {/* ── Front – lintel above garage door ─────────────────────── */}
+      {/* ── Front – lintel above door ───────────────────────────────── */}
       {aboveDoor > 0.02 && (
-        <mesh position={[0, doorHeightM + aboveDoor / 2, halfL - T / 2]} material={matLintel} castShadow receiveShadow>
+        <mesh position={[0, doorHeightM + aboveDoor / 2, halfL - T / 2]}
+              material={matLintel} castShadow receiveShadow>
           <boxGeometry args={[doorWidthM, aboveDoor, T]} />
         </mesh>
       )}
 
-      {/* ── Gable ends (cladding goes all the way up) ─────────────── */}
-      <GableEnd z={-halfL + T / 2} halfW={halfW} ridgeH={ridgeH} mat={matGable} showWindow={false} />
-      <GableEnd z={ halfL - T / 2} halfW={halfW} ridgeH={ridgeH} mat={matGable} showWindow />
+      {/* ── Front gable – continues cladding above the door opening ─── */}
+      <GableEnd z={halfL - T / 2} halfW={halfW} ridgeH={ridgeH} mat={matGable} />
 
-      {/* ── Garage door – segmented panels ───────────────────────── */}
+      {/* ── Garage door – horizontal panel sections (hvit) ─────────── */}
       {Array.from({ length: PANELS }).map((_, i) => (
         <mesh key={i}
-              position={[0, i * panelH + panelH / 2, halfL - T / 2 + 0.008]}
-              material={matGDoor}>
-          <boxGeometry args={[doorWidthM - 0.06, panelH - 0.03, 0.04]} />
+              position={[0, i * panelH + panelH / 2, halfL - T / 2 + 0.006]}
+              material={matDoor}>
+          <boxGeometry args={[doorWidthM - 0.06, panelH - 0.05, 0.03]} />
         </mesh>
       ))}
 
-      {/* Garage door frame */}
-      <mesh position={[0, doorHeightM / 2, halfL - T / 2 + 0.005]} material={matTrim}>
-        <boxGeometry args={[doorWidthM + 0.10, doorHeightM + 0.10, 0.04]} />
-      </mesh>
-
-      {/* ── Fascia boards at eave ─────────────────────────────────── */}
-      <mesh position={[-halfW, H - 0.12, 0]} material={matFascia} castShadow>
-        <boxGeometry args={[0.04, 0.26, roofL]} />
-      </mesh>
-      <mesh position={[halfW, H - 0.12, 0]} material={matFascia} castShadow>
-        <boxGeometry args={[0.04, 0.26, roofL]} />
-      </mesh>
-      {/* Front verge board */}
-      <mesh position={[0, slopeCY, halfL + OVERHANG]} material={matFascia} castShadow>
-        <boxGeometry args={[widthM + 0.08, 0.22, 0.05]} />
-      </mesh>
-      {/* Back verge board */}
-      <mesh position={[0, slopeCY, -halfL - OVERHANG]} material={matFascia} castShadow>
-        <boxGeometry args={[widthM + 0.08, 0.22, 0.05]} />
-      </mesh>
-
-      {/* ── Left roof slope ──────────────────────────────────────── */}
-      <mesh position={[-halfW / 2, slopeCY, 0]} rotation={[0, 0, ROOF_ANGLE]}
+      {/* ── Left roof slope (panner) ─────────────────────────────────── */}
+      <mesh position={[-halfW / 2, slopeCY, 0]}
+            rotation={[0, 0, ROOF_ANGLE]}
             material={matTile} castShadow receiveShadow>
         <boxGeometry args={[slopeLen, ROOF_T, roofL]} />
       </mesh>
 
-      {/* ── Right roof slope ─────────────────────────────────────── */}
-      <mesh position={[halfW / 2, slopeCY, 0]} rotation={[0, 0, -ROOF_ANGLE]}
+      {/* ── Right roof slope (panner) ────────────────────────────────── */}
+      <mesh position={[halfW / 2, slopeCY, 0]}
+            rotation={[0, 0, -ROOF_ANGLE]}
             material={matTile} castShadow receiveShadow>
         <boxGeometry args={[slopeLen, ROOF_T, roofL]} />
       </mesh>
 
-      {/* ── Ridge cap ────────────────────────────────────────────── */}
-      <mesh position={[0, H + ridgeH + ROOF_T / 2, 0]} material={matFascia} castShadow>
-        <boxGeometry args={[0.18, ROOF_T, roofL]} />
+      {/* ── Ridge cap ───────────────────────────────────────────────── */}
+      <mesh position={[0, H + ridgeH + ROOF_T / 2, 0]}
+            material={matRidge} castShadow>
+        <boxGeometry args={[0.15, ROOF_T, roofL]} />
       </mesh>
     </group>
   );
@@ -338,24 +303,25 @@ export default function LocalGarageViewer({
     <div className="relative h-full w-full">
       <Canvas
         shadows
-        camera={{ position: [16, 9, 16], fov: 38 }}
+        camera={{ position: [14, 8, 14], fov: 40 }}
         gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
       >
-        <color attach="background" args={["#D8DDE3"]} />
-        <ambientLight intensity={0.55} />
+        <color attach="background" args={["#f5f5f4"]} />
+        <ambientLight intensity={0.45} />
         <directionalLight
-          position={[14, 22, 12]}
+          position={[12, 18, 10]}
           intensity={1.6}
           castShadow
           shadow-mapSize={[2048, 2048]}
-          shadow-camera-left={-28}
-          shadow-camera-right={28}
-          shadow-camera-top={28}
-          shadow-camera-bottom={-28}
+          shadow-camera-left={-24}
+          shadow-camera-right={24}
+          shadow-camera-top={24}
+          shadow-camera-bottom={-24}
           shadow-camera-near={0.5}
-          shadow-camera-far={90}
+          shadow-camera-far={80}
         />
-        <directionalLight position={[-6, 5, -8]} intensity={0.18} />
+        {/* Fill light from the opposite side */}
+        <directionalLight position={[-8, 5, -8]} intensity={0.25} />
 
         <Suspense fallback={null}>
           <GarageGeometry
@@ -368,14 +334,14 @@ export default function LocalGarageViewer({
 
         <Grid
           position={[0, -0.02, 0]}
-          args={[60, 60]}
+          args={[40, 40]}
           cellSize={1}
-          cellThickness={0.4}
-          cellColor="#b8b8b8"
+          cellThickness={0.5}
+          cellColor="#d1d5db"
           sectionSize={5}
-          sectionThickness={0.8}
-          sectionColor="#999999"
-          fadeDistance={45}
+          sectionThickness={1}
+          sectionColor="#9ca3af"
+          fadeDistance={35}
           fadeStrength={1}
         />
 
@@ -383,10 +349,10 @@ export default function LocalGarageViewer({
 
         <OrbitControls
           enablePan enableZoom enableRotate
-          minPolarAngle={0.05}
-          maxPolarAngle={Math.PI / 2.15}
+          minPolarAngle={0.1}
+          maxPolarAngle={Math.PI / 2.2}
           minDistance={5}
-          maxDistance={50}
+          maxDistance={40}
         />
       </Canvas>
     </div>
