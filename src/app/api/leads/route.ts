@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { Resend } from "resend";
 
 // Force Node.js runtime so the `fs` module is available
 export const runtime = "nodejs";
@@ -78,6 +79,31 @@ export async function POST(req: NextRequest) {
       { error: "Kunne ikke lagre forespørselen. Prøv igjen." },
       { status: 500 }
     );
+  }
+
+  // Send email notification (best-effort — don't fail the request if email fails)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: "GarasjeProffen <onboarding@resend.dev>",
+        to: "christian@garasjeporten.no",
+        subject: `Ny garasjeforespørsel fra ${lead.name}`,
+        html: `
+          <h2>Ny forespørsel fra GarasjeProffen.no</h2>
+          <table style="border-collapse:collapse;font-family:sans-serif;font-size:14px">
+            <tr><td style="padding:6px 12px;color:#6b7280">Navn</td>      <td style="padding:6px 12px;font-weight:600">${lead.name}</td></tr>
+            <tr><td style="padding:6px 12px;color:#6b7280">E-post</td>    <td style="padding:6px 12px"><a href="mailto:${lead.email}">${lead.email}</a></td></tr>
+            <tr><td style="padding:6px 12px;color:#6b7280">Telefon</td>   <td style="padding:6px 12px"><a href="tel:${lead.phone}">${lead.phone}</a></td></tr>
+            <tr><td style="padding:6px 12px;color:#6b7280">Størrelse</td> <td style="padding:6px 12px">${lead.size || "–"}</td></tr>
+            <tr><td style="padding:6px 12px;color:#6b7280">Melding</td>   <td style="padding:6px 12px">${lead.message || "–"}</td></tr>
+            <tr><td style="padding:6px 12px;color:#6b7280">Tidspunkt</td> <td style="padding:6px 12px">${new Date(lead.date).toLocaleString("nb-NO")}</td></tr>
+          </table>
+        `,
+      });
+    } catch (emailErr) {
+      console.error("E-post kunne ikke sendes:", emailErr);
+    }
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });

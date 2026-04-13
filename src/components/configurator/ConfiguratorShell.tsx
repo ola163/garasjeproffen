@@ -49,41 +49,101 @@ export default function ConfiguratorShell() {
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
   const [viewMode, setViewMode] = useState<"local" | "onshape">("local");
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState(false);
+
+  function handleDevModeClick() {
+    if (viewMode === "onshape") {
+      setViewMode("local");
+    } else {
+      setShowPasswordPrompt(true);
+      setPasswordInput("");
+      setPasswordError(false);
+    }
+  }
+
+  function submitPassword() {
+    if (passwordInput === "123!") {
+      setViewMode("onshape");
+      setShowPasswordPrompt(false);
+    } else {
+      setPasswordError(true);
+    }
+  }
 
   const viewerProps = {
-    lengthMm:    lengthValue,
-    widthMm:     widthValue,
-    doorWidthMm: doorWidthValue,
+    lengthMm:     lengthValue,
+    widthMm:      widthValue,
+    doorWidthMm:  doorWidthValue,
     doorHeightMm: doorHeightValue,
   };
 
   return (
     <div className="flex flex-col sm:flex-row sm:h-[calc(100vh-11rem)]">
-      {/* 3D Viewer — explicit height on mobile so Canvas has a parent size to fill */}
+      {/* 3D Viewer */}
       <div className="relative h-[60vw] min-h-[240px] sm:h-auto sm:flex-1 bg-stone-100">
-        {/* View toggle */}
-        <div className="absolute top-2 left-2 z-10 flex rounded-lg bg-white/90 p-1 shadow-sm backdrop-blur-sm">
+
+        {/* ── View toggle (top-left, semi-transparent) ── */}
+        <div className="absolute top-2 left-2 z-10 flex rounded-md bg-black/20 p-0.5 backdrop-blur-sm">
           <button
             onClick={() => setViewMode("local")}
-            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
               viewMode === "local"
-                ? "bg-[#e2520a] text-white"
-                : "text-gray-600 hover:bg-gray-100"
+                ? "bg-white/90 text-gray-800 shadow-sm"
+                : "text-white/80 hover:text-white"
             }`}
           >
-            Lokal visning
+            Kundevisning
           </button>
           <button
-            onClick={() => setViewMode("onshape")}
-            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+            onClick={handleDevModeClick}
+            className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
               viewMode === "onshape"
-                ? "bg-[#e2520a] text-white"
-                : "text-gray-600 hover:bg-gray-100"
+                ? "bg-white/90 text-gray-800 shadow-sm"
+                : "text-white/80 hover:text-white"
             }`}
           >
-            Onshape 3D
+            Utvikler modus
           </button>
         </div>
+
+        {/* ── Password modal ── */}
+        {showPasswordPrompt && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="rounded-xl bg-white p-6 shadow-xl w-72">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">Utvikler modus</h3>
+              <input
+                autoFocus
+                type="password"
+                placeholder="Passord"
+                value={passwordInput}
+                onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }}
+                onKeyDown={(e) => e.key === "Enter" && submitPassword()}
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e2520a] ${
+                  passwordError ? "border-red-400 bg-red-50" : "border-gray-300"
+                }`}
+              />
+              {passwordError && (
+                <p className="mt-1 text-xs text-red-500">Feil passord</p>
+              )}
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => setShowPasswordPrompt(false)}
+                  className="flex-1 rounded-lg border border-gray-200 py-2 text-xs text-gray-600 hover:bg-gray-50"
+                >
+                  Avbryt
+                </button>
+                <button
+                  onClick={submitPassword}
+                  className="flex-1 rounded-lg bg-[#e2520a] py-2 text-xs font-medium text-white hover:bg-orange-700"
+                >
+                  Logg inn
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {viewMode === "local" ? (
           <LocalGarageViewer {...viewerProps} />
