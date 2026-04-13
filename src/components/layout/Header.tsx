@@ -2,70 +2,36 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
 
 export default function Header() {
-  const [menuOpen, setMenuOpen] = useState(false);
-
   return (
-    <header className="sticky top-0 z-50 bg-[#111111] border-b border-white/8">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5">
-        {/* Logo */}
-        <Link href="/" className="flex items-center">
+    <header className="border-b border-gray-200 bg-white">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-44 sm:px-6">
+        <Link href="/" className="flex items-center gap-2">
           <Image
             src="/logo.png"
             alt="GarasjeProffen.no"
-            width={480}
-            height={120}
-            className="h-9 w-auto"
+            width={600}
+            height={600}
+            className="h-12 w-auto sm:h-40"
             priority
           />
         </Link>
-
-        {/* Desktop nav */}
-        <nav className="hidden sm:flex items-center gap-8">
+        <nav className="flex items-center gap-3 sm:gap-6">
           <Link
             href="/configurator"
-            className="text-sm font-medium text-white/60 hover:text-white transition-colors"
-          >
-            Konfigurator
-          </Link>
-          <Link
-            href="/interesse"
-            className="text-sm font-medium text-white/60 hover:text-white transition-colors"
-          >
-            Kontakt oss
-          </Link>
-          <Link
-            href="/configurator"
-            className="rounded-md bg-[#e2520a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c94609] transition-colors"
+            className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
           >
             Design din garasje
+          </Link>
+          <Link
+            href="/configurator"
+            className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 sm:px-4 sm:py-2 sm:text-sm"
+          >
+            Kom i gang
           </Link>
         </nav>
-
-        {/* Mobile hamburger */}
-        <button
-          className="sm:hidden flex flex-col gap-1.5 p-2"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Meny"
-        >
-          <span className={`block h-0.5 w-6 bg-white transition-all ${menuOpen ? "rotate-45 translate-y-2" : ""}`} />
-          <span className={`block h-0.5 w-6 bg-white transition-all ${menuOpen ? "opacity-0" : ""}`} />
-          <span className={`block h-0.5 w-6 bg-white transition-all ${menuOpen ? "-rotate-45 -translate-y-2" : ""}`} />
-        </button>
       </div>
-
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div className="sm:hidden bg-[#1a1a1a] border-t border-white/8 px-5 py-4 flex flex-col gap-4">
-          <Link href="/configurator" className="text-sm text-white/70 hover:text-white" onClick={() => setMenuOpen(false)}>Konfigurator</Link>
-          <Link href="/interesse"   className="text-sm text-white/70 hover:text-white" onClick={() => setMenuOpen(false)}>Kontakt oss</Link>
-          <Link href="/configurator" className="rounded-md bg-[#e2520a] px-4 py-2 text-sm font-semibold text-white text-center" onClick={() => setMenuOpen(false)}>
-            Design din garasje
-          </Link>
-        </div>
-      )}
     </header>
   );
 }
