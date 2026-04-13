@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect, Suspense, Component, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitControls, Environment, Grid, useGLTF } from "@react-three/drei";
+import { OrbitControls, Grid, useGLTF } from "@react-three/drei";
 import { Box3, Vector3, Mesh, MeshStandardMaterial } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
@@ -25,20 +25,18 @@ function GarageModel({ url }: { url: string }) {
     const center = box.getCenter(new Vector3());
     scene.position.set(-center.x, -box.min.y, -center.z);
 
-    // Preserve Onshape colours and enable shadows on every mesh
+    // Override all materials with flat brand colour (no realistic textures)
+    const flatMat = new MeshStandardMaterial({
+      color: new THREE.Color("#e2520a"),
+      roughness: 1.0,
+      metalness: 0.0,
+      envMapIntensity: 0,
+    });
     scene.traverse((child) => {
       if (child instanceof Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        const materials = Array.isArray(child.material)
-          ? child.material
-          : [child.material];
-        materials.forEach((mat) => {
-          if (mat instanceof MeshStandardMaterial) {
-            mat.envMapIntensity = 0.4; // subtle reflections, keep colour accurate
-            mat.needsUpdate = true;
-          }
-        });
+        child.material = flatMat;
       }
     });
   }, [scene]);
@@ -132,16 +130,17 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
       <Canvas
         shadows
         camera={{ position: [12, 7, 12], fov: 42 }}
-        gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+        gl={{ toneMapping: THREE.NoToneMapping }}
       >
-        <color attach="background" args={["#f5f5f4"]} />
-        <ambientLight intensity={0.6} />
+        <color attach="background" args={["#f0f0ef"]} />
+        <ambientLight intensity={0.75} />
         <directionalLight
           position={[10, 15, 10]}
-          intensity={1.2}
+          intensity={1.4}
           castShadow
           shadow-mapSize={[2048, 2048]}
         />
+        <directionalLight position={[-8, 6, -6]} intensity={0.3} />
 
         {modelUrl && (
           <GltfErrorBoundary onError={(msg) => setError(`3D-feil: ${msg}`)}>
@@ -164,7 +163,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
           fadeStrength={1}
         />
 
-        <Environment preset="city" />
+        {/* No environment map — keeps the flat non-realistic look */}
 
         <OrbitControls
           ref={orbitRef}
