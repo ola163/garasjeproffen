@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
@@ -9,7 +9,8 @@ import { useConfigurator } from "@/hooks/useConfigurator";
 import { calculatePrice } from "@/lib/pricing";
 import { GARAGE_PARAMETERS } from "@/lib/parameters";
 
-const GarageViewer = dynamic(() => import("./GarageViewer"), { ssr: false });
+const GarageViewer      = dynamic(() => import("./GarageViewer"),      { ssr: false });
+const LocalGarageViewer = dynamic(() => import("./LocalGarageViewer"), { ssr: false });
 
 /** Minimum combined side clearance: widthMm >= doorWidthMm + MIN_CLEARANCE */
 const MIN_CLEARANCE = 300;
@@ -47,16 +48,48 @@ export default function ConfiguratorShell() {
   // VeggC = (VeggB − doorWidth) / 2
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
+  const [viewMode, setViewMode] = useState<"local" | "onshape">("local");
+
+  const viewerProps = {
+    lengthMm:    lengthValue,
+    widthMm:     widthValue,
+    doorWidthMm: doorWidthValue,
+    doorHeightMm: doorHeightValue,
+  };
+
   return (
     <div className="flex flex-col sm:flex-row sm:h-[calc(100vh-11rem)]">
       {/* 3D Viewer — explicit height on mobile so Canvas has a parent size to fill */}
       <div className="relative h-[60vw] min-h-[240px] sm:h-auto sm:flex-1 bg-stone-100">
-        <GarageViewer
-          lengthMm={lengthValue}
-          widthMm={widthValue}
-          doorWidthMm={doorWidthValue}
-          doorHeightMm={doorHeightValue}
-        />
+        {/* View toggle */}
+        <div className="absolute top-2 left-2 z-10 flex rounded-lg bg-white/90 p-1 shadow-sm backdrop-blur-sm">
+          <button
+            onClick={() => setViewMode("local")}
+            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+              viewMode === "local"
+                ? "bg-[#e2520a] text-white"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            Lokal visning
+          </button>
+          <button
+            onClick={() => setViewMode("onshape")}
+            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+              viewMode === "onshape"
+                ? "bg-[#e2520a] text-white"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            Onshape 3D
+          </button>
+        </div>
+
+        {viewMode === "local" ? (
+          <LocalGarageViewer {...viewerProps} />
+        ) : (
+          <GarageViewer {...viewerProps} />
+        )}
       </div>
 
       {/* Sidebar — full width scrolls with page on mobile, internal scroll on desktop */}
