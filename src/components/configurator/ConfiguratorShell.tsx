@@ -48,9 +48,9 @@ export default function ConfiguratorShell() {
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
   return (
-    <div className="flex h-[calc(100vh-11rem)] gap-0">
-      {/* 3D Viewer */}
-      <div className="relative flex-1 bg-stone-100">
+    <div className="flex flex-col sm:flex-row sm:h-[calc(100vh-11rem)]">
+      {/* 3D Viewer — explicit height on mobile so Canvas has a parent size to fill */}
+      <div className="relative h-[60vw] min-h-[240px] sm:h-auto sm:flex-1 bg-stone-100">
         <GarageViewer
           lengthMm={lengthValue}
           widthMm={widthValue}
@@ -59,12 +59,12 @@ export default function ConfiguratorShell() {
         />
       </div>
 
-      {/* Sidebar */}
-      <div className="flex w-[360px] shrink-0 flex-col border-l border-gray-200 bg-white">
-        <div className="flex-1 overflow-y-auto p-6">
+      {/* Sidebar — full width scrolls with page on mobile, internal scroll on desktop */}
+      <div className="flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white">
+        <div className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
           {/* Header with m² */}
           <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Konfigurasjon</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Konfigurasjon</h2>
             <span className="text-sm text-gray-500">
               <span className="font-semibold text-gray-800">
                 {((lengthValue / 1000) * (widthValue / 1000)).toFixed(1)}
