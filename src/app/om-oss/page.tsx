@@ -61,7 +61,7 @@ export default function OmOss() {
           {/* Christian */}
           <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
             <p className="text-base font-semibold text-gray-900">
-              Christian Årsland
+              Christian Salte Årsland
             </p>
             <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
             <p className="mt-3 text-sm leading-relaxed text-gray-600">
@@ -72,6 +72,16 @@ export default function OmOss() {
               tegninger, tekniske vurderinger og sørger for at prosjektene lar seg
               bygge i praksis.
             </p>
+            <div className="mt-4 space-y-1 text-sm">
+              <a href="mailto:christian@garasjeproffen.no"
+                 className="flex items-center gap-2 text-gray-500 hover:text-orange-600">
+                <span>✉</span> christian@garasjeproffen.no
+              </a>
+              <a href="tel:+4747617563"
+                 className="flex items-center gap-2 text-gray-500 hover:text-orange-600">
+                <span>📱</span> +47 476 17 563
+              </a>
+            </div>
           </div>
 
           {/* Ola */}
@@ -87,6 +97,16 @@ export default function OmOss() {
               prosjektering og utvikling av den digitale plattformen, med fokus på
               å gjøre det enkelt for kunden å planlegge sitt prosjekt.
             </p>
+            <div className="mt-4 space-y-1 text-sm">
+              <a href="mailto:ola@garasjeproffen.no"
+                 className="flex items-center gap-2 text-gray-500 hover:text-orange-600">
+                <span>✉</span> ola@garasjeproffen.no
+              </a>
+              <a href="tel:+4791344486"
+                 className="flex items-center gap-2 text-gray-500 hover:text-orange-600">
+                <span>📱</span> +47 913 44 486
+              </a>
+            </div>
           </div>
         </div>
       </section>
