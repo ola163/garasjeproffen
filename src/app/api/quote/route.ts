@@ -4,7 +4,7 @@ import type { QuoteRequest, QuoteResponse } from "@/types/quote";
 import { GARAGE_PARAMETERS } from "@/lib/parameters";
 import { calculatePrice, formatPrice } from "@/lib/pricing";
 
-const RECIPIENT = "Christian@garasjeproffen.no";
+const RECIPIENT = "post@garasjeporten.no";
 
 export async function POST(request: Request) {
   try {

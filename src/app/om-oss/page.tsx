@@ -63,28 +63,28 @@ export default function OmOss() {
             <p className="text-base font-semibold text-gray-900">
               Christian Årsland
             </p>
-            <p className="mt-0.5 text-sm text-orange-600">Medgründer</p>
+            <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
             <p className="mt-3 text-sm leading-relaxed text-gray-600">
-              Christian har lang erfaring fra byggebransjen og vet hva som skal
-              til for å levere et solid bygg. Han er opptatt av at hvert prosjekt
-              skal gjennomføres profesjonelt – fra første tegning til nøkkelen er
-              i hånden på kunden. Med bakgrunn fra både produksjon og prosjektledelse
-              sørger han for at ting faktisk skjer.
+              Christian har bakgrunn innen teknologi og produktutvikling. Han har
+              bygget digitale løsninger for ulike bransjer og brenner for å gjøre
+              det enkelt for kunden å ta gode beslutninger. Hos GarasjeProffen har
+              han ansvaret for den digitale plattformen og sørger for at ting
+              faktisk skjer.
             </p>
           </div>
 
           {/* Ola */}
           <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
             <p className="text-base font-semibold text-gray-900">
-              Ola Undheim
+              Ola K. Undheim
             </p>
-            <p className="mt-0.5 text-sm text-orange-600">Medgründer</p>
+            <p className="mt-0.5 text-sm text-orange-600">Teknisk sjef</p>
             <p className="mt-3 text-sm leading-relaxed text-gray-600">
-              Ola har bakgrunn innen teknologi og produktutvikling. Han har bygget
-              digitale løsninger for ulike bransjer og brenner for å gjøre det
-              enkelt for kunden å ta gode beslutninger. Hos GarasjeProffen har han
-              ansvaret for den digitale plattformen – inkludert 3D-konfiguratoren
-              du nettopp har brukt.
+              Ola har lang erfaring fra byggebransjen og vet hva som skal til for
+              å levere et solid bygg. Han er opptatt av at hvert prosjekt
+              gjennomføres profesjonelt – fra første tegning til nøkkelen er i
+              hånden på kunden. Med bakgrunn fra både produksjon og prosjektledelse
+              sikrer han kvalitet i alle ledd.
             </p>
           </div>
         </div>
