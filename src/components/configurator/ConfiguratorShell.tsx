@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
@@ -9,7 +9,8 @@ import { useConfigurator } from "@/hooks/useConfigurator";
 import { calculatePrice } from "@/lib/pricing";
 import { GARAGE_PARAMETERS } from "@/lib/parameters";
 
-const GarageViewer = dynamic(() => import("./GarageViewer"), { ssr: false });
+const GarageViewer      = dynamic(() => import("./GarageViewer"),      { ssr: false });
+const LocalGarageViewer = dynamic(() => import("./LocalGarageViewer"), { ssr: false });
 
 /** Minimum combined side clearance: widthMm >= doorWidthMm + MIN_CLEARANCE */
 const MIN_CLEARANCE = 300;
@@ -19,23 +20,21 @@ export default function ConfiguratorShell() {
 
   const pricing = useMemo(() => calculatePrice(configuration), [configuration]);
 
-  const lengthParam   = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
-  const widthParam    = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
+  const lengthParam     = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
+  const widthParam      = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
   const doorWidthParam  = GARAGE_PARAMETERS.find((p) => p.id === "doorWidth")!;
   const doorHeightParam = GARAGE_PARAMETERS.find((p) => p.id === "doorHeight")!;
 
-  const lengthValue    = configuration.parameters.length    ?? lengthParam.defaultValue;
-  const widthValue     = configuration.parameters.width     ?? widthParam.defaultValue;
+  const lengthValue     = configuration.parameters.length     ?? lengthParam.defaultValue;
+  const widthValue      = configuration.parameters.width      ?? widthParam.defaultValue;
   const doorWidthValue  = configuration.parameters.doorWidth  ?? doorWidthParam.defaultValue;
   const doorHeightValue = configuration.parameters.doorHeight ?? doorHeightParam.defaultValue;
 
-  // Only show door-width options where the garage is wide enough
   const validDoorWidthOptions = useMemo(
     () => (doorWidthParam.options ?? []).filter((o) => widthValue >= o.value + MIN_CLEARANCE),
     [widthValue, doorWidthParam.options]
   );
 
-  // Auto-correct doorWidth when the current value is no longer valid
   useEffect(() => {
     if (validDoorWidthOptions.length === 0) return;
     if (!validDoorWidthOptions.find((o) => o.value === doorWidthValue)) {
@@ -44,8 +43,9 @@ export default function ConfiguratorShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widthValue]);
 
-  // VeggC = (VeggB − doorWidth) / 2
   const veggCmm = (widthValue - doorWidthValue) / 2;
+
+  const [viewMode, setViewMode] = useState<"local" | "onshape">("local");
 
   const viewerProps = {
     lengthMm:     lengthValue,
@@ -59,10 +59,38 @@ export default function ConfiguratorShell() {
       {/* 3D Viewer */}
       <div className="relative h-[60vw] min-h-[240px] sm:h-auto sm:flex-1 bg-stone-100">
 
-        <GarageViewer {...viewerProps} />
+        {/* Toggle */}
+        <div className="absolute top-2 left-2 z-10 flex rounded-md bg-black/20 p-0.5 backdrop-blur-sm">
+          <button
+            onClick={() => setViewMode("local")}
+            className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
+              viewMode === "local"
+                ? "bg-white/90 text-gray-800 shadow-sm"
+                : "text-white/80 hover:text-white"
+            }`}
+          >
+            Kundevisning
+          </button>
+          <button
+            onClick={() => setViewMode("onshape")}
+            className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
+              viewMode === "onshape"
+                ? "bg-white/90 text-gray-800 shadow-sm"
+                : "text-white/80 hover:text-white"
+            }`}
+          >
+            Onshape-modell
+          </button>
+        </div>
+
+        {viewMode === "local" ? (
+          <LocalGarageViewer {...viewerProps} />
+        ) : (
+          <GarageViewer {...viewerProps} />
+        )}
       </div>
 
-      {/* Sidebar — full width scrolls with page on mobile, internal scroll on desktop */}
+      {/* Sidebar */}
       <div className="flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white">
         <div className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
           {/* Header with m² */}
@@ -76,7 +104,7 @@ export default function ConfiguratorShell() {
             </span>
           </div>
 
-          {/* Dimension sliders */}
+          {/* Sliders */}
           <div className="mt-4 space-y-6">
             <LengthSlider
               label={lengthParam.label}
@@ -98,12 +126,10 @@ export default function ConfiguratorShell() {
             />
           </div>
 
-          {/* Garage door section */}
+          {/* Garage door */}
           <div className="mt-6 border-t border-gray-100 pt-5">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Garasjeport</h3>
             <div className="space-y-4">
-
-              {/* Door width */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bredde på garasjeport
@@ -129,7 +155,6 @@ export default function ConfiguratorShell() {
                 )}
               </div>
 
-              {/* Door height */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Høyde på garasjeport
@@ -147,7 +172,6 @@ export default function ConfiguratorShell() {
                 </select>
               </div>
 
-              {/* VeggC info */}
               {validDoorWidthOptions.length > 0 && (
                 <p className="text-xs text-gray-400">
                   Sidevegg (VeggC):{" "}
