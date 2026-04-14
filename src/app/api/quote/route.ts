@@ -42,9 +42,11 @@ export async function POST(request: Request) {
 
     // Send email via Resend
     const resendKey = process.env.RESEND_API_KEY;
+    console.log("RESEND_API_KEY present:", !!resendKey);
+
     if (resendKey) {
       const resend = new Resend(resendKey);
-      await resend.emails.send({
+      const emailResult = await resend.emails.send({
         from: "GarasjeProffen <noreply@garasjeproffen.no>",
         to: RECIPIENT,
         replyTo: body.customer.email,
@@ -77,6 +79,9 @@ export async function POST(request: Request) {
           </table>
         `,
       });
+      console.log("Resend result:", JSON.stringify(emailResult));
+    } else {
+      console.error("RESEND_API_KEY is not set – email not sent");
     }
 
     console.log("Quote submitted:", quoteId, body.customer);
