@@ -8,7 +8,7 @@ const RECIPIENT = "post@garasjeproffen.no";
 
 export async function POST(request: Request) {
   try {
-    const body: QuoteRequest = await request.json();
+    const body: QuoteRequest & { packageType?: string } = await request.json();
 
     // Validate customer info
     if (!body.customer?.name || !body.customer?.email) {
@@ -65,6 +65,7 @@ export async function POST(request: Request) {
 
           <h3>Konfigurasjon</h3>
           <table>
+            <tr><td><strong>Pakke:</strong></td><td>${body.packageType === "prefab" ? "Prefab element" : "Materialpakke"}</td></tr>
             <tr><td><strong>Lengde:</strong></td><td>${(p.length ?? 6000) / 1000} m</td></tr>
             <tr><td><strong>Bredde:</strong></td><td>${(p.width ?? 8400) / 1000} m</td></tr>
             <tr><td><strong>Portbredde:</strong></td><td>${p.doorWidth ?? 2500} mm</td></tr>

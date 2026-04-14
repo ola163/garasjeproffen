@@ -1,6 +1,12 @@
 import type { GarageConfiguration, PricingResult } from "@/types/configurator";
 
-const PRICE_PER_SQM = 5500;
+export type PackageType = "materialpakke" | "prefab";
+
+const PRICE_PER_SQM: Record<PackageType, number> = {
+  materialpakke: 2250,
+  prefab: 5500,
+};
+
 const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "NOK";
 
 // Door cost by width in mm
@@ -10,12 +16,12 @@ const DOOR_COST: Record<number, number> = {
   5000: 40_000,
 };
 
-export function calculatePrice(config: GarageConfiguration): PricingResult {
+export function calculatePrice(config: GarageConfiguration, packageType: PackageType = "materialpakke"): PricingResult {
   const lengthM     = (config.parameters.length    ?? 6000) / 1000;
   const widthM      = (config.parameters.width     ?? 8400) / 1000;
   const doorWidthMm =  config.parameters.doorWidth ?? 2500;
 
-  const basePrice = Math.round(lengthM * widthM * PRICE_PER_SQM);
+  const basePrice = Math.round(lengthM * widthM * PRICE_PER_SQM[packageType]);
   const doorCost  = DOOR_COST[doorWidthMm] ?? 20_000;
 
   return {

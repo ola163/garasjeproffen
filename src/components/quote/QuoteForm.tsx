@@ -8,10 +8,11 @@ import type { QuoteResponse } from "@/types/quote";
 interface QuoteFormProps {
   configuration: GarageConfiguration;
   pricing: PricingResult;
+  packageType: string;
   open: boolean;
 }
 
-export default function QuoteForm({ configuration, pricing, open }: QuoteFormProps) {
+export default function QuoteForm({ configuration, pricing, packageType, open }: QuoteFormProps) {
   const router = useRouter();
   const [needsPermit, setNeedsPermit] = useState<"ja" | "nei" | null>(null);
   const [name, setName] = useState("");
@@ -35,6 +36,7 @@ export default function QuoteForm({ configuration, pricing, open }: QuoteFormPro
         body: JSON.stringify({
           configuration,
           pricing,
+          packageType,
           customer: { name, email, phone, message },
         }),
       });

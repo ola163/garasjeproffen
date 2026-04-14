@@ -6,7 +6,7 @@ import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
 import QuoteForm from "../quote/QuoteForm";
 import { useConfigurator } from "@/hooks/useConfigurator";
-import { calculatePrice } from "@/lib/pricing";
+import { calculatePrice, type PackageType } from "@/lib/pricing";
 import { GARAGE_PARAMETERS } from "@/lib/parameters";
 
 const GarageViewer      = dynamic(() => import("./GarageViewer"),      { ssr: false });
@@ -18,7 +18,8 @@ const MIN_CLEARANCE = 300;
 export default function ConfiguratorShell() {
   const { configuration, setParameter } = useConfigurator();
 
-  const pricing = useMemo(() => calculatePrice(configuration), [configuration]);
+  const [packageType, setPackageType] = useState<PackageType>("materialpakke");
+  const pricing = useMemo(() => calculatePrice(configuration, packageType), [configuration, packageType]);
 
   const lengthParam     = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
   const widthParam      = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
@@ -151,8 +152,32 @@ export default function ConfiguratorShell() {
       {/* Sidebar */}
       <div className="flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white">
         <div className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
+          {/* Package selector */}
+          <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+            <button
+              onClick={() => setPackageType("materialpakke")}
+              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
+                packageType === "materialpakke"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Materialpakke
+            </button>
+            <button
+              onClick={() => setPackageType("prefab")}
+              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
+                packageType === "prefab"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Prefab element
+            </button>
+          </div>
+
           {/* Header with m² */}
-          <div className="flex items-baseline justify-between">
+          <div className="mt-4 flex items-baseline justify-between">
             <h2 className="text-base sm:text-lg font-semibold text-gray-900">Konfigurasjon</h2>
             <span className="text-sm text-gray-500">
               <span className="font-semibold text-gray-800">
@@ -247,7 +272,7 @@ export default function ConfiguratorShell() {
           </div>
 
           <div className="mt-8" id="quote">
-            <QuoteForm configuration={configuration} pricing={pricing} open={quoteOpen} />
+            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} open={quoteOpen} />
           </div>
         </div>
       </div>
