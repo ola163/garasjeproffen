@@ -65,11 +65,12 @@ export default function OmOss() {
             </p>
             <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
             <p className="mt-3 text-sm leading-relaxed text-gray-600">
-              Christian har bakgrunn innen teknologi og produktutvikling. Han har
-              bygget digitale løsninger for ulike bransjer og brenner for å gjøre
-              det enkelt for kunden å ta gode beslutninger. Hos GarasjeProffen har
-              han ansvaret for den digitale plattformen og sørger for at ting
-              faktisk skjer.
+              Christian har bakgrunn som prosjektingeniør og jobber med tekniske
+              løsninger og 3D-modellering. Han har erfaring fra både design,
+              produksjon og prosjektarbeid, og er opptatt av løsninger som er
+              praktiske og enkle å gjennomføre. Hos GarasjeProffen jobber han med
+              tegninger, tekniske vurderinger og sørger for at prosjektene lar seg
+              bygge i praksis.
             </p>
           </div>
 
@@ -80,11 +81,11 @@ export default function OmOss() {
             </p>
             <p className="mt-0.5 text-sm text-orange-600">Teknisk sjef</p>
             <p className="mt-3 text-sm leading-relaxed text-gray-600">
-              Ola har lang erfaring fra byggebransjen og vet hva som skal til for
-              å levere et solid bygg. Han er opptatt av at hvert prosjekt
-              gjennomføres profesjonelt – fra første tegning til nøkkelen er i
-              hånden på kunden. Med bakgrunn fra både produksjon og prosjektledelse
-              sikrer han kvalitet i alle ledd.
+              Ola er byggingeniør med mastergrad og har god kompetanse innen
+              konstruksjon og byggeteknikk. Han har også erfaring med utvikling av
+              digitale løsninger. Hos GarasjeProffen jobber han både med
+              prosjektering og utvikling av den digitale plattformen, med fokus på
+              å gjøre det enkelt for kunden å planlegge sitt prosjekt.
             </p>
           </div>
         </div>
