@@ -126,6 +126,9 @@ export default function OmOss() {
           nærliggende fylker. Som lokalt selskap kjenner vi terrenget, de lokale
           reglene og forholdene – og vi kan stille opp i person når det trengs.
         </p>
+        <p className="mt-3 text-sm text-gray-500">
+          📍 Tjødnavegen 8b, 4342 Bryne
+        </p>
         <p className="mt-4 text-sm text-gray-500">
           Spørsmål?{" "}
           <a

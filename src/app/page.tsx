@@ -28,6 +28,9 @@ export default function Home() {
             Start design
           </Link>
         </div>
+        <p className="mt-6 text-sm text-gray-400">
+          📍 Tjødnavegen 8b, 4342 Bryne
+        </p>
       </div>
     </div>
   );
