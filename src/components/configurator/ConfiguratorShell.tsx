@@ -245,6 +245,16 @@ export default function ConfiguratorShell() {
             <PriceSummary pricing={pricing} />
           </div>
 
+          {/* Søknadshjelp – carries current config into the wizard */}
+          <div className="mt-4">
+            <a
+              href={`/soknadshjelp?lengthMm=${lengthValue}&widthMm=${widthValue}&doorWidthMm=${doorWidthValue}&doorHeightMm=${doorHeightValue}`}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-orange-400 px-4 py-2.5 text-sm font-medium text-orange-600 hover:bg-orange-50"
+            >
+              Trenger du søknadshjelp?
+            </a>
+          </div>
+
           <div className="mt-8" id="quote">
             <QuoteForm configuration={configuration} pricing={pricing} />
           </div>
