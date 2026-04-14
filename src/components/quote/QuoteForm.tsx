@@ -54,19 +54,14 @@ export default function QuoteForm({ configuration, pricing, open }: QuoteFormPro
 
   return (
     <div id="quote">
-      <h3 className="text-lg font-semibold text-gray-900">Be om tilbud</h3>
-      <p className="mt-1 text-sm text-gray-500">
-        Fyll inn dine opplysninger, så tar vi kontakt med et endelig tilbud.
-      </p>
-
       {result?.success ? (
-        <div className="mt-4 rounded-lg bg-green-50 p-4 text-sm text-green-800">
+        <div className="rounded-lg bg-green-50 p-4 text-sm text-green-800">
           Tilbudsforespørselen er sendt! Vi tar kontakt snart.
         </div>
       ) : (
         <>
           {/* Søknadshjelp question */}
-          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
             <p className="text-sm font-medium text-gray-700">Trenger du hjelp med byggesøknad?</p>
             <div className="mt-2 flex gap-2">
               <button
@@ -110,6 +105,14 @@ export default function QuoteForm({ configuration, pricing, open }: QuoteFormPro
           </div>
 
           {/* Show quote form only if no permit needed */}
+          {needsPermit === "nei" && (
+            <>
+              <h3 className="mt-6 text-lg font-semibold text-gray-900">Be om tilbud</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Fyll inn dine opplysninger, så tar vi kontakt med et endelig tilbud.
+              </p>
+            </>
+          )}
           {needsPermit === "nei" && (
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
               <div>
