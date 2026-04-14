@@ -12,6 +12,7 @@ interface QuoteFormProps {
 
 export default function QuoteForm({ configuration, pricing }: QuoteFormProps) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [needsPermit, setNeedsPermit] = useState<"ja" | "nei" | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -47,6 +48,17 @@ export default function QuoteForm({ configuration, pricing }: QuoteFormProps) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600"
+      >
+        Be om tilbud
+      </button>
+    );
   }
 
   return (
