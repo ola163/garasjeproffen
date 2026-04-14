@@ -1,19 +1,27 @@
 import type { GarageConfiguration, PricingResult } from "@/types/configurator";
 
-// Base price per meter of garage length (configurable via env)
-const PRICE_PER_METER = Number(process.env.NEXT_PUBLIC_PRICE_PER_METER) || 5000;
+const PRICE_PER_SQM = 5500;
 const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "NOK";
 
-export function calculatePrice(config: GarageConfiguration): PricingResult {
-  const lengthM = (config.parameters.length ?? 6000) / 1000;
-  const widthM  = (config.parameters.width  ?? 8400) / 1000;
+// Door cost by width in mm
+const DOOR_COST: Record<number, number> = {
+  2500: 20_000,
+  2600: 20_000,
+  5000: 40_000,
+};
 
-  const basePrice = Math.round(lengthM * widthM * PRICE_PER_METER);
+export function calculatePrice(config: GarageConfiguration): PricingResult {
+  const lengthM     = (config.parameters.length    ?? 6000) / 1000;
+  const widthM      = (config.parameters.width     ?? 8400) / 1000;
+  const doorWidthMm =  config.parameters.doorWidth ?? 2500;
+
+  const basePrice = Math.round(lengthM * widthM * PRICE_PER_SQM);
+  const doorCost  = DOOR_COST[doorWidthMm] ?? 20_000;
 
   return {
     basePrice,
-    adjustments: [],
-    totalPrice: basePrice,
+    adjustments: [{ label: "Garasjeport", amount: doorCost }],
+    totalPrice: basePrice + doorCost,
     currency: CURRENCY,
   };
 }
