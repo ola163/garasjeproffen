@@ -164,7 +164,7 @@ function StepMap({ onNext }: { onNext: (lat: number, lng: number, address: strin
 }
 
 // ── Step 1: DIBK questions ────────────────────────────────────────────────────
-const DIBK_QUESTIONS: { key: keyof DibkAnswers; q: string; hint?: string }[] = [
+const DIBK_QUESTIONS: { key: keyof DibkAnswers; q: string; hint?: string; options?: string[] }[] = [
   {
     key: "frittstående",
     q: "Er garasjen frittstående (ikke sammenbygget med bolig eller annen bygning)?",
@@ -253,7 +253,7 @@ function StepDibk({ dibk, setDibk, onNext, onBack }: {
       </p>
 
       <div className="mt-6 space-y-5">
-        {DIBK_QUESTIONS.map(({ key, q, hint }) => (
+        {DIBK_QUESTIONS.map(({ key, q, hint, options }) => (
           <div key={key}>
             <p className="text-sm font-medium text-gray-800">{q}</p>
             {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
