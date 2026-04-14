@@ -45,6 +45,7 @@ export default function ConfiguratorShell() {
 
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"local" | "onshape">("local");
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -242,11 +243,11 @@ export default function ConfiguratorShell() {
           </div>
 
           <div className="mt-8">
-            <PriceSummary pricing={pricing} />
+            <PriceSummary pricing={pricing} onQuoteOpen={() => setQuoteOpen(true)} />
           </div>
 
           <div className="mt-8" id="quote">
-            <QuoteForm configuration={configuration} pricing={pricing} />
+            <QuoteForm configuration={configuration} pricing={pricing} open={quoteOpen} />
           </div>
         </div>
       </div>

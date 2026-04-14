@@ -5,9 +5,10 @@ import { formatPrice } from "@/lib/pricing";
 
 interface PriceSummaryProps {
   pricing: PricingResult;
+  onQuoteOpen: () => void;
 }
 
-export default function PriceSummary({ pricing }: PriceSummaryProps) {
+export default function PriceSummary({ pricing, onQuoteOpen }: PriceSummaryProps) {
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
       <h3 className="text-sm font-semibold text-gray-900">Prisestimat</h3>
@@ -43,12 +44,12 @@ export default function PriceSummary({ pricing }: PriceSummaryProps) {
         * Estimert pris. Endelig tilbud kan variere.
       </p>
 
-      <a
-        href="#quote"
+      <button
+        onClick={onQuoteOpen}
         className="mt-4 block w-full rounded-lg bg-orange-500 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-orange-600"
       >
         Be om tilbud
-      </a>
+      </button>
     </div>
   );
 }

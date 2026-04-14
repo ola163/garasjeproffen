@@ -8,11 +8,11 @@ import type { QuoteResponse } from "@/types/quote";
 interface QuoteFormProps {
   configuration: GarageConfiguration;
   pricing: PricingResult;
+  open: boolean;
 }
 
-export default function QuoteForm({ configuration, pricing }: QuoteFormProps) {
+export default function QuoteForm({ configuration, pricing, open }: QuoteFormProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [needsPermit, setNeedsPermit] = useState<"ja" | "nei" | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -50,19 +50,10 @@ export default function QuoteForm({ configuration, pricing }: QuoteFormProps) {
     }
   }
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600"
-      >
-        Be om tilbud
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
-    <div>
+    <div id="quote">
       <h3 className="text-lg font-semibold text-gray-900">Be om tilbud</h3>
       <p className="mt-1 text-sm text-gray-500">
         Fyll inn dine opplysninger, så tar vi kontakt med et endelig tilbud.
