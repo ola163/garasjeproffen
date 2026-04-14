@@ -20,14 +20,23 @@ export default function Home() {
           Bruk vår interaktive 3D-konfigurator til å tilpasse garasjen etter
           dine behov og få et prisestimat med en gang.
         </p>
-        <div className="mt-8">
+        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <Link
             href="/configurator"
             className="inline-block rounded-lg bg-orange-500 px-8 py-3 text-lg font-medium text-white hover:bg-orange-600"
           >
             Start design
           </Link>
+          <Link
+            href="/soknadshjelp"
+            className="inline-block rounded-lg border border-orange-400 px-8 py-3 text-lg font-medium text-orange-600 hover:bg-orange-50"
+          >
+            Søknadshjelp
+          </Link>
         </div>
+        <p className="mt-6 text-sm text-gray-400">
+          📍 Tjødnavegen 8b, 4342 Bryne
+        </p>
       </div>
     </div>
   );

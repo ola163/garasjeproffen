@@ -25,6 +25,12 @@ export default function Header() {
             Om oss
           </Link>
           <Link
+            href="/soknadshjelp"
+            className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
+          >
+            Søknadshjelp
+          </Link>
+          <Link
             href="/kontakt"
             className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
           >
