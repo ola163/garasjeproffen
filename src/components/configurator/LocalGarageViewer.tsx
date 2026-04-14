@@ -191,10 +191,10 @@ export default function LocalGarageViewer({
   lengthMm, widthMm, doorWidthMm, doorHeightMm,
 }: LocalGarageViewerProps) {
   return (
-    <div className="relative h-full w-full" style={{ background: "linear-gradient(to bottom, #d4e4f0 0%, #eef3f7 60%, #dde6ec 100%)" }}>
+    <div className="relative h-full w-full" style={{ background: "linear-gradient(to bottom, #a8c8e0 0%, #d8ecf4 50%, #edf5f9 100%)" }}>
       <Canvas
         shadows
-        camera={{ position: [14, 8, 14], fov: 40 }}
+        camera={{ position: [14, 9, 14], fov: 40 }}
         gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0, alpha: true }}
       >
         <ambientLight intensity={0.55} />
@@ -223,6 +223,7 @@ export default function LocalGarageViewer({
 
         <OrbitControls
           enablePan enableZoom enableRotate
+          target={[0, 1.5, 0]}
           minPolarAngle={0.1}
           maxPolarAngle={Math.PI / 2.2}
           minDistance={5}
