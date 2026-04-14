@@ -19,6 +19,12 @@ export default function Header() {
         </Link>
         <nav className="flex items-center gap-3 sm:gap-6">
           <Link
+            href="/om-oss"
+            className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
+          >
+            Om oss
+          </Link>
+          <Link
             href="/configurator"
             className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
           >

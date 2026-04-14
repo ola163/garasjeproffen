@@ -3,7 +3,7 @@
 import { useMemo, Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitControls, Grid } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 
 interface LocalGarageViewerProps {
   lengthMm: number;
@@ -17,7 +17,7 @@ const WALL_H     = 3.0;
 const WALL_T     = 0.12;
 const ROOF_T     = 0.12;
 const OVERHANG   = 0.40;
-const ROOF_ANGLE = 30 * (Math.PI / 180); // matches logo pitch
+const ROOF_ANGLE = 22 * (Math.PI / 180);
 
 // ── Colors (from logo) ────────────────────────────────────────────────────────
 const WALL_COLOR  = "#2C3A4A"; // dark charcoal-blue walls
@@ -25,7 +25,6 @@ const ROOF_COLOR  = "#e2520a"; // brand orange roof
 const DOOR_COLOR  = "#F0F0EE"; // white garage door panels
 const DOOR_FRAME  = "#FFFFFF"; // white frame
 const PANEL_LINE  = "#D8D8D6"; // subtle panel dividers
-const FLOOR_COLOR = "#C8C4BE"; // neutral ground
 
 // ── Gable end with proper wall thickness ─────────────────────────────────────
 function GableEnd({ z, halfW, ridgeH, flip = false }: {
@@ -98,18 +97,8 @@ function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM }: {
     color: PANEL_LINE, roughness: 0.5, metalness: 0,
   }), []);
 
-  const matFloor = useMemo(() => new THREE.MeshStandardMaterial({
-    color: FLOOR_COLOR, roughness: 0.95, metalness: 0,
-  }), []);
-
   return (
     <group>
-      {/* ── Ground ──────────────────────────────────────────────────── */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}
-            material={matFloor} receiveShadow>
-        <planeGeometry args={[widthM + 6, lengthM + 6]} />
-      </mesh>
-
       {/* ── Back wall ───────────────────────────────────────────────── */}
       <mesh position={[0, H / 2, -halfL + T / 2]}
             material={matWall} castShadow receiveShadow>
@@ -202,13 +191,12 @@ export default function LocalGarageViewer({
   lengthMm, widthMm, doorWidthMm, doorHeightMm,
 }: LocalGarageViewerProps) {
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full" style={{ background: "linear-gradient(to bottom, #d4e4f0 0%, #eef3f7 60%, #dde6ec 100%)" }}>
       <Canvas
         shadows
         camera={{ position: [14, 8, 14], fov: 40 }}
-        gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+        gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0, alpha: true }}
       >
-        <color attach="background" args={["#f0f0ef"]} />
         <ambientLight intensity={0.55} />
         <directionalLight
           position={[12, 20, 10]}
@@ -232,19 +220,6 @@ export default function LocalGarageViewer({
             doorHeightM={doorHeightMm / 1000}
           />
         </Suspense>
-
-        <Grid
-          position={[0, -0.02, 0]}
-          args={[40, 40]}
-          cellSize={1}
-          cellThickness={0.4}
-          cellColor="#c8c8c8"
-          sectionSize={5}
-          sectionThickness={0.8}
-          sectionColor="#aaaaaa"
-          fadeDistance={35}
-          fadeStrength={1}
-        />
 
         <OrbitControls
           enablePan enableZoom enableRotate
