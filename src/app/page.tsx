@@ -6,7 +6,7 @@ export default function Home() {
     <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center px-6">
       <div className="max-w-2xl text-center">
         <Image
-          src="/logo.png"
+          src="/logo.jpg"
           alt="GarasjeProffen.no"
           width={300}
           height={75}
