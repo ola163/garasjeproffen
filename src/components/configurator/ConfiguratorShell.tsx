@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
@@ -18,7 +19,9 @@ const MIN_CLEARANCE = 300;
 export default function ConfiguratorShell() {
   const { configuration, setParameter } = useConfigurator();
 
-  const [packageType, setPackageType] = useState<PackageType>("materialpakke");
+  const searchParams = useSearchParams();
+  const initialPackage = searchParams.get("package") === "prefab" ? "prefab" : "materialpakke";
+  const [packageType, setPackageType] = useState<PackageType>(initialPackage);
   const pricing = useMemo(() => calculatePrice(configuration, packageType), [configuration, packageType]);
 
   const lengthParam     = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
