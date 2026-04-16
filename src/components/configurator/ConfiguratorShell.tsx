@@ -2,6 +2,7 @@
 
 import { useMemo, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import dynamic from "next/dynamic";
 import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
@@ -155,8 +156,25 @@ export default function ConfiguratorShell() {
       {/* Sidebar */}
       <div className="flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white">
         <div className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
+          {/* Package illustration */}
+          {packageType === "prefab" ? (
+            <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
+              <Image
+                src="/prefab.jpg"
+                alt="Prefabrikert løsning"
+                width={800}
+                height={500}
+                className="w-full h-auto"
+              />
+            </div>
+          ) : (
+            <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50">
+              <p className="text-sm text-gray-400">Illustrasjon kommer</p>
+            </div>
+          )}
+
           {/* Package selector */}
-          <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+          <div className="mt-3 flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
             <button
               onClick={() => setPackageType("materialpakke")}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
