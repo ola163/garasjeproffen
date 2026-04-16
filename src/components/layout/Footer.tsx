@@ -7,7 +7,6 @@ export default function Footer() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           {/* Left – contact */}
           <div className="space-y-0.5 text-xs text-gray-400">
-            <p className="text-xs text-gray-400">📍 Tjødnavegen 8b, 4342 Bryne</p>
             <a href="mailto:christian@garasjeproffen.no" className="block hover:text-orange-500">
               Christian – christian@garasjeproffen.no · +47 476 17 563
             </a>
@@ -23,6 +22,9 @@ export default function Footer() {
             <span>&copy; {new Date().getFullYear()} GarasjeProffen.no</span>
           </div>
         </div>
+
+        {/* Bottom – address */}
+        <p className="mt-4 text-xs text-gray-400">📍 Tjødnavegen 8b, 4342 Bryne</p>
       </div>
     </footer>
   );
