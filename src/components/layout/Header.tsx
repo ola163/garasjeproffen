@@ -9,7 +9,7 @@ export default function Header() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-44 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
           <Image
-            src="/logo.png"
+            src="/logo.jpg"
             alt="GarasjeProffen.no"
             width={600}
             height={600}
