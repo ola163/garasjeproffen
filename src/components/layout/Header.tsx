@@ -6,14 +6,14 @@ import Image from "next/image";
 export default function Header() {
   return (
     <header className="border-b border-gray-200 bg-white">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-44 sm:px-6">
+      <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:h-44 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
           <Image
             src="/logo-header.jpg"
             alt="GarasjeProffen.no"
             width={800}
             height={200}
-            className="h-12 w-auto sm:h-24"
+            className="h-7 w-auto sm:h-24"
             priority
           />
         </Link>
