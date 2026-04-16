@@ -37,17 +37,28 @@ export default function Home() {
 
         {/* Package info boxes */}
         <div className="mt-10 grid gap-4 sm:grid-cols-2 text-left">
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-            <h2 className="text-sm font-semibold text-gray-900">Materialpakke</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Vi leverer alle materialer ferdig spesifisert og tilskåret – du eller din bygger setter opp garasjen selv. Kostnadseffektivt alternativ for deg som vil ha kontroll på byggeprosessen.
-            </p>
+          <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-orange-500">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 4a1 1 0 10-2 0v1H7a1 1 0 000 2h.071l.47 7.06A2 2 0 009.537 16h4.926a2 2 0 001.996-1.94L16.929 7H17a1 1 0 000-2h-2V4a1 1 0 10-2 0v1h-2V4z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="font-semibold text-gray-900">Byggesett / materialpakke</h2>
+              <p className="text-sm text-gray-500">Bygg selv – komplett materialpakke</p>
+            </div>
           </div>
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-            <h2 className="text-sm font-semibold text-gray-900">Prefab element</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Ferdigproduserte veggelementer og tak levert til tomten din, klare for montering. Raskere og enklere å sette opp – perfekt for deg som ønsker en effektiv byggeprosess.
-            </p>
+          <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-orange-500">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="font-semibold text-gray-900">Prefabrikert løsning / element</h2>
+              <p className="text-sm text-gray-500">Ferdige elementer – rask montering</p>
+            </div>
           </div>
         </div>
       </div>
