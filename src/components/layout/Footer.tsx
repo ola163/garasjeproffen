@@ -24,7 +24,7 @@ export default function Footer() {
         </div>
 
         {/* Bottom – address */}
-        <p className="mt-4 text-xs text-gray-400">📍 Tjødnavegen 8b, 4342 Bryne</p>
+        <p className="mt-4 text-xs text-gray-400">Tjødnavegen 8b, 4342 Bryne</p>
       </div>
     </footer>
   );

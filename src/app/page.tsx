@@ -3,7 +3,7 @@ import Image from "next/image";
 
 export default function Home() {
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center px-6">
+    <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center px-6 py-12">
       <div className="max-w-2xl text-center">
         <Image
           src="/logo.jpg"
@@ -34,9 +34,22 @@ export default function Home() {
             Søknadshjelp
           </Link>
         </div>
-        <p className="mt-6 text-sm text-gray-400">
-          📍 Tjødnavegen 8b, 4342 Bryne
-        </p>
+
+        {/* Package info boxes */}
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 text-left">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+            <h2 className="text-sm font-semibold text-gray-900">Materialpakke</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Vi leverer alle materialer ferdig spesifisert og tilskåret – du eller din bygger setter opp garasjen selv. Kostnadseffektivt alternativ for deg som vil ha kontroll på byggeprosessen.
+            </p>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+            <h2 className="text-sm font-semibold text-gray-900">Prefab element</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Ferdigproduserte veggelementer og tak levert til tomten din, klare for montering. Raskere og enklere å sette opp – perfekt for deg som ønsker en effektiv byggeprosess.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
