@@ -194,7 +194,7 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
 function PermitBanner({ result }: { result: PermitResult }) {
   if (result === "søknadsfri") return (
     <div className="rounded-xl bg-green-50 border border-green-200 p-4">
-      <p className="font-semibold text-green-800">✓ Garasjen kan trolig bygges uten søknad</p>
+      <p className="font-semibold text-green-800">✓ Bygningen kan trolig bygges uten søknad</p>
       <p className="mt-1 text-xs text-green-700">
         Basert på svarene ser dette ut til å være søknadsfritt etter pbl. § 20-5.
         Vi anbefaler å bekrefte med kommunen.
@@ -205,7 +205,7 @@ function PermitBanner({ result }: { result: PermitResult }) {
     <div className="rounded-xl bg-red-50 border border-red-200 p-4">
       <p className="font-semibold text-red-800">⚠ Byggesøknad er trolig nødvendig</p>
       <p className="mt-1 text-xs text-red-700">
-        Ett eller flere krav for søknadsfri garasje er ikke oppfylt. Vi hjelper deg gjerne.
+        Ett eller flere krav for søknadsfri bygning er ikke oppfylt. Vi hjelper deg gjerne.
       </p>
     </div>
   );
@@ -353,7 +353,7 @@ function StepMap({ onNext, onBack }: {
 const DIBK_QUESTIONS: { key: keyof DibkAnswers; q: string; hint?: string; options?: string[] }[] = [
   {
     key: "frittstående",
-    q: "Er garasjen frittstående (ikke sammenbygget med bolig eller annen bygning)?",
+    q: "Er bygningen frittstående (ikke sammenbygget med bolig eller annen bygning)?",
   },
   {
     key: "bya50",
@@ -362,7 +362,7 @@ const DIBK_QUESTIONS: { key: keyof DibkAnswers; q: string; hint?: string; option
   },
   {
     key: "enEtasje",
-    q: "Er garasjen i én etasje?",
+    q: "Er bygningen i én etasje?",
   },
   {
     key: "monehoyde",
@@ -371,16 +371,16 @@ const DIBK_QUESTIONS: { key: keyof DibkAnswers; q: string; hint?: string; option
   },
   {
     key: "nabogrense",
-    q: "Er garasjen plassert minst 1 meter fra nabogrensen?",
+    q: "Er bygningen plassert minst 1 meter fra nabogrensen?",
     hint: "Avstanden måles fra yttervegg (inkl. takutstikk > 0,5 m) til nabogrensen.",
   },
   {
     key: "avstandBygg",
-    q: "Er garasjen plassert minst 1 meter fra annen bygning på eiendommen?",
+    q: "Er bygningen plassert minst 1 meter fra annen bygning på eiendommen?",
   },
   {
     key: "ikkeVernet",
-    q: "Er tomten utenfor vernede områder, kulturmiljø og reguleringsplaner som forbyr garasjen?",
+    q: "Er tomten utenfor vernede områder, kulturmiljø og reguleringsplaner som forbyr bygningen?",
     hint: "Sjekk i kommunens kartløsning eller arealplan.",
   },
   {
@@ -417,7 +417,7 @@ function StepDibk({ dibk, setDibk, onNext, onBack }: {
     <div>
       <h2 className="text-xl font-semibold text-gray-900">Søknadskrav</h2>
       <p className="mt-1 text-sm text-gray-500">
-        Basert på reglene for søknadsfri garasje (pbl. § 20-5). Svar så godt du kan.
+        Basert på reglene for søknadsfri bygning (pbl. § 20-5). Svar så godt du kan.
       </p>
       <div className="mt-6 space-y-5">
         {DIBK_QUESTIONS.map(({ key, q, hint, options }) => (
