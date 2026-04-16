@@ -9,11 +9,11 @@ export default function Header() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-44 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
           <Image
-            src="/logo.jpg"
+            src="/logo-header.jpg"
             alt="GarasjeProffen.no"
-            width={600}
-            height={600}
-            className="h-12 w-auto sm:h-40"
+            width={800}
+            height={200}
+            className="h-12 w-auto sm:h-24"
             priority
           />
         </Link>
