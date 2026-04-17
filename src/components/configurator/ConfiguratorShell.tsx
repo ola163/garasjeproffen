@@ -168,8 +168,14 @@ export default function ConfiguratorShell() {
               />
             </div>
           ) : (
-            <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50">
-              <p className="text-sm text-gray-400">Illustrasjon kommer</p>
+            <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
+              <Image
+                src="/material.jpg"
+                alt="Materialpakke"
+                width={800}
+                height={500}
+                className="w-full h-auto"
+              />
             </div>
           )}
 
