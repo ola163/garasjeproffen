@@ -239,30 +239,8 @@ export default function ConfiguratorShell() {
             </span>
           </div>
 
-          {/* Sliders */}
-          <div className="mt-4 space-y-6">
-            <LengthSlider
-              label={lengthParam.label}
-              value={lengthValue}
-              min={lengthParam.min!}
-              max={lengthParam.max!}
-              step={lengthParam.step!}
-              unit={lengthParam.unit}
-              onChange={(value) => setParameter("length", value)}
-            />
-            <LengthSlider
-              label={widthParam.label}
-              value={widthValue}
-              min={widthParam.min!}
-              max={widthParam.max!}
-              step={widthParam.step!}
-              unit={widthParam.unit}
-              onChange={(value) => setParameter("width", value)}
-            />
-          </div>
-
           {/* Roof type selector */}
-          <div className="mt-6 flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+          <div className="mt-4 flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
             <button
               onClick={() => setRoofType("flattak")}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
@@ -283,6 +261,28 @@ export default function ConfiguratorShell() {
             >
               Saltak
             </button>
+          </div>
+
+          {/* Sliders */}
+          <div className="mt-6 space-y-6">
+            <LengthSlider
+              label={lengthParam.label}
+              value={lengthValue}
+              min={lengthParam.min!}
+              max={lengthParam.max!}
+              step={lengthParam.step!}
+              unit={lengthParam.unit}
+              onChange={(value) => setParameter("length", value)}
+            />
+            <LengthSlider
+              label={widthParam.label}
+              value={widthValue}
+              min={widthParam.min!}
+              max={widthParam.max!}
+              step={widthParam.step!}
+              unit={widthParam.unit}
+              onChange={(value) => setParameter("width", value)}
+            />
           </div>
 
           {/* Garage door */}
@@ -387,7 +387,14 @@ export default function ConfiguratorShell() {
             )}
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6 rounded-lg bg-red-50 border border-red-200 p-3">
+            <p className="text-xs text-red-600 leading-relaxed">
+              <span className="font-semibold">Konfiguratoren er under utvikling.</span>{" "}
+              Prisene kan avvike fra endelig tilbud. Ta kontakt for et manuelt pristilbud.
+            </p>
+          </div>
+
+          <div className="mt-3">
             <PriceSummary pricing={pricing} onQuoteOpen={() => setQuoteOpen(true)} />
           </div>
 
