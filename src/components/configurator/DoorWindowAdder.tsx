@@ -33,13 +33,13 @@ const SIDE_LABELS: Record<WallSide, string> = {
 const TOP_CATEGORY_OPTIONS: { id: ElementCategory | "window100"; label: string; description: string }[] = [
   { id: "door",      label: "Dør",      description: "0,9 × 2,1 m – 5 995 kr" },
   { id: "window100", label: "Vindu 100", description: "1,0 m bredde – velg høyde" },
-  { id: "window3",   label: "Vindu 100×100", description: "1,0 × 1,0 m" },
 ];
 
 // Height options for Vindu 100
 const HEIGHT_OPTIONS: { category: ElementCategory; label: string; description: string; price: number }[] = [
   { category: "window1", label: "50 cm høyde", description: "1,0 × 0,5 m", price: 2995 },
   { category: "window2", label: "60 cm høyde", description: "1,0 × 0,6 m", price: 3095 },
+  { category: "window3", label: "100 cm høyde", description: "1,0 × 1,0 m", price: 5895 },
 ];
 
 export const ELEMENT_WIDTH: Record<ElementCategory, number> = {
