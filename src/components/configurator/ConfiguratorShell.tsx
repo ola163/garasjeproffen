@@ -51,6 +51,7 @@ export default function ConfiguratorShell() {
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
   const [quoteOpen, setQuoteOpen] = useState(false);
+  const [garageDoorOpen, setGarageDoorOpen] = useState(false);
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
   const [imageCollapsed, setImageCollapsed] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -260,8 +261,22 @@ export default function ConfiguratorShell() {
 
           {/* Garage door */}
           <div className="mt-6 border-t border-gray-100 pt-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">Garasjeport</h3>
-            <div className="space-y-4">
+            <button
+              type="button"
+              onClick={() => setGarageDoorOpen((o) => !o)}
+              className="flex w-full items-center justify-between text-sm font-semibold text-gray-700 hover:text-gray-900"
+            >
+              <span>Garasjeport</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className={`h-4 w-4 text-gray-400 transition-transform ${garageDoorOpen ? "rotate-180" : ""}`}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {garageDoorOpen && <div className="mt-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bredde på garasjeport
@@ -313,7 +328,7 @@ export default function ConfiguratorShell() {
                   per side
                 </p>
               )}
-            </div>
+            </div>}
           </div>
 
           {/* Dør og vindu */}
