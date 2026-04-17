@@ -23,7 +23,8 @@ export default function ConfiguratorShell() {
   const searchParams = useSearchParams();
   const initialPackage = searchParams.get("package") === "prefab" ? "prefab" : "materialpakke";
   const [packageType, setPackageType] = useState<PackageType>(initialPackage);
-  const pricing = useMemo(() => calculatePrice(configuration, packageType), [configuration, packageType]);
+  const [roofType, setRoofType] = useState<"saltak" | "flattak">("flattak");
+  const pricing = useMemo(() => calculatePrice(configuration, packageType, roofType), [configuration, packageType, roofType]);
 
   const lengthParam     = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
   const widthParam      = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
@@ -50,7 +51,6 @@ export default function ConfiguratorShell() {
 
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
-  const [roofType, setRoofType] = useState<"saltak" | "flattak">("saltak");
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [garageDoorOpen, setGarageDoorOpen] = useState(false);
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);

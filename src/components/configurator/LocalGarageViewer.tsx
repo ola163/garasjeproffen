@@ -190,7 +190,7 @@ function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM, roofType = "
         /* ── Flat roof ──────────────────────────────────────────────── */
         <mesh position={[0, H + ROOF_T / 2, 0]}
               material={matRoof} castShadow receiveShadow>
-          <boxGeometry args={[widthM + OVERHANG * 2, ROOF_T, roofL]} />
+          <boxGeometry args={[widthM, ROOF_T, lengthM]} />
         </mesh>
       )}
     </group>
