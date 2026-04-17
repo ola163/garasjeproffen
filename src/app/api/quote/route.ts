@@ -81,7 +81,6 @@ export async function POST(request: Request) {
       const emailResult = await resend.emails.send({
         from: "GarasjeProffen <noreply@garasjeproffen.no>",
         to: RECIPIENT,
-        ...(body.customer.email ? { replyTo: body.customer.email } : {}),
         subject: `Ny tilbudsforespørsel – ${body.customer.name} (${quoteId})`,
         html: `
           <h2>Ny tilbudsforespørsel</h2>
