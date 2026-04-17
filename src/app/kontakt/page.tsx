@@ -50,7 +50,7 @@ export default function Kontakt() {
               src="/Christian.png"
               alt="Christian Salte Årsland"
               fill
-              className="object-cover object-top"
+              className="object-contain"
             />
           </div>
           <div className="p-6">
@@ -77,7 +77,7 @@ export default function Kontakt() {
 
         {/* Ola */}
         <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
-          <div className="relative h-48 w-full bg-gray-100">
+          <div className="relative h-48 w-full bg-transparent">
             <Image
               src="/Ola.png"
               alt="Ola K. Undheim"
