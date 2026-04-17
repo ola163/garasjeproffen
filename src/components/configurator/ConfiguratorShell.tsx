@@ -61,8 +61,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
   const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
 
-  const ELEMENT_PRICES: Partial<Record<string, number>> = { window1: 2995, window2: 3095 };
-  const ELEMENT_LABELS: Partial<Record<string, string>> = { window1: "Vindu 100×50", window2: "Vindu 100×60" };
+  const ELEMENT_PRICES: Partial<Record<string, number>> = { window1: 2995, window2: 3095, window3: 5895 };
+  const ELEMENT_LABELS: Partial<Record<string, string>> = { window1: "Vindu 100×50", window2: "Vindu 100×60", window3: "Vindu 100×100" };
   const pricing = useMemo(() => {
     const base = calculatePrice(configuration, packageType, roofType);
     const elementAdjustments = addedElements.flatMap((el) => {
@@ -430,7 +430,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     {addedElements.map((el, i) => (
                       <li key={i} className="flex items-center justify-between rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-700">
                         <span>
-                          {el.category === "door" ? "Dør" : el.category === "window1" ? "Vindu 100×50" : el.category === "window2" ? "Vindu 100×60" : "Vindu 2"}
+                          {el.category === "door" ? "Dør" : el.category === "window1" ? "Vindu 100×50" : el.category === "window2" ? "Vindu 100×60" : "Vindu 100×100"}
                           {" – "}
                           {el.side === "front" ? "Front" : el.side === "back" ? "Bak" : el.side === "left" ? "Venstre" : "Høyre"}
                           {" / "}

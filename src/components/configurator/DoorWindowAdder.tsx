@@ -33,7 +33,7 @@ const SIDE_LABELS: Record<WallSide, string> = {
 const TOP_CATEGORY_OPTIONS: { id: ElementCategory | "window100"; label: string; description: string }[] = [
   { id: "door",      label: "Dør",      description: "0,9 × 2,1 m inngangsdør" },
   { id: "window100", label: "Vindu 100", description: "1,0 m bredde – velg høyde" },
-  { id: "window3",   label: "Vindu 2",  description: "1,5 × 0,6 m bredformat vindu" },
+  { id: "window3",   label: "Vindu 100×100", description: "1,0 × 1,0 m" },
 ];
 
 // Height options for Vindu 100
@@ -43,7 +43,7 @@ const HEIGHT_OPTIONS: { category: ElementCategory; label: string; description: s
 ];
 
 export const ELEMENT_WIDTH: Record<ElementCategory, number> = {
-  door: 0.9, window1: 1.0, window2: 1.0, window3: 1.5,
+  door: 0.9, window1: 1.0, window2: 1.0, window3: 1.0,
 };
 
 /** Positions occupied by existing elements on a given side */
