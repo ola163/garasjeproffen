@@ -40,8 +40,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     timestamp: Date.now(),
   }), [lengthValue, widthValue, doorWidthValue, doorHeightValue]);
 
-  const pricing = useMemo(() => calculatePrice(configuration, packageType, roofType), [configuration, packageType, roofType]);
-
   const validDoorWidthOptions = useMemo(
     () => (doorWidthParam.options ?? []).filter((o) => widthValue >= o.value + MIN_CLEARANCE),
     [widthValue]
@@ -62,6 +60,23 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
   const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
+
+  const ELEMENT_PRICES: Partial<Record<string, number>> = { window1: 2995, window2: 3095 };
+  const ELEMENT_LABELS: Partial<Record<string, string>> = { window1: "Vindu 100×50", window2: "Vindu 100×60" };
+  const pricing = useMemo(() => {
+    const base = calculatePrice(configuration, packageType, roofType);
+    const elementAdjustments = addedElements.flatMap((el) => {
+      const unitPrice = ELEMENT_PRICES[el.category];
+      if (!unitPrice) return [];
+      const qty = el.placement === "both" ? 2 : 1;
+      const label = ELEMENT_LABELS[el.category] ?? el.category;
+      return [{ label: qty > 1 ? `${label} (×${qty})` : label, amount: unitPrice * qty }];
+    });
+    const elementTotal = elementAdjustments.reduce((s, a) => s + a.amount, 0);
+    return { ...base, adjustments: [...base.adjustments, ...elementAdjustments], totalPrice: base.totalPrice + elementTotal };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configuration, packageType, roofType, addedElements]);
+
   const [focusSide, setFocusSide] = useState<WallSide | null>(null);
   const [editingElement, setEditingElement] = useState<AddedElement | null>(null);
   const [imageCollapsed, setImageCollapsed] = useState(true);
