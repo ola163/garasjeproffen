@@ -51,6 +51,7 @@ export default function ConfiguratorShell() {
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
   const [quoteOpen, setQuoteOpen] = useState(false);
+  const [doorWindowOpen, setDoorWindowOpen] = useState(false);
   const [imageCollapsed, setImageCollapsed] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -317,14 +318,32 @@ export default function ConfiguratorShell() {
 
           {/* Dør og vindu */}
           <div className="mt-6 border-t border-gray-100 pt-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">Dør og vindu</h3>
             <button
               type="button"
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors"
+              onClick={() => setDoorWindowOpen((o) => !o)}
+              className="flex w-full items-center justify-between text-sm font-semibold text-gray-700 hover:text-gray-900"
             >
-              <span>+</span>
-              <span>Legg til</span>
+              <span>Dør og vindu</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className={`h-4 w-4 text-gray-400 transition-transform ${doorWindowOpen ? "rotate-180" : ""}`}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
             </button>
+            {doorWindowOpen && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors"
+                >
+                  <span>+</span>
+                  <span>Legg til</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="mt-8">
