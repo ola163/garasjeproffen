@@ -68,7 +68,13 @@ export async function POST(request: Request) {
 
     // Send email via Resend
     const resendKey = process.env.RESEND_API_KEY;
-    console.log("RESEND_API_KEY present:", !!resendKey);
+
+    if (!resendKey) {
+      return NextResponse.json<QuoteResponse>(
+        { success: false, error: "Konfigurasjonsfeil: RESEND_API_KEY mangler. Kontakt oss på post@garasjeproffen.no" },
+        { status: 500 }
+      );
+    }
 
     if (resendKey) {
       const resend = new Resend(resendKey);
