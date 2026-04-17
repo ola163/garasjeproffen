@@ -32,7 +32,7 @@ export default function Header() {
           </Link>
           <Link
             href="/kontakt"
-            className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
+            className="text-sm font-medium text-gray-600 hover:text-gray-900"
           >
             Kontakt
           </Link>

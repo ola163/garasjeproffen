@@ -1,9 +1,37 @@
-export const metadata = {
-  title: "Kontakt oss – GarasjeProffen.no",
-  description: "Ta kontakt med GarasjeProffen.no – vi hjelper deg med garasjeprosjektet ditt.",
-};
+"use client";
+
+import { useState } from "react";
 
 export default function Kontakt() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; error?: string } | null>(null);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSubmitting(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/kontakt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, phone, message }),
+      });
+      const data = await res.json();
+      setResult(data);
+      if (data.success) {
+        setName(""); setEmail(""); setPhone(""); setMessage("");
+      }
+    } catch {
+      setResult({ success: false, error: "Nettverksfeil. Vennligst prøv igjen." });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-6 py-12 sm:py-20">
       <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
@@ -67,17 +95,63 @@ export default function Kontakt() {
         </p>
       </div>
 
-      {/* CTA */}
-      <div className="mt-10 border-t border-gray-100 pt-8 text-center">
-        <p className="text-sm text-gray-500">
-          Vil du heller konfigurere garasjen din selv først?
+      {/* Contact form */}
+      <div className="mt-12 border-t border-gray-100 pt-10">
+        <h2 className="text-xl font-semibold text-gray-900">Send oss en melding</h2>
+        <p className="mt-2 text-sm text-gray-500">
+          Fyll ut skjemaet så tar vi kontakt med deg så snart som mulig.
         </p>
-        <a
-          href="/configurator"
-          className="mt-3 inline-block rounded-lg bg-orange-500 px-6 py-2.5 text-sm font-medium text-white hover:bg-orange-600"
-        >
-          Gå til 3D-konfiguratoren
-        </a>
+
+        {result?.success ? (
+          <div className="mt-6 rounded-lg bg-green-50 p-4 text-sm text-green-800">
+            Takk for henvendelsen! Vi tar kontakt snart.
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700">Navn *</label>
+              <input
+                id="name" type="text" required value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">E-post *</label>
+              <input
+                id="email" type="email" required value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Telefon</label>
+              <input
+                id="phone" type="tel" value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="message" className="block text-sm font-medium text-gray-700">Melding</label>
+              <textarea
+                id="message" rows={4} value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Beskriv hva du ønsker hjelp med..."
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+              />
+            </div>
+            {result?.error && (
+              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{result.error}</div>
+            )}
+            <button
+              type="submit" disabled={submitting}
+              className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? "Sender..." : "Send melding"}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
