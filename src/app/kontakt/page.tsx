@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 
 export default function Kontakt() {
   const [name, setName] = useState("");
@@ -43,46 +44,66 @@ export default function Kontakt() {
 
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         {/* Christian */}
-        <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <p className="font-semibold text-gray-900">Christian Salte Årsland</p>
-          <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
-          <div className="mt-4 space-y-3">
-            <a
-              href="mailto:christian@garasjeproffen.no"
-              className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
-            >
-              <span className="text-base">✉</span>
-              christian@garasjeproffen.no
-            </a>
-            <a
-              href="tel:+4747617563"
-              className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
-            >
-              <span className="text-base">📱</span>
-              +47 476 17 563
-            </a>
+        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
+          <div className="relative h-48 w-full bg-gray-100">
+            <Image
+              src="/Christian.png"
+              alt="Christian Salte Årsland"
+              fill
+              className="object-cover object-top"
+            />
+          </div>
+          <div className="p-6">
+            <p className="font-semibold text-gray-900">Christian Salte Årsland</p>
+            <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
+            <div className="mt-4 space-y-3">
+              <a
+                href="mailto:christian@garasjeproffen.no"
+                className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
+              >
+                <span className="text-base">✉</span>
+                christian@garasjeproffen.no
+              </a>
+              <a
+                href="tel:+4747617563"
+                className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
+              >
+                <span className="text-base">📱</span>
+                +47 476 17 563
+              </a>
+            </div>
           </div>
         </div>
 
         {/* Ola */}
-        <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <p className="font-semibold text-gray-900">Ola K. Undheim</p>
-          <p className="mt-0.5 text-sm text-orange-600">Teknisk sjef</p>
-          <div className="mt-4 space-y-3">
-            <a
-              href="mailto:ola@garasjeproffen.no"
-              className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
-            >
-              <span className="text-base">✉</span>
-              ola@garasjeproffen.no
-            </a>
-            <a
-              href="tel:+4791344486"
-              className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
-            >
-              <span className="text-base">📱</span>
-              +47 913 44 486
-            </a>
+        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
+          <div className="relative h-48 w-full bg-gray-100">
+            <Image
+              src="/Ola.png"
+              alt="Ola K. Undheim"
+              fill
+              className="object-cover object-top"
+            />
+          </div>
+          <div className="p-6">
+            <p className="font-semibold text-gray-900">Ola K. Undheim</p>
+            <p className="mt-0.5 text-sm text-orange-600">Teknisk sjef</p>
+            <div className="mt-4 space-y-3">
+              <a
+                href="mailto:ola@garasjeproffen.no"
+                className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
+              >
+                <span className="text-base">✉</span>
+                ola@garasjeproffen.no
+              </a>
+              <a
+                href="tel:+4791344486"
+                className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
+              >
+                <span className="text-base">📱</span>
+                +47 913 44 486
+              </a>
+            </div>
           </div>
         </div>
       </div>
