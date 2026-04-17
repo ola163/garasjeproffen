@@ -14,7 +14,7 @@ interface QuoteFormProps {
 
 export default function QuoteForm({ configuration, pricing, packageType, open }: QuoteFormProps) {
   const router = useRouter();
-  const [needsPermit, setNeedsPermit] = useState<"ja" | "nei" | null>(null);
+  const [needsPermit, setNeedsPermit] = useState<"nei" | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -23,7 +23,7 @@ export default function QuoteForm({ configuration, pricing, packageType, open }:
   const [result, setResult] = useState<QuoteResponse | null>(null);
 
   const p = configuration.parameters;
-  const soknadUrl = `/soknadshjelp?lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=${p.doorHeight ?? 2125}`;
+  const soknadUrl = `/soknadshjelp?buildingType=garasje&lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=${p.doorHeight ?? 2125}`;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,12 +68,8 @@ export default function QuoteForm({ configuration, pricing, packageType, open }:
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
-                onClick={() => setNeedsPermit("ja")}
-                className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-all ${
-                  needsPermit === "ja"
-                    ? "border-orange-500 bg-orange-50 text-orange-700"
-                    : "border-gray-200 text-gray-600 hover:border-orange-300"
-                }`}
+                onClick={() => router.push(soknadUrl)}
+                className="flex-1 rounded-lg border border-gray-200 py-2 text-sm font-medium text-gray-600 hover:border-orange-300 transition-all"
               >
                 Ja
               </button>
@@ -90,20 +86,6 @@ export default function QuoteForm({ configuration, pricing, packageType, open }:
               </button>
             </div>
 
-            {needsPermit === "ja" && (
-              <div className="mt-3">
-                <p className="text-xs text-gray-500 mb-2">
-                  Vi tar deg videre til søknadshjelp med garasjekonfigurasjonen din.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => router.push(soknadUrl)}
-                  className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600"
-                >
-                  Gå til søknadshjelp →
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Show quote form only if no permit needed */}

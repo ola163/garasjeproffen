@@ -447,23 +447,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             )}
           </div>}
 
-          {/* Søknadshjelp shortcut */}
-          <div className="mt-6">
-            <a
-              href="/soknadshjelp?buildingType=garasje"
-              className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 hover:border-orange-400 hover:bg-orange-50 transition-colors"
-            >
-              <div>
-                <p className="font-medium">Trenger du søknadshjelp?</p>
-                <p className="text-xs text-gray-400 mt-0.5">Finn ut om du trenger byggesøknad</p>
-              </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-              </svg>
-            </a>
-          </div>
-
-          <div className="mt-4 rounded-lg bg-red-50 border border-red-200 p-3">
+          <div className="mt-6 rounded-lg bg-red-50 border border-red-200 p-3">
             <p className="text-xs text-red-600 leading-relaxed">
               <span className="font-semibold">Konfiguratoren er under utvikling.</span>{" "}
               Prisene kan avvike fra endelig tilbud. Ta kontakt for et manuelt pristilbud.
