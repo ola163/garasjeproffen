@@ -48,13 +48,13 @@ export default function Kontakt() {
           <div className="relative h-48 w-full bg-transparent">
             <Image
               src="/Christian.png"
-              alt="Christian Salte Årsland"
+              alt="Christian S. Årsland"
               fill
               className="object-contain"
             />
           </div>
           <div className="p-6">
-            <p className="font-semibold text-gray-900">Christian Salte Årsland</p>
+            <p className="font-semibold text-gray-900">Christian S. Årsland</p>
             <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
             <div className="mt-4 space-y-3">
               <a

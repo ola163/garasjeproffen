@@ -65,14 +65,14 @@ export default function OmOss() {
             <div className="relative h-56 w-full bg-transparent">
               <Image
                 src="/Christian.png"
-                alt="Christian Salte Årsland"
+                alt="Christian S. Årsland"
                 fill
                 className="object-contain"
               />
             </div>
             <div className="p-6">
               <p className="text-base font-semibold text-gray-900">
-                Christian Salte Årsland
+                Christian S. Årsland
               </p>
               <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
               <p className="mt-3 text-sm leading-relaxed text-gray-600">
