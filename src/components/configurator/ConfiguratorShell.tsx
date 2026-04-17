@@ -395,6 +395,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                   </button>
                 ) : (
                   <DoorWindowAdder
+                    existingElements={addedElements}
+                    widthMm={widthValue}
+                    doorWidthMm={doorWidthValue}
                     onFocusSide={setFocusSide}
                     onAdd={(el) => setAddedElements((prev) => [...prev, el])}
                     onClose={() => { setShowDoorWindowAdder(false); setFocusSide(null); }}
