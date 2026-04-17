@@ -62,7 +62,7 @@ export default function OmOss() {
         <div className="mt-6 grid gap-8 sm:grid-cols-2">
           {/* Christian */}
           <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
-            <div className="relative h-56 w-full bg-gray-100">
+            <div className="relative h-56 w-full bg-transparent">
               <Image
                 src="/Christian.png"
                 alt="Christian Salte Årsland"

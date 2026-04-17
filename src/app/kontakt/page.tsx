@@ -45,7 +45,7 @@ export default function Kontakt() {
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         {/* Christian */}
         <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
-          <div className="relative h-48 w-full bg-gray-100">
+          <div className="relative h-48 w-full bg-transparent">
             <Image
               src="/Christian.png"
               alt="Christian Salte Årsland"
