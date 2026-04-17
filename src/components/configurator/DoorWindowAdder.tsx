@@ -29,14 +29,20 @@ const SIDE_LABELS: Record<WallSide, string> = {
   right: "Høyre",
 };
 
-const CATEGORY_OPTIONS: { id: ElementCategory; label: string; description: string; price?: number }[] = [
-  { id: "door",    label: "Dør",           description: "0,9 × 2,1 m inngangsdør" },
-  { id: "window1", label: "Vindu 100×50",  description: "1,0 × 0,5 m", price: 2995 },
-  { id: "window2", label: "Vindu 100×60",  description: "1,0 × 0,6 m", price: 3095 },
-  { id: "window3", label: "Vindu 2",       description: "1,5 × 0,6 m bredformat vindu" },
+// Top-level category rows shown in step 2
+const TOP_CATEGORY_OPTIONS: { id: ElementCategory | "window100"; label: string; description: string }[] = [
+  { id: "door",      label: "Dør",      description: "0,9 × 2,1 m inngangsdør" },
+  { id: "window100", label: "Vindu 100", description: "1,0 m bredde – velg høyde" },
+  { id: "window3",   label: "Vindu 2",  description: "1,5 × 0,6 m bredformat vindu" },
 ];
 
-const ELEMENT_WIDTH: Record<ElementCategory, number> = {
+// Height options for Vindu 100
+const HEIGHT_OPTIONS: { category: ElementCategory; label: string; description: string; price: number }[] = [
+  { category: "window1", label: "50 cm høyde", description: "1,0 × 0,5 m", price: 2995 },
+  { category: "window2", label: "60 cm høyde", description: "1,0 × 0,6 m", price: 3095 },
+];
+
+export const ELEMENT_WIDTH: Record<ElementCategory, number> = {
   door: 0.9, window1: 1.0, window2: 1.0, window3: 1.5,
 };
 
@@ -51,10 +57,8 @@ function occupiedPositions(side: WallSide, elements: AddedElement[]): Set<"left"
   return occupied;
 }
 
-/** Minimum clearance between an added element and the garage door edge */
 const DOOR_CLEARANCE_M = 0.10;
 
-/** Whether an element of given category/placement on the front wall overlaps the garage door (including 10 cm clearance) */
 function overlapsGarageDoor(
   placement: "left" | "right",
   category: ElementCategory,
@@ -62,12 +66,11 @@ function overlapsGarageDoor(
   doorWidthM: number
 ): boolean {
   const halfEl   = ELEMENT_WIDTH[category] / 2;
-  const halfDoor = doorWidthM / 2 + DOOR_CLEARANCE_M; // extend blocked zone by 10 cm
+  const halfDoor = doorWidthM / 2 + DOOR_CLEARANCE_M;
   const cx       = placement === "left" ? -widthM * 0.25 : widthM * 0.25;
   return cx + halfEl > -halfDoor && cx - halfEl < halfDoor;
 }
 
-/** Returns a set of single positions ("left" | "right") blocked for this side */
 function blockedPositions(
   side: WallSide,
   category: ElementCategory,
@@ -84,11 +87,7 @@ function blockedPositions(
   return blocked;
 }
 
-/** Whether a placement option is valid given blocked positions */
-function isPlacementValid(
-  placement: Placement,
-  blocked: Set<"left" | "right">
-): boolean {
+function isPlacementValid(placement: Placement, blocked: Set<"left" | "right">): boolean {
   if (placement === "left")  return !blocked.has("left");
   if (placement === "right") return !blocked.has("right");
   return !blocked.has("left") && !blocked.has("right");
@@ -98,9 +97,11 @@ export default function DoorWindowAdder({
   existingElements, widthMm, doorWidthMm, startWith,
   onFocusSide, onAdd, onClose,
 }: Props) {
-  const [hoveredSide, setHoveredSide] = useState<WallSide | null>(null);
-  const [selectedSide, setSelectedSide] = useState<WallSide | null>(startWith?.side ?? null);
+  const [hoveredSide, setHoveredSide]     = useState<WallSide | null>(null);
+  const [selectedSide, setSelectedSide]   = useState<WallSide | null>(startWith?.side ?? null);
   const [selectedCategory, setSelectedCategory] = useState<ElementCategory | null>(startWith?.category ?? null);
+  // true when user picked "Vindu 100" but hasn't chosen height yet
+  const [pickingHeight, setPickingHeight] = useState(false);
 
   const widthM     = widthMm    / 1000;
   const doorWidthM = doorWidthMm / 1000;
@@ -115,6 +116,19 @@ export default function DoorWindowAdder({
     onFocusSide(side);
   }
 
+  function handleTopCategory(id: ElementCategory | "window100") {
+    if (id === "window100") {
+      setPickingHeight(true);
+    } else {
+      setSelectedCategory(id);
+    }
+  }
+
+  function handleHeightPick(category: ElementCategory) {
+    setSelectedCategory(category);
+    setPickingHeight(false);
+  }
+
   function handlePlacement(placement: Placement) {
     if (!selectedSide || !selectedCategory) return;
     onAdd({ side: selectedSide, category: selectedCategory, placement });
@@ -124,37 +138,39 @@ export default function DoorWindowAdder({
 
   function handleBack() {
     if (selectedCategory) {
-      setSelectedCategory(null);
+      // If came from height picker, go back there; otherwise back to category list
+      const isWindow100 = selectedCategory === "window1" || selectedCategory === "window2";
+      if (isWindow100) {
+        setSelectedCategory(null);
+        setPickingHeight(true);
+      } else {
+        setSelectedCategory(null);
+      }
+    } else if (pickingHeight) {
+      setPickingHeight(false);
     } else {
       setSelectedSide(null);
       onFocusSide(null);
     }
   }
 
+  const showBack = !!(selectedSide || selectedCategory || pickingHeight);
+
   const blocked = selectedSide && selectedCategory
     ? blockedPositions(selectedSide, selectedCategory, existingElements, widthM, doorWidthM)
     : new Set<"left" | "right">();
 
   const placementOptions: { id: Placement; label: string; valid: boolean; reason?: string }[] = [
-    {
-      id: "left",
-      label: "Venstre",
-      valid: isPlacementValid("left", blocked),
-      reason: blocked.has("left") ? "Opptatt" : undefined,
-    },
-    {
-      id: "both",
-      label: "Begge",
-      valid: isPlacementValid("both", blocked),
-      reason: !isPlacementValid("both", blocked) ? "En eller begge sider opptatt" : undefined,
-    },
-    {
-      id: "right",
-      label: "Høyre",
-      valid: isPlacementValid("right", blocked),
-      reason: blocked.has("right") ? "Opptatt" : undefined,
-    },
+    { id: "left",  label: "Venstre", valid: isPlacementValid("left",  blocked), reason: blocked.has("left")  ? "Opptatt" : undefined },
+    { id: "both",  label: "Begge",   valid: isPlacementValid("both",  blocked), reason: !isPlacementValid("both", blocked) ? "En eller begge sider opptatt" : undefined },
+    { id: "right", label: "Høyre",   valid: isPlacementValid("right", blocked), reason: blocked.has("right") ? "Opptatt" : undefined },
   ];
+
+  // Header label
+  let headerLabel = "Velg side på garasjen";
+  if (selectedSide && selectedCategory)   headerLabel = "Velg plassering";
+  else if (pickingHeight)                 headerLabel = "Vindu 100 – velg høyde";
+  else if (selectedSide)                  headerLabel = `${SIDE_LABELS[selectedSide]} – velg type`;
 
   const sideBtn = (side: WallSide, extraClass = "") => (
     <button
@@ -179,33 +195,24 @@ export default function DoorWindowAdder({
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          {(selectedSide || selectedCategory) && (
+          {showBack && (
             <button onClick={handleBack} className="text-gray-400 hover:text-gray-600">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </button>
           )}
-          <p className="text-xs font-semibold text-gray-700">
-            {!selectedSide
-              ? "Velg side på garasjen"
-              : !selectedCategory
-              ? `${SIDE_LABELS[selectedSide]} – velg type`
-              : "Velg plassering"}
-          </p>
+          <p className="text-xs font-semibold text-gray-700">{headerLabel}</p>
         </div>
-        <button
-          onClick={() => { onClose(); onFocusSide(null); }}
-          className="text-gray-400 hover:text-gray-600"
-        >
+        <button onClick={() => { onClose(); onFocusSide(null); }} className="text-gray-400 hover:text-gray-600">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
           </svg>
         </button>
       </div>
 
-      {/* Step 1 — Side selector schematic */}
-      {!selectedSide && (
+      {/* Step 1 — Side selector */}
+      {!selectedSide && !pickingHeight && (
         <div className="flex flex-col items-center gap-1 py-2">
           <p className="mb-2 text-xs text-orange-600 font-medium">Klikk på en side for å velge</p>
           {sideBtn("back")}
@@ -221,17 +228,38 @@ export default function DoorWindowAdder({
       )}
 
       {/* Step 2 — Category selector */}
-      {selectedSide && !selectedCategory && (
+      {selectedSide && !selectedCategory && !pickingHeight && (
         <div className="space-y-2">
-          {CATEGORY_OPTIONS.map((opt) => (
+          {TOP_CATEGORY_OPTIONS.map((opt) => (
             <button
               key={opt.id}
-              onClick={() => setSelectedCategory(opt.id)}
+              onClick={() => handleTopCategory(opt.id)}
               className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left hover:border-orange-400 hover:bg-orange-50 transition-colors"
             >
               <div>
                 <p className="text-sm font-medium text-gray-800">{opt.label}</p>
-                <p className="text-xs text-gray-500">{opt.description}{opt.price ? ` – ${opt.price.toLocaleString("nb-NO")} kr` : ""}</p>
+                <p className="text-xs text-gray-500">{opt.description}</p>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Step 2b — Height picker for Vindu 100 */}
+      {pickingHeight && !selectedCategory && (
+        <div className="space-y-2">
+          {HEIGHT_OPTIONS.map((opt) => (
+            <button
+              key={opt.category}
+              onClick={() => handleHeightPick(opt.category)}
+              className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left hover:border-orange-400 hover:bg-orange-50 transition-colors"
+            >
+              <div>
+                <p className="text-sm font-medium text-gray-800">{opt.label}</p>
+                <p className="text-xs text-gray-500">{opt.description} – {opt.price.toLocaleString("nb-NO")} kr</p>
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
