@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import dynamic from "next/dynamic";
@@ -51,6 +51,23 @@ export default function ConfiguratorShell() {
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
   const [quoteOpen, setQuoteOpen] = useState(false);
+  const [imageCollapsed, setImageCollapsed] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    function check() {
+      const sidebarScroll = container?.scrollTop ?? 0;
+      setImageCollapsed(sidebarScroll > 20 || window.scrollY > 20);
+    }
+    container?.addEventListener("scroll", check);
+    window.addEventListener("scroll", check);
+    return () => {
+      container?.removeEventListener("scroll", check);
+      window.removeEventListener("scroll", check);
+    };
+  }, []);
+
   const [viewMode, setViewMode] = useState<"local" | "onshape">("local");
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -155,29 +172,31 @@ export default function ConfiguratorShell() {
 
       {/* Sidebar */}
       <div className="flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white">
-        <div className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
+        <div ref={scrollContainerRef} className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
           {/* Package illustration */}
-          {packageType === "prefab" ? (
-            <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
-              <Image
-                src="/prefab.jpg"
-                alt="Prefabrikert løsning"
-                width={800}
-                height={500}
-                className="w-full h-auto"
-              />
-            </div>
-          ) : (
-            <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
-              <Image
-                src="/material.jpg"
-                alt="Materialpakke"
-                width={800}
-                height={500}
-                className="w-full h-auto"
-              />
-            </div>
-          )}
+          <div className={`overflow-hidden transition-all duration-300 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
+            {packageType === "prefab" ? (
+              <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
+                <Image
+                  src="/prefab.jpg"
+                  alt="Prefabrikert løsning"
+                  width={800}
+                  height={500}
+                  className="w-full h-auto"
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
+                <Image
+                  src="/material.jpg"
+                  alt="Materialpakke"
+                  width={800}
+                  height={500}
+                  className="w-full h-auto"
+                />
+              </div>
+            )}
+          </div>
 
           {/* Package selector */}
           <div className="mt-3 flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
