@@ -52,9 +52,13 @@ export default function Home() {
                   className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-orange-50 transition-colors"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500">
-                    {/* Hammer */}
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M13.293 2.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-1.586 1.586.793.793a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l7-7a1 1 0 011.414 0l.793.793 1.586-1.586z" />
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-6 w-6">
+                      {/* Handle */}
+                      <rect x="11" y="13" width="3.5" height="9" rx="1.2" fill="white" transform="rotate(-45 12.75 17.5)"/>
+                      {/* Head */}
+                      <rect x="7" y="3" width="10" height="6" rx="1.5" fill="white"/>
+                      {/* Face plate */}
+                      <rect x="5.5" y="8" width="7" height="3.5" rx="1" fill="white"/>
                     </svg>
                   </div>
                   <div>
