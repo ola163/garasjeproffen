@@ -10,6 +10,7 @@ interface LocalGarageViewerProps {
   widthMm: number;
   doorWidthMm: number;
   doorHeightMm: number;
+  roofType?: "saltak" | "flattak";
 }
 
 // ── Dimensions ───────────────────────────────────────────────────────────────
@@ -57,8 +58,8 @@ function GableEnd({ z, halfW, ridgeH, flip = false }: {
 }
 
 // ── Garage geometry ───────────────────────────────────────────────────────────
-function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM }: {
-  lengthM: number; widthM: number; doorWidthM: number; doorHeightM: number;
+function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM, roofType = "saltak" }: {
+  lengthM: number; widthM: number; doorWidthM: number; doorHeightM: number; roofType?: "saltak" | "flattak";
 }) {
   const H     = WALL_H;
   const T     = WALL_T;
@@ -104,7 +105,7 @@ function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM }: {
             material={matWall} castShadow receiveShadow>
         <boxGeometry args={[widthM, H, T]} />
       </mesh>
-      <GableEnd z={-halfL} halfW={halfW} ridgeH={ridgeH} flip={false} />
+      {roofType === "saltak" && <GableEnd z={-halfL} halfW={halfW} ridgeH={ridgeH} flip={false} />}
 
       {/* ── Left wall ───────────────────────────────────────────────── */}
       <mesh position={[-halfW + T / 2, H / 2, 0]}
@@ -143,7 +144,7 @@ function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM }: {
       )}
 
       {/* ── Front gable ─────────────────────────────────────────────── */}
-      <GableEnd z={halfL} halfW={halfW} ridgeH={ridgeH} flip={true} />
+      {roofType === "saltak" && <GableEnd z={halfL} halfW={halfW} ridgeH={ridgeH} flip={true} />}
 
       {/* ── Garage door frame ───────────────────────────────────────── */}
       <mesh position={[0, doorHeightM / 2, halfL - T / 2 + 0.01]}
@@ -169,26 +170,36 @@ function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM }: {
         </mesh>
       ))}
 
-      {/* ── Left roof slope ─────────────────────────────────────────── */}
-      <mesh position={[-halfW / 2, slopeCY, 0]}
-            rotation={[0, 0, ROOF_ANGLE]}
-            material={matRoof} castShadow receiveShadow>
-        <boxGeometry args={[slopeLen + 0.05, ROOF_T, roofL]} />
-      </mesh>
+      {roofType === "saltak" ? (
+        <>
+          {/* ── Left roof slope ───────────────────────────────────────── */}
+          <mesh position={[-halfW / 2, slopeCY, 0]}
+                rotation={[0, 0, ROOF_ANGLE]}
+                material={matRoof} castShadow receiveShadow>
+            <boxGeometry args={[slopeLen + 0.05, ROOF_T, roofL]} />
+          </mesh>
 
-      {/* ── Right roof slope ────────────────────────────────────────── */}
-      <mesh position={[halfW / 2, slopeCY, 0]}
-            rotation={[0, 0, -ROOF_ANGLE]}
-            material={matRoof} castShadow receiveShadow>
-        <boxGeometry args={[slopeLen + 0.05, ROOF_T, roofL]} />
-      </mesh>
+          {/* ── Right roof slope ──────────────────────────────────────── */}
+          <mesh position={[halfW / 2, slopeCY, 0]}
+                rotation={[0, 0, -ROOF_ANGLE]}
+                material={matRoof} castShadow receiveShadow>
+            <boxGeometry args={[slopeLen + 0.05, ROOF_T, roofL]} />
+          </mesh>
+        </>
+      ) : (
+        /* ── Flat roof ──────────────────────────────────────────────── */
+        <mesh position={[0, H + ROOF_T / 2, 0]}
+              material={matRoof} castShadow receiveShadow>
+          <boxGeometry args={[widthM + OVERHANG * 2, ROOF_T, roofL]} />
+        </mesh>
+      )}
     </group>
   );
 }
 
 // ── Viewer ───────────────────────────────────────────────────────────────────
 export default function LocalGarageViewer({
-  lengthMm, widthMm, doorWidthMm, doorHeightMm,
+  lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType = "saltak",
 }: LocalGarageViewerProps) {
   return (
     <div className="relative h-full w-full" style={{ background: "linear-gradient(to bottom, #a8c8e0 0%, #d8ecf4 50%, #edf5f9 100%)" }}>
@@ -218,6 +229,7 @@ export default function LocalGarageViewer({
             widthM={widthMm / 1000}
             doorWidthM={doorWidthMm / 1000}
             doorHeightM={doorHeightMm / 1000}
+            roofType={roofType}
           />
         </Suspense>
 

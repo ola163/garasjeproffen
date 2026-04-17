@@ -50,6 +50,7 @@ export default function ConfiguratorShell() {
 
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
+  const [roofType, setRoofType] = useState<"saltak" | "flattak">("saltak");
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [garageDoorOpen, setGarageDoorOpen] = useState(false);
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
@@ -101,6 +102,7 @@ export default function ConfiguratorShell() {
     widthMm:      widthValue,
     doorWidthMm:  doorWidthValue,
     doorHeightMm: doorHeightValue,
+    roofType,
   };
 
   return (
@@ -177,6 +179,30 @@ export default function ConfiguratorShell() {
       {/* Sidebar */}
       <div className="flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white">
         <div ref={scrollContainerRef} className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
+          {/* Roof type selector */}
+          <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 mb-3">
+            <button
+              onClick={() => setRoofType("saltak")}
+              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
+                roofType === "saltak"
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Saltak
+            </button>
+            <button
+              onClick={() => setRoofType("flattak")}
+              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
+                roofType === "flattak"
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Flatt tak
+            </button>
+          </div>
+
           {/* Package illustration */}
           <div className={`overflow-hidden transition-all duration-300 sm:max-h-[500px] sm:opacity-100 sm:mb-3 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
             {packageType === "prefab" ? (
