@@ -61,9 +61,17 @@ export async function POST(request: Request) {
 
     console.log("addedElements received:", JSON.stringify(elements));
 
+    // Expand "both" placement into two rows (left + right)
+    const expandedElements = elements.flatMap((el) =>
+      el.placement === "both"
+        ? [{ ...el, placement: "left" }, { ...el, placement: "right" }]
+        : [el]
+    );
+    const totalCount = expandedElements.length;
+
     // Build elements HTML
-    const elementsHtml = elements.length > 0
-      ? `<h3 style="margin-top:16px">Dør og vindu (${elements.length} stk)</h3>
+    const elementsHtml = expandedElements.length > 0
+      ? `<h3 style="margin-top:16px">Dør og vindu (${totalCount} stk)</h3>
          <table style="border-collapse:collapse;width:100%">
            <thead>
              <tr style="background:#f3f4f6">
@@ -73,7 +81,7 @@ export async function POST(request: Request) {
              </tr>
            </thead>
            <tbody>
-             ${elements.map((el) => `
+             ${expandedElements.map((el) => `
                <tr>
                  <td style="padding:6px 10px;border:1px solid #e5e7eb">${CATEGORY_LABELS[el.category] ?? el.category}</td>
                  <td style="padding:6px 10px;border:1px solid #e5e7eb">${SIDE_LABELS[el.side] ?? el.side}</td>
