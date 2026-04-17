@@ -176,7 +176,7 @@ export default function ConfiguratorShell() {
       <div className="flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white">
         <div ref={scrollContainerRef} className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
           {/* Package illustration */}
-          <div className={`overflow-hidden transition-all duration-300 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
+          <div className={`overflow-hidden transition-all duration-300 sm:max-h-[500px] sm:opacity-100 sm:mb-3 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
             {packageType === "prefab" ? (
               <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
                 <Image
@@ -206,7 +206,7 @@ export default function ConfiguratorShell() {
               onClick={() => { setPackageType("materialpakke"); setImageCollapsed(false); }}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
                 packageType === "materialpakke"
-                  ? "bg-white text-gray-900 shadow-sm"
+                  ? "bg-orange-500 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
@@ -216,7 +216,7 @@ export default function ConfiguratorShell() {
               onClick={() => { setPackageType("prefab"); setImageCollapsed(false); }}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
                 packageType === "prefab"
-                  ? "bg-white text-gray-900 shadow-sm"
+                  ? "bg-orange-500 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
