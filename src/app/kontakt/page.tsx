@@ -82,7 +82,7 @@ export default function Kontakt() {
               src="/Ola.png"
               alt="Ola K. Undheim"
               fill
-              className="object-cover object-top"
+              className="object-contain"
             />
           </div>
           <div className="p-6">
