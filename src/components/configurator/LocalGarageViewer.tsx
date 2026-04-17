@@ -219,8 +219,8 @@ function GarageElements({ elements, lengthM, widthM }: {
   const meshes: React.ReactNode[] = [];
 
   elements.forEach((el, idx) => {
-    const w = el.category === "door" ? 0.9 : el.category === "window1" ? 1.0 : 1.5;
-    const h = el.category === "door" ? 2.1 : el.category === "window1" ? 0.8 : 0.6;
+    const w = el.category === "door" ? 0.9 : el.category === "window3" ? 1.5 : 1.0;
+    const h = el.category === "door" ? 2.1 : el.category === "window1" ? 0.5 : 0.6;
     const cy = el.category === "door" ? h / 2 : H * 0.55;
     const mat = el.category === "door" ? matDoorEl : matWindow;
 

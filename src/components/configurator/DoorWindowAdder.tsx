@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 
 export type WallSide = "front" | "back" | "left" | "right";
-export type ElementCategory = "door" | "window1" | "window2";
+export type ElementCategory = "door" | "window1" | "window2" | "window3";
 export type Placement = "left" | "right" | "both";
 
 export interface AddedElement {
@@ -29,14 +29,15 @@ const SIDE_LABELS: Record<WallSide, string> = {
   right: "Høyre",
 };
 
-const CATEGORY_OPTIONS: { id: ElementCategory; label: string; description: string }[] = [
-  { id: "door",    label: "Dør",      description: "0,9 × 2,1 m inngangsdør" },
-  { id: "window1", label: "Vindu 1",  description: "1,0 × 0,8 m standard vindu" },
-  { id: "window2", label: "Vindu 2",  description: "1,5 × 0,6 m bredformat vindu" },
+const CATEGORY_OPTIONS: { id: ElementCategory; label: string; description: string; price?: number }[] = [
+  { id: "door",    label: "Dør",           description: "0,9 × 2,1 m inngangsdør" },
+  { id: "window1", label: "Vindu 100×50",  description: "1,0 × 0,5 m", price: 2995 },
+  { id: "window2", label: "Vindu 100×60",  description: "1,0 × 0,6 m", price: 3095 },
+  { id: "window3", label: "Vindu 2",       description: "1,5 × 0,6 m bredformat vindu" },
 ];
 
 const ELEMENT_WIDTH: Record<ElementCategory, number> = {
-  door: 0.9, window1: 1.0, window2: 1.5,
+  door: 0.9, window1: 1.0, window2: 1.0, window3: 1.5,
 };
 
 /** Positions occupied by existing elements on a given side */
@@ -50,7 +51,10 @@ function occupiedPositions(side: WallSide, elements: AddedElement[]): Set<"left"
   return occupied;
 }
 
-/** Whether an element of given category/placement on the front wall overlaps the garage door */
+/** Minimum clearance between an added element and the garage door edge */
+const DOOR_CLEARANCE_M = 0.10;
+
+/** Whether an element of given category/placement on the front wall overlaps the garage door (including 10 cm clearance) */
 function overlapsGarageDoor(
   placement: "left" | "right",
   category: ElementCategory,
@@ -58,7 +62,7 @@ function overlapsGarageDoor(
   doorWidthM: number
 ): boolean {
   const halfEl   = ELEMENT_WIDTH[category] / 2;
-  const halfDoor = doorWidthM / 2;
+  const halfDoor = doorWidthM / 2 + DOOR_CLEARANCE_M; // extend blocked zone by 10 cm
   const cx       = placement === "left" ? -widthM * 0.25 : widthM * 0.25;
   return cx + halfEl > -halfDoor && cx - halfEl < halfDoor;
 }
@@ -227,7 +231,7 @@ export default function DoorWindowAdder({
             >
               <div>
                 <p className="text-sm font-medium text-gray-800">{opt.label}</p>
-                <p className="text-xs text-gray-500">{opt.description}</p>
+                <p className="text-xs text-gray-500">{opt.description}{opt.price ? ` – ${opt.price.toLocaleString("nb-NO")} kr` : ""}</p>
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />

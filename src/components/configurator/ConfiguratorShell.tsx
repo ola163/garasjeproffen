@@ -415,7 +415,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     {addedElements.map((el, i) => (
                       <li key={i} className="flex items-center justify-between rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-700">
                         <span>
-                          {el.category === "door" ? "Dør" : el.category === "window1" ? "Vindu 1" : "Vindu 2"}
+                          {el.category === "door" ? "Dør" : el.category === "window1" ? "Vindu 100×50" : el.category === "window2" ? "Vindu 100×60" : "Vindu 2"}
                           {" – "}
                           {el.side === "front" ? "Front" : el.side === "back" ? "Bak" : el.side === "left" ? "Venstre" : "Høyre"}
                           {" / "}
