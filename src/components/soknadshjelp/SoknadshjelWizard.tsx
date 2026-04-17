@@ -466,6 +466,7 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, onBack }: {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -478,7 +479,7 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, onBack }: {
       await fetch("/api/soknadshjelp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone, address, dibk, garageConfig, permitResult: result, permit, total, buildingType: buildingLabel }),
+        body: JSON.stringify({ name, email, phone, message, address, dibk, garageConfig, permitResult: result, permit, total, buildingType: buildingLabel }),
       });
       setSent(true);
     } finally {
@@ -545,6 +546,8 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, onBack }: {
             <input required type="email" placeholder="E-post *" value={email} onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             <input type="tel" placeholder="Telefon" value={phone} onChange={(e) => setPhone(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            <textarea placeholder="Eventuelle spesielle ønsker..." rows={3} value={message} onChange={(e) => setMessage(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             <button type="submit" disabled={sending}
               className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">

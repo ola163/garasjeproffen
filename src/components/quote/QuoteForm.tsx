@@ -11,16 +11,16 @@ interface QuoteFormProps {
   pricing: PricingResult;
   packageType: string;
   addedElements: AddedElement[];
-  message: string;
   open: boolean;
 }
 
-export default function QuoteForm({ configuration, pricing, packageType, addedElements, message, open }: QuoteFormProps) {
+export default function QuoteForm({ configuration, pricing, packageType, addedElements, open }: QuoteFormProps) {
   const router = useRouter();
   const [needsPermit, setNeedsPermit] = useState<"nei" | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<QuoteResponse | null>(null);
 
@@ -115,6 +115,12 @@ export default function QuoteForm({ configuration, pricing, packageType, addedEl
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Telefon</label>
               <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+            </div>
+            <div>
+              <label htmlFor="message" className="block text-sm font-medium text-gray-700">Eventuelle spesielle ønsker</label>
+              <textarea id="message" rows={3} value={message} onChange={(e) => setMessage(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                placeholder="Skriv inn eventuelle spesielle ønsker eller kommentarer..." />
             </div>
             {result?.error && (
               <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{result.error}</div>

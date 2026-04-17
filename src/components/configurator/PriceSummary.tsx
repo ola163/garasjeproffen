@@ -5,12 +5,10 @@ import { formatPrice } from "@/lib/pricing";
 
 interface PriceSummaryProps {
   pricing: PricingResult;
-  message: string;
-  onMessageChange: (v: string) => void;
   onQuoteOpen: () => void;
 }
 
-export default function PriceSummary({ pricing, message, onMessageChange, onQuoteOpen }: PriceSummaryProps) {
+export default function PriceSummary({ pricing, onQuoteOpen }: PriceSummaryProps) {
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
       <h3 className="text-sm font-semibold text-gray-900">Prisestimat</h3>
@@ -39,20 +37,6 @@ export default function PriceSummary({ pricing, message, onMessageChange, onQuot
       </div>
 
       <p className="mt-2 text-xs text-gray-400">* Estimert pris. Endelig tilbud kan variere.</p>
-
-      <div className="mt-4">
-        <label htmlFor="customer-message" className="block text-xs font-medium text-gray-600 mb-1">
-          Eventuelle spesielle ønsker
-        </label>
-        <textarea
-          id="customer-message"
-          rows={3}
-          value={message}
-          onChange={(e) => onMessageChange(e.target.value)}
-          placeholder="Skriv inn eventuelle spesielle ønsker eller kommentarer..."
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-        />
-      </div>
 
       <button
         onClick={onQuoteOpen}
