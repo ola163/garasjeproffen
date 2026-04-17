@@ -13,8 +13,11 @@ export const metadata: Metadata = {
   title: "GarasjeProffen.no - Design din egen garasje",
   description: "Bruk vår 3D-konfigurator til å designe din drømmegarasje og få et pristilbud med en gang.",
   icons: {
-    icon: "/logo.jpg",
-    apple: "/logo.jpg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    apple: { url: "/apple-touch-icon.png", type: "image/png" },
   },
   openGraph: {
     title: "GarasjeProffen.no - Design din egen garasje",
