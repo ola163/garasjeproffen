@@ -4,11 +4,11 @@ export type PackageType = "materialpakke" | "prefab";
 export type RoofType = "saltak" | "flattak";
 
 const PRICE_PER_SQM: Record<PackageType, number> = {
-  materialpakke: 2250,
-  prefab: 5500,
+  materialpakke: 3750,
+  prefab: 7000,
 };
 
-const FLATTAK_PRICE_PER_SQM = 2000;
+const FLATTAK_PRICE_PER_SQM = 3500;
 
 const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "NOK";
 
