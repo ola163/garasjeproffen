@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     if (resendKey) {
       const resend = new Resend(resendKey);
       const emailResult = await resend.emails.send({
-        from: "GarasjeProffen <onboarding@resend.dev>",
+        from: "GarasjeProffen <noreply@garasjeproffen.no>",
         to: RECIPIENT,
         replyTo: body.customer.email,
         subject: `Ny tilbudsforespørsel – ${body.customer.name} (${quoteId})`,
