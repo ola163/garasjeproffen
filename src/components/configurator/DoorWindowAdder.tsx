@@ -31,7 +31,7 @@ const SIDE_LABELS: Record<WallSide, string> = {
 
 // Top-level category rows shown in step 2
 const TOP_CATEGORY_OPTIONS: { id: ElementCategory | "window100"; label: string; description: string }[] = [
-  { id: "door",      label: "Dør",      description: "0,9 × 2,1 m inngangsdør" },
+  { id: "door",      label: "Dør",      description: "0,9 × 2,1 m – 5 995 kr" },
   { id: "window100", label: "Vindu 100", description: "1,0 m bredde – velg høyde" },
   { id: "window3",   label: "Vindu 100×100", description: "1,0 × 1,0 m" },
 ];
