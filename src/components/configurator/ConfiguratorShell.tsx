@@ -8,6 +8,7 @@ import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
 import QuoteForm from "../quote/QuoteForm";
 import DoorWindowAdder, { type AddedElement, type WallSide } from "./DoorWindowAdder";
+import AuthPanel from "../auth/AuthPanel";
 import { calculatePrice, type PackageType } from "@/lib/pricing";
 import { GARAGE_PARAMETERS } from "@/lib/parameters";
 
@@ -483,6 +484,27 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           <div className="mt-8" ref={quoteRef}>
             <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} addedElements={addedElements} open={quoteOpen} />
           </div>
+
+          <AuthPanel
+            currentConfig={{
+              packageType,
+              roofType,
+              length: lengthValue,
+              width: widthValue,
+              doorWidth: doorWidthValue,
+              doorHeight: doorHeightValue,
+              addedElements,
+            }}
+            onLoadConfig={(cfg) => {
+              setPackageType(cfg.packageType as PackageType);
+              setRoofType(cfg.roofType as "saltak" | "flattak");
+              setLengthValue(cfg.length);
+              setWidthValue(cfg.width);
+              setDoorWidthValue(cfg.doorWidth);
+              setDoorHeightValue(cfg.doorHeight);
+              setAddedElements(cfg.addedElements as AddedElement[]);
+            }}
+          />
         </div>
       </div>
     </div>
