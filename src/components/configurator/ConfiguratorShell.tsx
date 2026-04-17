@@ -8,7 +8,6 @@ import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
 import QuoteForm from "../quote/QuoteForm";
 import DoorWindowAdder, { type AddedElement, type WallSide } from "./DoorWindowAdder";
-import { useConfigurator } from "@/hooks/useConfigurator";
 import { calculatePrice, type PackageType } from "@/lib/pricing";
 import { GARAGE_PARAMETERS } from "@/lib/parameters";
 
@@ -18,34 +17,40 @@ const LocalGarageViewer = dynamic(() => import("./LocalGarageViewer"), { ssr: fa
 /** Minimum combined side clearance: widthMm >= doorWidthMm + MIN_CLEARANCE */
 const MIN_CLEARANCE = 300;
 
-export default function ConfiguratorShell({ buildingType = "garasje" }: { buildingType?: "garasje" | "carport" }) {
-  const { configuration, setParameter } = useConfigurator();
+const lengthParam     = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
+const widthParam      = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
+const doorWidthParam  = GARAGE_PARAMETERS.find((p) => p.id === "doorWidth")!;
+const doorHeightParam = GARAGE_PARAMETERS.find((p) => p.id === "doorHeight")!;
 
+export default function ConfiguratorShell({ buildingType = "garasje" }: { buildingType?: "garasje" | "carport" }) {
   const searchParams = useSearchParams();
   const initialPackage = searchParams.get("package") === "prefab" ? "prefab" : "materialpakke";
+
   const [packageType, setPackageType] = useState<PackageType>(initialPackage);
   const [roofType, setRoofType] = useState<"saltak" | "flattak">("flattak");
+
+  // Dimension state — kept in React state (not URL) to avoid router.replace re-mounts
+  const [lengthValue,     setLengthValue]     = useState(lengthParam.defaultValue);
+  const [widthValue,      setWidthValue]       = useState(widthParam.defaultValue);
+  const [doorWidthValue,  setDoorWidthValue]   = useState(doorWidthParam.defaultValue);
+  const [doorHeightValue, setDoorHeightValue]  = useState(doorHeightParam.defaultValue);
+
+  const configuration = useMemo(() => ({
+    parameters: { length: lengthValue, width: widthValue, doorWidth: doorWidthValue, doorHeight: doorHeightValue },
+    timestamp: Date.now(),
+  }), [lengthValue, widthValue, doorWidthValue, doorHeightValue]);
+
   const pricing = useMemo(() => calculatePrice(configuration, packageType, roofType), [configuration, packageType, roofType]);
-
-  const lengthParam     = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
-  const widthParam      = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
-  const doorWidthParam  = GARAGE_PARAMETERS.find((p) => p.id === "doorWidth")!;
-  const doorHeightParam = GARAGE_PARAMETERS.find((p) => p.id === "doorHeight")!;
-
-  const lengthValue     = configuration.parameters.length     ?? lengthParam.defaultValue;
-  const widthValue      = configuration.parameters.width      ?? widthParam.defaultValue;
-  const doorWidthValue  = configuration.parameters.doorWidth  ?? doorWidthParam.defaultValue;
-  const doorHeightValue = configuration.parameters.doorHeight ?? doorHeightParam.defaultValue;
 
   const validDoorWidthOptions = useMemo(
     () => (doorWidthParam.options ?? []).filter((o) => widthValue >= o.value + MIN_CLEARANCE),
-    [widthValue, doorWidthParam.options]
+    [widthValue]
   );
 
   useEffect(() => {
     if (validDoorWidthOptions.length === 0) return;
     if (!validDoorWidthOptions.find((o) => o.value === doorWidthValue)) {
-      setParameter("doorWidth", validDoorWidthOptions[validDoorWidthOptions.length - 1].value);
+      setDoorWidthValue(validDoorWidthOptions[validDoorWidthOptions.length - 1].value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widthValue]);
@@ -281,7 +286,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               max={lengthParam.max!}
               step={lengthParam.step!}
               unit={lengthParam.unit}
-              onChange={(value) => setParameter("length", value)}
+              onChange={setLengthValue}
             />
             <LengthSlider
               label={buildingType === "carport" ? "Endre bredde carport" : widthParam.label}
@@ -290,7 +295,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               max={widthParam.max!}
               step={widthParam.step!}
               unit={widthParam.unit}
-              onChange={(value) => setParameter("width", value)}
+              onChange={setWidthValue}
             />
           </div>
 
@@ -325,7 +330,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 ) : (
                   <select
                     value={doorWidthValue}
-                    onChange={(e) => setParameter("doorWidth", Number(e.target.value))}
+                    onChange={(e) => setDoorWidthValue(Number(e.target.value))}
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e2520a]"
                   >
                     {validDoorWidthOptions.map((o) => (
@@ -343,7 +348,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 </label>
                 <select
                   value={doorHeightValue}
-                  onChange={(e) => setParameter("doorHeight", Number(e.target.value))}
+                  onChange={(e) => setDoorHeightValue(Number(e.target.value))}
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e2520a]"
                 >
                   {(doorHeightParam.options ?? []).map((o) => (
