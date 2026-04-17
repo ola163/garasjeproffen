@@ -188,14 +188,15 @@ export default function ConfiguratorShell() {
                 />
               </div>
             ) : (
-              <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
-                <Image
-                  src="/material.jpg"
-                  alt="Materialpakke"
-                  width={800}
-                  height={500}
-                  className="w-full h-auto"
-                />
+              <div className="rounded-xl overflow-hidden bg-[#e2520a] flex items-center justify-center" style={{ aspectRatio: "8/5" }}>
+                <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-32 h-32 drop-shadow-lg">
+                  {/* Handle */}
+                  <rect x="54" y="62" width="16" height="46" rx="5" fill="white" opacity="0.95" transform="rotate(-38 62 85)"/>
+                  {/* Head */}
+                  <rect x="42" y="22" width="52" height="36" rx="8" fill="white" opacity="0.95" transform="rotate(-38 68 40)"/>
+                  {/* Claw */}
+                  <rect x="28" y="22" width="18" height="26" rx="5" fill="white" opacity="0.85" transform="rotate(-38 37 35)"/>
+                </svg>
               </div>
             )}
           </div>
