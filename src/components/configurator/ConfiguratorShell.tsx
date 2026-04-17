@@ -241,8 +241,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             </span>
           </div>
 
-          {/* Roof type selector */}
-          <div className="mt-4 flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+          {/* Roof type selector — hidden for carport (always flattak) */}
+          {buildingType !== "carport" && <div className="mt-4 flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
             <button
               onClick={() => setRoofType("flattak")}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
@@ -263,7 +263,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             >
               Saltak
             </button>
-          </div>
+          </div>}
 
           {/* Sliders */}
           <div className="mt-6 space-y-6">
