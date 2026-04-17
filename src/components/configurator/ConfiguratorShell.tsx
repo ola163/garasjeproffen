@@ -51,14 +51,16 @@ export default function ConfiguratorShell() {
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
   const [quoteOpen, setQuoteOpen] = useState(false);
-  const [imageCollapsed, setImageCollapsed] = useState(false);
+  const [imageCollapsed, setImageCollapsed] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     function check() {
       const sidebarScroll = container?.scrollTop ?? 0;
-      setImageCollapsed(sidebarScroll > 20 || window.scrollY > 20);
+      if (sidebarScroll > 20 || window.scrollY > 20) {
+        setImageCollapsed(true);
+      }
     }
     container?.addEventListener("scroll", check);
     window.addEventListener("scroll", check);
@@ -201,7 +203,7 @@ export default function ConfiguratorShell() {
           {/* Package selector */}
           <div className="mt-3 flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
             <button
-              onClick={() => setPackageType("materialpakke")}
+              onClick={() => { setPackageType("materialpakke"); setImageCollapsed(false); }}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
                 packageType === "materialpakke"
                   ? "bg-white text-gray-900 shadow-sm"
@@ -211,7 +213,7 @@ export default function ConfiguratorShell() {
               Materialpakke
             </button>
             <button
-              onClick={() => setPackageType("prefab")}
+              onClick={() => { setPackageType("prefab"); setImageCollapsed(false); }}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
                 packageType === "prefab"
                   ? "bg-white text-gray-900 shadow-sm"
