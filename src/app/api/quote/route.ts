@@ -26,7 +26,7 @@ const PLACEMENT_LABELS: Record<string, string> = {
 
 export async function POST(request: Request) {
   try {
-    const body: QuoteRequest & { packageType?: string; addedElements?: { side: string; category: string; placement: string }[] } = await request.json();
+    const body: QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[] } = await request.json();
 
     // Validate customer info
     if (!body.customer?.name || !body.customer?.email) {
@@ -122,6 +122,7 @@ export async function POST(request: Request) {
           <h3>Konfigurasjon</h3>
           <table>
             <tr><td><strong>Pakke:</strong></td><td>${body.packageType === "prefab" ? "Prefabrikert løsning" : "Materialpakke"}</td></tr>
+            <tr><td><strong>Taktype:</strong></td><td>${body.roofType === "saltak" ? "Saltak" : "Flattak"}</td></tr>
             <tr><td><strong>Lengde:</strong></td><td>${(p.length ?? 6000) / 1000} m</td></tr>
             <tr><td><strong>Bredde:</strong></td><td>${(p.width ?? 8400) / 1000} m</td></tr>
             <tr><td><strong>Portbredde:</strong></td><td>${p.doorWidth ?? 2500} mm</td></tr>

@@ -10,11 +10,12 @@ interface QuoteFormProps {
   configuration: GarageConfiguration;
   pricing: PricingResult;
   packageType: string;
+  roofType: string;
   addedElements: AddedElement[];
   open: boolean;
 }
 
-export default function QuoteForm({ configuration, pricing, packageType, addedElements, open }: QuoteFormProps) {
+export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, open }: QuoteFormProps) {
   const router = useRouter();
   const [needsPermit, setNeedsPermit] = useState<"nei" | null>(null);
   const [name, setName] = useState("");
@@ -39,6 +40,7 @@ export default function QuoteForm({ configuration, pricing, packageType, addedEl
           configuration,
           pricing,
           packageType,
+          roofType,
           addedElements,
           customer: { name, email, phone, message },
         }),

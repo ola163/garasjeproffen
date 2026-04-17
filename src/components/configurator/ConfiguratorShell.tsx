@@ -482,7 +482,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           <div className="mt-8" ref={quoteRef}>
-            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} addedElements={addedElements} open={quoteOpen} />
+            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} roofType={roofType} addedElements={addedElements} open={quoteOpen} />
           </div>
 
           <AuthPanel
