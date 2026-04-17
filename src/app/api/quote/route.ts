@@ -6,9 +6,27 @@ import { calculatePrice, formatPrice } from "@/lib/pricing";
 
 const RECIPIENT = "post@garasjeproffen.no";
 
+const SIDE_LABELS: Record<string, string> = {
+  front: "Frontvegg",
+  back: "Bakvegg",
+  left: "Venstre vegg",
+  right: "Høyre vegg",
+};
+const CATEGORY_LABELS: Record<string, string> = {
+  door: "Dør 90×210",
+  window1: "Vindu 100×50",
+  window2: "Vindu 100×60",
+  window3: "Vindu 100×100",
+};
+const PLACEMENT_LABELS: Record<string, string> = {
+  left: "Venstre",
+  right: "Høyre",
+  both: "Begge sider",
+};
+
 export async function POST(request: Request) {
   try {
-    const body: QuoteRequest & { packageType?: string } = await request.json();
+    const body: QuoteRequest & { packageType?: string; addedElements?: { side: string; category: string; placement: string }[] } = await request.json();
 
     // Validate customer info
     if (!body.customer?.name || !body.customer?.email) {
@@ -37,8 +55,16 @@ export async function POST(request: Request) {
     // Recalculate price server-side
     const pricing = calculatePrice(body.configuration);
     const p = body.configuration.parameters;
+    const elements = body.addedElements ?? [];
 
     const quoteId = `Q-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+
+    // Build elements HTML
+    const elementsHtml = elements.length > 0
+      ? `<h3>Dør og vindu</h3><table>${elements.map((el) =>
+          `<tr><td>${CATEGORY_LABELS[el.category] ?? el.category}</td><td>${SIDE_LABELS[el.side] ?? el.side}</td><td>${PLACEMENT_LABELS[el.placement] ?? el.placement}</td></tr>`
+        ).join("")}</table>`
+      : "";
 
     // Send email via Resend
     const resendKey = process.env.RESEND_API_KEY;
@@ -71,6 +97,8 @@ export async function POST(request: Request) {
             <tr><td><strong>Portbredde:</strong></td><td>${p.doorWidth ?? 2500} mm</td></tr>
             <tr><td><strong>Porthøyde:</strong></td><td>${p.doorHeight ?? 2125} mm</td></tr>
           </table>
+
+          ${elementsHtml}
 
           <h3>Prisestimat</h3>
           <table>

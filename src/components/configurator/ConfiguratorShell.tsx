@@ -57,6 +57,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
   const [quoteOpen, setQuoteOpen] = useState(false);
   const quoteRef = useRef<HTMLDivElement>(null);
+  const [customerMessage, setCustomerMessage] = useState("");
   const [garageDoorOpen, setGarageDoorOpen] = useState(false);
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
@@ -477,11 +478,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           <div className="mt-3">
-            <PriceSummary pricing={pricing} onQuoteOpen={() => setQuoteOpen(true)} />
+            <PriceSummary pricing={pricing} message={customerMessage} onMessageChange={setCustomerMessage} onQuoteOpen={() => setQuoteOpen(true)} />
           </div>
 
           <div className="mt-8" ref={quoteRef}>
-            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} open={quoteOpen} />
+            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} addedElements={addedElements} message={customerMessage} open={quoteOpen} />
           </div>
         </div>
       </div>
