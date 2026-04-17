@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 export default function Header() {
+  const pathname = usePathname();
+  const soknadshjelLink =
+    pathname === "/garasje" || pathname === "/carport"
+      ? "/soknadshjelp?buildingType=garasje"
+      : "/soknadshjelp";
+
   return (
     <header className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:h-44 sm:px-6">
@@ -31,7 +38,7 @@ export default function Header() {
             Kontakt
           </Link>
           <Link
-            href="/soknadshjelp"
+            href={soknadshjelLink}
             className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
           >
             Søknadshjelp

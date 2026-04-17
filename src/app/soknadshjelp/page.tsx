@@ -6,7 +6,7 @@ export const metadata = {
 };
 
 interface Props {
-  searchParams: Promise<{ lengthMm?: string; widthMm?: string; doorWidthMm?: string; doorHeightMm?: string }>;
+  searchParams: Promise<{ lengthMm?: string; widthMm?: string; doorWidthMm?: string; doorHeightMm?: string; buildingType?: string }>;
 }
 
 export default async function Soknadshjelp({ searchParams }: Props) {
@@ -22,5 +22,5 @@ export default async function Soknadshjelp({ searchParams }: Props) {
         }
       : undefined;
 
-  return <SoknadshjelWizard garageConfig={garageConfig} />;
+  return <SoknadshjelWizard garageConfig={garageConfig} initialBuildingType={params.buildingType === "garasje" ? "garasje" : undefined} />;
 }

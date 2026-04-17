@@ -220,21 +220,24 @@ function PermitBanner({ result }: { result: PermitResult }) {
 }
 
 // ── Step bar ──────────────────────────────────────────────────────────────────
-const STEPS = ["Velg type", "Finn tomt", "Søknadskrav", "Prisestimat"];
+const STEPS_FULL   = ["Velg type", "Finn tomt", "Søknadskrav", "Prisestimat"];
+const STEPS_SKIP   = ["Finn tomt", "Søknadskrav", "Prisestimat"];
 
-function StepBar({ step }: { step: number }) {
+function StepBar({ step, skipType }: { step: number; skipType: boolean }) {
+  const steps = skipType ? STEPS_SKIP : STEPS_FULL;
+  const displayStep = skipType ? step - 1 : step;
   return (
     <div className="flex flex-wrap items-center gap-1 mb-8">
-      {STEPS.map((label, i) => (
+      {steps.map((label, i) => (
         <div key={i} className="flex items-center gap-1">
           <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold
-            ${i <= step ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-400"}`}>
-            {i < step ? "✓" : i + 1}
+            ${i <= displayStep ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-400"}`}>
+            {i < displayStep ? "✓" : i + 1}
           </div>
-          <span className={`text-xs sm:text-sm ${i === step ? "font-medium text-gray-900" : "text-gray-400"}`}>
+          <span className={`text-xs sm:text-sm ${i === displayStep ? "font-medium text-gray-900" : "text-gray-400"}`}>
             {label}
           </span>
-          {i < STEPS.length - 1 && <div className="mx-1 h-px w-4 bg-gray-200" />}
+          {i < steps.length - 1 && <div className="mx-1 h-px w-4 bg-gray-200" />}
         </div>
       ))}
     </div>
@@ -556,26 +559,32 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, onBack }: {
 }
 
 // ── Main wizard ───────────────────────────────────────────────────────────────
-export default function SoknadshjelWizard({ garageConfig }: { garageConfig?: GarageConfig }) {
-  const [step, setStep] = useState(0);
-  const [buildingType, setBuildingType] = useState<BuildingType | null>(null);
+export default function SoknadshjelWizard({ garageConfig, initialBuildingType }: { garageConfig?: GarageConfig; initialBuildingType?: BuildingType }) {
+  const skipType = !!initialBuildingType;
+  const [step, setStep] = useState(skipType ? 1 : 0);
+  const [buildingType, setBuildingType] = useState<BuildingType | null>(initialBuildingType ?? null);
   const [address, setAddress] = useState("");
   const [dibk, setDibk] = useState<DibkAnswers>(defaultDibk);
 
   return (
     <div className="mx-auto max-w-xl px-6 py-12 sm:py-16">
-      {garageConfig && (
+      {skipType && (
         <div className="mb-6 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-800">
-          Garasjekonfigurasjon hentet: {garageConfig.widthMm / 1000} × {garageConfig.lengthMm / 1000} m
+          Bygningstype: <span className="font-medium">Garasje eller carport</span> – hentet fra konfiguratoren
+        </div>
+      )}
+      {garageConfig && (
+        <div className="mb-3 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+          Garasjekonfigurasjon: {garageConfig.widthMm / 1000} × {garageConfig.lengthMm / 1000} m
           – port {garageConfig.doorWidthMm} mm
         </div>
       )}
-      <StepBar step={step} />
+      <StepBar step={step} skipType={skipType} />
       {step === 0 && (
         <StepBuildingType selected={buildingType} onNext={(t) => { setBuildingType(t); setStep(1); }} />
       )}
       {step === 1 && (
-        <StepMap onNext={(_, __, addr) => { setAddress(addr); setStep(2); }} onBack={() => setStep(0)} />
+        <StepMap onNext={(_, __, addr) => { setAddress(addr); setStep(2); }} onBack={() => setStep(skipType ? 1 : 0)} />
       )}
       {step === 2 && (
         <StepDibk dibk={dibk} setDibk={setDibk} onNext={() => setStep(3)} onBack={() => setStep(1)} />
