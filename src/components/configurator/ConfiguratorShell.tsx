@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
 import QuoteForm from "../quote/QuoteForm";
+import DoorWindowAdder, { type AddedElement, type WallSide } from "./DoorWindowAdder";
 import { useConfigurator } from "@/hooks/useConfigurator";
 import { calculatePrice, type PackageType } from "@/lib/pricing";
 import { GARAGE_PARAMETERS } from "@/lib/parameters";
@@ -54,6 +55,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [garageDoorOpen, setGarageDoorOpen] = useState(false);
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
+  const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
+  const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
+  const [focusSide, setFocusSide] = useState<WallSide | null>(null);
   const [imageCollapsed, setImageCollapsed] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -98,11 +102,13 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   }
 
   const viewerProps = {
-    lengthMm:     lengthValue,
-    widthMm:      widthValue,
-    doorWidthMm:  doorWidthValue,
-    doorHeightMm: doorHeightValue,
+    lengthMm:      lengthValue,
+    widthMm:       widthValue,
+    doorWidthMm:   doorWidthValue,
+    doorHeightMm:  doorHeightValue,
     roofType,
+    focusSide,
+    addedElements,
   };
 
   return (
@@ -378,13 +384,43 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             </button>
             {doorWindowOpen && (
               <div className="mt-4">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors"
-                >
-                  <span>+</span>
-                  <span>Legg til</span>
-                </button>
+                {!showDoorWindowAdder ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowDoorWindowAdder(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors"
+                  >
+                    <span>+</span>
+                    <span>Legg til</span>
+                  </button>
+                ) : (
+                  <DoorWindowAdder
+                    onFocusSide={setFocusSide}
+                    onAdd={(el) => setAddedElements((prev) => [...prev, el])}
+                    onClose={() => { setShowDoorWindowAdder(false); setFocusSide(null); }}
+                  />
+                )}
+                {addedElements.length > 0 && (
+                  <ul className="mt-3 space-y-1">
+                    {addedElements.map((el, i) => (
+                      <li key={i} className="flex items-center justify-between rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-700">
+                        <span>
+                          {el.category === "door" ? "Dør" : el.category === "window1" ? "Vindu 1" : "Vindu 2"}
+                          {" – "}
+                          {el.side === "front" ? "Front" : el.side === "back" ? "Bak" : el.side === "left" ? "Venstre" : "Høyre"}
+                          {" / "}
+                          {el.placement === "left" ? "Venstre" : el.placement === "right" ? "Høyre" : "Begge"}
+                        </span>
+                        <button
+                          onClick={() => setAddedElements((prev) => prev.filter((_, j) => j !== i))}
+                          className="ml-2 text-gray-400 hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>}

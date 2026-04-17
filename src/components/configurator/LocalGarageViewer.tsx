@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, Suspense } from "react";
-import { Canvas } from "@react-three/fiber";
+import { useMemo, Suspense, useEffect, useRef } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { OrbitControls } from "@react-three/drei";
+import type { AddedElement, WallSide } from "./DoorWindowAdder";
 
 interface LocalGarageViewerProps {
   lengthMm: number;
@@ -11,6 +12,8 @@ interface LocalGarageViewerProps {
   doorWidthMm: number;
   doorHeightMm: number;
   roofType?: "saltak" | "flattak";
+  focusSide?: WallSide | null;
+  addedElements?: AddedElement[];
 }
 
 // ── Dimensions ───────────────────────────────────────────────────────────────
@@ -197,10 +200,113 @@ function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM, roofType = "
   );
 }
 
+// ── Element colors ────────────────────────────────────────────────────────────
+const WINDOW_COLOR = "#9ECFEA";
+const DOOR_EL_COLOR = "#C4A882";
+
+// ── Added elements renderer ───────────────────────────────────────────────────
+function GarageElements({ elements, lengthM, widthM }: {
+  elements: AddedElement[]; lengthM: number; widthM: number;
+}) {
+  const H = WALL_H;
+  const T = WALL_T;
+  const halfL = lengthM / 2;
+  const halfW = widthM / 2;
+
+  const matWindow = useMemo(() => new THREE.MeshStandardMaterial({ color: WINDOW_COLOR, roughness: 0.2, metalness: 0.1 }), []);
+  const matDoorEl = useMemo(() => new THREE.MeshStandardMaterial({ color: DOOR_EL_COLOR, roughness: 0.6 }), []);
+
+  const meshes: React.ReactNode[] = [];
+
+  elements.forEach((el, idx) => {
+    const w = el.category === "door" ? 0.9 : el.category === "window1" ? 1.0 : 1.5;
+    const h = el.category === "door" ? 2.1 : el.category === "window1" ? 0.8 : 0.6;
+    const cy = el.category === "door" ? h / 2 : H * 0.55;
+    const mat = el.category === "door" ? matDoorEl : matWindow;
+
+    const placements: number[] = el.placement === "both" ? [-0.25, 0.25] : el.placement === "left" ? [-0.25] : [0.25];
+
+    placements.forEach((frac, pi) => {
+      const key = `${idx}-${pi}`;
+      if (el.side === "front" || el.side === "back") {
+        const z = el.side === "front" ? halfL - T / 2 + 0.05 : -(halfL - T / 2 + 0.05);
+        const x = widthM * frac;
+        meshes.push(
+          <mesh key={key} position={[x, cy, z]} material={mat} castShadow>
+            <boxGeometry args={[w, h, 0.05]} />
+          </mesh>
+        );
+      } else {
+        const x = el.side === "right" ? halfW - T / 2 + 0.05 : -(halfW - T / 2 + 0.05);
+        const z = lengthM * frac;
+        meshes.push(
+          <mesh key={key} position={[x, cy, z]} rotation={[0, Math.PI / 2, 0]} material={mat} castShadow>
+            <boxGeometry args={[w, h, 0.05]} />
+          </mesh>
+        );
+      }
+    });
+  });
+
+  return <>{meshes}</>;
+}
+
+// ── Camera controller ─────────────────────────────────────────────────────────
+function CameraController({ focusSide, lengthM, widthM }: {
+  focusSide: WallSide | null | undefined; lengthM: number; widthM: number;
+}) {
+  const { camera } = useThree();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const controlsRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!controlsRef.current) return;
+    const halfL = lengthM / 2;
+    const halfW = widthM / 2;
+    const D = Math.max(halfL, halfW) + 6;
+
+    if (!focusSide) {
+      camera.position.set(14, 9, 14);
+      controlsRef.current.target.set(0, 1.5, 0);
+    } else {
+      const pos: Record<WallSide, [number, number, number]> = {
+        front: [0, 3, halfL + D],
+        back:  [0, 3, -(halfL + D)],
+        left:  [-(halfW + D), 3, 0],
+        right: [halfW + D, 3, 0],
+      };
+      const tgt: Record<WallSide, [number, number, number]> = {
+        front: [0, 2, halfL],
+        back:  [0, 2, -halfL],
+        left:  [-halfW, 2, 0],
+        right: [halfW, 2, 0],
+      };
+      camera.position.set(...pos[focusSide]);
+      controlsRef.current.target.set(...tgt[focusSide]);
+    }
+    controlsRef.current.update();
+  }, [focusSide, lengthM, widthM, camera]);
+
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      enablePan enableZoom enableRotate
+      minPolarAngle={0.1}
+      maxPolarAngle={Math.PI / 2.2}
+      minDistance={3}
+      maxDistance={40}
+    />
+  );
+}
+
 // ── Viewer ───────────────────────────────────────────────────────────────────
 export default function LocalGarageViewer({
   lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType = "saltak",
+  focusSide, addedElements = [],
 }: LocalGarageViewerProps) {
+  const lengthM = lengthMm / 1000;
+  const widthM  = widthMm  / 1000;
+
   return (
     <div className="relative h-full w-full" style={{ background: "linear-gradient(to bottom, #a8c8e0 0%, #d8ecf4 50%, #edf5f9 100%)" }}>
       <Canvas
@@ -225,22 +331,16 @@ export default function LocalGarageViewer({
 
         <Suspense fallback={null}>
           <GarageGeometry
-            lengthM={lengthMm / 1000}
-            widthM={widthMm / 1000}
+            lengthM={lengthM}
+            widthM={widthM}
             doorWidthM={doorWidthMm / 1000}
             doorHeightM={doorHeightMm / 1000}
             roofType={roofType}
           />
+          <GarageElements elements={addedElements} lengthM={lengthM} widthM={widthM} />
         </Suspense>
 
-        <OrbitControls
-          enablePan enableZoom enableRotate
-          target={[0, 1.5, 0]}
-          minPolarAngle={0.1}
-          maxPolarAngle={Math.PI / 2.2}
-          minDistance={5}
-          maxDistance={40}
-        />
+        <CameraController focusSide={focusSide} lengthM={lengthM} widthM={widthM} />
       </Canvas>
     </div>
   );
