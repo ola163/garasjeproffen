@@ -110,12 +110,9 @@ export async function POST(request: Request) {
       });
       if (emailResult.error) {
         console.error("Resend error:", JSON.stringify(emailResult.error));
-        return NextResponse.json<QuoteResponse>(
-          { success: false, error: "Klarte ikke sende e-post. Prøv igjen eller kontakt oss direkte." },
-          { status: 500 }
-        );
+      } else {
+        console.log("Resend ok:", emailResult.data?.id);
       }
-      console.log("Resend ok:", emailResult.data?.id);
     } else {
       console.error("RESEND_API_KEY is not set – email not sent");
     }
