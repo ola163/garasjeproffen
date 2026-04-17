@@ -268,7 +268,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           {/* Sliders */}
           <div className="mt-6 space-y-6">
             <LengthSlider
-              label={lengthParam.label}
+              label={buildingType === "carport" ? "Endre lengde carport" : lengthParam.label}
               value={lengthValue}
               min={lengthParam.min!}
               max={lengthParam.max!}
@@ -277,7 +277,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               onChange={(value) => setParameter("length", value)}
             />
             <LengthSlider
-              label={widthParam.label}
+              label={buildingType === "carport" ? "Endre bredde carport" : widthParam.label}
               value={widthValue}
               min={widthParam.min!}
               max={widthParam.max!}
@@ -287,8 +287,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             />
           </div>
 
-          {/* Garage door */}
-          <div className="mt-6 border-t border-gray-100 pt-5">
+          {/* Garage door — hidden for carport */}
+          {buildingType !== "carport" && <div className="mt-6 border-t border-gray-100 pt-5">
             <button
               type="button"
               onClick={() => setGarageDoorOpen((o) => !o)}
@@ -357,10 +357,10 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 </p>
               )}
             </div>}
-          </div>
+          </div>}
 
-          {/* Dør og vindu */}
-          <div className="mt-6 border-t border-gray-100 pt-5">
+          {/* Dør og vindu — hidden for carport */}
+          {buildingType !== "carport" && <div className="mt-6 border-t border-gray-100 pt-5">
             <button
               type="button"
               onClick={() => setDoorWindowOpen((o) => !o)}
@@ -387,7 +387,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 </button>
               </div>
             )}
-          </div>
+          </div>}
 
           <div className="mt-6 rounded-lg bg-red-50 border border-red-200 p-3">
             <p className="text-xs text-red-600 leading-relaxed">
