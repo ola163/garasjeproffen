@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     if (resendKey) {
       const resend = new Resend(resendKey);
       const emailResult = await resend.emails.send({
-        from: "GarasjeProffen <noreply@garasjeproffen.no>",
+        from: "GarasjeProffen <onboarding@resend.dev>",
         to: RECIPIENT,
         replyTo: body.customer.email,
         subject: `Ny tilbudsforespørsel – ${body.customer.name} (${quoteId})`,
@@ -108,7 +108,14 @@ export async function POST(request: Request) {
           </table>
         `,
       });
-      console.log("Resend result:", JSON.stringify(emailResult));
+      if (emailResult.error) {
+        console.error("Resend error:", JSON.stringify(emailResult.error));
+        return NextResponse.json<QuoteResponse>(
+          { success: false, error: "Klarte ikke sende e-post. Prøv igjen eller kontakt oss direkte." },
+          { status: 500 }
+        );
+      }
+      console.log("Resend ok:", emailResult.data?.id);
     } else {
       console.error("RESEND_API_KEY is not set – email not sent");
     }

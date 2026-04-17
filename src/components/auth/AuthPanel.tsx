@@ -32,6 +32,7 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // Check session on mount
   useEffect(() => {
@@ -86,14 +87,16 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase || !user) return;
-    setSaving(true); setSaveSuccess(false);
+    setSaving(true); setSaveSuccess(false); setSaveError("");
     const { error: err } = await supabase.from("saved_configs").insert({
       name: saveName || "Mitt garasjedesign",
       config: currentConfig,
       user_id: user.id,
     });
     setSaving(false);
-    if (!err) {
+    if (err) {
+      setSaveError(err.message);
+    } else {
       setSaveSuccess(true);
       setSaveName("");
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -147,6 +150,9 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
         </form>
         {saveSuccess && (
           <p className="text-xs text-green-600 mb-3">Design lagret!</p>
+        )}
+        {saveError && (
+          <p className="text-xs text-red-500 mb-3">{saveError}</p>
         )}
 
         {/* Saved list */}
