@@ -56,6 +56,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
   const [quoteOpen, setQuoteOpen] = useState(false);
+  const quoteRef = useRef<HTMLDivElement>(null);
   const [garageDoorOpen, setGarageDoorOpen] = useState(false);
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
@@ -97,6 +98,12 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       window.removeEventListener("scroll", check);
     };
   }, []);
+
+  useEffect(() => {
+    if (quoteOpen && quoteRef.current) {
+      quoteRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [quoteOpen]);
 
   const [viewMode, setViewMode] = useState<"local" | "onshape">("local");
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
@@ -473,7 +480,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             <PriceSummary pricing={pricing} onQuoteOpen={() => setQuoteOpen(true)} />
           </div>
 
-          <div className="mt-8" id="quote">
+          <div className="mt-8" ref={quoteRef}>
             <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} open={quoteOpen} />
           </div>
         </div>
