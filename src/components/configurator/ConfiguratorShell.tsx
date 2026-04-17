@@ -17,7 +17,7 @@ const LocalGarageViewer = dynamic(() => import("./LocalGarageViewer"), { ssr: fa
 /** Minimum combined side clearance: widthMm >= doorWidthMm + MIN_CLEARANCE */
 const MIN_CLEARANCE = 300;
 
-export default function ConfiguratorShell() {
+export default function ConfiguratorShell({ buildingType = "garasje" }: { buildingType?: "garasje" | "carport" }) {
   const { configuration, setParameter } = useConfigurator();
 
   const searchParams = useSearchParams();
@@ -230,7 +230,9 @@ export default function ConfiguratorShell() {
 
           {/* Header with m² */}
           <div className="mt-4 flex items-baseline justify-between">
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Konfigurasjon</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">
+              {buildingType === "carport" ? "Carport" : "Garasje"}
+            </h2>
             <span className="text-sm text-gray-500">
               <span className="font-semibold text-gray-800">
                 {((lengthValue / 1000) * (widthValue / 1000)).toFixed(1)}
