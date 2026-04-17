@@ -59,12 +59,29 @@ export async function POST(request: Request) {
 
     const quoteId = `Q-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
+    console.log("addedElements received:", JSON.stringify(elements));
+
     // Build elements HTML
     const elementsHtml = elements.length > 0
-      ? `<h3>Dør og vindu</h3><table>${elements.map((el) =>
-          `<tr><td>${CATEGORY_LABELS[el.category] ?? el.category}</td><td>${SIDE_LABELS[el.side] ?? el.side}</td><td>${PLACEMENT_LABELS[el.placement] ?? el.placement}</td></tr>`
-        ).join("")}</table>`
-      : "";
+      ? `<h3 style="margin-top:16px">Dør og vindu (${elements.length} stk)</h3>
+         <table style="border-collapse:collapse;width:100%">
+           <thead>
+             <tr style="background:#f3f4f6">
+               <th style="text-align:left;padding:6px 10px;border:1px solid #e5e7eb">Type</th>
+               <th style="text-align:left;padding:6px 10px;border:1px solid #e5e7eb">Vegg</th>
+               <th style="text-align:left;padding:6px 10px;border:1px solid #e5e7eb">Plassering</th>
+             </tr>
+           </thead>
+           <tbody>
+             ${elements.map((el) => `
+               <tr>
+                 <td style="padding:6px 10px;border:1px solid #e5e7eb">${CATEGORY_LABELS[el.category] ?? el.category}</td>
+                 <td style="padding:6px 10px;border:1px solid #e5e7eb">${SIDE_LABELS[el.side] ?? el.side}</td>
+                 <td style="padding:6px 10px;border:1px solid #e5e7eb">${PLACEMENT_LABELS[el.placement] ?? el.placement}</td>
+               </tr>`).join("")}
+           </tbody>
+         </table>`
+      : "<p style='color:#6b7280'><em>Ingen ekstra dører/vinduer lagt til</em></p>";
 
     // Send email via Resend
     const resendKey = process.env.RESEND_API_KEY;
