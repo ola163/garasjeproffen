@@ -224,7 +224,7 @@ function GarageElements({ elements, lengthM, widthM }: {
     const cy = el.category === "door" ? h / 2 : H * 0.55;
     const mat = el.category === "door" ? matDoorEl : matWindow;
 
-    const placements: number[] = el.placement === "both" ? [-0.25, 0.25] : el.placement === "left" ? [-0.25] : [0.25];
+    const placements: number[] = el.placement === "both" ? [-0.25, 0.25] : el.placement === "left" ? [0.25] : [-0.25];
 
     placements.forEach((frac, pi) => {
       const key = `${idx}-${pi}`;

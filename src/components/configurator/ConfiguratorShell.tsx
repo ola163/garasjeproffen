@@ -58,6 +58,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
   const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
   const [focusSide, setFocusSide] = useState<WallSide | null>(null);
+  const [editingElement, setEditingElement] = useState<AddedElement | null>(null);
   const [imageCollapsed, setImageCollapsed] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -387,7 +388,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 {!showDoorWindowAdder ? (
                   <button
                     type="button"
-                    onClick={() => setShowDoorWindowAdder(true)}
+                    onClick={() => { setEditingElement(null); setShowDoorWindowAdder(true); }}
                     className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors"
                   >
                     <span>+</span>
@@ -398,9 +399,10 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     existingElements={addedElements}
                     widthMm={widthValue}
                     doorWidthMm={doorWidthValue}
+                    startWith={editingElement ? { side: editingElement.side, category: editingElement.category } : undefined}
                     onFocusSide={setFocusSide}
                     onAdd={(el) => setAddedElements((prev) => [...prev, el])}
-                    onClose={() => { setShowDoorWindowAdder(false); setFocusSide(null); }}
+                    onClose={() => { setShowDoorWindowAdder(false); setEditingElement(null); setFocusSide(null); }}
                   />
                 )}
                 {addedElements.length > 0 && (
@@ -414,12 +416,24 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                           {" / "}
                           {el.placement === "left" ? "Venstre" : el.placement === "right" ? "Høyre" : "Begge"}
                         </span>
-                        <button
-                          onClick={() => setAddedElements((prev) => prev.filter((_, j) => j !== i))}
-                          className="ml-2 text-gray-400 hover:text-red-500"
-                        >
-                          ×
-                        </button>
+                        <div className="ml-2 flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setAddedElements((prev) => prev.filter((_, j) => j !== i));
+                              setEditingElement(el);
+                              setShowDoorWindowAdder(true);
+                            }}
+                            className="text-xs text-orange-500 hover:text-orange-700 font-medium"
+                          >
+                            Endre
+                          </button>
+                          <button
+                            onClick={() => setAddedElements((prev) => prev.filter((_, j) => j !== i))}
+                            className="text-gray-400 hover:text-red-500"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

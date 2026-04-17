@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export type WallSide = "front" | "back" | "left" | "right";
 export type ElementCategory = "door" | "window1" | "window2";
@@ -16,6 +16,7 @@ interface Props {
   existingElements: AddedElement[];
   widthMm: number;
   doorWidthMm: number;
+  startWith?: { side: WallSide; category: ElementCategory };
   onFocusSide: (side: WallSide | null) => void;
   onAdd: (el: AddedElement) => void;
   onClose: () => void;
@@ -90,15 +91,20 @@ function isPlacementValid(
 }
 
 export default function DoorWindowAdder({
-  existingElements, widthMm, doorWidthMm,
+  existingElements, widthMm, doorWidthMm, startWith,
   onFocusSide, onAdd, onClose,
 }: Props) {
   const [hoveredSide, setHoveredSide] = useState<WallSide | null>(null);
-  const [selectedSide, setSelectedSide] = useState<WallSide | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<ElementCategory | null>(null);
+  const [selectedSide, setSelectedSide] = useState<WallSide | null>(startWith?.side ?? null);
+  const [selectedCategory, setSelectedCategory] = useState<ElementCategory | null>(startWith?.category ?? null);
 
-  const widthM    = widthMm    / 1000;
+  const widthM     = widthMm    / 1000;
   const doorWidthM = doorWidthMm / 1000;
+
+  useEffect(() => {
+    if (startWith?.side) onFocusSide(startWith.side);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSideClick(side: WallSide) {
     setSelectedSide(side);
