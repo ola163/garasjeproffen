@@ -315,6 +315,18 @@ export default function ConfiguratorShell() {
             </div>
           </div>
 
+          {/* Dør og vindu */}
+          <div className="mt-6 border-t border-gray-100 pt-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">Dør og vindu</h3>
+            <button
+              type="button"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors"
+            >
+              <span>+</span>
+              <span>Legg til</span>
+            </button>
+          </div>
+
           <div className="mt-8">
             <PriceSummary pricing={pricing} onQuoteOpen={() => setQuoteOpen(true)} />
           </div>
