@@ -26,12 +26,6 @@ export default function Header() {
         </Link>
         <nav className="flex items-center gap-3 sm:gap-6">
           <Link
-            href="/referanseprosjekter"
-            className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
-          >
-            Referanseprosjekter
-          </Link>
-          <Link
             href="/om-oss"
             className="text-sm font-medium text-gray-600 hover:text-gray-900"
           >
@@ -42,6 +36,12 @@ export default function Header() {
             className="text-sm font-medium text-gray-600 hover:text-gray-900"
           >
             Kontakt
+          </Link>
+          <Link
+            href="/referanseprosjekter"
+            className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
+          >
+            Referanseprosjekter
           </Link>
           <Link
             href={soknadshjelLink}
