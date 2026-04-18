@@ -153,7 +153,7 @@ export default function Kontakt() {
               <input
                 id="phone" type="tel" value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+47 000 00 000"
+                placeholder="000 00 000"
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
               />
             </div>
