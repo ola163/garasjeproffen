@@ -6,7 +6,8 @@ import type { ReferanseProject } from "@/types/referanse";
 
 const CATEGORIES = [
   { id: "all", label: "Alle" },
-  { id: "garasje-carport", label: "Garasje/Carport" },
+  { id: "garasje", label: "Garasje" },
+  { id: "carport", label: "Carport" },
   { id: "hagestue-bod", label: "Hagestue/Bod" },
   { id: "verksted", label: "Verksted" },
   { id: "pergola", label: "Frittliggende Pergola" },
@@ -14,6 +15,8 @@ const CATEGORIES = [
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
+  "garasje": "bg-orange-100 text-orange-700",
+  "carport": "bg-orange-100 text-orange-700",
   "garasje-carport": "bg-orange-100 text-orange-700",
   "hagestue-bod": "bg-green-100 text-green-700",
   "verksted": "bg-blue-100 text-blue-700",
@@ -22,6 +25,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
+  "garasje": "Garasje",
+  "carport": "Carport",
   "garasje-carport": "Garasje/Carport",
   "hagestue-bod": "Hagestue/Bod",
   "verksted": "Verksted",

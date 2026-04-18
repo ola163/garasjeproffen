@@ -9,16 +9,18 @@ import Image from "next/image";
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
 const CATEGORIES = [
-  { id: "garasje-carport", label: "Garasje/Carport" },
+  { id: "garasje", label: "Garasje" },
+  { id: "carport", label: "Carport" },
   { id: "hagestue-bod", label: "Hagestue/Bod" },
   { id: "verksted", label: "Verksted" },
   { id: "pergola", label: "Frittliggende Pergola" },
   { id: "hytte-anneks", label: "Hytte/Anneks" },
 ];
 
-const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.id, c.label])
-);
+const CATEGORY_LABELS: Record<string, string> = {
+  ...Object.fromEntries(CATEGORIES.map((c) => [c.id, c.label])),
+  "garasje-carport": "Garasje/Carport",
+};
 
 interface EditState {
   project: ReferanseProject;
@@ -44,7 +46,7 @@ export default function AdminReferanseprosjekter() {
 
   // Create form
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("garasje-carport");
+  const [category, setCategory] = useState("garasje");
   const [description, setDescription] = useState("");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
