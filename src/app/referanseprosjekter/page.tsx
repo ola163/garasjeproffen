@@ -1,9 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import ReferanseGallery from "@/components/referanseprosjekter/ReferanseGallery";
 import type { ReferanseProject } from "@/types/referanse";
-import Link from "next/link";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 async function getProjects(): Promise<ReferanseProject[]> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

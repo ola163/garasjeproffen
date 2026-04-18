@@ -20,6 +20,18 @@ const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
   CATEGORIES.map((c) => [c.id, c.label])
 );
 
+interface EditState {
+  project: ReferanseProject;
+  title: string;
+  category: string;
+  description: string;
+  existingImages: string[];
+  newFiles: File[];
+  newPreviews: string[];
+  saving: boolean;
+  error: string;
+}
+
 export default function AdminReferanseprosjekter() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -43,7 +55,11 @@ export default function AdminReferanseprosjekter() {
   const [projects, setProjects] = useState<ReferanseProject[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
 
+  // Edit modal
+  const [editState, setEditState] = useState<EditState | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -71,7 +87,7 @@ export default function AdminReferanseprosjekter() {
     setLoadingProjects(false);
   }
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!supabase) return;
     setLoginLoading(true); setLoginError("");
@@ -88,74 +104,115 @@ export default function AdminReferanseprosjekter() {
       reader.onload = (ev) => setImagePreviews((prev) => [...prev, ev.target?.result as string]);
       reader.readAsDataURL(file);
     });
-    // Reset input so same files can be re-selected
     if (e.target) e.target.value = "";
   }
 
-  function removeImage(index: number) {
+  function removeNewImage(index: number) {
     setImageFiles((prev) => prev.filter((_, i) => i !== index));
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function uploadFiles(files: File[]): Promise<string[]> {
+    if (!supabase) return [];
+    const urls: string[] = [];
+    for (const file of files) {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage
+        .from("reference-images")
+        .upload(path, file, { contentType: file.type });
+      if (error) throw new Error(`Bildeopplasting feilet: ${error.message}`);
+      const { data } = supabase.storage.from("reference-images").getPublicUrl(path);
+      urls.push(data.publicUrl);
+    }
+    return urls;
+  }
+
+  async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!supabase || !user) return;
     setSubmitting(true); setSubmitResult(null);
-
     try {
-      // 1. Upload images to Supabase Storage
-      const uploadedUrls: string[] = [];
-      for (const file of imageFiles) {
-        const ext = file.name.split(".").pop() ?? "jpg";
-        const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("reference-images")
-          .upload(path, file, { contentType: file.type });
-
-        if (uploadError) throw new Error(`Bildeopplasting feilet: ${uploadError.message}`);
-
-        const { data: urlData } = supabase.storage
-          .from("reference-images")
-          .getPublicUrl(path);
-        uploadedUrls.push(urlData.publicUrl);
-      }
-
-      // 2. Insert project into DB
+      const uploadedUrls = await uploadFiles(imageFiles);
       const { error: insertError } = await supabase.from("reference_projects").insert({
-        title,
-        category,
-        description,
-        images: uploadedUrls,
-        created_by: user.email,
+        title, category, description, images: uploadedUrls, created_by: user.email,
       });
-
       if (insertError) throw new Error(insertError.message);
 
-      // 3. Post to Facebook (best-effort – errors don't fail the whole publish)
+      // Post to Facebook (best-effort)
       const fbRes = await fetch("/api/referanseprosjekter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, category, description, images: uploadedUrls, userEmail: user.email }),
       });
       const fbData = await fbRes.json();
-      const fbNote = fbData.facebookPostId
-        ? " Delt på Facebook."
-        : "";
+      const fbNote = fbData.facebookPostId ? " Delt på Facebook." : "";
 
-      // 4. Reset form
       setTitle(""); setCategory("garasje-carport"); setDescription("");
       setImageFiles([]); setImagePreviews([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
-
       setSubmitResult({ success: true, message: `Prosjekt publisert!${fbNote}` });
       loadProjects();
     } catch (err) {
-      setSubmitResult({
-        success: false,
-        message: err instanceof Error ? err.message : "Noe gikk galt.",
-      });
+      setSubmitResult({ success: false, message: err instanceof Error ? err.message : "Noe gikk galt." });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function openEdit(project: ReferanseProject) {
+    setEditState({
+      project,
+      title: project.title,
+      category: project.category,
+      description: project.description ?? "",
+      existingImages: [...(project.images ?? [])],
+      newFiles: [],
+      newPreviews: [],
+      saving: false,
+      error: "",
+    });
+  }
+
+  function handleEditFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!editState) return;
+    const files = Array.from(e.target.files ?? []);
+    const newFiles = [...editState.newFiles, ...files];
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setEditState((prev) => prev ? { ...prev, newPreviews: [...prev.newPreviews, ev.target?.result as string] } : null);
+      };
+      reader.readAsDataURL(file);
+    });
+    setEditState((prev) => prev ? { ...prev, newFiles } : null);
+    if (e.target) e.target.value = "";
+  }
+
+  async function handleUpdate(e: React.SyntheticEvent) {
+    e.preventDefault();
+    if (!supabase || !editState) return;
+    setEditState((prev) => prev ? { ...prev, saving: true, error: "" } : null);
+    try {
+      const newUrls = await uploadFiles(editState.newFiles);
+      const allImages = [...editState.existingImages, ...newUrls];
+      const { error } = await supabase
+        .from("reference_projects")
+        .update({
+          title: editState.title,
+          category: editState.category,
+          description: editState.description,
+          images: allImages,
+        })
+        .eq("id", editState.project.id);
+      if (error) throw new Error(error.message);
+      setEditState(null);
+      loadProjects();
+    } catch (err) {
+      setEditState((prev) => prev
+        ? { ...prev, saving: false, error: err instanceof Error ? err.message : "Noe gikk galt." }
+        : null
+      );
     }
   }
 
@@ -165,24 +222,14 @@ export default function AdminReferanseprosjekter() {
     setProjects((prev) => prev.filter((p) => p.id !== id));
   }
 
-  // ── Loading ──
   if (authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-gray-400">Laster...</div>
-      </div>
-    );
+    return <div className="flex min-h-screen items-center justify-center"><div className="text-gray-400">Laster...</div></div>;
   }
 
   if (!supabase) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-500">Supabase er ikke konfigurert.</p>
-      </div>
-    );
+    return <div className="flex min-h-screen items-center justify-center"><p className="text-gray-500">Supabase er ikke konfigurert.</p></div>;
   }
 
-  // ── Not logged in ──
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -190,28 +237,15 @@ export default function AdminReferanseprosjekter() {
           <h1 className="mb-1 text-xl font-bold text-gray-900">Admin – Referanseprosjekter</h1>
           <p className="mb-6 text-sm text-gray-500">Logg inn med din GarasjeProffen-konto.</p>
           <form onSubmit={handleLogin} className="space-y-3">
-            <input
-              type="email"
-              required
-              placeholder="E-post"
-              value={loginEmail}
+            <input type="email" required placeholder="E-post" value={loginEmail}
               onChange={(e) => setLoginEmail(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            <input
-              type="password"
-              required
-              placeholder="Passord"
-              value={loginPassword}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            <input type="password" required placeholder="Passord" value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             {loginError && <p className="text-xs text-red-500">{loginError}</p>}
-            <button
-              type="submit"
-              disabled={loginLoading}
-              className="w-full rounded-lg bg-orange-500 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
-            >
+            <button type="submit" disabled={loginLoading}
+              className="w-full rounded-lg bg-orange-500 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
               {loginLoading ? "Logger inn…" : "Logg inn"}
             </button>
           </form>
@@ -220,28 +254,22 @@ export default function AdminReferanseprosjekter() {
     );
   }
 
-  // ── Wrong email ──
   if (!ALLOWED_ADMINS.includes(user.email?.toLowerCase() ?? "")) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
         <div className="text-center">
           <p className="text-gray-600">Du har ikke tilgang til admin-panelet.</p>
           <p className="mt-1 text-sm text-gray-400">{user.email}</p>
-          <button
-            onClick={() => supabase?.auth.signOut()}
-            className="mt-4 text-sm text-orange-500 hover:underline"
-          >
-            Logg ut
-          </button>
+          <button onClick={() => supabase?.auth.signOut()} className="mt-4 text-sm text-orange-500 hover:underline">Logg ut</button>
         </div>
       </div>
     );
   }
 
-  // ── Admin interface ──
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -249,15 +277,8 @@ export default function AdminReferanseprosjekter() {
             <p className="mt-0.5 text-sm text-gray-400">{user.email}</p>
           </div>
           <div className="flex items-center gap-4">
-            <a href="/referanseprosjekter" className="text-sm text-gray-500 underline hover:text-gray-700">
-              Se siden
-            </a>
-            <button
-              onClick={() => supabase?.auth.signOut()}
-              className="text-sm text-gray-400 hover:text-gray-600"
-            >
-              Logg ut
-            </button>
+            <a href="/referanseprosjekter" className="text-sm text-gray-500 underline hover:text-gray-700">Se siden</a>
+            <button onClick={() => supabase?.auth.signOut()} className="text-sm text-gray-400 hover:text-gray-600">Logg ut</button>
           </div>
         </div>
 
@@ -265,78 +286,44 @@ export default function AdminReferanseprosjekter() {
         <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold text-gray-900">Legg til nytt prosjekt</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Title */}
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Tittel *</label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+              <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)}
                 placeholder="F.eks. Dobbeltgarasje med saltak i Stavanger"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
-
-            {/* Category */}
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Kategori *</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-              >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.label}</option>
-                ))}
+              <select value={category} onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                {CATEGORIES.map((cat) => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
               </select>
             </div>
-
-            {/* Description */}
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Beskrivelse</label>
-              <textarea
-                rows={4}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+              <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)}
                 placeholder="Beskriv prosjektet – hva ble bygget, for hvem, eventuelle spesialdetaljer..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
-
-            {/* Image upload */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">Bilder</label>
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="cursor-pointer rounded-xl border-2 border-dashed border-gray-300 p-6 text-center transition-colors hover:border-orange-400"
-              >
+              <div onClick={() => fileInputRef.current?.click()}
+                className="cursor-pointer rounded-xl border-2 border-dashed border-gray-300 p-6 text-center transition-colors hover:border-orange-400">
                 <svg className="mx-auto mb-2 h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <p className="text-sm text-gray-500">Klikk for å velge bilder</p>
                 <p className="mt-1 text-xs text-gray-400">JPG, PNG, WEBP – du kan velge flere</p>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileChange}
-                className="hidden"
-              />
-
+              <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
               {imagePreviews.length > 0 && (
                 <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {imagePreviews.map((src, i) => (
                     <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={src} alt="" className="h-full w-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(i)}
-                        className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-                      >
+                      <button type="button" onClick={() => removeNewImage(i)}
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                         <svg className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
@@ -346,24 +333,13 @@ export default function AdminReferanseprosjekter() {
                 </div>
               )}
             </div>
-
             {submitResult && (
-              <div
-                className={`rounded-lg border p-3 text-sm ${
-                  submitResult.success
-                    ? "border-green-200 bg-green-50 text-green-700"
-                    : "border-red-200 bg-red-50 text-red-700"
-                }`}
-              >
+              <div className={`rounded-lg border p-3 text-sm ${submitResult.success ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}`}>
                 {submitResult.message}
               </div>
             )}
-
-            <button
-              type="submit"
-              disabled={submitting || !title}
-              className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <button type="submit" disabled={submitting || !title}
+              className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? "Publiserer…" : "Publiser prosjekt"}
             </button>
           </form>
@@ -371,9 +347,7 @@ export default function AdminReferanseprosjekter() {
 
         {/* Published projects */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">
-            Publiserte prosjekter ({projects.length})
-          </h2>
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">Publiserte prosjekter ({projects.length})</h2>
           {loadingProjects ? (
             <p className="text-sm text-gray-400">Laster...</p>
           ) : projects.length === 0 ? (
@@ -390,25 +364,126 @@ export default function AdminReferanseprosjekter() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-gray-900">{p.title}</p>
                     <p className="mt-0.5 text-xs text-gray-400">
-                      {CATEGORY_LABELS[p.category] ?? p.category}
-                      {" · "}
-                      {p.images?.length ?? 0} bilder
-                      {" · "}
-                      {new Date(p.created_at).toLocaleDateString("nb-NO")}
+                      {CATEGORY_LABELS[p.category] ?? p.category} · {p.images?.length ?? 0} bilder · {new Date(p.created_at).toLocaleDateString("nb-NO")}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleDelete(p.id)}
-                    className="shrink-0 rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
-                  >
-                    Slett
-                  </button>
+                  <div className="flex shrink-0 gap-2">
+                    <button onClick={() => openEdit(p)}
+                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                      Rediger
+                    </button>
+                    <button onClick={() => handleDelete(p.id)}
+                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50">
+                      Slett
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+
+      {/* Edit modal */}
+      {editState && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-10">
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">Rediger prosjekt</h2>
+              <button onClick={() => setEditState(null)} className="text-gray-400 hover:text-gray-600">
+                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleUpdate} className="space-y-4 p-6">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Tittel *</label>
+                <input type="text" required value={editState.title}
+                  onChange={(e) => setEditState((prev) => prev ? { ...prev, title: e.target.value } : null)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Kategori *</label>
+                <select value={editState.category}
+                  onChange={(e) => setEditState((prev) => prev ? { ...prev, category: e.target.value } : null)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                  {CATEGORIES.map((cat) => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Beskrivelse</label>
+                <textarea rows={4} value={editState.description}
+                  onChange={(e) => setEditState((prev) => prev ? { ...prev, description: e.target.value } : null)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              </div>
+
+              {/* Existing images */}
+              {editState.existingImages.length > 0 && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Eksisterende bilder</label>
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                    {editState.existingImages.map((url, i) => (
+                      <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200">
+                        <Image src={url} alt="" fill className="object-cover" />
+                        <button type="button"
+                          onClick={() => setEditState((prev) => prev ? { ...prev, existingImages: prev.existingImages.filter((_, j) => j !== i) } : null)}
+                          className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                          <svg className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add more images */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Legg til flere bilder</label>
+                <div onClick={() => editFileInputRef.current?.click()}
+                  className="cursor-pointer rounded-lg border-2 border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 transition-colors hover:border-orange-400">
+                  + Velg bilder
+                </div>
+                <input ref={editFileInputRef} type="file" accept="image/*" multiple onChange={handleEditFileChange} className="hidden" />
+                {editState.newPreviews.length > 0 && (
+                  <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                    {editState.newPreviews.map((src, i) => (
+                      <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt="" className="h-full w-full object-cover" />
+                        <button type="button"
+                          onClick={() => setEditState((prev) => prev ? { ...prev, newFiles: prev.newFiles.filter((_, j) => j !== i), newPreviews: prev.newPreviews.filter((_, j) => j !== i) } : null)}
+                          className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                          <svg className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {editState.error && (
+                <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{editState.error}</p>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditState(null)}
+                  className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                  Avbryt
+                </button>
+                <button type="submit" disabled={editState.saving || !editState.title}
+                  className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
+                  {editState.saving ? "Lagrer…" : "Lagre endringer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
