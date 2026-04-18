@@ -249,6 +249,9 @@ export default function AdminReferanseprosjekter() {
               {loginLoading ? "Logger inn…" : "Logg inn"}
             </button>
           </form>
+          <p className="mt-4 text-center text-xs text-gray-400">
+            <a href="/admin" className="text-orange-500 hover:underline">Glemt passord?</a>
+          </p>
         </div>
       </div>
     );

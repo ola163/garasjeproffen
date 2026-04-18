@@ -19,7 +19,7 @@ interface AuthPanelProps {
   onLoadConfig: (config: CurrentConfig) => void;
 }
 
-type View = "closed" | "login" | "register" | "saved";
+type View = "closed" | "login" | "register" | "saved" | "forgot";
 
 export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProps) {
   const [view, setView] = useState<View>("closed");
@@ -33,6 +33,8 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotResult, setForgotResult] = useState<{ success: boolean } | null>(null);
 
   // Check session on mount
   useEffect(() => {
@@ -54,7 +56,7 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
     if (data) setSavedConfigs(data as SavedConfig[]);
   }
 
-  async function handleRegister(e: React.FormEvent) {
+  async function handleRegister(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!supabase) return;
     setLoading(true); setError("");
@@ -65,7 +67,7 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
     loadSavedConfigs();
   }
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!supabase) return;
     setLoading(true); setError("");
@@ -76,6 +78,17 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
     loadSavedConfigs();
   }
 
+  async function handleForgot(e: React.SyntheticEvent) {
+    e.preventDefault();
+    if (!supabase) return;
+    setForgotLoading(true); setForgotResult(null);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-passord`,
+    });
+    setForgotLoading(false);
+    setForgotResult({ success: !err });
+  }
+
   async function handleLogout() {
     if (!supabase) return;
     await supabase.auth.signOut();
@@ -84,7 +97,7 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
     setView("closed");
   }
 
-  async function handleSave(e: React.FormEvent) {
+  async function handleSave(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!supabase || !user) return;
     setSaving(true); setSaveSuccess(false); setSaveError("");
@@ -217,60 +230,103 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
         </button>
       )}
 
-      {(view === "login" || view === "register") && (
+      {(view === "login" || view === "register" || view === "forgot") && (
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs">
-              <button
-                onClick={() => { setView("login"); setError(""); }}
-                className={`rounded-md px-3 py-1 font-medium transition-all ${view === "login" ? "bg-orange-500 text-white" : "text-gray-500 hover:text-gray-700"}`}
-              >
-                Logg inn
-              </button>
-              <button
-                onClick={() => { setView("register"); setError(""); }}
-                className={`rounded-md px-3 py-1 font-medium transition-all ${view === "register" ? "bg-orange-500 text-white" : "text-gray-500 hover:text-gray-700"}`}
-              >
-                Registrer
-              </button>
-            </div>
-            <button onClick={() => setView("closed")} className="text-gray-400 hover:text-gray-600">
+            {view === "forgot" ? (
+              <span className="text-xs font-medium text-gray-600">Glemt passord</span>
+            ) : (
+              <div className="flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs">
+                <button
+                  onClick={() => { setView("login"); setError(""); }}
+                  className={`rounded-md px-3 py-1 font-medium transition-all ${view === "login" ? "bg-orange-500 text-white" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  Logg inn
+                </button>
+                <button
+                  onClick={() => { setView("register"); setError(""); }}
+                  className={`rounded-md px-3 py-1 font-medium transition-all ${view === "register" ? "bg-orange-500 text-white" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  Registrer
+                </button>
+              </div>
+            )}
+            <button onClick={() => { setView("closed"); setForgotResult(null); }} className="text-gray-400 hover:text-gray-600">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
           </div>
 
-          <form onSubmit={view === "login" ? handleLogin : handleRegister} className="space-y-2">
-            <input
-              type="email"
-              required
-              placeholder="E-post"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            <input
-              type="password"
-              required
-              placeholder="Passord"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            {error && <p className="text-xs text-red-500">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-orange-500 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
-            >
-              {loading ? "…" : view === "login" ? "Logg inn" : "Opprett konto"}
-            </button>
-          </form>
-          {view === "register" && (
-            <p className="mt-2 text-xs text-gray-400">
-              Du vil motta en bekreftelseslenke på e-post.
-            </p>
+          {view === "forgot" ? (
+            forgotResult?.success ? (
+              <div className="text-center py-2">
+                <p className="text-xs font-medium text-gray-900">Sjekk e-posten din</p>
+                <p className="mt-1 text-xs text-gray-500">Vi har sendt en tilbakestillingslenke til <strong>{email}</strong>.</p>
+                <button onClick={() => { setView("login"); setForgotResult(null); }} className="mt-3 text-xs text-orange-500 hover:underline">
+                  Tilbake til innlogging
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgot} className="space-y-2">
+                <input
+                  type="email"
+                  required
+                  placeholder="E-post"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                {forgotResult?.success === false && <p className="text-xs text-red-500">Kunne ikke sende e-post. Prøv igjen.</p>}
+                <button type="submit" disabled={forgotLoading}
+                  className="w-full rounded-lg bg-orange-500 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
+                  {forgotLoading ? "Sender…" : "Send tilbakestillingslenke"}
+                </button>
+                <button type="button" onClick={() => { setView("login"); setForgotResult(null); }} className="w-full text-center text-xs text-gray-400 hover:text-gray-600">
+                  Avbryt
+                </button>
+              </form>
+            )
+          ) : (
+            <>
+              <form onSubmit={view === "login" ? handleLogin : handleRegister} className="space-y-2">
+                <input
+                  type="email"
+                  required
+                  placeholder="E-post"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                <input
+                  type="password"
+                  required
+                  placeholder="Passord"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                {error && <p className="text-xs text-red-500">{error}</p>}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-lg bg-orange-500 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {loading ? "…" : view === "login" ? "Logg inn" : "Opprett konto"}
+                </button>
+              </form>
+              {view === "login" && (
+                <button type="button" onClick={() => { setView("forgot"); setForgotResult(null); }}
+                  className="mt-2 w-full text-center text-xs text-gray-400 hover:text-orange-500">
+                  Glemt passord?
+                </button>
+              )}
+              {view === "register" && (
+                <p className="mt-2 text-xs text-gray-400">
+                  Du vil motta en bekreftelseslenke på e-post.
+                </p>
+              )}
+            </>
           )}
         </div>
       )}

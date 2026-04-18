@@ -15,6 +15,10 @@ export default function AdminPage() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+  const [forgotView, setForgotView] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotResult, setForgotResult] = useState<{ success: boolean; message: string } | null>(null);
   const [newQuoteCount, setNewQuoteCount] = useState<number | null>(null);
   const [projectCount, setProjectCount] = useState<number | null>(null);
 
@@ -75,14 +79,60 @@ export default function AdminPage() {
             <div className="text-center">
               <p className="text-sm text-gray-600">Denne kontoen har ikke admin-tilgang.</p>
               <p className="mt-1 text-xs text-gray-400">{user.email}</p>
-              <button
-                onClick={() => supabase?.auth.signOut()}
-                className="mt-4 text-sm text-orange-500 hover:underline"
-              >
+              <button onClick={() => supabase?.auth.signOut()} className="mt-4 text-sm text-orange-500 hover:underline">
                 Logg ut og prøv igjen
               </button>
             </div>
+          ) : forgotView ? (
+            /* ── Forgot password ── */
+            forgotResult?.success ? (
+              <div className="text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                  <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-gray-900">Sjekk e-posten din</p>
+                <p className="mt-1 text-xs text-gray-500">Vi har sendt en tilbakestillingslenke til <strong>{forgotEmail}</strong>.</p>
+                <button onClick={() => { setForgotView(false); setForgotResult(null); setForgotEmail(""); }} className="mt-4 text-sm text-orange-500 hover:underline">
+                  Tilbake til innlogging
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!supabase) return;
+                setForgotLoading(true); setForgotResult(null);
+                const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+                  redirectTo: `${window.location.origin}/admin/reset-passord`,
+                });
+                setForgotLoading(false);
+                setForgotResult(error
+                  ? { success: false, message: "Kunne ikke sende e-post. Prøv igjen." }
+                  : { success: true, message: "Sendt!" }
+                );
+              }} className="space-y-3">
+                <p className="text-sm text-gray-500 mb-4">Skriv inn e-postadressen din så sender vi en lenke for å tilbakestille passordet.</p>
+                <input
+                  type="email"
+                  required
+                  placeholder="E-post"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                {forgotResult?.success === false && <p className="text-xs text-red-500">{forgotResult.message}</p>}
+                <button type="submit" disabled={forgotLoading}
+                  className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
+                  {forgotLoading ? "Sender…" : "Send tilbakestillingslenke"}
+                </button>
+                <button type="button" onClick={() => { setForgotView(false); setForgotResult(null); }} className="w-full text-center text-sm text-gray-400 hover:text-gray-600">
+                  Avbryt
+                </button>
+              </form>
+            )
           ) : (
+            /* ── Login ── */
             <form onSubmit={handleLogin} className="space-y-3">
               <input
                 type="email"
@@ -101,12 +151,13 @@ export default function AdminPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
               {loginError && <p className="text-xs text-red-500">{loginError}</p>}
-              <button
-                type="submit"
-                disabled={loginLoading}
-                className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
-              >
+              <button type="submit" disabled={loginLoading}
+                className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
                 {loginLoading ? "Logger inn…" : "Logg inn"}
+              </button>
+              <button type="button" onClick={() => { setForgotView(true); setForgotEmail(loginEmail); }}
+                className="w-full text-center text-sm text-gray-400 hover:text-orange-500">
+                Glemt passord?
               </button>
             </form>
           )}
