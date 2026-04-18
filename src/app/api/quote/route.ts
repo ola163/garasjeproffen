@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
 import type { QuoteRequest, QuoteResponse } from "@/types/quote";
 import { GARAGE_PARAMETERS } from "@/lib/parameters";
 import { calculatePrice, formatPrice } from "@/lib/pricing";
@@ -58,6 +59,25 @@ export async function POST(request: Request) {
     const elements = body.addedElements ?? [];
 
     const quoteId = `Q-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+
+    // Save to Supabase (best-effort – does not block email)
+    const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (sbUrl && sbKey) {
+      const sb = createClient(sbUrl, sbKey);
+      const { error: dbErr } = await sb.from("quotes").insert({
+        customer_name: body.customer.name,
+        customer_email: body.customer.email,
+        customer_phone: body.customer.phone ?? null,
+        customer_message: body.customer.message ?? null,
+        package_type: body.packageType ?? null,
+        roof_type: body.roofType ?? null,
+        configuration: body.configuration ?? null,
+        added_elements: elements,
+        pricing,
+      });
+      if (dbErr) console.error("Supabase quote insert error:", dbErr.message);
+    }
 
     console.log("addedElements received:", JSON.stringify(elements));
 
