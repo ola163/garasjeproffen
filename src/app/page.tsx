@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import ReferansePreview from "@/components/referanseprosjekter/ReferansePreview";
 
 export default function Home() {
   const router = useRouter();
@@ -15,7 +16,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center px-6 py-12">
+    <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center px-6 py-12 gap-12">
       <div className="w-full max-w-sm text-center">
         <Image
           src="/logo.jpg"
@@ -126,6 +127,8 @@ export default function Home() {
           </Link>
         </div>
       </div>
+
+      <ReferansePreview />
     </div>
   );
 }
