@@ -421,21 +421,68 @@ export default function AdminReferanseprosjekter() {
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
               </div>
 
-              {/* Existing images */}
+              {/* Existing images with reorder */}
               {editState.existingImages.length > 0 && (
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">Eksisterende bilder</label>
-                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Bilder</label>
+                  <p className="mb-2 text-xs text-gray-400">Første bilde er hovedbilde. Bruk pilene for å endre rekkefølge.</p>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {editState.existingImages.map((url, i) => (
-                      <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200">
+                      <div key={url} className="group relative aspect-square overflow-hidden rounded-lg border-2 border-gray-200">
                         <Image src={url} alt="" fill className="object-cover" />
-                        <button type="button"
-                          onClick={() => setEditState((prev) => prev ? { ...prev, existingImages: prev.existingImages.filter((_, j) => j !== i) } : null)}
-                          className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                          <svg className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                        {/* Main image badge */}
+                        {i === 0 && (
+                          <span className="absolute left-1 top-1 rounded bg-orange-500 px-1.5 py-0.5 text-xs font-bold text-white shadow">
+                            ★ Hoved
+                          </span>
+                        )}
+                        {/* Controls overlay */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-between bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 p-1">
+                          {/* Reorder row */}
+                          <div className="flex w-full justify-between">
+                            <button type="button" disabled={i === 0}
+                              onClick={() => setEditState((prev) => {
+                                if (!prev) return null;
+                                const imgs = [...prev.existingImages];
+                                [imgs[i - 1], imgs[i]] = [imgs[i], imgs[i - 1]];
+                                return { ...prev, existingImages: imgs };
+                              })}
+                              className="rounded bg-white/80 px-1.5 py-0.5 text-xs font-bold text-gray-700 disabled:opacity-30 hover:bg-white">
+                              ←
+                            </button>
+                            <button type="button" disabled={i === editState.existingImages.length - 1}
+                              onClick={() => setEditState((prev) => {
+                                if (!prev) return null;
+                                const imgs = [...prev.existingImages];
+                                [imgs[i + 1], imgs[i]] = [imgs[i], imgs[i + 1]];
+                                return { ...prev, existingImages: imgs };
+                              })}
+                              className="rounded bg-white/80 px-1.5 py-0.5 text-xs font-bold text-gray-700 disabled:opacity-30 hover:bg-white">
+                              →
+                            </button>
+                          </div>
+                          {/* Set as main + delete */}
+                          <div className="flex w-full justify-between">
+                            {i !== 0 && (
+                              <button type="button"
+                                onClick={() => setEditState((prev) => {
+                                  if (!prev) return null;
+                                  const imgs = [...prev.existingImages];
+                                  imgs.splice(i, 1);
+                                  imgs.unshift(url);
+                                  return { ...prev, existingImages: imgs };
+                                })}
+                                className="rounded bg-orange-500 px-1.5 py-0.5 text-xs font-bold text-white hover:bg-orange-600">
+                                ★
+                              </button>
+                            )}
+                            <button type="button"
+                              onClick={() => setEditState((prev) => prev ? { ...prev, existingImages: prev.existingImages.filter((_, j) => j !== i) } : null)}
+                              className="ml-auto rounded bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white hover:bg-red-600">
+                              ✕
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -451,18 +498,36 @@ export default function AdminReferanseprosjekter() {
                 </div>
                 <input ref={editFileInputRef} type="file" accept="image/*" multiple onChange={handleEditFileChange} className="hidden" />
                 {editState.newPreviews.length > 0 && (
-                  <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                  <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {editState.newPreviews.map((src, i) => (
                       <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={src} alt="" className="h-full w-full object-cover" />
-                        <button type="button"
-                          onClick={() => setEditState((prev) => prev ? { ...prev, newFiles: prev.newFiles.filter((_, j) => j !== i), newPreviews: prev.newPreviews.filter((_, j) => j !== i) } : null)}
-                          className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                          <svg className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                        <div className="absolute inset-0 flex flex-col items-center justify-between bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 p-1">
+                          <div className="flex w-full justify-between">
+                            <button type="button" disabled={i === 0}
+                              onClick={() => setEditState((prev) => {
+                                if (!prev) return null;
+                                const files = [...prev.newFiles]; const previews = [...prev.newPreviews];
+                                [files[i-1], files[i]] = [files[i], files[i-1]];
+                                [previews[i-1], previews[i]] = [previews[i], previews[i-1]];
+                                return { ...prev, newFiles: files, newPreviews: previews };
+                              })}
+                              className="rounded bg-white/80 px-1.5 py-0.5 text-xs font-bold text-gray-700 disabled:opacity-30 hover:bg-white">←</button>
+                            <button type="button" disabled={i === editState.newPreviews.length - 1}
+                              onClick={() => setEditState((prev) => {
+                                if (!prev) return null;
+                                const files = [...prev.newFiles]; const previews = [...prev.newPreviews];
+                                [files[i+1], files[i]] = [files[i], files[i+1]];
+                                [previews[i+1], previews[i]] = [previews[i], previews[i+1]];
+                                return { ...prev, newFiles: files, newPreviews: previews };
+                              })}
+                              className="rounded bg-white/80 px-1.5 py-0.5 text-xs font-bold text-gray-700 disabled:opacity-30 hover:bg-white">→</button>
+                          </div>
+                          <button type="button"
+                            onClick={() => setEditState((prev) => prev ? { ...prev, newFiles: prev.newFiles.filter((_, j) => j !== i), newPreviews: prev.newPreviews.filter((_, j) => j !== i) } : null)}
+                            className="self-end rounded bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white hover:bg-red-600">✕</button>
+                        </div>
                       </div>
                     ))}
                   </div>
