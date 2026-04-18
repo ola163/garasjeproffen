@@ -3,10 +3,10 @@ import { Resend } from "resend";
 
 export async function POST(request: Request) {
   try {
-    const { name, email, phone, message } = await request.json();
+    const { name, email, phone, address, message } = await request.json();
 
-    if (!name || !email) {
-      return NextResponse.json({ success: false, error: "Navn og e-post er påkrevd." }, { status: 400 });
+    if (!name || !email || !address) {
+      return NextResponse.json({ success: false, error: "Navn, e-post og adresse er påkrevd." }, { status: 400 });
     }
 
     const resendKey = process.env.RESEND_API_KEY;
@@ -22,6 +22,7 @@ export async function POST(request: Request) {
             <tr><td><strong>Navn:</strong></td><td>${name}</td></tr>
             <tr><td><strong>E-post:</strong></td><td>${email}</td></tr>
             <tr><td><strong>Telefon:</strong></td><td>${phone || "–"}</td></tr>
+            <tr><td><strong>Adresse:</strong></td><td>${address}</td></tr>
           </table>
           <h3>Melding</h3>
           <p>${(message || "–").replace(/\n/g, "<br>")}</p>

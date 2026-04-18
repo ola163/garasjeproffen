@@ -7,11 +7,12 @@ export default function Kontakt() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; error?: string } | null>(null);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setSubmitting(true);
     setResult(null);
@@ -19,12 +20,12 @@ export default function Kontakt() {
       const res = await fetch("/api/kontakt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone, message }),
+        body: JSON.stringify({ name, email, phone, address, message }),
       });
       const data = await res.json();
       setResult(data);
       if (data.success) {
-        setName(""); setEmail(""); setPhone(""); setMessage("");
+        setName(""); setEmail(""); setPhone(""); setAddress(""); setMessage("");
       }
     } catch {
       setResult({ success: false, error: "Nettverksfeil. Vennligst prøv igjen." });
@@ -134,6 +135,7 @@ export default function Kontakt() {
               <input
                 id="name" type="text" required value={name}
                 onChange={(e) => setName(e.target.value)}
+                placeholder="Ola Nordmann"
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
               />
             </div>
@@ -142,6 +144,7 @@ export default function Kontakt() {
               <input
                 id="email" type="email" required value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="ola@eksempel.no"
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
               />
             </div>
@@ -150,6 +153,16 @@ export default function Kontakt() {
               <input
                 id="phone" type="tel" value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                placeholder="+47 000 00 000"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="address" className="block text-sm font-medium text-gray-700">Adresse *</label>
+              <input
+                id="address" type="text" required value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Gateveien 1, 4342 Bryne"
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
               />
             </div>
@@ -158,7 +171,7 @@ export default function Kontakt() {
               <textarea
                 id="message" rows={4} value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Beskriv hva du ønsker hjelp med..."
+                placeholder="Beskriv hva du ønsker hjelp med, f.eks. type bygg, størrelse, og eventuelle spørsmål..."
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
               />
             </div>
