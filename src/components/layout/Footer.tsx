@@ -17,8 +17,6 @@ export default function Footer() {
 
           {/* Right – nav + facebook + copyright */}
           <div className="flex items-center gap-4 text-xs text-gray-400">
-            <Link href="/kontakt" className="hover:text-orange-500">Kontakt oss</Link>
-            <Link href="/om-oss" className="hover:text-orange-500">Om oss</Link>
             <a
               href="https://www.facebook.com/garasjeproffen"
               target="_blank"
@@ -30,6 +28,8 @@ export default function Footer() {
               </svg>
               Følg oss på Facebook
             </a>
+            <Link href="/kontakt" className="hover:text-orange-500">Kontakt oss</Link>
+            <Link href="/om-oss" className="hover:text-orange-500">Om oss</Link>
             <span>&copy; {new Date().getFullYear()} GarasjeProffen.no</span>
           </div>
         </div>
