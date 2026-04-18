@@ -141,6 +141,19 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   };
 
   return (
+    <div className="flex flex-col">
+      {/* Beta banner */}
+      <div className="flex items-start gap-3 bg-amber-50 border-b border-amber-200 px-4 py-3 sm:px-6">
+        <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        </svg>
+        <div>
+          <p className="text-sm font-semibold text-amber-800">Konfiguratoren er under utvikling</p>
+          <p className="mt-0.5 text-xs text-amber-700">
+            Prisestimatet er veiledende og vil avvike fra endelig tilbud. Send en forespørsel så kontakter vi deg med et nøyaktig pristilbud.
+          </p>
+        </div>
+      </div>
     <div className="flex flex-col sm:flex-row sm:h-[calc(100vh-11rem)]">
       {/* 3D Viewer */}
       <div className="relative h-[60vw] min-h-[240px] sm:h-auto sm:flex-1 bg-stone-100">
@@ -507,6 +520,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           />
         </div>
       </div>
+    </div>
     </div>
   );
 }
