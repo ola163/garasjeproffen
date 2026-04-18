@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
         hostname: "knznyeiorsypxwireuok.supabase.co",
         pathname: "/storage/v1/object/public/**",
       },
+      {
+        protocol: "https",
+        hostname: "*.fbcdn.net",
+      },
+      {
+        protocol: "https",
+        hostname: "*.facebook.com",
+      },
     ],
   },
 };
