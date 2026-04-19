@@ -159,9 +159,9 @@ export default function QuoteDetailPage() {
     setUpdatingStatus(false);
   }
 
-  async function handleRequestApproval() {
-    if (!supabase || !quote || !user || !approvalTarget) return;
-    const approverEmail = approvalTarget;
+  async function handleRequestApproval(emailOverride?: string) {
+    const approverEmail = emailOverride ?? approvalTarget;
+    if (!supabase || !quote || !user || !approverEmail) return;
     const approverName = adminName(approverEmail);
     const requesterName = adminName(user.email);
     const now = new Date().toISOString();
@@ -509,25 +509,17 @@ export default function QuoteDetailPage() {
               {(Object.entries(ADMIN_NAMES) as [string, string][])
                 .filter(([email]) => email !== user?.email?.toLowerCase())
                 .map(([email, name]) => (
-                  <button key={email} onClick={() => setApprovalTarget(email)}
-                    className={`w-full rounded-lg border px-4 py-3 text-left text-sm font-medium transition-all ${
-                      approvalTarget === email
-                        ? "border-orange-400 bg-orange-50 text-orange-700"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                    }`}>
+                  <button key={email} onClick={() => handleRequestApproval(email)}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-left text-sm font-medium text-gray-700 hover:border-orange-400 hover:bg-orange-50 hover:text-orange-700 transition-all">
                     {name}
                     <span className="ml-2 text-xs font-normal text-gray-400">{email}</span>
                   </button>
                 ))}
             </div>
-            <div className="mt-5 flex gap-3">
+            <div className="mt-5">
               <button onClick={() => { setApprovalOpen(false); setApprovalTarget(""); }}
-                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                className="w-full rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
                 Avbryt
-              </button>
-              <button onClick={handleRequestApproval} disabled={!approvalTarget}
-                className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40">
-                Send til godkjenning
               </button>
             </div>
           </div>
