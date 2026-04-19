@@ -10,6 +10,7 @@ const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
 export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [cookieAdmin, setCookieAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -23,6 +24,11 @@ export default function AdminPage() {
   const [projectCount, setProjectCount] = useState<number | null>(null);
 
   useEffect(() => {
+    // Check cookie-based admin session (from min-side login)
+    fetch("/api/auth/me").then(r => r.json()).then(({ isAdmin }) => {
+      if (isAdmin) { setCookieAdmin(true); setAuthLoading(false); loadCounts(); }
+    }).catch(() => {});
+
     if (!supabase) { setAuthLoading(false); return; }
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
@@ -65,7 +71,7 @@ export default function AdminPage() {
   }
 
   // ── Login ──
-  if (!user || !ALLOWED_ADMINS.includes(user.email?.toLowerCase() ?? "")) {
+  if (!cookieAdmin && (!user || !ALLOWED_ADMINS.includes(user.email?.toLowerCase() ?? ""))) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4">
         <div className="mb-8">
@@ -177,7 +183,7 @@ export default function AdminPage() {
             <Image src="/logo-header.jpg" alt="GarasjeProffen" width={400} height={100} className="h-10 w-auto" />
             <div>
               <h1 className="text-xl font-bold text-gray-900">Admin</h1>
-              <p className="text-xs text-gray-400">{user.email}</p>
+              <p className="text-xs text-gray-400">{user?.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
