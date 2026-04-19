@@ -33,7 +33,7 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   }, []);
 
   const p = configuration.parameters;
-  const soknadUrl = `/soknadshjelp?buildingType=garasje&lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=${p.doorHeight ?? 2125}`;
+  const soknadUrl = `/soknadshjelp?buildingType=garasje&lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=${p.doorHeight ?? 2125}&roofType=${roofType}`;
 
   async function uploadFiles(): Promise<string[]> {
     if (!supabase || files.length === 0) return [];

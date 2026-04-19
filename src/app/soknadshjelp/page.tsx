@@ -6,7 +6,7 @@ export const metadata = {
 };
 
 interface Props {
-  searchParams: Promise<{ lengthMm?: string; widthMm?: string; doorWidthMm?: string; doorHeightMm?: string; buildingType?: string }>;
+  searchParams: Promise<{ lengthMm?: string; widthMm?: string; doorWidthMm?: string; doorHeightMm?: string; buildingType?: string; roofType?: string }>;
 }
 
 export default async function Soknadshjelp({ searchParams }: Props) {
@@ -19,6 +19,7 @@ export default async function Soknadshjelp({ searchParams }: Props) {
           widthMm:     Number(params.widthMm),
           doorWidthMm: Number(params.doorWidthMm),
           doorHeightMm: Number(params.doorHeightMm),
+          roofType:    params.roofType === "flattak" ? "flattak" : "saltak",
         }
       : undefined;
 

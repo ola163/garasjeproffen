@@ -12,6 +12,26 @@ export interface GarageConfig {
   widthMm: number;
   doorWidthMm: number;
   doorHeightMm: number;
+  roofType?: "saltak" | "flattak";
+}
+
+const WALL_H = 3.0;
+const ROOF_ANGLE = 22 * (Math.PI / 180);
+
+function calcMonehoyde(widthMm: number, roofType?: string) {
+  const widthM = widthMm / 1000;
+  if (roofType === "flattak") return WALL_H;
+  return WALL_H + (widthM / 2) * Math.tan(ROOF_ANGLE);
+}
+
+function autoFillDibk(g: GarageConfig): Partial<DibkAnswers> {
+  const bya = (g.widthMm / 1000) * (g.lengthMm / 1000);
+  const mone = calcMonehoyde(g.widthMm, g.roofType);
+  return {
+    bya50:     bya  <= 50 ? "Ja" : "Nei",
+    enEtasje:  "Ja",
+    monehoyde: mone <= 4  ? "Ja" : "Nei",
+  };
 }
 
 type BuildingType =
@@ -417,9 +437,10 @@ const DIBK_QUESTIONS: { key: keyof DibkAnswers; q: string; hint?: string; option
   },
 ];
 
-function StepDibk({ dibk, setDibk, onNext, onBack }: {
+function StepDibk({ dibk, setDibk, autoFilled, onNext, onBack }: {
   dibk: DibkAnswers;
   setDibk: (d: DibkAnswers) => void;
+  autoFilled: Partial<DibkAnswers>;
   onNext: () => void;
   onBack: () => void;
 }) {
@@ -438,7 +459,14 @@ function StepDibk({ dibk, setDibk, onNext, onBack }: {
       <div className="mt-6 space-y-5">
         {DIBK_QUESTIONS.map(({ key, q, hint, options }) => (
           <div key={key}>
-            <p className="text-sm font-medium text-gray-800">{q}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-gray-800">{q}</p>
+              {key in autoFilled && (
+                <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                  Beregnet fra konfigurasjon
+                </span>
+              )}
+            </div>
             {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
             <div className="mt-2 flex gap-2">
               {(options ?? ["Ja", "Nei", "Vet ikke"]).map((v) => (
@@ -580,7 +608,8 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
   const [step, setStep] = useState(skipType ? 1 : 0);
   const [buildingType, setBuildingType] = useState<BuildingType | null>(initialBuildingType ?? null);
   const [address, setAddress] = useState("");
-  const [dibk, setDibk] = useState<DibkAnswers>(defaultDibk);
+  const autoFilled = garageConfig ? autoFillDibk(garageConfig) : {};
+  const [dibk, setDibk] = useState<DibkAnswers>({ ...defaultDibk, ...autoFilled });
 
   return (
     <div className="mx-auto max-w-xl px-6 py-12 sm:py-16">
@@ -603,7 +632,7 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
         <StepMap garageConfig={garageConfig} onNext={(_, __, addr) => { setAddress(addr); setStep(2); }} onBack={() => setStep(skipType ? 1 : 0)} />
       )}
       {step === 2 && (
-        <StepDibk dibk={dibk} setDibk={setDibk} onNext={() => setStep(3)} onBack={() => setStep(1)} />
+        <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} onNext={() => setStep(3)} onBack={() => setStep(1)} />
       )}
       {step === 3 && (
         <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} onBack={() => setStep(2)} />
