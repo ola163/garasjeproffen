@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
       if (error) {
         console.error("Storage upload error:", error.message);
-        continue;
+        return NextResponse.json({ success: false, error: `Storage: ${error.message}` }, { status: 500 });
       }
 
       const { data } = sb.storage.from("quote-attachments").getPublicUrl(path);
