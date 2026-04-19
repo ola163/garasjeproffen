@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { getIronSession } from "iron-session";
 import { NextResponse } from "next/server";
-import { sessionOptions, type CustomerSession } from "@/lib/session";
+import { sessionOptions, ADMIN_EMAILS, type CustomerSession } from "@/lib/session";
 
 export async function POST(request: Request) {
   try {
@@ -14,6 +14,7 @@ export async function POST(request: Request) {
     session.name = email;
     session.email = email;
     session.isLoggedIn = true;
+    session.isAdmin = ADMIN_EMAILS.includes(email);
     await session.save();
 
     return NextResponse.json({ success: true });
