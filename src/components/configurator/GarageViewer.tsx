@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, Suspense, Component, type ReactNode } from "react";
+import { useRef, useEffect, useMemo, Suspense, Component, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import { OrbitControls, Environment, Grid, useGLTF, Line, Text } from "@react-three/drei";
@@ -51,7 +51,9 @@ function DimensionLine({
 
 function GarageModel({ lengthMm, widthMm, roofType }: { lengthMm: number; widthMm: number; roofType?: string }) {
   const modelUrl = roofType === "flattak" ? "/garasje_flatt_tak.glb" : "/garasje_saltak.glb";
-  const { scene } = useGLTF(modelUrl);
+  const { scene: rawScene } = useGLTF(modelUrl);
+  // Clone so mutations don't affect the cached scene shared across remounts
+  const scene = useMemo(() => rawScene.clone(true), [rawScene]);
   const boxRef = useRef<Box3 | null>(null);
 
   useEffect(() => {
