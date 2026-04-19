@@ -29,13 +29,23 @@ function ResetPasswordForm() {
       return;
     }
 
-    // Implicit flow: token is in the URL hash — Supabase processes it automatically on init
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) {
-        setError("Ugyldig eller utløpt lenke. Be om en ny tilbakestillingslenke.");
-      }
+    // Implicit flow: Supabase processes the hash asynchronously — listen for the event
+    const timeout = setTimeout(() => {
+      setError("Ugyldig eller utløpt lenke. Be om en ny tilbakestillingslenke.");
       setExchanging(false);
+    }, 5000);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+        clearTimeout(timeout);
+        setExchanging(false);
+      }
     });
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
