@@ -262,24 +262,35 @@ export default function Kontakt() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Vedlegg (valgfritt)</label>
               <p className="mt-0.5 text-xs text-gray-400">Tegninger, bilder, tomtekart o.l.</p>
-              <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-                {files.length === 0 ? "Velg filer…" : `${files.length} fil${files.length !== 1 ? "er" : ""} valgt`}
-                <input type="file" multiple accept="image/*,.pdf,.dwg,.dxf" className="sr-only"
-                  onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
-              </label>
-              {files.length > 0 && (
-                <ul className="mt-2 space-y-1">
-                  {files.map((f, i) => (
-                    <li key={i} className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-1.5 text-xs text-gray-600">
-                      <span className="truncate">{f.name}</span>
-                      <button type="button" onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                        className="ml-2 shrink-0 text-gray-400 hover:text-red-500">✕</button>
-                    </li>
-                  ))}
-                </ul>
+              {!phoneVerified ? (
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-400">
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Verifiser telefonnummeret ditt for å legge til vedlegg
+                </div>
+              ) : (
+                <>
+                  <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    {files.length === 0 ? "Velg filer…" : `${files.length} fil${files.length !== 1 ? "er" : ""} valgt`}
+                    <input type="file" multiple accept="image/*,.pdf,.dwg,.dxf" className="sr-only"
+                      onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+                  </label>
+                  {files.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {files.map((f, i) => (
+                        <li key={i} className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-1.5 text-xs text-gray-600">
+                          <span className="truncate">{f.name}</span>
+                          <button type="button" onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
+                            className="ml-2 shrink-0 text-gray-400 hover:text-red-500">✕</button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
             {result?.error && (
