@@ -6,15 +6,17 @@ import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import type { QuoteRow, LineItem, QuoteStatus } from "@/types/quote-admin";
 import Link from "next/link";
-import { adminName } from "@/lib/admin-names";
+import { adminName, ADMIN_NAMES } from "@/lib/admin-names";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
 const STATUS_LABELS: Record<QuoteStatus, string> = {
-  new: "Ny", in_review: "Under behandling", offer_sent: "Tilbud sendt", paid: "Betalt", cancelled: "Kansellert",
+  new: "Ny", in_review: "Under behandling", pending_approval: "Venter godkjenning",
+  offer_sent: "Tilbud sendt", paid: "Betalt", cancelled: "Kansellert",
 };
 const STATUS_COLORS: Record<QuoteStatus, string> = {
   new: "bg-blue-100 text-blue-700", in_review: "bg-yellow-100 text-yellow-700",
+  pending_approval: "bg-orange-100 text-orange-700",
   offer_sent: "bg-purple-100 text-purple-700", paid: "bg-green-100 text-green-700",
   cancelled: "bg-gray-100 text-gray-500",
 };
@@ -52,6 +54,8 @@ export default function QuoteDetailPage() {
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [claimOpen, setClaimOpen] = useState(false);
+  const [approvalOpen, setApprovalOpen] = useState(false);
+  const [approvalTarget, setApprovalTarget] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [statusConfirm, setStatusConfirm] = useState<QuoteStatus | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
@@ -155,6 +159,45 @@ export default function QuoteDetailPage() {
     setUpdatingStatus(false);
   }
 
+  async function handleRequestApproval() {
+    if (!supabase || !quote || !user || !approvalTarget) return;
+    const approverEmail = approvalTarget;
+    const approverName = adminName(approverEmail);
+    const requesterName = adminName(user.email);
+    const now = new Date().toISOString();
+    await Promise.all([
+      supabase.from("quotes").update({
+        status: "pending_approval",
+        approval_requested_from: approverName,
+        approval_requested_at: now,
+      }).eq("id", quote.id),
+      supabase.from("quote_status_logs").insert({
+        quote_id: quote.id,
+        from_status: quote.status,
+        to_status: "pending_approval",
+        changed_by: user.email ?? "ukjent",
+      }),
+    ]);
+    await fetch("/api/admin/request-approval", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        approverEmail,
+        approverName,
+        requesterName,
+        ticketNumber: quote.ticket_number,
+        customerName: quote.customer_name,
+        offerTotal: lineItems.reduce((s, i) => s + i.amount * i.quantity, 0),
+        quoteId: quote.id,
+      }),
+    });
+    const newEntry = { id: crypto.randomUUID(), from_status: quote.status, to_status: "pending_approval" as QuoteStatus, changed_by: user.email ?? "ukjent", changed_at: now, note: null };
+    setQuote((prev) => prev ? { ...prev, status: "pending_approval", approval_requested_from: approverName, approval_requested_at: now } : null);
+    setStatusLog((prev) => [newEntry, ...prev]);
+    setApprovalOpen(false);
+    setApprovalTarget("");
+  }
+
   async function handleSendOffer() {
     if (!user || !quote || !supabase) return;
     setSending(true); setSendResult(null);
@@ -233,7 +276,7 @@ export default function QuoteDetailPage() {
 
           {/* Status selector */}
           <div className="flex flex-wrap gap-1.5">
-            {(["new","in_review","offer_sent","paid","cancelled"] as QuoteStatus[]).map((s) => (
+            {(["new","in_review","pending_approval","offer_sent","paid","cancelled"] as QuoteStatus[]).map((s) => (
               <button key={s} onClick={() => setStatusConfirm(s)} disabled={updatingStatus || s === quote.status}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-all disabled:cursor-default ${
                   s === quote.status
@@ -416,16 +459,37 @@ export default function QuoteDetailPage() {
                 </div>
               )}
 
-              {/* Send button */}
-              <button
-                onClick={() => setConfirmOpen(true)}
-                disabled={sending || lineItems.length === 0 || offerTotal === 0 || quote.status === "paid" || quote.status === "cancelled"}
-                className="w-full rounded-lg bg-orange-500 py-3 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {sending ? "Sender tilbud…" : quote.status === "offer_sent" ? "Send tilbud på nytt" : "Send tilbud til kunde"}
-              </button>
+              {/* Approval status banner */}
+              {quote.status === "pending_approval" && (
+                <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+                  <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Venter godkjenning</p>
+                  <p className="mt-1 text-sm text-orange-800">
+                    Sendt til <span className="font-semibold">{quote.approval_requested_from}</span> for godkjenning.
+                  </p>
+                  {adminName(user?.email) === quote.approval_requested_from && (
+                    <button
+                      onClick={() => setConfirmOpen(true)}
+                      disabled={sending}
+                      className="mt-3 w-full rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {sending ? "Sender…" : "Godkjenn og send tilbud til kunde"}
+                    </button>
+                  )}
+                </div>
+              )}
 
-                      {quote.offer_sent_at && (
+              {/* Send til godkjenning / send på nytt */}
+              {quote.status !== "pending_approval" && (
+                <button
+                  onClick={() => quote.status === "offer_sent" ? setConfirmOpen(true) : setApprovalOpen(true)}
+                  disabled={sending || lineItems.length === 0 || offerTotal === 0 || quote.status === "paid" || quote.status === "cancelled"}
+                  className="w-full rounded-lg bg-orange-500 py-3 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {quote.status === "offer_sent" ? "Send tilbud på nytt" : "Send til godkjenning"}
+                </button>
+              )}
+
+              {quote.offer_sent_at && (
                 <p className="mt-2 text-center text-xs text-gray-400">
                   Sist sendt {formatDate(quote.offer_sent_at)}
                 </p>
@@ -434,6 +498,41 @@ export default function QuoteDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Approval request modal */}
+      {approvalOpen && quote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Send til godkjenning</h2>
+            <p className="mt-1 text-sm text-gray-500">Velg hvem som skal godkjenne tilbudet før det sendes til kunden.</p>
+            <div className="mt-4 space-y-2">
+              {(Object.entries(ADMIN_NAMES) as [string, string][])
+                .filter(([email]) => email !== user?.email?.toLowerCase())
+                .map(([email, name]) => (
+                  <button key={email} onClick={() => setApprovalTarget(email)}
+                    className={`w-full rounded-lg border px-4 py-3 text-left text-sm font-medium transition-all ${
+                      approvalTarget === email
+                        ? "border-orange-400 bg-orange-50 text-orange-700"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                    }`}>
+                    {name}
+                    <span className="ml-2 text-xs font-normal text-gray-400">{email}</span>
+                  </button>
+                ))}
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => { setApprovalOpen(false); setApprovalTarget(""); }}
+                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Avbryt
+              </button>
+              <button onClick={handleRequestApproval} disabled={!approvalTarget}
+                className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40">
+                Send til godkjenning
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Claim modal — shown automatically when quote is "new" */}
       {claimOpen && quote && (

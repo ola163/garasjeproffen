@@ -4,7 +4,7 @@ export interface LineItem {
   quantity: number;
 }
 
-export type QuoteStatus = 'new' | 'in_review' | 'offer_sent' | 'paid' | 'cancelled';
+export type QuoteStatus = 'new' | 'in_review' | 'pending_approval' | 'offer_sent' | 'paid' | 'cancelled';
 
 export interface QuoteRow {
   id: string;
@@ -20,6 +20,8 @@ export interface QuoteRow {
   pricing: Record<string, unknown> | null;
   status: QuoteStatus;
   assigned_to: string | null;
+  approval_requested_from: string | null;
+  approval_requested_at: string | null;
   offer_line_items: LineItem[];
   offer_total: number | null;
   offer_notes: string | null;
