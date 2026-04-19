@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
     if (error || !data.properties?.action_link) {
       console.error("generateLink error:", error);
-      return NextResponse.redirect(`${origin}/admin`);
+      return NextResponse.redirect(`${origin}/admin?auto_login_error=${encodeURIComponent(error?.message ?? "no_link")}`);
     }
 
     return NextResponse.redirect(data.properties.action_link);
