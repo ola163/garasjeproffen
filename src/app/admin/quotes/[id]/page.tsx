@@ -50,6 +50,7 @@ export default function QuoteDetailPage() {
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -333,14 +334,14 @@ export default function QuoteDetailPage() {
 
               {/* Send button */}
               <button
-                onClick={handleSendOffer}
+                onClick={() => setConfirmOpen(true)}
                 disabled={sending || lineItems.length === 0 || offerTotal === 0 || quote.status === "paid" || quote.status === "cancelled"}
                 className="w-full rounded-lg bg-orange-500 py-3 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {sending ? "Sender tilbud…" : quote.status === "offer_sent" ? "Send tilbud på nytt" : "Send tilbud til kunde"}
               </button>
 
-              {quote.offer_sent_at && (
+                      {quote.offer_sent_at && (
                 <p className="mt-2 text-center text-xs text-gray-400">
                   Sist sendt {formatDate(quote.offer_sent_at)}
                 </p>
@@ -349,6 +350,45 @@ export default function QuoteDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation modal */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Send tilbud?</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Tilbudet vil bli sendt til:
+            </p>
+            <p className="mt-1 font-semibold text-orange-600">{quote.customer_email}</p>
+            <div className="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Totalt inkl. MVA</span>
+                <span className="font-bold text-gray-900">{formatNOK(offerTotal)}</span>
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-gray-500">Antall linjer</span>
+                <span className="text-gray-700">{lineItems.length}</span>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-gray-400">Er du sikker på at tilbudet er klart til å sendes?</p>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={() => { setConfirmOpen(false); handleSendOffer(); }}
+                disabled={sending}
+                className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                Ja, send tilbud
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
