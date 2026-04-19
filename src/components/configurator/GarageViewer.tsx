@@ -160,7 +160,7 @@ export default function GarageViewer({ lengthMm, widthMm, roofType }: GarageView
 
         <GltfErrorBoundary onError={(msg) => console.error("3D-feil:", msg)}>
           <Suspense fallback={null}>
-            <GarageModel lengthMm={lengthMm} widthMm={widthMm} roofType={roofType} />
+            <GarageModel key={roofType ?? "saltak"} lengthMm={lengthMm} widthMm={widthMm} roofType={roofType} />
           </Suspense>
         </GltfErrorBoundary>
 
