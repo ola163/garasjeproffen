@@ -35,7 +35,7 @@ export default function Kontakt() {
     setPhoneError("");
     setSendingOtp(true);
     try {
-      const firebaseAuth = getFirebaseAuth();
+      const firebaseAuth = await getFirebaseAuth();
       if (!firebaseAuth) { setPhoneError("Firebase er ikke tilgjengelig. Prøv igjen."); return; }
       const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
       if (!recaptchaRef.current) {
