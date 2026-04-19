@@ -63,7 +63,7 @@ export default async function MinSidePage({ searchParams }: { searchParams: Prom
               {error === "auth_failed" && "Innlogging feilet. Prøv igjen."}
               {error === "invalid_state" && "Ugyldig forespørsel. Prøv igjen."}
               {error === "access_denied" && "Innlogging ble avbrutt."}
-              {!["auth_failed", "invalid_state", "access_denied"].includes(error) && "Noe gikk galt. Prøv igjen."}
+              {!["auth_failed", "invalid_state", "access_denied"].includes(error) && `Feil: ${error}`}
             </div>
           )}
 

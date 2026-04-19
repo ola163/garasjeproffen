@@ -40,7 +40,8 @@ export async function GET(request: Request) {
     response.cookies.delete("oidc_nonce");
     return response;
   } catch (err) {
-    console.error("OIDC callback error:", err);
-    return NextResponse.redirect(new URL("/min-side?error=auth_failed", url.origin));
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("OIDC callback error:", msg);
+    return NextResponse.redirect(new URL(`/min-side?error=${encodeURIComponent(msg)}`, url.origin));
   }
 }
