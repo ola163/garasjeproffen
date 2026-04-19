@@ -256,11 +256,14 @@ export default function QuoteDetailPage() {
               </svg>
             </Link>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold text-gray-900 font-mono">{quote.ticket_number}</h1>
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[quote.status]}`}>
                   {STATUS_LABELS[quote.status]}
                 </span>
+                {quote.created_manually && (
+                  <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">Manuelt opprettet</span>
+                )}
               </div>
               <p className="text-xs text-gray-400">{formatDate(quote.created_at)}</p>
               {quote.assigned_to ? (

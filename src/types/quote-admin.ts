@@ -19,6 +19,7 @@ export interface QuoteRow {
   added_elements: { side: string; category: string; placement: string }[];
   pricing: Record<string, unknown> | null;
   status: QuoteStatus;
+  created_manually: boolean | null;
   assigned_to: string | null;
   approval_requested_from: string | null;
   approval_requested_at: string | null;

@@ -100,6 +100,7 @@ export default function AdminQuotesPage() {
       customer_phone: newForm.phone || null,
       customer_message: newForm.message || null,
       status: "new",
+      created_manually: true,
     }).select("id").single();
     setCreating(false);
     if (!error && inserted) {
@@ -233,7 +234,12 @@ export default function AdminQuotesPage() {
                   const p = (q.configuration as { parameters?: Record<string, number> } | null)?.parameters;
                   return (
                     <tr key={q.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{q.ticket_number}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-xs font-semibold text-gray-700">{q.ticket_number}</span>
+                        {q.created_manually && (
+                          <span className="ml-1.5 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">Manuell</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-gray-900">{q.customer_name}</p>
                         <p className="text-xs text-gray-400">{q.customer_email}</p>
