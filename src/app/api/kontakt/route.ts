@@ -37,16 +37,19 @@ export async function POST(request: Request) {
       }
     }
 
-    // Save to Supabase and get reference number back
-    let referenceNumber = `KON-${Date.now()}`;
+    // Save to Supabase with auto-generated ticket number
+    let referenceNumber = `GPK-${Date.now()}`;
     if (sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey);
+      const { data: ticketData } = await sb.rpc("next_contact_ticket_number");
+      if (ticketData) referenceNumber = ticketData as string;
       const { data, error: dbErr } = await sb.from("contacts").insert({
         name, email,
         phone: phone || null,
         address,
         message: message || null,
         attachments: attachmentUrls.length > 0 ? attachmentUrls : null,
+        reference_number: referenceNumber,
       }).select("reference_number").single();
       if (dbErr) {
         console.error("Supabase contact insert error:", dbErr.message);
