@@ -17,7 +17,51 @@ export default function Home() {
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center px-6 py-12 gap-12">
-      <div className="w-full max-w-sm text-center">
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center lg:items-start gap-12 lg:gap-16">
+
+        {/* Left: description */}
+        <div className="flex-1 text-left">
+          <span className="inline-block rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700 mb-4">
+            Norsk kvalitet siden 2018
+          </span>
+          <h2 className="text-3xl font-bold tracking-tight text-gray-900 leading-snug">
+            Vi bygger garasjer og carporter som varer
+          </h2>
+          <p className="mt-4 text-base text-gray-600 leading-relaxed">
+            GarasjeProffen tilbyr skreddersydde garasjer og carporter — enten som komplette materialpakker du bygger selv, eller som prefabrikerte løsninger med rask montering.
+          </p>
+          <ul className="mt-6 space-y-3">
+            {[
+              { icon: "📐", text: "Tilpasses dine mål og tomt" },
+              { icon: "🏗️", text: "Materialpakke eller prefabrikert løsning" },
+              { icon: "⚡", text: "Rask levering over hele Norge" },
+              { icon: "📋", text: "Vi hjelper deg med byggesøknaden" },
+              { icon: "💬", text: "Personlig oppfølging gjennom hele prosessen" },
+            ].map(({ icon, text }) => (
+              <li key={text} className="flex items-center gap-3 text-sm text-gray-700">
+                <span className="text-lg">{icon}</span>
+                {text}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8 flex flex-wrap gap-4 text-sm text-gray-500">
+            <span className="flex items-center gap-1.5">
+              <svg className="h-4 w-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+              </svg>
+              +47 476 17 563
+            </span>
+            <span className="flex items-center gap-1.5">
+              <svg className="h-4 w-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+              </svg>
+              post@garasjeproffen.no
+            </span>
+          </div>
+        </div>
+
+        {/* Right: configurator panel */}
+        <div className="w-full max-w-sm flex-shrink-0 text-center">
         <Image
           src="/logo.jpg"
           alt="GarasjeProffen.no"
@@ -126,7 +170,8 @@ export default function Home() {
             Søknadshjelp
           </Link>
         </div>
-      </div>
+        </div>{/* end right column */}
+      </div>{/* end two-column wrapper */}
 
       <ReferansePreview />
     </div>
