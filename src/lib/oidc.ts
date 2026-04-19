@@ -19,11 +19,11 @@ export function buildAuthUrl(state: string, nonce: string, redirectUri: string):
     nonce,
     ...(ACR_VALUES ? { acr_values: ACR_VALUES } : {}),
   });
-  return `${ISSUER}/authorize?${params.toString()}`;
+  return `${ISSUER}/connect/authorize?${params.toString()}`;
 }
 
 export async function exchangeCode(code: string, redirectUri: string): Promise<{ id_token: string; access_token: string }> {
-  const res = await fetch(`${ISSUER}/token`, {
+  const res = await fetch(`${ISSUER}/connect/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
