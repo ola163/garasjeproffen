@@ -112,7 +112,8 @@ export default function EmailLogin() {
       await confirmationRef.current.confirm(otp);
       const auth = await getFirebaseAuth();
       if (!auth) throw new Error("no-auth");
-      const { createUserWithEmailAndPassword } = await import("firebase/auth");
+      const { createUserWithEmailAndPassword, signOut } = await import("firebase/auth");
+      await signOut(auth);
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await createSession(cred.user.email ?? email);
     } catch (err: unknown) {
