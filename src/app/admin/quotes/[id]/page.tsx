@@ -59,6 +59,7 @@ export default function QuoteDetailPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [statusConfirm, setStatusConfirm] = useState<QuoteStatus | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [uploadingFile, setUploadingFile] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitialLoad = useRef(true);
   const [statusLog, setStatusLog] = useState<{ id: string; from_status: string; to_status: string; changed_by: string; changed_at: string; note: string | null }[]>([]);
@@ -157,6 +158,32 @@ export default function QuoteDetailPage() {
     setQuote((prev) => prev ? { ...prev, status: newStatus, assigned_to: assignedTo } : null);
     setStatusLog((prev) => [newEntry, ...prev]);
     setUpdatingStatus(false);
+  }
+
+  async function handleUploadAttachment(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!supabase || !quote || !e.target.files?.length) return;
+    setUploadingFile(true);
+    const newUrls: string[] = [];
+    for (const file of Array.from(e.target.files)) {
+      const path = `${quote.ticket_number}/${Date.now()}-${file.name}`;
+      const { error } = await supabase.storage.from("quote-attachments").upload(path, file, { upsert: true });
+      if (!error) {
+        const { data } = supabase.storage.from("quote-attachments").getPublicUrl(path);
+        newUrls.push(data.publicUrl);
+      }
+    }
+    const updated = [...(quote.attachments ?? []), ...newUrls];
+    await supabase.from("quotes").update({ attachments: updated }).eq("id", quote.id);
+    setQuote((prev) => prev ? { ...prev, attachments: updated } : null);
+    e.target.value = "";
+    setUploadingFile(false);
+  }
+
+  async function handleDeleteAttachment(url: string) {
+    if (!supabase || !quote) return;
+    const updated = (quote.attachments ?? []).filter((u) => u !== url);
+    await supabase.from("quotes").update({ attachments: updated }).eq("id", quote.id);
+    setQuote((prev) => prev ? { ...prev, attachments: updated } : null);
   }
 
   async function handleRequestApproval(emailOverride?: string) {
@@ -309,27 +336,40 @@ export default function QuoteDetailPage() {
                     <p className="text-sm text-gray-700 whitespace-pre-line">{quote.customer_message}</p>
                   </div>
                 )}
-                {quote.attachments && quote.attachments.length > 0 && (
-                  <div className="mt-3 rounded-lg bg-blue-50 border border-blue-100 p-3">
-                    <p className="text-xs font-medium text-blue-700 mb-2">Vedlegg ({quote.attachments.length})</p>
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-gray-600">Vedlegg {quote.attachments?.length ? `(${quote.attachments.length})` : ""}</p>
+                    <label className={`cursor-pointer rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors ${uploadingFile ? "opacity-50 pointer-events-none" : ""}`}>
+                      {uploadingFile ? "Laster opp…" : "+ Last opp"}
+                      <input type="file" multiple className="sr-only" onChange={handleUploadAttachment} disabled={uploadingFile} />
+                    </label>
+                  </div>
+                  {quote.attachments && quote.attachments.length > 0 ? (
                     <ul className="space-y-1">
                       {quote.attachments.map((url, i) => {
                         const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? `Fil ${i + 1}`);
                         return (
-                          <li key={i}>
+                          <li key={i} className="flex items-center justify-between rounded-lg bg-gray-50 px-2.5 py-1.5">
                             <a href={url} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
+                              className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline truncate">
                               <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                               </svg>
-                              {name}
+                              <span className="truncate">{name}</span>
                             </a>
+                            <button onClick={() => handleDeleteAttachment(url)} className="ml-2 shrink-0 text-gray-300 hover:text-red-500 transition-colors">
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                            </button>
                           </li>
                         );
                       })}
                     </ul>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">Ingen vedlegg</p>
+                  )}
+                </div>
               </dl>
             </div>
 
