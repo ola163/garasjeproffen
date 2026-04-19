@@ -12,6 +12,7 @@ interface GarageViewerProps {
   widthMm: number;
   doorWidthMm: number;
   doorHeightMm: number;
+  roofType?: "saltak" | "flattak";
 }
 
 function DimensionLine({
@@ -48,8 +49,9 @@ function DimensionLine({
   );
 }
 
-function GarageModel({ lengthMm, widthMm }: { lengthMm: number; widthMm: number }) {
-  const { scene } = useGLTF("/garasje.glb");
+function GarageModel({ lengthMm, widthMm, roofType }: { lengthMm: number; widthMm: number; roofType?: string }) {
+  const modelUrl = roofType === "flattak" ? "/garasje_flatt_tak.glb" : "/garasje_saltak.glb";
+  const { scene } = useGLTF(modelUrl);
   const boxRef = useRef<Box3 | null>(null);
 
   useEffect(() => {
@@ -139,7 +141,7 @@ class GltfErrorBoundary extends Component<
   }
 }
 
-export default function GarageViewer({ lengthMm, widthMm }: GarageViewerProps) {
+export default function GarageViewer({ lengthMm, widthMm, roofType }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
 
   return (
@@ -158,7 +160,7 @@ export default function GarageViewer({ lengthMm, widthMm }: GarageViewerProps) {
 
         <GltfErrorBoundary onError={(msg) => console.error("3D-feil:", msg)}>
           <Suspense fallback={null}>
-            <GarageModel lengthMm={lengthMm} widthMm={widthMm} />
+            <GarageModel lengthMm={lengthMm} widthMm={widthMm} roofType={roofType} />
           </Suspense>
         </GltfErrorBoundary>
 
