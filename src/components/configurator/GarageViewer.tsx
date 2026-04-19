@@ -66,9 +66,8 @@ function GarageModel({ lengthMm, widthMm }: { lengthMm: number; widthMm: number 
 
     const scaleX = size.x > 0 ? targetWidth  / size.x : 1;
     const scaleZ = size.z > 0 ? targetLength / size.z : 1;
-    const scaleY = (scaleX + scaleZ) / 2;
 
-    scene.scale.set(scaleX, scaleY, scaleZ);
+    scene.scale.set(scaleX, 1, scaleZ);
     scene.updateMatrixWorld(true);
 
     const finalBox = new Box3().setFromObject(scene);
