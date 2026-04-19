@@ -39,7 +39,7 @@ export default function EmailLogin() {
     try {
       if (!supabase) throw new Error("no-supabase");
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/min-side`,
+        redirectTo: `${window.location.origin}/min-side/reset-password`,
       });
       if (error) {
         setError(`Feil: ${error.message}`);

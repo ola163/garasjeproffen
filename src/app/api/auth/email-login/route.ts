@@ -1,27 +1,32 @@
-import { cookies } from "next/headers";
-import { getIronSession } from "iron-session";
 import { NextResponse } from "next/server";
-import { sessionOptions, ADMIN_EMAILS, type CustomerSession } from "@/lib/session";
+import { ADMIN_EMAILS } from "@/lib/session";
 
 export async function POST(request: Request) {
   try {
     const { email: rawEmail } = await request.json();
     if (!rawEmail) return NextResponse.json({ error: "Mangler e-post." }, { status: 400 });
     const email = rawEmail.toLowerCase().trim();
+    const isAdmin = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email);
 
-    const cookieStore = await cookies();
-    const session = await getIronSession<CustomerSession>(cookieStore, sessionOptions);
-    session.sub = email;
-    session.name = email;
-    session.email = email;
-    session.isLoggedIn = true;
-    session.isAdmin = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email);
-    await session.save();
-
-    return NextResponse.json({ success: true });
+    const res = NextResponse.json({ success: true });
+    const maxAge = 60 * 60 * 8; // 8 hours
+    res.cookies.set("gp-user", email, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge,
+      path: "/",
+    });
+    res.cookies.set("gp-admin", isAdmin ? "1" : "0", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge,
+      path: "/",
+    });
+    return res;
   } catch (err) {
-    const msg = (err as { message?: string })?.message ?? "ukjent";
-    console.error("Email login error:", msg, err);
-    return NextResponse.json({ error: `Sesjonsfeil: ${msg}` }, { status: 500 });
+    console.error("Email login error:", err);
+    return NextResponse.json({ error: "Innlogging feilet." }, { status: 500 });
   }
 }

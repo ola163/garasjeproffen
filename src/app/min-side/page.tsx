@@ -1,7 +1,5 @@
 import { cookies } from "next/headers";
-import { getIronSession } from "iron-session";
 import { createClient } from "@supabase/supabase-js";
-import { sessionOptions, type CustomerSession } from "@/lib/session";
 import Link from "next/link";
 import PhoneVerify from "@/components/auth/PhoneVerify";
 import EmailLogin from "@/components/auth/EmailLogin";
@@ -30,19 +28,13 @@ function formatDate(iso: string) {
   });
 }
 
-interface SearchParams {
-  error?: string;
-}
+export default async function MinSidePage({ searchParams: _searchParams }: { searchParams: Promise<unknown> }) {
+  const cookieStore = await cookies();
+  const email = cookieStore.get("gp-user")?.value ?? "";
+  const isAdmin = cookieStore.get("gp-admin")?.value === "1";
+  const isLoggedIn = !!email;
 
-export default async function MinSidePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [cookieStore] = await Promise.all([cookies(), searchParams]);
-
-  let session: CustomerSession = { sub: "", name: "", isLoggedIn: false };
-  try {
-    session = await getIronSession<CustomerSession>(cookieStore, sessionOptions);
-  } catch (err) {
-    console.error("Session error:", err);
-  }
+  const session = { email, name: email, isLoggedIn, isAdmin };
 
   // Not logged in — show login page
   if (!session.isLoggedIn) {
@@ -105,7 +97,7 @@ export default async function MinSidePage({ searchParams }: { searchParams: Prom
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-gray-500">Innlogget</p>
-          <h1 className="mt-0.5 text-2xl font-bold text-gray-900">{session.phone ?? session.name}</h1>
+          <h1 className="mt-0.5 text-2xl font-bold text-gray-900">{session.name}</h1>
           {session.email && <p className="mt-0.5 text-sm text-gray-400">{session.email}</p>}
         </div>
         <a

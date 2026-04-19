@@ -1,17 +1,16 @@
 import { cookies } from "next/headers";
-import { getIronSession } from "iron-session";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sessionOptions, type CustomerSession } from "@/lib/session";
 
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
 
   try {
     const cookieStore = await cookies();
-    const session = await getIronSession<CustomerSession>(cookieStore, sessionOptions);
+    const email = cookieStore.get("gp-user")?.value;
+    const isAdmin = cookieStore.get("gp-admin")?.value === "1";
 
-    if (!session.isLoggedIn || !session.isAdmin || !session.email) {
+    if (!email || !isAdmin) {
       return NextResponse.redirect(`${origin}/min-side`);
     }
 
@@ -28,7 +27,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await sb.auth.admin.generateLink({
       type: "magiclink",
-      email: session.email.toLowerCase().trim(),
+      email: email.toLowerCase().trim(),
       options: { redirectTo: `${origin}/admin` },
     });
 

@@ -1,15 +1,11 @@
 import { cookies } from "next/headers";
-import { getIronSession } from "iron-session";
 import { NextResponse } from "next/server";
-import { sessionOptions, type CustomerSession } from "@/lib/session";
 
 export async function GET() {
-  try {
-    const cookieStore = await cookies();
-    const session = await getIronSession<CustomerSession>(cookieStore, sessionOptions);
-    if (session.isLoggedIn) {
-      return NextResponse.json({ isLoggedIn: true, name: session.name });
-    }
-  } catch {}
+  const cookieStore = await cookies();
+  const email = cookieStore.get("gp-user")?.value;
+  if (email) {
+    return NextResponse.json({ isLoggedIn: true, email });
+  }
   return NextResponse.json({ isLoggedIn: false });
 }
