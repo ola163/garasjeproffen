@@ -46,7 +46,7 @@ function ResetPasswordForm() {
         clearTimeout(timeout);
         sessionRef.current = session;
         // Explicitly re-set session so updateUser has it
-        supabase.auth.setSession({
+        supabase!.auth.setSession({
           access_token: session.access_token,
           refresh_token: session.refresh_token,
         }).then(() => setExchanging(false));
