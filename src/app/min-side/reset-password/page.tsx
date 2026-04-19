@@ -60,7 +60,8 @@ function ResetPasswordForm() {
       if (error) throw error;
       router.push("/min-side?reset=ok");
     } catch (err: unknown) {
-      setError("Kunne ikke oppdatere passordet. Prøv igjen.");
+      const msg = (err as { message?: string })?.message ?? "ukjent feil";
+      setError(`Kunne ikke oppdatere passordet: ${msg}`);
       console.error(err);
     } finally {
       setLoading(false);
