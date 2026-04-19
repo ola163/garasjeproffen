@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { auth } from "@/lib/firebase";
-import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from "firebase/auth";
+import { getFirebaseAuth } from "@/lib/firebase";
+import type { ConfirmationResult } from "firebase/auth";
 
 export default function Kontakt() {
   const [name, setName] = useState("");
@@ -22,7 +22,8 @@ export default function Kontakt() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [phoneError, setPhoneError] = useState("");
   const confirmationRef = useRef<ConfirmationResult | null>(null);
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recaptchaRef = useRef<any>(null);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,12 +35,14 @@ export default function Kontakt() {
     setPhoneError("");
     setSendingOtp(true);
     try {
-      if (!auth) { setPhoneError("Firebase er ikke tilgjengelig. Prøv igjen."); return; }
+      const firebaseAuth = getFirebaseAuth();
+      if (!firebaseAuth) { setPhoneError("Firebase er ikke tilgjengelig. Prøv igjen."); return; }
+      const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
       if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current!, { size: "invisible" });
+        recaptchaRef.current = new RecaptchaVerifier(firebaseAuth, recaptchaContainerRef.current!, { size: "invisible" });
       }
       const formatted = phone.startsWith("+") ? phone : `+47${phone.replace(/\s/g, "")}`;
-      confirmationRef.current = await signInWithPhoneNumber(auth, formatted, recaptchaRef.current);
+      confirmationRef.current = await signInWithPhoneNumber(firebaseAuth, formatted, recaptchaRef.current);
       setOtpSent(true);
     } catch (err) {
       setPhoneError("Kunne ikke sende SMS. Sjekk nummeret og prøv igjen.");
