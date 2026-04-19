@@ -144,6 +144,9 @@ export default function GarageViewer({ lengthMm, widthMm }: GarageViewerProps) {
 
   return (
     <div className="relative h-full w-full">
+      <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 w-[90%] max-w-sm rounded-lg bg-yellow-400/90 px-3 py-2 text-center text-xs font-medium text-yellow-900 shadow backdrop-blur-sm">
+        ⚠ Testmodell — kan ha avvik fra endelig produkt. Jobbes med.
+      </div>
       <Canvas
         shadows
         camera={{ position: [12, 7, 12], fov: 42 }}
