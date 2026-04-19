@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sessionOptions, type CustomerSession } from "@/lib/session";
 import Link from "next/link";
 import PhoneVerify from "@/components/auth/PhoneVerify";
-import PhoneLogin from "@/components/auth/PhoneLogin";
+import EmailLogin from "@/components/auth/EmailLogin";
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Ny",
@@ -60,7 +60,7 @@ export default async function MinSidePage({ searchParams }: { searchParams: Prom
           </p>
 
           <div className="mt-6 text-left">
-            <PhoneLogin />
+            <EmailLogin />
           </div>
 
           <div className="mt-8 border-t border-gray-100 pt-6">
