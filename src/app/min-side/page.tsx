@@ -32,11 +32,9 @@ interface SearchParams {
   error?: string;
 }
 
-export default async function MinSidePage({ searchParams }: { searchParams: SearchParams }) {
-  const cookieStore = await cookies();
+export default async function MinSidePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const [cookieStore, { error }] = await Promise.all([cookies(), searchParams]);
   const session = await getIronSession<CustomerSession>(cookieStore, sessionOptions);
-
-  const error = searchParams?.error;
 
   // Not logged in — show login page
   if (!session.isLoggedIn) {
