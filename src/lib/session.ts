@@ -4,6 +4,7 @@ export interface CustomerSession {
   sub: string;
   name: string;
   email?: string;
+  phone?: string;
   isLoggedIn: boolean;
 }
 

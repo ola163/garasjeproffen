@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sessionOptions, type CustomerSession } from "@/lib/session";
 import Link from "next/link";
 import PhoneVerify from "@/components/auth/PhoneVerify";
+import PhoneLogin from "@/components/auth/PhoneLogin";
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Ny",
@@ -34,8 +35,7 @@ interface SearchParams {
 }
 
 export default async function MinSidePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [cookieStore, resolvedParams] = await Promise.all([cookies(), searchParams]);
-  const error = resolvedParams?.error;
+  const [cookieStore] = await Promise.all([cookies(), searchParams]);
 
   let session: CustomerSession = { sub: "", name: "", isLoggedIn: false };
   try {
@@ -59,28 +59,9 @@ export default async function MinSidePage({ searchParams }: { searchParams: Prom
             Logg inn med BankID for å se dine tilbudsforespørsler og administrere din profil.
           </p>
 
-          {error && (
-            <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error === "auth_failed" && "Innlogging feilet. Prøv igjen."}
-              {error === "invalid_state" && "Ugyldig forespørsel. Prøv igjen."}
-              {error === "access_denied" && "Innlogging ble avbrutt."}
-              {!["auth_failed", "invalid_state", "access_denied"].includes(error) && `Feil: ${error}`}
-            </div>
-          )}
-
-          <a
-            href="/api/auth/login"
-            className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-[#1b4f9c] px-6 py-3.5 text-sm font-semibold text-white hover:bg-[#163f7d] transition-colors"
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-            </svg>
-            Logg inn med BankID
-          </a>
-
-          <p className="mt-4 text-xs text-gray-400">
-            Sikker innlogging via Signicat / BankID
-          </p>
+          <div className="mt-6 text-left">
+            <PhoneLogin />
+          </div>
 
           <div className="mt-8 border-t border-gray-100 pt-6">
             <p className="text-xs text-gray-400">Har du ikke sendt en forespørsel ennå?</p>
@@ -123,8 +104,8 @@ export default async function MinSidePage({ searchParams }: { searchParams: Prom
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-gray-500">Innlogget med BankID</p>
-          <h1 className="mt-0.5 text-2xl font-bold text-gray-900">{session.name}</h1>
+          <p className="text-sm text-gray-500">Innlogget</p>
+          <h1 className="mt-0.5 text-2xl font-bold text-gray-900">{session.phone ?? session.name}</h1>
           {session.email && <p className="mt-0.5 text-sm text-gray-400">{session.email}</p>}
         </div>
         <a
@@ -138,9 +119,9 @@ export default async function MinSidePage({ searchParams }: { searchParams: Prom
       {/* Verified badge */}
       <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700">
         <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
-        Verifisert med BankID
+        Verifisert med SMS
       </div>
 
       {/* Orders */}
@@ -205,7 +186,7 @@ export default async function MinSidePage({ searchParams }: { searchParams: Prom
       {/* Profile section */}
       <div className="mt-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">Din profil</h2>
-        <p className="mt-1 text-sm text-gray-400">Informasjonen er hentet fra BankID og er verifisert.</p>
+        <p className="mt-1 text-sm text-gray-400">Innlogget via SMS-verifisering.</p>
         <dl className="mt-4 space-y-3 text-sm">
           <div className="flex gap-4">
             <dt className="w-24 shrink-0 font-medium text-gray-500">Navn</dt>
