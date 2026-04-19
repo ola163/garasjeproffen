@@ -19,6 +19,7 @@ export interface QuoteRow {
   added_elements: { side: string; category: string; placement: string }[];
   pricing: Record<string, unknown> | null;
   status: QuoteStatus;
+  assigned_to: string | null;
   offer_line_items: LineItem[];
   offer_total: number | null;
   offer_notes: string | null;

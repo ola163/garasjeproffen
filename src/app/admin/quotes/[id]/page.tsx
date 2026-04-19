@@ -132,8 +132,11 @@ export default function QuoteDetailPage() {
     if (!supabase || !quote || newStatus === quote.status) return;
     setUpdatingStatus(true);
     const oldStatus = quote.status;
+    const assignedTo = newStatus === "in_review" ? (user?.email ?? null)
+      : (newStatus === "new" || newStatus === "cancelled") ? null
+      : quote.assigned_to;
     await Promise.all([
-      supabase.from("quotes").update({ status: newStatus }).eq("id", quote.id),
+      supabase.from("quotes").update({ status: newStatus, assigned_to: assignedTo }).eq("id", quote.id),
       supabase.from("quote_status_logs").insert({
         quote_id: quote.id,
         from_status: oldStatus,
@@ -142,7 +145,7 @@ export default function QuoteDetailPage() {
       }),
     ]);
     const newEntry = { id: crypto.randomUUID(), from_status: oldStatus, to_status: newStatus, changed_by: user?.email ?? "ukjent", changed_at: new Date().toISOString(), note: null };
-    setQuote((prev) => prev ? { ...prev, status: newStatus } : null);
+    setQuote((prev) => prev ? { ...prev, status: newStatus, assigned_to: assignedTo } : null);
     setStatusLog((prev) => [newEntry, ...prev]);
     setUpdatingStatus(false);
   }
@@ -212,6 +215,14 @@ export default function QuoteDetailPage() {
                 </span>
               </div>
               <p className="text-xs text-gray-400">{formatDate(quote.created_at)}</p>
+              {quote.assigned_to ? (
+                <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-gray-700">
+                  <span className="inline-block h-2 w-2 rounded-full bg-orange-400"></span>
+                  Behandles av <span className="text-orange-600">{quote.assigned_to}</span>
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-400 italic">Ingen behandler tildelt</p>
+              )}
             </div>
           </div>
 
