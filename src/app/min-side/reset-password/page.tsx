@@ -14,15 +14,25 @@ function ResetPasswordForm() {
   const [exchanging, setExchanging] = useState(true);
 
   useEffect(() => {
-    const code = searchParams.get("code");
-    if (!code || !supabase) {
+    if (!supabase) {
       setError("Ugyldig eller utløpt lenke. Be om en ny tilbakestillingslenke.");
       setExchanging(false);
       return;
     }
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) {
-        setError("Lenken er ugyldig eller utløpt. Be om en ny tilbakestillingslenke.");
+
+    const code = searchParams.get("code");
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) setError("Lenken er ugyldig eller utløpt. Be om en ny tilbakestillingslenke.");
+        setExchanging(false);
+      });
+      return;
+    }
+
+    // Implicit flow: token is in the URL hash — Supabase processes it automatically on init
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        setError("Ugyldig eller utløpt lenke. Be om en ny tilbakestillingslenke.");
       }
       setExchanging(false);
     });
