@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import type { QuoteRow, QuoteStatus } from "@/types/quote-admin";
@@ -44,6 +45,7 @@ function formatDate(iso: string) {
 }
 
 export default function AdminQuotesPage() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginEmail, setLoginEmail] = useState("");
@@ -53,6 +55,11 @@ export default function AdminQuotesPage() {
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
   const [loadingQuotes, setLoadingQuotes] = useState(false);
   const [activeFilter, setActiveFilter] = useState<QuoteStatus | "all">("all");
+
+  // New manual quote
+  const [newOpen, setNewOpen] = useState(false);
+  const [newForm, setNewForm] = useState({ name: "", email: "", phone: "", message: "" });
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -78,6 +85,28 @@ export default function AdminQuotesPage() {
       .order("created_at", { ascending: false });
     if (data) setQuotes(data as QuoteRow[]);
     setLoadingQuotes(false);
+  }
+
+  async function handleCreateQuote(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase || !newForm.name || !newForm.email) return;
+    setCreating(true);
+    const { data: ticketData } = await supabase.rpc("next_ticket_number");
+    const ticketNumber = (ticketData as string) ?? `Q-${Date.now()}`;
+    const { data: inserted, error } = await supabase.from("quotes").insert({
+      ticket_number: ticketNumber,
+      customer_name: newForm.name,
+      customer_email: newForm.email,
+      customer_phone: newForm.phone || null,
+      customer_message: newForm.message || null,
+      status: "new",
+    }).select("id").single();
+    setCreating(false);
+    if (!error && inserted) {
+      setNewOpen(false);
+      setNewForm({ name: "", email: "", phone: "", message: "" });
+      router.push(`/admin/quotes/${inserted.id}`);
+    }
   }
 
   async function handleLogin(e: React.SyntheticEvent) {
@@ -148,6 +177,10 @@ export default function AdminQuotesPage() {
             <p className="mt-0.5 text-sm text-gray-400">{user.email}</p>
           </div>
           <div className="flex items-center gap-4">
+            <button onClick={() => setNewOpen(true)}
+              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600">
+              + Ny forespørsel
+            </button>
             <Link href="/admin/leads" className="text-sm text-gray-500 underline hover:text-gray-700">Leads</Link>
             <Link href="/referanseprosjekter/admin" className="text-sm text-gray-500 underline hover:text-gray-700">Referanseprosjekter</Link>
             <button onClick={() => supabase?.auth.signOut()} className="text-sm text-gray-400 hover:text-gray-600">Logg ut</button>
@@ -234,6 +267,52 @@ export default function AdminQuotesPage() {
           )}
         </div>
       </div>
+
+      {/* New manual quote modal */}
+      {newOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Ny forespørsel</h2>
+            <p className="mt-1 text-sm text-gray-500">Ticketnummer opprettes automatisk.</p>
+            <form onSubmit={handleCreateQuote} className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Navn *</label>
+                <input required type="text" placeholder="Ola Nordmann"
+                  value={newForm.name} onChange={(e) => setNewForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">E-post *</label>
+                <input required type="email" placeholder="ola@example.no"
+                  value={newForm.email} onChange={(e) => setNewForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Telefon</label>
+                <input type="tel" placeholder="000 00 000"
+                  value={newForm.phone} onChange={(e) => setNewForm((f) => ({ ...f, phone: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Melding / notat</label>
+                <textarea rows={3} placeholder="Hva ønsker kunden?"
+                  value={newForm.message} onChange={(e) => setNewForm((f) => ({ ...f, message: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => { setNewOpen(false); setNewForm({ name: "", email: "", phone: "", message: "" }); }}
+                  className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                  Avbryt
+                </button>
+                <button type="submit" disabled={creating}
+                  className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">
+                  {creating ? "Oppretter…" : "Opprett forespørsel"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
