@@ -4,27 +4,29 @@ import { useState } from "react";
 import Image from "next/image";
 import type { ReferanseProject } from "@/types/referanse";
 
-const CATEGORIES = [
+const PROJECT_TYPES = [
   { id: "all", label: "Alle" },
-  { id: "garasje", label: "Garasje" },
-  { id: "carport", label: "Carport" },
-  { id: "hagestue-bod", label: "Hagestue/Bod" },
-  { id: "verksted", label: "Verksted" },
-  { id: "pergola", label: "Frittliggende Pergola" },
-  { id: "hytte-anneks", label: "Hytte/Anneks" },
+  { id: "soknadshjelp", label: "Søknadshjelp" },
+  { id: "materialpakke", label: "Materialpakke" },
+  { id: "precut", label: "Precut" },
+  { id: "prefabrikert", label: "Prefabrikert løsning" },
 ];
 
-const CATEGORY_COLORS: Record<string, string> = {
-  "garasje": "bg-orange-100 text-orange-700",
-  "carport": "bg-orange-100 text-orange-700",
-  "garasje-carport": "bg-orange-100 text-orange-700",
-  "hagestue-bod": "bg-green-100 text-green-700",
-  "verksted": "bg-blue-100 text-blue-700",
-  "pergola": "bg-purple-100 text-purple-700",
-  "hytte-anneks": "bg-amber-100 text-amber-700",
+const PROJECT_TYPE_LABELS: Record<string, string> = {
+  "soknadshjelp": "Søknadshjelp",
+  "materialpakke": "Materialpakke",
+  "precut": "Precut",
+  "prefabrikert": "Prefabrikert løsning",
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
+const PROJECT_TYPE_COLORS: Record<string, string> = {
+  "soknadshjelp": "bg-blue-100 text-blue-700",
+  "materialpakke": "bg-orange-100 text-orange-700",
+  "precut": "bg-purple-100 text-purple-700",
+  "prefabrikert": "bg-green-100 text-green-700",
+};
+
+const BUILDING_TYPE_LABELS: Record<string, string> = {
   "garasje": "Garasje",
   "carport": "Carport",
   "garasje-carport": "Garasje/Carport",
@@ -48,13 +50,13 @@ interface LightboxState {
 }
 
 export default function ReferanseGallery({ projects }: { projects: ReferanseProject[] }) {
-  const [activeCategory, setActiveCategory] = useState("all");
+  const [activeType, setActiveType] = useState("all");
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
 
   const filtered =
-    activeCategory === "all"
+    activeType === "all"
       ? projects
-      : projects.filter((p) => p.category === activeCategory);
+      : projects.filter((p) => p.project_type === activeType);
 
   function openLightbox(project: ReferanseProject, imageIndex = 0) {
     setLightbox({ project, imageIndex });
@@ -70,19 +72,19 @@ export default function ReferanseGallery({ projects }: { projects: ReferanseProj
 
   return (
     <>
-      {/* Category filter pills */}
+      {/* Filter pills */}
       <div className="mb-8 flex flex-wrap justify-center gap-2">
-        {CATEGORIES.map((cat) => (
+        {PROJECT_TYPES.map((t) => (
           <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
+            key={t.id}
+            onClick={() => setActiveType(t.id)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
-              activeCategory === cat.id
+              activeType === t.id
                 ? "bg-orange-500 text-white shadow-sm"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
-            {cat.label}
+            {t.label}
           </button>
         ))}
       </div>
@@ -125,13 +127,16 @@ export default function ReferanseGallery({ projects }: { projects: ReferanseProj
                 </div>
                 <div className="p-4">
                   <div className="mb-2 flex items-start justify-between gap-2">
-                    <span
-                      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        CATEGORY_COLORS[project.category] ?? "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {CATEGORY_LABELS[project.category] ?? project.category}
-                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {project.project_type && (
+                        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${PROJECT_TYPE_COLORS[project.project_type] ?? "bg-gray-100 text-gray-600"}`}>
+                          {PROJECT_TYPE_LABELS[project.project_type] ?? project.project_type}
+                        </span>
+                      )}
+                      <span className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                        {BUILDING_TYPE_LABELS[project.category] ?? project.category}
+                      </span>
+                    </div>
                     <span className="shrink-0 text-xs text-gray-400">{formatDate(project.created_at)}</span>
                   </div>
                   <h2 className="text-base font-semibold text-gray-900 transition-colors group-hover:text-orange-600">
@@ -157,7 +162,6 @@ export default function ReferanseGallery({ projects }: { projects: ReferanseProj
             className="relative w-full max-w-4xl overflow-hidden rounded-xl bg-white"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close */}
             <button
               onClick={() => setLightbox(null)}
               className="absolute right-3 top-3 z-10 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
@@ -167,7 +171,6 @@ export default function ReferanseGallery({ projects }: { projects: ReferanseProj
               </svg>
             </button>
 
-            {/* Image viewer */}
             {lightbox.project.images?.length > 0 && (
               <div className="relative aspect-video bg-gray-900">
                 <Image
@@ -177,36 +180,18 @@ export default function ReferanseGallery({ projects }: { projects: ReferanseProj
                   className="object-contain"
                   sizes="100vw"
                 />
-
                 {lightbox.project.images.length > 1 && (
                   <>
-                    <button
-                      onClick={() => moveLightbox(-1)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
-                    >
-                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
+                    <button onClick={() => moveLightbox(-1)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white hover:bg-black/70">
+                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     </button>
-                    <button
-                      onClick={() => moveLightbox(1)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
-                    >
-                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      </svg>
+                    <button onClick={() => moveLightbox(1)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white hover:bg-black/70">
+                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
                     </button>
-
-                    {/* Dot indicators */}
                     <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
                       {lightbox.project.images.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setLightbox((prev) => prev ? { ...prev, imageIndex: i } : null)}
-                          className={`h-1.5 rounded-full transition-all ${
-                            i === lightbox.imageIndex ? "w-4 bg-white" : "w-1.5 bg-white/50"
-                          }`}
-                        />
+                        <button key={i} onClick={() => setLightbox((prev) => prev ? { ...prev, imageIndex: i } : null)}
+                          className={`h-1.5 rounded-full transition-all ${i === lightbox.imageIndex ? "w-4 bg-white" : "w-1.5 bg-white/50"}`} />
                       ))}
                     </div>
                   </>
@@ -214,17 +199,17 @@ export default function ReferanseGallery({ projects }: { projects: ReferanseProj
               </div>
             )}
 
-            {/* Project info */}
             <div className="p-5">
-              <div className="mb-2 flex items-start justify-between gap-3">
-                <span
-                  className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    CATEGORY_COLORS[lightbox.project.category] ?? "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {CATEGORY_LABELS[lightbox.project.category] ?? lightbox.project.category}
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                {lightbox.project.project_type && (
+                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${PROJECT_TYPE_COLORS[lightbox.project.project_type] ?? "bg-gray-100 text-gray-600"}`}>
+                    {PROJECT_TYPE_LABELS[lightbox.project.project_type] ?? lightbox.project.project_type}
+                  </span>
+                )}
+                <span className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  {BUILDING_TYPE_LABELS[lightbox.project.category] ?? lightbox.project.category}
                 </span>
-                <span className="text-xs text-gray-400">{formatDate(lightbox.project.created_at)}</span>
+                <span className="ml-auto text-xs text-gray-400">{formatDate(lightbox.project.created_at)}</span>
               </div>
               <h2 className="text-lg font-bold text-gray-900">{lightbox.project.title}</h2>
               {lightbox.project.description && (

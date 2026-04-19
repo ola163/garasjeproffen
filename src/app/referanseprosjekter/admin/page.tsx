@@ -8,7 +8,7 @@ import Image from "next/image";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
-const CATEGORIES = [
+const BUILDING_TYPES = [
   { id: "garasje", label: "Garasje" },
   { id: "carport", label: "Carport" },
   { id: "hagestue-bod", label: "Hagestue/Bod" },
@@ -17,8 +17,15 @@ const CATEGORIES = [
   { id: "hytte-anneks", label: "Hytte/Anneks" },
 ];
 
+const PROJECT_TYPES = [
+  { id: "soknadshjelp", label: "Søknadshjelp" },
+  { id: "materialpakke", label: "Materialpakke" },
+  { id: "precut", label: "Precut" },
+  { id: "prefabrikert", label: "Prefabrikert løsning" },
+];
+
 const CATEGORY_LABELS: Record<string, string> = {
-  ...Object.fromEntries(CATEGORIES.map((c) => [c.id, c.label])),
+  ...Object.fromEntries(BUILDING_TYPES.map((c) => [c.id, c.label])),
   "garasje-carport": "Garasje/Carport",
 };
 
@@ -26,6 +33,7 @@ interface EditState {
   project: ReferanseProject;
   title: string;
   category: string;
+  projectType: string;
   description: string;
   existingImages: string[];
   newFiles: File[];
@@ -47,6 +55,7 @@ export default function AdminReferanseprosjekter() {
   // Create form
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("garasje");
+  const [projectType, setProjectType] = useState("materialpakke");
   const [description, setDescription] = useState("");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -137,7 +146,7 @@ export default function AdminReferanseprosjekter() {
     try {
       const uploadedUrls = await uploadFiles(imageFiles);
       const { error: insertError } = await supabase.from("reference_projects").insert({
-        title, category, description, images: uploadedUrls, created_by: user.email,
+        title, category, project_type: projectType, description, images: uploadedUrls, created_by: user.email,
       });
       if (insertError) throw new Error(insertError.message);
 
@@ -150,7 +159,7 @@ export default function AdminReferanseprosjekter() {
       const fbData = await fbRes.json();
       const fbNote = fbData.facebookPostId ? " Delt på Facebook." : "";
 
-      setTitle(""); setCategory("garasje-carport"); setDescription("");
+      setTitle(""); setCategory("garasje"); setProjectType("materialpakke"); setDescription("");
       setImageFiles([]); setImagePreviews([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
       setSubmitResult({ success: true, message: `Prosjekt publisert!${fbNote}` });
@@ -167,6 +176,7 @@ export default function AdminReferanseprosjekter() {
       project,
       title: project.title,
       category: project.category,
+      projectType: project.project_type ?? "materialpakke",
       description: project.description ?? "",
       existingImages: [...(project.images ?? [])],
       newFiles: [],
@@ -203,6 +213,7 @@ export default function AdminReferanseprosjekter() {
         .update({
           title: editState.title,
           category: editState.category,
+          project_type: editState.projectType,
           description: editState.description,
           images: allImages,
         })
@@ -299,9 +310,16 @@ export default function AdminReferanseprosjekter() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Kategori *</label>
+              <select value={projectType} onChange={(e) => setProjectType(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                {PROJECT_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Type bygg *</label>
               <select value={category} onChange={(e) => setCategory(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                {CATEGORIES.map((cat) => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+                {BUILDING_TYPES.map((cat) => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
               </select>
             </div>
             <div>
@@ -410,10 +428,18 @@ export default function AdminReferanseprosjekter() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Kategori *</label>
+                <select value={editState.projectType}
+                  onChange={(e) => setEditState((prev) => prev ? { ...prev, projectType: e.target.value } : null)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                  {PROJECT_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Type bygg *</label>
                 <select value={editState.category}
                   onChange={(e) => setEditState((prev) => prev ? { ...prev, category: e.target.value } : null)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                  {CATEGORIES.map((cat) => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+                  {BUILDING_TYPES.map((cat) => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
                 </select>
               </div>
               <div>
