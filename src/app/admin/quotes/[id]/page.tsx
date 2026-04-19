@@ -51,6 +51,7 @@ export default function QuoteDetailPage() {
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [statusLog, setStatusLog] = useState<{ id: string; from_status: string; to_status: string; changed_by: string; changed_at: string; note: string | null }[]>([]);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -68,13 +69,17 @@ export default function QuoteDetailPage() {
 
   async function loadQuote() {
     if (!supabase) return;
-    const { data } = await supabase.from("quotes").select("*").eq("id", id).single();
+    const [{ data }, { data: logData }] = await Promise.all([
+      supabase.from("quotes").select("*").eq("id", id).single(),
+      supabase.from("quote_status_logs").select("*").eq("quote_id", id).order("changed_at", { ascending: false }),
+    ]);
     if (data) {
       const q = data as QuoteRow;
       setQuote(q);
       setLineItems(q.offer_line_items?.length ? q.offer_line_items : buildDefaultLineItems(q));
       setNotes(q.offer_notes ?? "");
     }
+    if (logData) setStatusLog(logData);
     setLoading(false);
   }
 
@@ -104,10 +109,21 @@ export default function QuoteDetailPage() {
   }
 
   async function handleStatusChange(newStatus: QuoteStatus) {
-    if (!supabase || !quote) return;
+    if (!supabase || !quote || newStatus === quote.status) return;
     setUpdatingStatus(true);
-    await supabase.from("quotes").update({ status: newStatus }).eq("id", quote.id);
+    const oldStatus = quote.status;
+    await Promise.all([
+      supabase.from("quotes").update({ status: newStatus }).eq("id", quote.id),
+      supabase.from("quote_status_logs").insert({
+        quote_id: quote.id,
+        from_status: oldStatus,
+        to_status: newStatus,
+        changed_by: user?.email ?? "ukjent",
+      }),
+    ]);
+    const newEntry = { id: crypto.randomUUID(), from_status: oldStatus, to_status: newStatus, changed_by: user?.email ?? "ukjent", changed_at: new Date().toISOString(), note: null };
     setQuote((prev) => prev ? { ...prev, status: newStatus } : null);
+    setStatusLog((prev) => [newEntry, ...prev]);
     setUpdatingStatus(false);
   }
 
@@ -175,20 +191,18 @@ export default function QuoteDetailPage() {
             </div>
           </div>
 
-          {/* Status actions */}
-          <div className="flex gap-2">
-            {quote.status === "new" && (
-              <button onClick={() => handleStatusChange("in_review")} disabled={updatingStatus}
-                className="rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-1.5 text-xs font-medium text-yellow-700 hover:bg-yellow-100 disabled:opacity-50">
-                Merk som behandles
+          {/* Status selector */}
+          <div className="flex flex-wrap gap-1.5">
+            {(["new","in_review","offer_sent","paid","cancelled"] as QuoteStatus[]).map((s) => (
+              <button key={s} onClick={() => handleStatusChange(s)} disabled={updatingStatus || s === quote.status}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-all disabled:cursor-default ${
+                  s === quote.status
+                    ? STATUS_COLORS[s] + " ring-2 ring-offset-1 ring-current opacity-100"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-100"
+                }`}>
+                {STATUS_LABELS[s]}
               </button>
-            )}
-            {quote.status !== "cancelled" && quote.status !== "paid" && (
-              <button onClick={() => handleStatusChange("cancelled")} disabled={updatingStatus}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 disabled:opacity-50">
-                Kanseller
-              </button>
-            )}
+            ))}
           </div>
         </div>
 
@@ -211,6 +225,32 @@ export default function QuoteDetailPage() {
                 )}
               </dl>
             </div>
+
+            {/* Status log */}
+            {statusLog.length > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">Statuslogg</h2>
+                <ol className="relative border-l border-gray-200 space-y-3 ml-2">
+                  {statusLog.map((entry) => (
+                    <li key={entry.id} className="ml-4">
+                      <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-white bg-orange-400" />
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[entry.from_status as QuoteStatus] ?? "bg-gray-100 text-gray-500"}`}>
+                          {STATUS_LABELS[entry.from_status as QuoteStatus] ?? entry.from_status}
+                        </span>
+                        <span className="text-gray-400">→</span>
+                        <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[entry.to_status as QuoteStatus] ?? "bg-gray-100 text-gray-500"}`}>
+                          {STATUS_LABELS[entry.to_status as QuoteStatus] ?? entry.to_status}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {formatDate(entry.changed_at)} · {entry.changed_by}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
 
             {/* Configuration */}
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
