@@ -16,6 +16,8 @@ export default function EmailLogin() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   // Register phone step
   const [registerStep, setRegisterStep] = useState<RegisterStep>("details");
@@ -28,6 +30,23 @@ export default function EmailLogin() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recaptchaRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  async function sendPasswordReset() {
+    if (!email) { setError("Skriv inn e-postadressen din først."); return; }
+    setError("");
+    setLoading(true);
+    try {
+      const auth = await getFirebaseAuth();
+      if (!auth) throw new Error("no-auth");
+      const { sendPasswordResetEmail } = await import("firebase/auth");
+      await sendPasswordResetEmail(auth, email);
+      setForgotSent(true);
+    } catch {
+      setError("Kunne ikke sende tilbakestillingslenke. Sjekk e-postadressen.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function switchTab(t: Tab) {
     setTab(t);
@@ -154,25 +173,62 @@ export default function EmailLogin() {
 
       {/* Login */}
       {tab === "login" && (
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">E-post</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="ola@eksempel.no"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Passord</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">
-            {loading ? "Logger inn…" : "Logg inn"}
-          </button>
-        </form>
+        <div className="space-y-4">
+          {!forgotMode ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">E-post</label>
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                  placeholder="ola@eksempel.no"
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-700">Passord</label>
+                  <button type="button" onClick={() => { setForgotMode(true); setError(""); setForgotSent(false); }}
+                    className="text-xs text-orange-500 hover:underline">
+                    Glemt passord?
+                  </button>
+                </div>
+                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+              </div>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <button type="submit" disabled={loading}
+                className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                {loading ? "Logger inn…" : "Logg inn"}
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              {forgotSent ? (
+                <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
+                  Tilbakestillingslenke sendt til <strong>{email}</strong>. Sjekk innboksen din.
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500">Skriv inn e-postadressen din så sender vi en lenke for å tilbakestille passordet.</p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">E-post</label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                      placeholder="ola@eksempel.no"
+                      className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+                  </div>
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+                  <button type="button" onClick={sendPasswordReset} disabled={loading}
+                    className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {loading ? "Sender…" : "Send tilbakestillingslenke"}
+                  </button>
+                </>
+              )}
+              <button type="button" onClick={() => { setForgotMode(false); setError(""); }}
+                className="text-xs text-gray-400 hover:text-gray-600">
+                ← Tilbake til innlogging
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Register — step 1: email + password */}
