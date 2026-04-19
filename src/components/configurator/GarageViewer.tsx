@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect, Suspense, Component, type ReactNode } from "react";
+import { useRef, useEffect, Suspense, Component, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import { OrbitControls, Environment, Grid, useGLTF } from "@react-three/drei";
@@ -14,26 +14,41 @@ interface GarageViewerProps {
   doorHeightMm: number;
 }
 
-/** Renders the GLTF scene, rotated from Z-up to Y-up and centred */
-function GarageModel({ url }: { url: string }) {
-  const { scene } = useGLTF(url);
+function GarageModel({ lengthMm, widthMm }: { lengthMm: number; widthMm: number }) {
+  const { scene } = useGLTF("/garasje.glb");
 
   useEffect(() => {
+    // Rotate Z-up → Y-up
     scene.rotation.set(-Math.PI / 2, 0, 0);
+    scene.scale.set(1, 1, 1);
     scene.updateMatrixWorld(true);
-    const box = new Box3().setFromObject(scene);
-    const center = box.getCenter(new Vector3());
-    scene.position.set(-center.x, -box.min.y, -center.z);
 
-    // Preserve Onshape colours, enable shadows
+    // Measure bounding box after rotation
+    const box = new Box3().setFromObject(scene);
+    const size = box.getSize(new Vector3());
+
+    // Scale to match configured dimensions (mm → m)
+    const targetWidth = widthMm / 1000;
+    const targetLength = lengthMm / 1000;
+    const scaleX = size.x > 0 ? targetWidth / size.x : 1;
+    const scaleZ = size.z > 0 ? targetLength / size.z : 1;
+    const scaleY = (scaleX + scaleZ) / 2;
+
+    scene.scale.set(scaleX, scaleY, scaleZ);
+    scene.updateMatrixWorld(true);
+
+    // Centre on ground
+    const finalBox = new Box3().setFromObject(scene);
+    const center = finalBox.getCenter(new Vector3());
+    scene.position.set(-center.x, -finalBox.min.y, -center.z);
+
+    // Shadows + materials
     scene.traverse((child) => {
       if (child instanceof Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        const materials = Array.isArray(child.material)
-          ? child.material
-          : [child.material];
-        materials.forEach((mat) => {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((mat) => {
           if (mat instanceof MeshStandardMaterial) {
             mat.envMapIntensity = 0.4;
             mat.needsUpdate = true;
@@ -41,7 +56,7 @@ function GarageModel({ url }: { url: string }) {
         });
       }
     });
-  }, [scene]);
+  }, [scene, lengthMm, widthMm]);
 
   return <primitive object={scene} dispose={null} />;
 }
@@ -60,75 +75,11 @@ class GltfErrorBoundary extends Component<
   }
 }
 
-export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm }: GarageViewerProps) {
+export default function GarageViewer({ lengthMm, widthMm }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
-  const [modelUrl, setModelUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const initialLoaded = useRef(false);
-
-  async function loadModel() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/onshape/model?length=${lengthMm}&width=${widthMm}&doorWidth=${doorWidthMm}&doorHeight=${doorHeightMm}`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `HTTP ${res.status}`);
-      }
-      const blob = await res.blob();
-      setModelUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return URL.createObjectURL(blob);
-      });
-      initialLoaded.current = true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ukjent feil");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Load on mount
-  useEffect(() => {
-    loadModel();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Auto-reload when dimensions change (1.5 s debounce, after initial load)
-  useEffect(() => {
-    if (!initialLoaded.current) return;
-    const timer = setTimeout(loadModel, 1500);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lengthMm, widthMm, doorWidthMm, doorHeightMm]);
-
-  // Revoke blob URL on unmount
-  useEffect(() => {
-    return () => {
-      if (modelUrl) URL.revokeObjectURL(modelUrl);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div className="relative h-full w-full">
-      {/* Loading overlay */}
-      {loading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-stone-100/70">
-          <div className="rounded-full bg-white px-5 py-2 text-sm text-gray-500 shadow">
-            Laster 3D-modell…
-          </div>
-        </div>
-      )}
-
-      {/* Error */}
-      {error && !loading && (
-        <div className="absolute top-3 right-3 z-10 max-w-xs rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          <strong>Feil:</strong> {error}
-        </div>
-      )}
-
       <Canvas
         shadows
         camera={{ position: [12, 7, 12], fov: 42 }}
@@ -143,13 +94,11 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
           shadow-mapSize={[2048, 2048]}
         />
 
-        {modelUrl && (
-          <GltfErrorBoundary onError={(msg) => setError(`3D-feil: ${msg}`)}>
-            <Suspense fallback={null}>
-              <GarageModel url={modelUrl} />
-            </Suspense>
-          </GltfErrorBoundary>
-        )}
+        <GltfErrorBoundary onError={(msg) => console.error("3D-feil:", msg)}>
+          <Suspense fallback={null}>
+            <GarageModel lengthMm={lengthMm} widthMm={widthMm} />
+          </Suspense>
+        </GltfErrorBoundary>
 
         <Grid
           position={[0, -0.02, 0]}
@@ -177,18 +126,6 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
           maxDistance={30}
         />
       </Canvas>
-
-      {/* Refresh button */}
-      {modelUrl && !loading && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-          <button
-            onClick={loadModel}
-            className="rounded-full bg-black/40 px-4 py-1.5 text-xs text-white hover:bg-black/60"
-          >
-            ↺ Oppdater 3D-visning
-          </button>
-        </div>
-      )}
     </div>
   );
 }
