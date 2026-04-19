@@ -128,21 +128,28 @@ export default function EmailLogin() {
     setVerifyingOtp(true);
     try {
       await confirmationRef.current.confirm(otp);
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? "";
+      if (code === "auth/code-expired") {
+        setError("Koden er utløpt. Send en ny kode.");
+      } else {
+        setError("Feil kode. Prøv igjen.");
+      }
+      setVerifyingOtp(false);
+      return;
+    }
+
+    try {
       if (!supabase) throw new Error("no-supabase");
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       await createSession(data.user?.email ?? email);
     } catch (err: unknown) {
-      const code = (err as { code?: string })?.code ?? "";
       const msg = (err as { message?: string })?.message ?? "";
-      if (code === "auth/invalid-verification-code") {
-        setError("Feil kode. Prøv igjen.");
-      } else if (code === "auth/code-expired") {
-        setError("Koden er utløpt. Send en ny.");
-      } else if (msg.toLowerCase().includes("already registered")) {
-        setError("E-postadressen er allerede i bruk.");
+      if (msg.toLowerCase().includes("already registered")) {
+        setError("E-postadressen er allerede i bruk. Prøv å logge inn i stedet.");
       } else {
-        setError("Registrering feilet. Prøv igjen.");
+        setError(`Registrering feilet: ${msg || "prøv igjen"}`);
       }
     } finally {
       setVerifyingOtp(false);
