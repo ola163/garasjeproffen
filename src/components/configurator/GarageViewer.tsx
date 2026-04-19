@@ -54,7 +54,7 @@ function GarageModel({ lengthMm, widthMm }: { lengthMm: number; widthMm: number 
 
   useEffect(() => {
     // GLB/GLTF is Y-up — no axis rotation needed. Try flipping to face front.
-    scene.rotation.set(0, Math.PI, 0);
+    scene.rotation.set(0, 0, 0);
     scene.scale.set(1, 1, 1);
     scene.updateMatrixWorld(true);
 
