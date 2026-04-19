@@ -161,20 +161,26 @@ export default function QuoteDetailPage() {
   }
 
   async function handleUploadAttachment(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!supabase || !quote || !e.target.files?.length) return;
+    if (!quote || !user || !e.target.files?.length) return;
     setUploadingFile(true);
-    const newUrls: string[] = [];
+    const formData = new FormData();
+    formData.append("adminEmail", user.email ?? "");
+    formData.append("ticketNumber", quote.ticket_number);
+    formData.append("quoteId", quote.id);
     for (const file of Array.from(e.target.files)) {
-      const path = `${quote.ticket_number}/${Date.now()}-${file.name}`;
-      const { error } = await supabase.storage.from("quote-attachments").upload(path, file, { upsert: true });
-      if (!error) {
-        const { data } = supabase.storage.from("quote-attachments").getPublicUrl(path);
-        newUrls.push(data.publicUrl);
-      }
+      formData.append("files", file);
     }
-    const updated = [...(quote.attachments ?? []), ...newUrls];
-    await supabase.from("quotes").update({ attachments: updated }).eq("id", quote.id);
-    setQuote((prev) => prev ? { ...prev, attachments: updated } : null);
+    try {
+      const res = await fetch("/api/admin/upload-attachment", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setQuote((prev) => prev ? { ...prev, attachments: data.all } : null);
+      } else {
+        alert(`Opplasting feilet: ${data.error}`);
+      }
+    } catch {
+      alert("Nettverksfeil ved opplasting.");
+    }
     e.target.value = "";
     setUploadingFile(false);
   }
