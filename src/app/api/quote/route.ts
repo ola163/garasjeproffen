@@ -27,7 +27,7 @@ const PLACEMENT_LABELS: Record<string, string> = {
 
 export async function POST(request: Request) {
   try {
-    const body: QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[] } = await request.json();
+    const body: QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[]; customer: { name: string; email: string; phone?: string; message?: string; phoneVerified?: boolean } } = await request.json();
 
     // Validate customer info
     if (!body.customer?.name || !body.customer?.email) {
@@ -82,6 +82,7 @@ export async function POST(request: Request) {
         added_elements: elements,
         pricing,
         attachments: attachmentUrls.length > 0 ? attachmentUrls : null,
+        phone_verified: body.customer.phoneVerified ?? false,
       });
       if (dbErr) console.error("Supabase quote insert error:", dbErr.message);
     }
@@ -143,7 +144,7 @@ export async function POST(request: Request) {
           <table>
             <tr><td><strong>Navn:</strong></td><td>${body.customer.name}</td></tr>
             <tr><td><strong>E-post:</strong></td><td>${body.customer.email}</td></tr>
-            <tr><td><strong>Telefon:</strong></td><td>${body.customer.phone || "–"}</td></tr>
+            <tr><td><strong>Telefon:</strong></td><td>${body.customer.phone || "–"}${body.customer.phoneVerified ? ' <span style="color:#16a34a;font-size:12px">✓ Verifisert</span>' : ""}</td></tr>
             <tr><td><strong>Melding:</strong></td><td>${body.customer.message || "–"}</td></tr>
           </table>
           <h3>Konfigurasjon</h3>

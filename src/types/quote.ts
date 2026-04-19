@@ -6,8 +6,9 @@ export interface QuoteRequest {
   customer: {
     name: string;
     email: string;
-    phone: string;
-    message: string;
+    phone?: string;
+    message?: string;
+    phoneVerified?: boolean;
   };
 }
 
