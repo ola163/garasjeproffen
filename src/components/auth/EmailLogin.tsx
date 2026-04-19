@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import { getFirebaseAuth } from "@/lib/firebase";
 import type { ConfirmationResult } from "firebase/auth";
 
@@ -36,10 +37,11 @@ export default function EmailLogin() {
     setError("");
     setLoading(true);
     try {
-      const auth = await getFirebaseAuth();
-      if (!auth) throw new Error("no-auth");
-      const { sendPasswordResetEmail } = await import("firebase/auth");
-      await sendPasswordResetEmail(auth, email);
+      if (!supabase) throw new Error("no-supabase");
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/min-side`,
+      });
+      if (error) throw error;
       setForgotSent(true);
     } catch {
       setError("Kunne ikke sende tilbakestillingslenke. Sjekk e-postadressen.");
@@ -72,17 +74,14 @@ export default function EmailLogin() {
     setError("");
     setLoading(true);
     try {
-      const auth = await getFirebaseAuth();
-      if (!auth) { setError("Firebase er ikke tilgjengelig."); return; }
-      const { signInWithEmailAndPassword } = await import("firebase/auth");
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      await createSession(cred.user.email ?? email);
+      if (!supabase) { setError("Tjenesten er ikke tilgjengelig."); return; }
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      await createSession(data.user.email ?? email);
     } catch (err: unknown) {
-      const code = (err as { code?: string })?.code ?? "";
-      if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+      const msg = (err as { message?: string })?.message ?? "";
+      if (msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("credentials")) {
         setError("Feil e-post eller passord.");
-      } else if (code === "auth/too-many-requests") {
-        setError("For mange forsøk. Prøv igjen senere.");
       } else {
         setError("Innlogging feilet. Prøv igjen.");
       }
@@ -129,20 +128,19 @@ export default function EmailLogin() {
     setVerifyingOtp(true);
     try {
       await confirmationRef.current.confirm(otp);
-      const auth = await getFirebaseAuth();
-      if (!auth) throw new Error("no-auth");
-      const { createUserWithEmailAndPassword, signOut } = await import("firebase/auth");
-      await signOut(auth);
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await createSession(cred.user.email ?? email);
+      if (!supabase) throw new Error("no-supabase");
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      await createSession(data.user?.email ?? email);
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code ?? "";
-      if (code === "auth/email-already-in-use") {
-        setError("E-postadressen er allerede i bruk.");
-      } else if (code === "auth/invalid-verification-code") {
+      const msg = (err as { message?: string })?.message ?? "";
+      if (code === "auth/invalid-verification-code") {
         setError("Feil kode. Prøv igjen.");
       } else if (code === "auth/code-expired") {
         setError("Koden er utløpt. Send en ny.");
+      } else if (msg.toLowerCase().includes("already registered")) {
+        setError("E-postadressen er allerede i bruk.");
       } else {
         setError("Registrering feilet. Prøv igjen.");
       }
