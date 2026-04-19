@@ -121,7 +121,9 @@ export default function EmailLogin() {
       setOtpSent(true);
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code ?? "";
-      setError(`Kunne ikke sende SMS: ${code || "ukjent feil"}`);
+      const msg = (err as { message?: string })?.message ?? "";
+      setError(`Kunne ikke sende SMS: ${code || msg || "ukjent feil"}`);
+      console.error("sendOtp error:", err);
       recaptchaRef.current?.clear();
       recaptchaRef.current = null;
     } finally {
