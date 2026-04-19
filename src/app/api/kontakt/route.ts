@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
+import { validateFile } from "@/lib/file-validation";
 
 export async function POST(request: Request) {
   try {
@@ -26,6 +27,10 @@ export async function POST(request: Request) {
         if (!file.name) continue;
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
+        const validation = await validateFile(buffer, file.name, file.type);
+        if (!validation.valid) {
+          return NextResponse.json({ success: false, error: validation.reason }, { status: 400 });
+        }
         const path = `kontakt/${Date.now()}-${file.name}`;
         const { error } = await sb.storage.from("quote-attachments").upload(path, buffer, { contentType: file.type, upsert: true });
         if (!error) {

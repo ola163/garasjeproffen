@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { validateFile } from "@/lib/file-validation";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -27,6 +28,10 @@ export async function POST(request: Request) {
     for (const file of files) {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
+      const validation = await validateFile(buffer, file.name, file.type);
+      if (!validation.valid) {
+        return NextResponse.json({ success: false, error: validation.reason }, { status: 400 });
+      }
       const path = `${ticketNumber}/${Date.now()}-${file.name}`;
 
       const { error } = await sb.storage
