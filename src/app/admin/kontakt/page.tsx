@@ -17,6 +17,7 @@ interface ContactRow {
   phone: string | null;
   address: string;
   message: string | null;
+  attachments: string[] | null;
   status: ContactStatus;
   created_at: string;
 }
@@ -172,6 +173,24 @@ export default function AdminKontaktPage() {
                         <div className="mb-4">
                           <p className="text-xs font-medium text-gray-500 mb-1">Melding</p>
                           <p className="text-sm text-gray-700 whitespace-pre-line">{c.message}</p>
+                        </div>
+                      )}
+                      {c.attachments && c.attachments.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-xs font-medium text-gray-500 mb-1">Vedlegg ({c.attachments.length})</p>
+                          <ul className="space-y-1">
+                            {c.attachments.map((url, i) => {
+                              const fileName = decodeURIComponent(url.split("/").pop() ?? url);
+                              return (
+                                <li key={i}>
+                                  <a href={url} target="_blank" rel="noopener noreferrer"
+                                    className="text-xs text-orange-600 hover:underline truncate block">
+                                    {fileName}
+                                  </a>
+                                </li>
+                              );
+                            })}
+                          </ul>
                         </div>
                       )}
                       <div className="flex flex-wrap gap-2">
