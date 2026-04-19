@@ -17,7 +17,7 @@ export function buildAuthUrl(state: string, nonce: string, redirectUri: string):
     scope: "openid profile email",
     state,
     nonce,
-    acr_values: ACR_VALUES,
+    ...(ACR_VALUES ? { acr_values: ACR_VALUES } : {}),
   });
   return `${ISSUER}/authorize?${params.toString()}`;
 }
