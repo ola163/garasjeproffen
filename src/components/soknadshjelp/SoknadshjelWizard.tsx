@@ -4,6 +4,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 
 const MapPicker = dynamic(() => import("./MapPicker"), { ssr: false });
+const GaragePlacementMap = dynamic(() => import("./GaragePlacementMap"), { ssr: false });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface GarageConfig {
@@ -286,9 +287,10 @@ function StepBuildingType({ selected, onNext }: {
 }
 
 // ── Step 1: Map ───────────────────────────────────────────────────────────────
-function StepMap({ onNext, onBack }: {
+function StepMap({ onNext, onBack, garageConfig }: {
   onNext: (lat: number, lng: number, address: string) => void;
   onBack: () => void;
+  garageConfig?: GarageConfig;
 }) {
   const [query, setQuery] = useState("");
   const [lat, setLat] = useState(58.7441);
@@ -334,10 +336,21 @@ function StepMap({ onNext, onBack }: {
       </div>
       {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
       {address && <p className="mt-1 text-xs text-gray-400 truncate">📍 {address}</p>}
-      <div className="mt-4 h-72 w-full overflow-hidden rounded-xl border border-gray-200">
-        <MapPicker lat={lat} lng={lng} onMove={(la, ln) => { setLat(la); setLng(ln); }} />
+      <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
+        {garageConfig ? (
+          <GaragePlacementMap
+            lat={lat} lng={lng}
+            widthMm={garageConfig.widthMm}
+            lengthMm={garageConfig.lengthMm}
+            onMove={(la, ln) => { setLat(la); setLng(ln); }}
+          />
+        ) : (
+          <div className="h-72">
+            <MapPicker lat={lat} lng={lng} onMove={(la, ln) => { setLat(la); setLng(ln); }} />
+          </div>
+        )}
       </div>
-      <p className="mt-1 text-xs text-gray-400">Dra markøren eller klikk i kartet for å justere.</p>
+      {!garageConfig && <p className="mt-1 text-xs text-gray-400">Klikk i kartet for å justere plasseringen.</p>}
       <div className="mt-6 flex gap-3">
         <button onClick={onBack}
           className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50">
@@ -587,7 +600,7 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
         <StepBuildingType selected={buildingType} onNext={(t) => { setBuildingType(t); setStep(1); }} />
       )}
       {step === 1 && (
-        <StepMap onNext={(_, __, addr) => { setAddress(addr); setStep(2); }} onBack={() => setStep(skipType ? 1 : 0)} />
+        <StepMap garageConfig={garageConfig} onNext={(_, __, addr) => { setAddress(addr); setStep(2); }} onBack={() => setStep(skipType ? 1 : 0)} />
       )}
       {step === 2 && (
         <StepDibk dibk={dibk} setDibk={setDibk} onNext={() => setStep(3)} onBack={() => setStep(1)} />
