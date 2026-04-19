@@ -61,9 +61,11 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
       const formatted = phone.startsWith("+") ? phone : `+47${phone.replace(/\s/g, "")}`;
       confirmationRef.current = await signInWithPhoneNumber(firebaseAuth, formatted, recaptchaRef.current);
       setOtpSent(true);
-    } catch (err) {
-      setPhoneError("Kunne ikke sende SMS. Sjekk nummeret og prøv igjen.");
-      console.error("OTP send error:", err);
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? "";
+      const msg = (err as { message?: string })?.message ?? "";
+      console.error("OTP send error:", code, msg, err);
+      setPhoneError(`Feil: ${code || msg || "ukjent feil"}`);
       recaptchaRef.current?.clear();
       recaptchaRef.current = null;
     } finally {
