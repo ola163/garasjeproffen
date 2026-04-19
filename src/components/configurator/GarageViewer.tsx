@@ -3,7 +3,7 @@
 import { useRef, useEffect, Suspense, Component, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitControls, Environment, Grid, useGLTF } from "@react-three/drei";
+import { OrbitControls, Environment, Grid, useGLTF, Line, Text } from "@react-three/drei";
 import { Box3, Vector3, Mesh, MeshStandardMaterial } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
@@ -14,35 +14,69 @@ interface GarageViewerProps {
   doorHeightMm: number;
 }
 
+function DimensionLine({
+  start, end, label, color = "#e2520a", offset = [0, 0, 0],
+}: {
+  start: [number, number, number];
+  end: [number, number, number];
+  label: string;
+  color?: string;
+  offset?: [number, number, number];
+}) {
+  const s = new Vector3(...start).add(new Vector3(...offset));
+  const e = new Vector3(...end).add(new Vector3(...offset));
+  const mid = s.clone().add(e).multiplyScalar(0.5);
+  const points: [number, number, number][] = [
+    [s.x, s.y, s.z],
+    [e.x, e.y, e.z],
+  ];
+  return (
+    <group>
+      <Line points={points} color={color} lineWidth={1.5} />
+      <Text
+        position={[mid.x, mid.y + 0.15, mid.z]}
+        fontSize={0.22}
+        color={color}
+        anchorX="center"
+        anchorY="bottom"
+        outlineWidth={0.02}
+        outlineColor="#fff"
+      >
+        {label}
+      </Text>
+    </group>
+  );
+}
+
 function GarageModel({ lengthMm, widthMm }: { lengthMm: number; widthMm: number }) {
   const { scene } = useGLTF("/garasje.glb");
+  const boxRef = useRef<Box3 | null>(null);
 
   useEffect(() => {
-    // Rotate Z-up → Y-up, flip 180° so front faces camera
-    scene.rotation.set(-Math.PI / 2, Math.PI, 0);
+    // GLB/GLTF is Y-up — no axis rotation needed. Try flipping to face front.
+    scene.rotation.set(0, Math.PI, 0);
     scene.scale.set(1, 1, 1);
     scene.updateMatrixWorld(true);
 
-    // Measure bounding box after rotation
     const box = new Box3().setFromObject(scene);
     const size = box.getSize(new Vector3());
 
-    // Scale to match configured dimensions (mm → m)
-    const targetWidth = widthMm / 1000;
+    const targetWidth  = widthMm  / 1000;
     const targetLength = lengthMm / 1000;
-    const scaleX = size.x > 0 ? targetWidth / size.x : 1;
+
+    const scaleX = size.x > 0 ? targetWidth  / size.x : 1;
     const scaleZ = size.z > 0 ? targetLength / size.z : 1;
     const scaleY = (scaleX + scaleZ) / 2;
 
     scene.scale.set(scaleX, scaleY, scaleZ);
     scene.updateMatrixWorld(true);
 
-    // Centre on ground
     const finalBox = new Box3().setFromObject(scene);
-    const center = finalBox.getCenter(new Vector3());
+    const center   = finalBox.getCenter(new Vector3());
     scene.position.set(-center.x, -finalBox.min.y, -center.z);
 
-    // Shadows + materials
+    boxRef.current = new Box3().setFromObject(scene);
+
     scene.traverse((child) => {
       if (child instanceof Mesh) {
         child.castShadow = true;
@@ -58,7 +92,38 @@ function GarageModel({ lengthMm, widthMm }: { lengthMm: number; widthMm: number 
     });
   }, [scene, lengthMm, widthMm]);
 
-  return <primitive object={scene} dispose={null} />;
+  const W = widthMm  / 1000;
+  const L = lengthMm / 1000;
+  const halfW = W / 2;
+  const halfL = L / 2;
+  const y = -0.05;
+
+  return (
+    <>
+      <primitive object={scene} dispose={null} />
+
+      {/* Width dimension (X axis) */}
+      <DimensionLine
+        start={[-halfW, y, halfL + 0.5]}
+        end={[halfW, y, halfL + 0.5]}
+        label={`${(widthMm / 1000).toFixed(1)} m`}
+        color="#e2520a"
+        offset={[0, 0, 0]}
+      />
+
+      {/* Length dimension (Z axis) */}
+      <DimensionLine
+        start={[halfW + 0.5, y, -halfL]}
+        end={[halfW + 0.5, y, halfL]}
+        label={`${(lengthMm / 1000).toFixed(1)} m`}
+        color="#2563eb"
+        offset={[0, 0, 0]}
+      />
+
+      {/* Axis arrows */}
+      <axesHelper args={[1.5]} />
+    </>
+  );
 }
 
 class GltfErrorBoundary extends Component<
@@ -87,12 +152,7 @@ export default function GarageViewer({ lengthMm, widthMm }: GarageViewerProps) {
       >
         <color attach="background" args={["#f5f5f4"]} />
         <ambientLight intensity={0.6} />
-        <directionalLight
-          position={[10, 15, 10]}
-          intensity={1.2}
-          castShadow
-          shadow-mapSize={[2048, 2048]}
-        />
+        <directionalLight position={[10, 15, 10]} intensity={1.2} castShadow shadow-mapSize={[2048, 2048]} />
 
         <GltfErrorBoundary onError={(msg) => console.error("3D-feil:", msg)}>
           <Suspense fallback={null}>
