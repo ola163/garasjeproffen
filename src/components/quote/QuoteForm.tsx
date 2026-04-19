@@ -51,6 +51,7 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
     setPhoneError("");
     setSendingOtp(true);
     try {
+      if (!auth) { setPhoneError("Firebase er ikke tilgjengelig. Prøv igjen."); return; }
       if (!recaptchaRef.current) {
         recaptchaRef.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current!, { size: "invisible" });
       }
