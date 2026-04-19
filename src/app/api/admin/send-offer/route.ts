@@ -16,35 +16,31 @@ function taxAmount(nok: number) {
 
 export async function POST(request: Request) {
   try {
-    const { quoteId, lineItems, notes, adminEmail } = await request.json() as {
+    const { quoteId, lineItems, notes, adminEmail, customerEmail, customerName, ticketNumber } = await request.json() as {
       quoteId: string;
       lineItems: LineItem[];
       notes: string;
       adminEmail: string;
+      customerEmail: string;
+      customerName: string;
+      ticketNumber: string;
     };
 
     if (!ALLOWED_ADMINS.includes((adminEmail ?? "").toLowerCase())) {
       return NextResponse.json({ success: false, error: "Ikke tilgang" }, { status: 403 });
     }
 
+    if (!customerEmail || !ticketNumber) {
+      return NextResponse.json({ success: false, error: "Mangler kundeinformasjon" }, { status: 400 });
+    }
+
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!sbUrl || !sbKey) {
       return NextResponse.json({ success: false, error: "Supabase ikke konfigurert" }, { status: 500 });
     }
 
-    // Fetch quote (using service role if available, otherwise anon — admin must be authenticated)
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const sb = createClient(sbUrl, serviceKey ?? sbKey);
-    const { data: quote, error: fetchErr } = await sb
-      .from("quotes")
-      .select("*")
-      .eq("id", quoteId)
-      .single();
-
-    if (fetchErr || !quote) {
-      return NextResponse.json({ success: false, error: "Fant ikke tilbudsforespørsel" }, { status: 404 });
-    }
+    const sb = createClient(sbUrl, sbKey);
 
     const offerTotal = lineItems.reduce((s, item) => s + item.amount * item.quantity, 0);
 
@@ -90,8 +86,8 @@ export async function POST(request: Request) {
             confirmation: `${siteUrl}/betaling/{checkout.order.id}/bekreftelse`,
             push: `${siteUrl}/api/klarna/push?sid={checkout.order.id}`,
           },
-          billing_address: { email: quote.customer_email },
-          merchant_reference1: quote.ticket_number,
+          billing_address: { email: customerEmail },
+          merchant_reference1: ticketNumber,
         }),
       });
 
@@ -137,13 +133,13 @@ export async function POST(request: Request) {
 
       await resend.emails.send({
         from: "GarasjeProffen <noreply@garasjeproffen.no>",
-        to: quote.customer_email,
-        subject: `Tilbud fra GarasjeProffen – ${quote.ticket_number}`,
+        to: customerEmail,
+        subject: `Tilbud fra GarasjeProffen – ${ticketNumber}`,
         html: `
           <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#e2520a">Tilbud fra GarasjeProffen</h2>
-            <p>Hei ${quote.customer_name},</p>
-            <p>Takk for din henvendelse. Her er tilbudet ditt (${quote.ticket_number}):</p>
+            <p>Hei ${customerName},</p>
+            <p>Takk for din henvendelse. Her er tilbudet ditt (${ticketNumber}):</p>
 
             <table style="border-collapse:collapse;width:100%;margin-top:16px">
               <thead>

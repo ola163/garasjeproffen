@@ -128,13 +128,17 @@ export default function QuoteDetailPage() {
   }
 
   async function handleSendOffer() {
-    if (!user || !quote) return;
+    if (!user || !quote || !supabase) return;
     setSending(true); setSendResult(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch("/api/admin/send-offer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quoteId: quote.id, lineItems, notes, adminEmail: user.email }),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ quoteId: quote.id, lineItems, notes, adminEmail: user.email, customerEmail: quote.customer_email, customerName: quote.customer_name, ticketNumber: quote.ticket_number }),
       });
       const data = await res.json();
       if (data.success) {
