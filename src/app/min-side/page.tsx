@@ -33,8 +33,15 @@ interface SearchParams {
 }
 
 export default async function MinSidePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [cookieStore, { error }] = await Promise.all([cookies(), searchParams]);
-  const session = await getIronSession<CustomerSession>(cookieStore, sessionOptions);
+  const [cookieStore, resolvedParams] = await Promise.all([cookies(), searchParams]);
+  const error = resolvedParams?.error;
+
+  let session: CustomerSession = { sub: "", name: "", isLoggedIn: false };
+  try {
+    session = await getIronSession<CustomerSession>(cookieStore, sessionOptions);
+  } catch (err) {
+    console.error("Session error:", err);
+  }
 
   // Not logged in — show login page
   if (!session.isLoggedIn) {
