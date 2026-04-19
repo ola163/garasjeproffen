@@ -68,7 +68,10 @@ export default function EmailLogin() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: userEmail }),
     });
-    if (!res.ok) throw new Error("session");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
     router.push("/min-side");
     router.refresh();
   }
