@@ -140,7 +140,7 @@ export default function EmailLogin() {
       if (code === "auth/code-expired") {
         setError("Koden er utløpt. Send en ny kode.");
       } else {
-        setError("Feil kode. Prøv igjen.");
+        setError(`Feil kode (${code || "ukjent"}). Prøv igjen.`);
       }
       setVerifyingOtp(false);
       return;
