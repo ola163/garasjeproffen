@@ -41,10 +41,14 @@ export default function EmailLogin() {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/min-side`,
       });
-      if (error) throw error;
-      setForgotSent(true);
-    } catch {
-      setError("Kunne ikke sende tilbakestillingslenke. Sjekk e-postadressen.");
+      if (error) {
+        setError(`Feil: ${error.message}`);
+      } else {
+        setForgotSent(true);
+      }
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message ?? "ukjent feil";
+      setError(`Feil: ${msg}`);
     } finally {
       setLoading(false);
     }
