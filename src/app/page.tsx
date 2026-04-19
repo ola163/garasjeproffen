@@ -21,9 +21,6 @@ export default function Home() {
 
         {/* Left: description */}
         <div className="flex-1 text-left">
-          <span className="inline-block rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700 mb-4">
-            Norsk kvalitet siden 2018
-          </span>
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 leading-snug">
             Vi bygger garasjer og carporter som varer
           </h2>
