@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { GarageConfiguration, PricingResult } from "@/types/configurator";
 import type { QuoteResponse } from "@/types/quote";
 import type { AddedElement } from "@/components/configurator/DoorWindowAdder";
 import { supabase } from "@/lib/supabase";
-import { getFirebaseAuth } from "@/lib/firebase";
-import type { ConfirmationResult } from "firebase/auth";
 
 interface QuoteFormProps {
   configuration: GarageConfiguration;
@@ -28,65 +26,11 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<QuoteResponse | null>(null);
-
-  // Phone verification
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
-  const [phoneError, setPhoneError] = useState("");
-  const confirmationRef = useRef<ConfirmationResult | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recaptchaRef = useRef<any>(null);
-  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    return () => {
-      recaptchaRef.current?.clear();
-    };
+    fetch("/api/auth/me").then(r => r.json()).then(d => setIsLoggedIn(d.isLoggedIn)).catch(() => {});
   }, []);
-
-  async function sendOtp() {
-    if (!phone) { setPhoneError("Skriv inn telefonnummer først."); return; }
-    setPhoneError("");
-    setSendingOtp(true);
-    try {
-      const firebaseAuth = await getFirebaseAuth();
-      if (!firebaseAuth) { setPhoneError("Firebase er ikke tilgjengelig. Prøv igjen."); return; }
-      const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
-      if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier(firebaseAuth, recaptchaContainerRef.current!, { size: "invisible" });
-      }
-      const formatted = phone.startsWith("+") ? phone : `+47${phone.replace(/\s/g, "")}`;
-      confirmationRef.current = await signInWithPhoneNumber(firebaseAuth, formatted, recaptchaRef.current);
-      setOtpSent(true);
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code ?? "";
-      const msg = (err as { message?: string })?.message ?? "";
-      console.error("OTP send error:", code, msg, err);
-      setPhoneError(`Feil: ${code || msg || "ukjent feil"}`);
-      recaptchaRef.current?.clear();
-      recaptchaRef.current = null;
-    } finally {
-      setSendingOtp(false);
-    }
-  }
-
-  async function verifyOtp() {
-    if (!otp || !confirmationRef.current) return;
-    setPhoneError("");
-    setVerifyingOtp(true);
-    try {
-      await confirmationRef.current.confirm(otp);
-      setPhoneVerified(true);
-      setOtpSent(false);
-    } catch {
-      setPhoneError("Feil kode. Prøv igjen.");
-    } finally {
-      setVerifyingOtp(false);
-    }
-  }
 
   const p = configuration.parameters;
   const soknadUrl = `/soknadshjelp?buildingType=garasje&lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=${p.doorHeight ?? 2125}`;
@@ -121,7 +65,7 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
           packageType,
           roofType,
           addedElements,
-          customer: { name, email, phone, message, phoneVerified },
+          customer: { name, email, phone, message },
           attachmentUrls,
         }),
       });
@@ -175,7 +119,6 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
         </div>
       </div>
 
-      {/* Quote form — shown when no permit needed */}
       {needsPermit === "nei" && (
         <>
           <h3 className="mt-6 text-lg font-semibold text-gray-900">Be om tilbud</h3>
@@ -195,36 +138,8 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
             </div>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Telefon</label>
-              <div className="mt-1 flex gap-2">
-                <input id="phone" type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setPhoneVerified(false); setOtpSent(false); }}
-                  disabled={phoneVerified}
-                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:bg-gray-50" />
-                {!phoneVerified && (
-                  <button type="button" onClick={sendOtp} disabled={sendingOtp || !phone}
-                    className="shrink-0 rounded-md bg-orange-500 px-3 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {sendingOtp ? "Sender…" : otpSent ? "Send på nytt" : "Verifiser"}
-                  </button>
-                )}
-                {phoneVerified && (
-                  <span className="flex shrink-0 items-center gap-1 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
-                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                    Verifisert
-                  </span>
-                )}
-              </div>
-              {otpSent && !phoneVerified && (
-                <div className="mt-2 flex gap-2">
-                  <input type="text" inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value)}
-                    placeholder="6-sifret kode"
-                    className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
-                  <button type="button" onClick={verifyOtp} disabled={verifyingOtp || otp.length < 4}
-                    className="shrink-0 rounded-md border border-orange-500 px-3 py-2 text-sm font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {verifyingOtp ? "Sjekker…" : "Bekreft"}
-                  </button>
-                </div>
-              )}
-              {phoneError && <p className="mt-1 text-xs text-red-600">{phoneError}</p>}
-              <div ref={recaptchaContainerRef} />
+              <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label htmlFor="message" className="block text-sm font-medium text-gray-700">Eventuelle spesielle ønsker</label>
@@ -235,13 +150,13 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
             <div>
               <label className="block text-sm font-medium text-gray-700">Vedlegg (valgfritt)</label>
               <p className="mt-0.5 text-xs text-gray-400">Tegninger, bilder, tomtekart o.l. Maks 10 MB per fil.</p>
-              {!phoneVerified ? (
-                <div className="mt-2 flex items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-400">
+              {!isLoggedIn ? (
+                <a href="/min-side" className="mt-2 flex items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-400 hover:border-orange-300 hover:text-orange-500 transition-colors">
                   <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  Verifiser telefonnummeret ditt for å legge til vedlegg
-                </div>
+                  Logg inn på Min side for å legge ved filer
+                </a>
               ) : (
                 <>
                   <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">

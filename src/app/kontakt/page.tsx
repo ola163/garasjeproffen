@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
-import { getFirebaseAuth } from "@/lib/firebase";
-import type { ConfirmationResult } from "firebase/auth";
 
 export default function Kontakt() {
   const [name, setName] = useState("");
@@ -14,62 +12,11 @@ export default function Kontakt() {
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; error?: string } | null>(null);
-
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
-  const [phoneError, setPhoneError] = useState("");
-  const confirmationRef = useRef<ConfirmationResult | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recaptchaRef = useRef<any>(null);
-  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    return () => { recaptchaRef.current?.clear(); };
+    fetch("/api/auth/me").then(r => r.json()).then(d => setIsLoggedIn(d.isLoggedIn)).catch(() => {});
   }, []);
-
-  async function sendOtp() {
-    if (!phone) { setPhoneError("Skriv inn telefonnummer først."); return; }
-    setPhoneError("");
-    setSendingOtp(true);
-    try {
-      const firebaseAuth = await getFirebaseAuth();
-      if (!firebaseAuth) { setPhoneError("Firebase er ikke tilgjengelig. Prøv igjen."); return; }
-      const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
-      if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier(firebaseAuth, recaptchaContainerRef.current!, { size: "invisible" });
-      }
-      const formatted = phone.startsWith("+") ? phone : `+47${phone.replace(/\s/g, "")}`;
-      confirmationRef.current = await signInWithPhoneNumber(firebaseAuth, formatted, recaptchaRef.current);
-      setOtpSent(true);
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code ?? "";
-      const msg = (err as { message?: string })?.message ?? "";
-      console.error("OTP send error:", code, msg, err);
-      setPhoneError(`Feil: ${code || msg || "ukjent feil"}`);
-      recaptchaRef.current?.clear();
-      recaptchaRef.current = null;
-    } finally {
-      setSendingOtp(false);
-    }
-  }
-
-  async function verifyOtp() {
-    if (!otp || !confirmationRef.current) return;
-    setPhoneError("");
-    setVerifyingOtp(true);
-    try {
-      await confirmationRef.current.confirm(otp);
-      setPhoneVerified(true);
-      setOtpSent(false);
-    } catch {
-      setPhoneError("Feil kode. Prøv igjen.");
-    } finally {
-      setVerifyingOtp(false);
-    }
-  }
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
@@ -109,30 +56,17 @@ export default function Kontakt() {
         {/* Christian */}
         <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
           <div className="relative h-48 w-full bg-transparent">
-            <Image
-              src="/Christian.png"
-              alt="Christian S. Årsland"
-              fill
-              className="object-contain"
-            />
+            <Image src="/Christian.png" alt="Christian S. Årsland" fill className="object-contain" />
           </div>
           <div className="p-6">
             <p className="font-semibold text-gray-900">Christian S. Årsland</p>
             <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
             <div className="mt-4 space-y-3">
-              <a
-                href="mailto:christian@garasjeproffen.no"
-                className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
-              >
-                <span className="text-base">✉</span>
-                christian@garasjeproffen.no
+              <a href="mailto:christian@garasjeproffen.no" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
+                <span className="text-base">✉</span>christian@garasjeproffen.no
               </a>
-              <a
-                href="tel:+4747617563"
-                className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
-              >
-                <span className="text-base">📱</span>
-                +47 476 17 563
+              <a href="tel:+4747617563" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
+                <span className="text-base">📱</span>+47 476 17 563
               </a>
             </div>
           </div>
@@ -141,30 +75,17 @@ export default function Kontakt() {
         {/* Ola */}
         <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
           <div className="relative h-48 w-full bg-transparent">
-            <Image
-              src="/Ola.png"
-              alt="Ola K. Undheim"
-              fill
-              className="object-contain"
-            />
+            <Image src="/Ola.png" alt="Ola K. Undheim" fill className="object-contain" />
           </div>
           <div className="p-6">
             <p className="font-semibold text-gray-900">Ola K. Undheim</p>
             <p className="mt-0.5 text-sm text-orange-600">Teknisk sjef</p>
             <div className="mt-4 space-y-3">
-              <a
-                href="mailto:ola@garasjeproffen.no"
-                className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
-              >
-                <span className="text-base">✉</span>
-                ola@garasjeproffen.no
+              <a href="mailto:ola@garasjeproffen.no" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
+                <span className="text-base">✉</span>ola@garasjeproffen.no
               </a>
-              <a
-                href="tel:+4791344486"
-                className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50"
-              >
-                <span className="text-base">📱</span>
-                +47 913 44 486
+              <a href="tel:+4791344486" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
+                <span className="text-base">📱</span>+47 913 44 486
               </a>
             </div>
           </div>
@@ -194,87 +115,44 @@ export default function Kontakt() {
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">Navn *</label>
-              <input
-                id="name" type="text" required value={name}
-                onChange={(e) => setName(e.target.value)}
+              <input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)}
                 placeholder="Ola Nordmann"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-              />
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">E-post *</label>
-              <input
-                id="email" type="email" required value={email}
-                onChange={(e) => setEmail(e.target.value)}
+              <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="ola@eksempel.no"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-              />
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Telefon</label>
-              <div className="mt-1 flex gap-2">
-                <input
-                  id="phone" type="tel" value={phone}
-                  onChange={(e) => { setPhone(e.target.value); setPhoneVerified(false); setOtpSent(false); }}
-                  disabled={phoneVerified}
-                  placeholder="000 00 000"
-                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:bg-gray-50"
-                />
-                {!phoneVerified && (
-                  <button type="button" onClick={sendOtp} disabled={sendingOtp || !phone}
-                    className="shrink-0 rounded-md bg-orange-500 px-3 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {sendingOtp ? "Sender…" : otpSent ? "Send på nytt" : "Verifiser"}
-                  </button>
-                )}
-                {phoneVerified && (
-                  <span className="flex shrink-0 items-center gap-1 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
-                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                    Verifisert
-                  </span>
-                )}
-              </div>
-              {otpSent && !phoneVerified && (
-                <div className="mt-2 flex gap-2">
-                  <input type="text" inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value)}
-                    placeholder="6-sifret kode"
-                    className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
-                  <button type="button" onClick={verifyOtp} disabled={verifyingOtp || otp.length < 4}
-                    className="shrink-0 rounded-md border border-orange-500 px-3 py-2 text-sm font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {verifyingOtp ? "Sjekker…" : "Bekreft"}
-                  </button>
-                </div>
-              )}
-              {phoneError && <p className="mt-1 text-xs text-red-600">{phoneError}</p>}
-              <div ref={recaptchaContainerRef} />
+              <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                placeholder="000 00 000"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label htmlFor="address" className="block text-sm font-medium text-gray-700">Adresse *</label>
-              <input
-                id="address" type="text" required value={address}
-                onChange={(e) => setAddress(e.target.value)}
+              <input id="address" type="text" required value={address} onChange={(e) => setAddress(e.target.value)}
                 placeholder="Gateveien 1, 4342 Bryne"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-              />
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label htmlFor="message" className="block text-sm font-medium text-gray-700">Melding</label>
-              <textarea
-                id="message" rows={4} value={message}
-                onChange={(e) => setMessage(e.target.value)}
+              <textarea id="message" rows={4} value={message} onChange={(e) => setMessage(e.target.value)}
                 placeholder="Beskriv hva du ønsker hjelp med, f.eks. type bygg, størrelse, og eventuelle spørsmål..."
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-              />
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Vedlegg (valgfritt)</label>
               <p className="mt-0.5 text-xs text-gray-400">Tegninger, bilder, tomtekart o.l.</p>
-              {!phoneVerified ? (
-                <div className="mt-2 flex items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-400">
+              {!isLoggedIn ? (
+                <a href="/min-side" className="mt-2 flex items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-400 hover:border-orange-300 hover:text-orange-500 transition-colors">
                   <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  Verifiser telefonnummeret ditt for å legge til vedlegg
-                </div>
+                  Logg inn på Min side for å legge ved filer
+                </a>
               ) : (
                 <>
                   <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
@@ -302,10 +180,8 @@ export default function Kontakt() {
             {result?.error && (
               <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{result.error}</div>
             )}
-            <button
-              type="submit" disabled={submitting}
-              className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <button type="submit" disabled={submitting}
+              className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? (files.length > 0 ? "Laster opp vedlegg…" : "Sender...") : "Send melding"}
             </button>
           </form>

@@ -20,6 +20,7 @@ export default function Header() {
     { href: "/referanseprosjekter", label: "Referanseprosjekter" },
     { href: soknadshjelLink, label: "Søknadshjelp" },
     { href: "/configurator", label: "Design din garasje" },
+    { href: "/min-side", label: "Min side" },
   ];
 
   return (

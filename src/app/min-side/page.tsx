@@ -3,6 +3,7 @@ import { getIronSession } from "iron-session";
 import { createClient } from "@supabase/supabase-js";
 import { sessionOptions, type CustomerSession } from "@/lib/session";
 import Link from "next/link";
+import PhoneVerify from "@/components/auth/PhoneVerify";
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Ny",
@@ -217,6 +218,13 @@ export default async function MinSidePage({ searchParams }: { searchParams: Prom
             </div>
           )}
         </dl>
+        <div className="mt-6 border-t border-gray-100 pt-5">
+          <p className="text-sm font-medium text-gray-700">Verifiser telefonnummer</p>
+          <p className="mt-0.5 text-xs text-gray-400">Kreves for å legge ved filer i forespørsler.</p>
+          <div className="mt-3">
+            <PhoneVerify />
+          </div>
+        </div>
       </div>
 
       <div className="mt-8 text-center">
