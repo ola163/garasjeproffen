@@ -218,9 +218,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         )}
 
         {viewMode === "local" ? (
-          <LocalGarageViewer {...viewerProps} />
-        ) : (
           <GarageViewer {...viewerProps} />
+        ) : (
+          <LocalGarageViewer {...viewerProps} />
         )}
       </div>
 
