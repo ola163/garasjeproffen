@@ -18,8 +18,8 @@ function GarageModel({ lengthMm, widthMm }: { lengthMm: number; widthMm: number 
   const { scene } = useGLTF("/garasje.glb");
 
   useEffect(() => {
-    // Rotate Z-up → Y-up
-    scene.rotation.set(-Math.PI / 2, 0, 0);
+    // Rotate Z-up → Y-up, flip 180° so front faces camera
+    scene.rotation.set(-Math.PI / 2, Math.PI, 0);
     scene.scale.set(1, 1, 1);
     scene.updateMatrixWorld(true);
 
