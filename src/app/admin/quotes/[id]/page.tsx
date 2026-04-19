@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
@@ -52,6 +52,9 @@ export default function QuoteDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [statusConfirm, setStatusConfirm] = useState<QuoteStatus | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialLoad = useRef(true);
   const [statusLog, setStatusLog] = useState<{ id: string; from_status: string; to_status: string; changed_by: string; changed_at: string; note: string | null }[]>([]);
 
   useEffect(() => {
@@ -83,6 +86,20 @@ export default function QuoteDetailPage() {
     if (logData) setStatusLog(logData);
     setLoading(false);
   }
+
+  useEffect(() => {
+    if (isInitialLoad.current) { isInitialLoad.current = false; return; }
+    if (!supabase || !quote) return;
+    const sb = supabase;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    setAutoSaveStatus("saving");
+    autoSaveTimer.current = setTimeout(async () => {
+      await sb.from("quotes").update({ offer_line_items: lineItems }).eq("id", quote.id);
+      setAutoSaveStatus("saved");
+      setTimeout(() => setAutoSaveStatus("idle"), 2000);
+    }, 800);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineItems]);
 
   function buildDefaultLineItems(q: QuoteRow): LineItem[] {
     const pricing = q.pricing as { totalPrice?: number; basePrice?: number } | null;
@@ -300,7 +317,11 @@ export default function QuoteDetailPage() {
           {/* Right: offer builder */}
           <div className="space-y-5">
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Tilbudsbygger</h2>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Tilbudsbygger</h2>
+                {autoSaveStatus === "saving" && <span className="text-xs text-gray-400">Lagrer…</span>}
+                {autoSaveStatus === "saved" && <span className="text-xs text-green-500">Lagret ✓</span>}
+              </div>
 
               {/* Line items */}
               <div className="space-y-2 mb-3">
