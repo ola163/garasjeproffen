@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import type { Session } from "@supabase/supabase-js";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -12,6 +13,7 @@ function ResetPasswordForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [exchanging, setExchanging] = useState(true);
+  const sessionRef = useRef<Session | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -22,23 +24,32 @@ function ResetPasswordForm() {
 
     const code = searchParams.get("code");
     if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) setError("Lenken er ugyldig eller utløpt. Be om en ny tilbakestillingslenke.");
+      supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+        if (error) {
+          setError("Lenken er ugyldig eller utløpt. Be om en ny tilbakestillingslenke.");
+        } else {
+          sessionRef.current = data.session;
+        }
         setExchanging(false);
       });
       return;
     }
 
-    // Implicit flow: Supabase processes the hash asynchronously — listen for the event
+    // Implicit flow — capture session from PASSWORD_RECOVERY event
     const timeout = setTimeout(() => {
       setError("Ugyldig eller utløpt lenke. Be om en ny tilbakestillingslenke.");
       setExchanging(false);
     }, 5000);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" && session) {
         clearTimeout(timeout);
-        setExchanging(false);
+        sessionRef.current = session;
+        // Explicitly re-set session so updateUser has it
+        supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        }).then(() => setExchanging(false));
       }
     });
 
@@ -56,9 +67,26 @@ function ResetPasswordForm() {
     setLoading(true);
     try {
       if (!supabase) throw new Error("no-supabase");
+
+      // Re-apply session before updating in case it was lost
+      if (sessionRef.current) {
+        await supabase.auth.setSession({
+          access_token: sessionRef.current.access_token,
+          refresh_token: sessionRef.current.refresh_token,
+        });
+      }
+
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      router.push("/min-side?reset=ok");
+
+      // Set our cookie session and redirect
+      await fetch("/api/auth/email-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: sessionRef.current?.user?.email ?? "" }),
+      });
+
+      router.push("/min-side");
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "ukjent feil";
       setError(`Kunne ikke oppdatere passordet: ${msg}`);
