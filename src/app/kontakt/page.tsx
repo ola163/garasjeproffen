@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
+import { auth } from "@/lib/firebase";
+import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from "firebase/auth";
 
 export default function Kontakt() {
   const [name, setName] = useState("");
@@ -12,6 +14,56 @@ export default function Kontakt() {
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; error?: string } | null>(null);
+
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return () => { recaptchaRef.current?.clear(); };
+  }, []);
+
+  async function sendOtp() {
+    if (!phone) { setPhoneError("Skriv inn telefonnummer først."); return; }
+    setPhoneError("");
+    setSendingOtp(true);
+    try {
+      if (!recaptchaRef.current) {
+        recaptchaRef.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current!, { size: "invisible" });
+      }
+      const formatted = phone.startsWith("+") ? phone : `+47${phone.replace(/\s/g, "")}`;
+      confirmationRef.current = await signInWithPhoneNumber(auth, formatted, recaptchaRef.current);
+      setOtpSent(true);
+    } catch (err) {
+      setPhoneError("Kunne ikke sende SMS. Sjekk nummeret og prøv igjen.");
+      console.error("OTP send error:", err);
+      recaptchaRef.current?.clear();
+      recaptchaRef.current = null;
+    } finally {
+      setSendingOtp(false);
+    }
+  }
+
+  async function verifyOtp() {
+    if (!otp || !confirmationRef.current) return;
+    setPhoneError("");
+    setVerifyingOtp(true);
+    try {
+      await confirmationRef.current.confirm(otp);
+      setPhoneVerified(true);
+      setOtpSent(false);
+    } catch {
+      setPhoneError("Feil kode. Prøv igjen.");
+    } finally {
+      setVerifyingOtp(false);
+    }
+  }
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
@@ -154,12 +206,40 @@ export default function Kontakt() {
             </div>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Telefon</label>
-              <input
-                id="phone" type="tel" value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="000 00 000"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-              />
+              <div className="mt-1 flex gap-2">
+                <input
+                  id="phone" type="tel" value={phone}
+                  onChange={(e) => { setPhone(e.target.value); setPhoneVerified(false); setOtpSent(false); }}
+                  disabled={phoneVerified}
+                  placeholder="000 00 000"
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:bg-gray-50"
+                />
+                {!phoneVerified && (
+                  <button type="button" onClick={sendOtp} disabled={sendingOtp || !phone}
+                    className="shrink-0 rounded-md bg-orange-500 px-3 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {sendingOtp ? "Sender…" : otpSent ? "Send på nytt" : "Verifiser"}
+                  </button>
+                )}
+                {phoneVerified && (
+                  <span className="flex shrink-0 items-center gap-1 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    Verifisert
+                  </span>
+                )}
+              </div>
+              {otpSent && !phoneVerified && (
+                <div className="mt-2 flex gap-2">
+                  <input type="text" inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value)}
+                    placeholder="6-sifret kode"
+                    className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+                  <button type="button" onClick={verifyOtp} disabled={verifyingOtp || otp.length < 4}
+                    className="shrink-0 rounded-md border border-orange-500 px-3 py-2 text-sm font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {verifyingOtp ? "Sjekker…" : "Bekreft"}
+                  </button>
+                </div>
+              )}
+              {phoneError && <p className="mt-1 text-xs text-red-600">{phoneError}</p>}
+              <div ref={recaptchaContainerRef} />
             </div>
             <div>
               <label htmlFor="address" className="block text-sm font-medium text-gray-700">Adresse *</label>
