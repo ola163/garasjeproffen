@@ -27,7 +27,7 @@ const PLACEMENT_LABELS: Record<string, string> = {
 
 export async function POST(request: Request) {
   try {
-    const body: QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[] } = await request.json();
+    const body: QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[] } = await request.json();
 
     // Validate customer info
     if (!body.customer?.name || !body.customer?.email) {
@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     const pricing = calculatePrice(body.configuration);
     const p = body.configuration.parameters;
     const elements = body.addedElements ?? [];
+    const attachmentUrls = body.attachmentUrls ?? [];
 
     const quoteId = `Q-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
         configuration: body.configuration ?? null,
         added_elements: elements,
         pricing,
+        attachments: attachmentUrls.length > 0 ? attachmentUrls : null,
       });
       if (dbErr) console.error("Supabase quote insert error:", dbErr.message);
     }
@@ -160,6 +162,14 @@ export async function POST(request: Request) {
             <tr><td><strong>Garasjeport:</strong></td><td>${formatPrice(pricing.adjustments[0]?.amount ?? 0, pricing.currency)}</td></tr>
             <tr><td><strong>Totalt:</strong></td><td><strong>${formatPrice(pricing.totalPrice, pricing.currency)}</strong></td></tr>
           </table>
+          ${attachmentUrls.length > 0 ? `
+          <h3 style="margin-top:16px">Vedlegg (${attachmentUrls.length})</h3>
+          <ul style="padding-left:16px;margin:4px 0">
+            ${attachmentUrls.map((url) => {
+              const name = decodeURIComponent(url.split("/").pop() ?? url);
+              return `<li style="margin-bottom:4px"><a href="${url}" style="color:#e2520a">${name}</a></li>`;
+            }).join("")}
+          </ul>` : ""}
         `,
       });
 

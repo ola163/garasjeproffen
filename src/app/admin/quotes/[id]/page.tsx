@@ -309,6 +309,27 @@ export default function QuoteDetailPage() {
                     <p className="text-sm text-gray-700 whitespace-pre-line">{quote.customer_message}</p>
                   </div>
                 )}
+                {quote.attachments && quote.attachments.length > 0 && (
+                  <div className="mt-3 rounded-lg bg-blue-50 border border-blue-100 p-3">
+                    <p className="text-xs font-medium text-blue-700 mb-2">Vedlegg ({quote.attachments.length})</p>
+                    <ul className="space-y-1">
+                      {quote.attachments.map((url, i) => {
+                        const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? `Fil ${i + 1}`);
+                        return (
+                          <li key={i}>
+                            <a href={url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
+                              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                              </svg>
+                              {name}
+                            </a>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
               </dl>
             </div>
 

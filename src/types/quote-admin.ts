@@ -20,6 +20,7 @@ export interface QuoteRow {
   pricing: Record<string, unknown> | null;
   status: QuoteStatus;
   created_manually: boolean | null;
+  attachments: string[] | null;
   assigned_to: string | null;
   approval_requested_from: string | null;
   approval_requested_at: string | null;
