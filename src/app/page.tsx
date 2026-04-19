@@ -20,7 +20,7 @@ export default function Home() {
       <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center lg:items-start gap-12 lg:gap-16">
 
         {/* Left: description */}
-        <div className="flex-1 text-left">
+        <div className="flex-1 text-left order-last lg:order-first">
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 leading-snug">
             Vi bygger garasjer og carporter som varer
           </h2>
@@ -58,7 +58,7 @@ export default function Home() {
         </div>
 
         {/* Right: configurator panel */}
-        <div className="w-full max-w-sm flex-shrink-0 text-center">
+        <div className="w-full max-w-sm flex-shrink-0 text-center order-first lg:order-last">
         <Image
           src="/logo.jpg"
           alt="GarasjeProffen.no"
