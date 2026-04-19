@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await sb.auth.admin.generateLink({
       type: "magiclink",
-      email: session.email,
+      email: session.email.toLowerCase().trim(),
       options: { redirectTo: `${origin}/admin` },
     });
 

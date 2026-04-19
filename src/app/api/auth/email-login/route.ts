@@ -5,8 +5,9 @@ import { sessionOptions, ADMIN_EMAILS, type CustomerSession } from "@/lib/sessio
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
-    if (!email) return NextResponse.json({ error: "Mangler e-post." }, { status: 400 });
+    const { email: rawEmail } = await request.json();
+    if (!rawEmail) return NextResponse.json({ error: "Mangler e-post." }, { status: 400 });
+    const email = rawEmail.toLowerCase().trim();
 
     const cookieStore = await cookies();
     const session = await getIronSession<CustomerSession>(cookieStore, sessionOptions);
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     session.name = email;
     session.email = email;
     session.isLoggedIn = true;
-    session.isAdmin = ADMIN_EMAILS.includes(email);
+    session.isAdmin = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email);
     await session.save();
 
     return NextResponse.json({ success: true });
