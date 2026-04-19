@@ -214,6 +214,21 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-orange-500 group-hover:underline">Åpne →</p>
           </Link>
 
+          {/* Kontakthenvendelser */}
+          <Link
+            href="/admin/kontakt"
+            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100">
+              <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 group-hover:text-purple-600">Kontakthenvendelser</h2>
+            <p className="mt-1 text-sm text-gray-500">Arkiv over kontaktskjema-innmeldinger med status.</p>
+            <p className="mt-4 text-xs font-medium text-purple-500 group-hover:underline">Åpne →</p>
+          </Link>
+
           {/* Kunderegister */}
           <Link
             href="/admin/kunder"

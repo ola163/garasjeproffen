@@ -60,12 +60,13 @@ export async function POST(request: Request) {
 
     const quoteId = `Q-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
-    // Save to Supabase (best-effort – does not block email)
+    // Save to Supabase and get ticket number back
+    let ticketNumber: string = quoteId;
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey);
-      const { error: dbErr } = await sb.from("quotes").insert({
+      const { data: insertData, error: dbErr } = await sb.from("quotes").insert({
         customer_name: body.customer.name,
         customer_email: body.customer.email,
         customer_phone: body.customer.phone ?? null,
@@ -75,8 +76,9 @@ export async function POST(request: Request) {
         configuration: body.configuration ?? null,
         added_elements: elements,
         pricing,
-      });
+      }).select("ticket_number").single();
       if (dbErr) console.error("Supabase quote insert error:", dbErr.message);
+      if (insertData?.ticket_number) ticketNumber = insertData.ticket_number;
     }
 
     console.log("addedElements received:", JSON.stringify(elements));
@@ -123,14 +125,15 @@ export async function POST(request: Request) {
 
     if (resendKey) {
       const resend = new Resend(resendKey);
-      const emailResult = await resend.emails.send({
+
+      // Email to admin
+      const adminEmail = resend.emails.send({
         from: "GarasjeProffen <noreply@garasjeproffen.no>",
         to: RECIPIENT,
-        subject: `Ny tilbudsforespørsel – ${body.customer.name} (${quoteId})`,
+        subject: `Ny tilbudsforespørsel – ${body.customer.name} (${ticketNumber})`,
         html: `
           <h2>Ny tilbudsforespørsel</h2>
-          <p><strong>Tilbuds-ID:</strong> ${quoteId}</p>
-
+          <p><strong>Referansenummer:</strong> ${ticketNumber}</p>
           <h3>Kunde</h3>
           <table>
             <tr><td><strong>Navn:</strong></td><td>${body.customer.name}</td></tr>
@@ -138,7 +141,6 @@ export async function POST(request: Request) {
             <tr><td><strong>Telefon:</strong></td><td>${body.customer.phone || "–"}</td></tr>
             <tr><td><strong>Melding:</strong></td><td>${body.customer.message || "–"}</td></tr>
           </table>
-
           <h3>Konfigurasjon</h3>
           <table>
             <tr><td><strong>Pakke:</strong></td><td>${body.packageType === "prefab" ? "Prefabrikert løsning" : "Materialpakke"}</td></tr>
@@ -148,9 +150,7 @@ export async function POST(request: Request) {
             <tr><td><strong>Portbredde:</strong></td><td>${p.doorWidth ?? 2500} mm</td></tr>
             <tr><td><strong>Porthøyde:</strong></td><td>${p.doorHeight ?? 2125} mm</td></tr>
           </table>
-
           ${elementsHtml}
-
           <h3>Prisestimat</h3>
           <table>
             <tr><td><strong>Grunnpris (bygg):</strong></td><td>${formatPrice(pricing.basePrice, pricing.currency)}</td></tr>
@@ -159,18 +159,45 @@ export async function POST(request: Request) {
           </table>
         `,
       });
-      if (emailResult.error) {
-        console.error("Resend error:", JSON.stringify(emailResult.error));
-      } else {
-        console.log("Resend ok:", emailResult.data?.id);
-      }
+
+      // Confirmation email to customer
+      const customerEmail = resend.emails.send({
+        from: "GarasjeProffen <noreply@garasjeproffen.no>",
+        to: body.customer.email,
+        subject: `Bekreftelse på tilbudsforespørsel – ${ticketNumber}`,
+        html: `
+          <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+            <h2 style="color:#ea580c">Takk for din forespørsel!</h2>
+            <p>Hei ${body.customer.name},</p>
+            <p>Vi har mottatt din tilbudsforespørsel og tar kontakt med deg så snart som mulig.</p>
+            <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;margin:20px 0">
+              <p style="margin:0;font-size:13px;color:#9a3412">Ditt referansenummer</p>
+              <p style="margin:4px 0 0;font-size:24px;font-weight:bold;color:#ea580c;font-family:monospace">${ticketNumber}</p>
+            </div>
+            <h3 style="color:#374151">Din konfigurasjon</h3>
+            <table style="border-collapse:collapse;width:100%;font-size:14px">
+              <tr><td style="padding:4px 8px;color:#6b7280">Pakke:</td><td style="padding:4px 8px">${body.packageType === "prefab" ? "Prefabrikert løsning" : "Materialpakke"}</td></tr>
+              <tr><td style="padding:4px 8px;color:#6b7280">Taktype:</td><td style="padding:4px 8px">${body.roofType === "saltak" ? "Saltak" : "Flattak"}</td></tr>
+              <tr><td style="padding:4px 8px;color:#6b7280">Størrelse:</td><td style="padding:4px 8px">${(p.width ?? 8400) / 1000} × ${(p.length ?? 6000) / 1000} m</td></tr>
+              <tr><td style="padding:4px 8px;color:#6b7280">Prisestimat:</td><td style="padding:4px 8px;font-weight:bold">${formatPrice(pricing.totalPrice, pricing.currency)}</td></tr>
+            </table>
+            <p style="font-size:13px;color:#6b7280;margin-top:24px">
+              Prisestimatet er veiledende. Vi sender deg et nøyaktig tilbud etter gjennomgang.<br><br>
+              Med vennlig hilsen<br><strong>GarasjeProffen</strong><br>
+              post@garasjeproffen.no · +47 476 17 563
+            </p>
+          </div>
+        `,
+      });
+
+      const [adminResult, customerResult] = await Promise.all([adminEmail, customerEmail]);
+      if (adminResult.error) console.error("Admin email error:", JSON.stringify(adminResult.error));
+      if (customerResult.error) console.error("Customer email error:", JSON.stringify(customerResult.error));
     } else {
       console.error("RESEND_API_KEY is not set – email not sent");
     }
 
-    console.log("Quote submitted:", quoteId, body.customer);
-
-    return NextResponse.json<QuoteResponse>({ success: true, quoteId });
+    return NextResponse.json<QuoteResponse>({ success: true, quoteId: ticketNumber });
   } catch {
     return NextResponse.json<QuoteResponse>(
       { success: false, error: "Noe gikk galt. Prøv igjen." },
