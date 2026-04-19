@@ -60,13 +60,17 @@ export async function POST(request: Request) {
 
     const quoteId = `Q-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
-    // Save to Supabase and get ticket number back
+    // Get ticket number via RPC (works with anon key — function is granted to anon)
+    // then insert explicitly so the same number is used in DB and emails
     let ticketNumber: string = quoteId;
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey);
-      const { data: insertData, error: dbErr } = await sb.from("quotes").insert({
+      const { data: ticketData } = await sb.rpc("next_ticket_number");
+      if (ticketData) ticketNumber = ticketData as string;
+      const { error: dbErr } = await sb.from("quotes").insert({
+        ticket_number: ticketNumber,
         customer_name: body.customer.name,
         customer_email: body.customer.email,
         customer_phone: body.customer.phone ?? null,
@@ -76,9 +80,8 @@ export async function POST(request: Request) {
         configuration: body.configuration ?? null,
         added_elements: elements,
         pricing,
-      }).select("ticket_number").single();
+      });
       if (dbErr) console.error("Supabase quote insert error:", dbErr.message);
-      if (insertData?.ticket_number) ticketNumber = insertData.ticket_number;
     }
 
     console.log("addedElements received:", JSON.stringify(elements));
