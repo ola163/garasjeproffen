@@ -20,7 +20,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Email login error:", err);
-    return NextResponse.json({ error: "Innlogging feilet." }, { status: 500 });
+    const msg = (err as { message?: string })?.message ?? "ukjent";
+    console.error("Email login error:", msg, err);
+    return NextResponse.json({ error: `Sesjonsfeil: ${msg}` }, { status: 500 });
   }
 }
