@@ -51,6 +51,7 @@ export default function QuoteDetailPage() {
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [statusConfirm, setStatusConfirm] = useState<QuoteStatus | null>(null);
   const [statusLog, setStatusLog] = useState<{ id: string; from_status: string; to_status: string; changed_by: string; changed_at: string; note: string | null }[]>([]);
 
   useEffect(() => {
@@ -198,7 +199,7 @@ export default function QuoteDetailPage() {
           {/* Status selector */}
           <div className="flex flex-wrap gap-1.5">
             {(["new","in_review","offer_sent","paid","cancelled"] as QuoteStatus[]).map((s) => (
-              <button key={s} onClick={() => handleStatusChange(s)} disabled={updatingStatus || s === quote.status}
+              <button key={s} onClick={() => setStatusConfirm(s)} disabled={updatingStatus || s === quote.status}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-all disabled:cursor-default ${
                   s === quote.status
                     ? STATUS_COLORS[s] + " ring-2 ring-offset-1 ring-current opacity-100"
@@ -394,6 +395,39 @@ export default function QuoteDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Status change confirmation modal */}
+      {statusConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Endre status?</h2>
+            <div className="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-sm space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Fra</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[quote.status]}`}>{STATUS_LABELS[quote.status]}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Til</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[statusConfirm]}`}>{STATUS_LABELS[statusConfirm]}</span>
+              </div>
+              <div className="flex justify-between border-t border-gray-200 pt-1.5 mt-1.5">
+                <span className="text-gray-500">Behandles av</span>
+                <span className="font-medium text-gray-900">{user?.email}</span>
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setStatusConfirm(null)}
+                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Avbryt
+              </button>
+              <button onClick={() => { const s = statusConfirm; setStatusConfirm(null); handleStatusChange(s); }} disabled={updatingStatus}
+                className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">
+                Bekreft
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation modal */}
       {confirmOpen && (
