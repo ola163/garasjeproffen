@@ -4,16 +4,41 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: Request) {
   try {
-    const { name, email, phone, address, message } = await request.json();
+    const formData = await request.formData();
+    const name = formData.get("name") as string;
+    const email = formData.get("email") as string;
+    const phone = formData.get("phone") as string;
+    const address = formData.get("address") as string;
+    const message = formData.get("message") as string;
+    const files = formData.getAll("files") as File[];
 
     if (!name || !email || !address) {
       return NextResponse.json({ success: false, error: "Navn, e-post og adresse er påkrevd." }, { status: 400 });
     }
 
-    // Save to Supabase and get reference number back
-    let referenceNumber = `KON-${Date.now()}`;
+    // Upload attachments to Supabase Storage
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const attachmentUrls: string[] = [];
+    if (sbUrl && sbKey && files.length > 0) {
+      const sb = createClient(sbUrl, sbKey);
+      for (const file of files) {
+        if (!file.name) continue;
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const path = `kontakt/${Date.now()}-${file.name}`;
+        const { error } = await sb.storage.from("quote-attachments").upload(path, buffer, { contentType: file.type, upsert: true });
+        if (!error) {
+          const { data } = sb.storage.from("quote-attachments").getPublicUrl(path);
+          attachmentUrls.push(data.publicUrl);
+        } else {
+          console.error("Attachment upload error:", error.message);
+        }
+      }
+    }
+
+    // Save to Supabase and get reference number back
+    let referenceNumber = `KON-${Date.now()}`;
     if (sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey);
       const { data, error: dbErr } = await sb.from("contacts").insert({
@@ -21,6 +46,7 @@ export async function POST(request: Request) {
         phone: phone || null,
         address,
         message: message || null,
+        attachments: attachmentUrls.length > 0 ? attachmentUrls : null,
       }).select("reference_number").single();
       if (dbErr) console.error("Supabase contact insert error:", dbErr.message);
       if (data?.reference_number) referenceNumber = data.reference_number;
@@ -46,6 +72,14 @@ export async function POST(request: Request) {
           </table>
           <h3>Melding</h3>
           <p>${(message || "–").replace(/\n/g, "<br>")}</p>
+          ${attachmentUrls.length > 0 ? `
+          <h3>Vedlegg (${attachmentUrls.length})</h3>
+          <ul>
+            ${attachmentUrls.map((url) => {
+              const name = decodeURIComponent(url.split("/").pop() ?? url);
+              return `<li><a href="${url}" style="color:#e2520a">${name}</a></li>`;
+            }).join("")}
+          </ul>` : ""}
         `,
       });
 
