@@ -50,6 +50,7 @@ export default function QuoteDetailPage() {
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [claimOpen, setClaimOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [statusConfirm, setStatusConfirm] = useState<QuoteStatus | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
@@ -82,6 +83,7 @@ export default function QuoteDetailPage() {
       setQuote(q);
       setLineItems(q.offer_line_items?.length ? q.offer_line_items : buildDefaultLineItems(q));
       setNotes(q.offer_notes ?? "");
+      if (q.status === "new") setClaimOpen(true);
     }
     if (logData) setStatusLog(logData);
     setLoading(false);
@@ -416,6 +418,39 @@ export default function QuoteDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Claim modal — shown automatically when quote is "new" */}
+      {claimOpen && quote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Vil du behandle denne saken?</h2>
+            <div className="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-sm space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Kunde</span>
+                <span className="font-medium text-gray-900">{quote.customer_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Referanse</span>
+                <span className="font-mono text-gray-700">{quote.ticket_number}</span>
+              </div>
+              <div className="flex justify-between border-t border-gray-200 pt-1.5 mt-1.5">
+                <span className="text-gray-500">Behandles av</span>
+                <span className="font-medium text-gray-900">{user?.email}</span>
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setClaimOpen(false)}
+                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Ikke nå
+              </button>
+              <button onClick={() => { setClaimOpen(false); handleStatusChange("in_review"); }}
+                className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600">
+                Ja, ta over saken
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status change confirmation modal */}
       {statusConfirm && (
