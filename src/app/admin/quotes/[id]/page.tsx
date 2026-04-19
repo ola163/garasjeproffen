@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import type { QuoteRow, LineItem, QuoteStatus } from "@/types/quote-admin";
 import Link from "next/link";
+import { adminName } from "@/lib/admin-names";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -132,7 +133,7 @@ export default function QuoteDetailPage() {
     if (!supabase || !quote || newStatus === quote.status) return;
     setUpdatingStatus(true);
     const oldStatus = quote.status;
-    const assignedTo = newStatus === "in_review" ? (user?.email ?? null)
+    const assignedTo = newStatus === "in_review" ? adminName(user?.email)
       : (newStatus === "new" || newStatus === "cancelled") ? null
       : quote.assigned_to;
     await Promise.all([
@@ -218,7 +219,7 @@ export default function QuoteDetailPage() {
               {quote.assigned_to ? (
                 <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-gray-700">
                   <span className="inline-block h-2 w-2 rounded-full bg-orange-400"></span>
-                  Behandles av <span className="text-orange-600">{quote.assigned_to}</span>
+                  Behandles av <span className="text-orange-600 font-semibold">{quote.assigned_to}</span>
                 </p>
               ) : (
                 <p className="mt-1 text-xs text-gray-400 italic">Ingen behandler tildelt</p>
@@ -446,7 +447,7 @@ export default function QuoteDetailPage() {
               </div>
               <div className="flex justify-between border-t border-gray-200 pt-1.5 mt-1.5">
                 <span className="text-gray-500">Behandles av</span>
-                <span className="font-medium text-gray-900">{user?.email}</span>
+                <span className="font-medium text-gray-900">{adminName(user?.email)}</span>
               </div>
             </div>
             <div className="mt-5 flex gap-3">
@@ -479,7 +480,7 @@ export default function QuoteDetailPage() {
               </div>
               <div className="flex justify-between border-t border-gray-200 pt-1.5 mt-1.5">
                 <span className="text-gray-500">Behandles av</span>
-                <span className="font-medium text-gray-900">{user?.email}</span>
+                <span className="font-medium text-gray-900">{adminName(user?.email)}</span>
               </div>
             </div>
             <div className="mt-5 flex gap-3">

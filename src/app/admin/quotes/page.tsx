@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import type { QuoteRow, QuoteStatus } from "@/types/quote-admin";
 import Link from "next/link";
+import { adminName } from "@/lib/admin-names";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -186,6 +187,7 @@ export default function AdminQuotesPage() {
                   <th className="px-4 py-3 text-left">Kunde</th>
                   <th className="hidden px-4 py-3 text-left sm:table-cell">Konfigurasjon</th>
                   <th className="hidden px-4 py-3 text-left md:table-cell">Dato</th>
+                  <th className="hidden px-4 py-3 text-left lg:table-cell">Behandler</th>
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -205,6 +207,11 @@ export default function AdminQuotesPage() {
                         {q.package_type && <span className="ml-1 text-gray-400">· {q.package_type === "prefab" ? "Prefab" : "Material"}</span>}
                       </td>
                       <td className="hidden px-4 py-3 text-xs text-gray-400 md:table-cell">{formatDate(q.created_at)}</td>
+                      <td className="hidden px-4 py-3 lg:table-cell">
+                        {q.assigned_to
+                          ? <span className="text-xs font-medium text-gray-800">{adminName(q.assigned_to)}</span>
+                          : <span className="text-xs text-gray-400 italic">Ikke tildelt</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[q.status]}`}>
                           {STATUS_LABELS[q.status]}
