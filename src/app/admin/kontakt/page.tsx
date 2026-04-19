@@ -73,10 +73,11 @@ export default function AdminKontaktPage() {
   async function loadContacts() {
     if (!supabase) return;
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("contacts")
       .select("*")
       .order("created_at", { ascending: false });
+    if (error) console.error("loadContacts error:", error);
     if (data) setContacts(data as ContactRow[]);
     setLoading(false);
   }
