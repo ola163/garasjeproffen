@@ -137,7 +137,7 @@ export default function QuoteDetailPage() {
       : (newStatus === "new" || newStatus === "cancelled") ? null
       : quote.assigned_to;
     await Promise.all([
-      supabase.from("quotes").update({ status: newStatus, assigned_to: assignedTo }).eq("id", quote.id),
+      supabase.from("quotes").update({ status: newStatus }).eq("id", quote.id),
       supabase.from("quote_status_logs").insert({
         quote_id: quote.id,
         from_status: oldStatus,
@@ -145,6 +145,10 @@ export default function QuoteDetailPage() {
         changed_by: user?.email ?? "ukjent",
       }),
     ]);
+    // assigned_to is saved separately so a missing column won't block the status save
+    if (assignedTo !== quote.assigned_to) {
+      await supabase.from("quotes").update({ assigned_to: assignedTo }).eq("id", quote.id);
+    }
     const newEntry = { id: crypto.randomUUID(), from_status: oldStatus, to_status: newStatus, changed_by: user?.email ?? "ukjent", changed_at: new Date().toISOString(), note: null };
     setQuote((prev) => prev ? { ...prev, status: newStatus, assigned_to: assignedTo } : null);
     setStatusLog((prev) => [newEntry, ...prev]);
