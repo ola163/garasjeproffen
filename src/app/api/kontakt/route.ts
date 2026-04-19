@@ -48,7 +48,10 @@ export async function POST(request: Request) {
         message: message || null,
         attachments: attachmentUrls.length > 0 ? attachmentUrls : null,
       }).select("reference_number").single();
-      if (dbErr) console.error("Supabase contact insert error:", dbErr.message);
+      if (dbErr) {
+        console.error("Supabase contact insert error:", dbErr.message);
+        return NextResponse.json({ success: false, error: `Databasefeil: ${dbErr.message}` }, { status: 500 });
+      }
       if (data?.reference_number) referenceNumber = data.reference_number;
     }
 
