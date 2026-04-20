@@ -72,31 +72,31 @@ export default function ChatLoggPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 px-4 py-6 sm:p-6">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center gap-4 mb-6">
+        <div className="mb-6">
           <Link href="/admin" className="text-sm text-orange-600 hover:text-orange-800">← Admin</Link>
-          <h1 className="text-2xl font-bold text-gray-900">Chat-logg</h1>
+          <h1 className="mt-1 text-xl font-bold text-gray-900">Chat-logg</h1>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="rounded-xl bg-white border border-gray-200 p-4 text-center">
-            <p className="text-2xl font-bold text-orange-600">{innlogget.length}</p>
-            <p className="text-sm text-gray-500 mt-1">Innloggede samtaler</p>
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
+          <div className="rounded-xl bg-white border border-gray-200 p-3 sm:p-4 text-center">
+            <p className="text-xl sm:text-2xl font-bold text-orange-600">{innlogget.length}</p>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">Innlogget</p>
           </div>
-          <div className="rounded-xl bg-white border border-gray-200 p-4 text-center">
-            <p className="text-2xl font-bold text-gray-700">{anonym.length}</p>
-            <p className="text-sm text-gray-500 mt-1">Anonyme samtaler</p>
+          <div className="rounded-xl bg-white border border-gray-200 p-3 sm:p-4 text-center">
+            <p className="text-xl sm:text-2xl font-bold text-gray-700">{anonym.length}</p>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">Anonyme</p>
           </div>
-          <div className="rounded-xl bg-white border border-gray-200 p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">{topQuestions.length}</p>
-            <p className="text-sm text-gray-500 mt-1">Unike spørsmål</p>
+          <div className="rounded-xl bg-white border border-gray-200 p-3 sm:p-4 text-center">
+            <p className="text-xl sm:text-2xl font-bold text-blue-600">{topQuestions.length}</p>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">Spørsmål</p>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex rounded-lg border border-gray-200 bg-white p-0.5 mb-4 w-fit">
+        <div className="flex overflow-x-auto rounded-lg border border-gray-200 bg-white p-0.5 mb-4 w-full sm:w-fit">
           {(["innlogget", "anonym", "toppsporsmaal"] as Tab[]).map((t) => (
             <button
               key={t}

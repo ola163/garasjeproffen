@@ -172,19 +172,20 @@ export default function AdminQuotesPage() {
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
 
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Tilbudsforespørsler</h1>
-            <p className="mt-0.5 text-sm text-gray-400">{user.email}</p>
+            <Link href="/admin" className="text-sm text-orange-600 hover:text-orange-800">← Admin</Link>
+            <h1 className="mt-1 text-xl font-bold text-gray-900">Tilbudsforespørsler</h1>
+            <p className="text-xs text-gray-400 truncate max-w-[200px] sm:max-w-none">{user.email}</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => setNewOpen(true)}
-              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600">
-              + Ny forespørsel
+              className="rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-600">
+              + Ny
             </button>
-            <Link href="/admin/leads" className="text-sm text-gray-500 underline hover:text-gray-700">Leads</Link>
-            <Link href="/referanseprosjekter/admin" className="text-sm text-gray-500 underline hover:text-gray-700">Referanseprosjekter</Link>
-            <button onClick={() => supabase?.auth.signOut()} className="text-sm text-gray-400 hover:text-gray-600">Logg ut</button>
+            <Link href="/admin/leads" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Leads</Link>
+            <Link href="/referanseprosjekter/admin" className="hidden sm:block rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Referanser</Link>
+            <button onClick={() => supabase?.auth.signOut()} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Logg ut</button>
           </div>
         </div>
 

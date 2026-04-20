@@ -111,19 +111,17 @@ export default function AdminKontaktPage() {
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
 
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Kontakthenvendelser</h1>
-            <p className="mt-0.5 text-sm text-gray-400">{user.email}</p>
+            <Link href="/admin" className="text-sm text-orange-600 hover:text-orange-800">← Admin</Link>
+            <h1 className="mt-1 text-xl font-bold text-gray-900">Kontakthenvendelser</h1>
+            <p className="text-xs text-gray-400 truncate max-w-[200px] sm:max-w-none">{user.email}</p>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/admin" className="text-sm text-gray-500 hover:text-gray-700">← Admin</Link>
-            <button onClick={() => supabase?.auth.signOut()} className="text-sm text-gray-400 hover:text-gray-600">Logg ut</button>
-          </div>
+          <button onClick={() => supabase?.auth.signOut()} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Logg ut</button>
         </div>
 
         {/* Stat cards */}
-        <div className="mb-6 grid grid-cols-3 gap-3">
+        <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
           {(["new", "in_progress", "resolved"] as ContactStatus[]).map((s) => (
             <div key={s} className="rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm">
               <p className="text-2xl font-bold text-gray-900">{counts[s] ?? 0}</p>
@@ -204,7 +202,7 @@ export default function AdminKontaktPage() {
       {/* Detail modal */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setSelected(null)}>
-          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4">
               <div>
                 <span className="font-mono text-xs font-semibold text-gray-500">{selected.reference_number}</span>
