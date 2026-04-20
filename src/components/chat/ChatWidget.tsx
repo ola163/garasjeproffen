@@ -48,6 +48,7 @@ export default function ChatWidget() {
 
   const pathname = usePathname();
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [animating, setAnimating] = useState(false);
   const [comment, setComment] = useState<string | null>(null);
   const commentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,12 +61,11 @@ export default function ChatWidget() {
   const didDrag = useRef(false);
   const justDragged = useRef(false);
 
-  // Load dismissed state from localStorage
   useEffect(() => {
     setDismissed(localStorage.getItem(STORAGE_KEY) === "1");
-    function onStorageChange() { setDismissed(localStorage.getItem(STORAGE_KEY) === "1"); }
-    window.addEventListener("gd-visibility", onStorageChange);
-    return () => window.removeEventListener("gd-visibility", onStorageChange);
+    function onV() { setDismissed(localStorage.getItem(STORAGE_KEY) === "1"); }
+    window.addEventListener("gd-visibility", onV);
+    return () => window.removeEventListener("gd-visibility", onV);
   }, []);
 
   function dismiss() {
@@ -89,10 +89,13 @@ export default function ChatWidget() {
     }
   }, []);
 
+  // Slow animated slide to bottom-left on configurator pages
   useEffect(() => {
     if (!isConfigurator) return;
     showComment("Eg ska gå vekk så eg ikkje står i vegen! 👋", 5000);
-    const t = setTimeout(() => setPos({ left: 24, top: window.innerHeight - BTN_H - 24 }), 400);
+    setAnimating(true);
+    setPos({ left: 24, top: window.innerHeight - BTN_H - 24 });
+    const t = setTimeout(() => setAnimating(false), 1800);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConfigurator]);
@@ -112,15 +115,15 @@ export default function ChatWidget() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pointer Events drag handlers (setPointerCapture = reliable on all devices)
-  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+  // All drag handlers on the button so setPointerCapture doesn't break click
+  function onBtnPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     if (!pos) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     dragStart.current = { mx: e.clientX, my: e.clientY, left: pos.left, top: pos.top };
     didDrag.current = false;
   }
 
-  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+  function onBtnPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
     if (!dragStart.current) return;
     const dx = e.clientX - dragStart.current.mx;
     const dy = e.clientY - dragStart.current.my;
@@ -133,7 +136,7 @@ export default function ChatWidget() {
     }
   }
 
-  function onPointerUp() {
+  function onBtnPointerUp() {
     if (!dragStart.current) return;
     const wasDrag = didDrag.current;
     dragStart.current = null;
@@ -211,37 +214,53 @@ export default function ChatWidget() {
 
   if (dismissed || !pos) return null;
 
+  // Bubble appears to the right when button is on the left half of screen
+  const onLeftSide = pos.left < (typeof window !== "undefined" ? window.innerWidth / 2 : 400);
+
   const panelW = Math.min(520, typeof window !== "undefined" ? window.innerWidth * 0.95 : 520);
   const panelLeft = pos.left - panelW - 12 > 8 ? pos.left - panelW - 12 : pos.left + BTN_W + 12;
   const panelTop = Math.max(8, Math.min(pos.top, (typeof window !== "undefined" ? window.innerHeight : 800) - 600));
 
   return (
     <>
-      {/* Draggable button */}
+      {/* Draggable wrapper */}
       <div
-        style={{ position: "fixed", left: pos.left, top: pos.top, zIndex: 50, width: BTN_W, touchAction: "none" }}
+        style={{
+          position: "fixed",
+          left: pos.left,
+          top: pos.top,
+          zIndex: 50,
+          width: BTN_W,
+          touchAction: "none",
+          transition: animating ? "left 1.6s ease-in-out, top 0.6s ease" : "none",
+        }}
         className="select-none"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
       >
-        {/* Speech bubble */}
+        {/* Speech bubble — flips side based on position */}
         {comment && !open && (
-          <div className="absolute bottom-full mb-2 right-0 pointer-events-none animate-[fadeInUp_0.3s_ease_both]" style={{ minWidth: 160, maxWidth: 230 }}>
-            <div className="rounded-2xl rounded-br-sm bg-white px-3 py-2 shadow-lg border border-gray-100 text-sm text-gray-700 leading-snug">
+          <div
+            className="absolute bottom-full mb-2 pointer-events-none animate-[fadeInUp_0.3s_ease_both]"
+            style={{
+              [onLeftSide ? "left" : "right"]: 0,
+              minWidth: 160,
+              maxWidth: 230,
+            }}
+          >
+            <div className="rounded-2xl bg-white px-3 py-2 shadow-lg border border-gray-100 text-sm text-gray-700 leading-snug"
+              style={{ borderRadius: onLeftSide ? "1rem 1rem 1rem 0.25rem" : "1rem 1rem 0.25rem 1rem" }}>
               {comment}
             </div>
           </div>
         )}
 
         <div className="group/btn relative">
-          {/* Tooltip */}
           <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-2.5 py-1 text-xs font-medium text-white shadow-lg">
             GarasjeDrøsaren
           </span>
 
           {/* Dismiss X */}
           <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); dismiss(); }}
             aria-label="Skjul GarasjeDrøsaren"
             className="absolute -top-2 -right-2 z-10 hidden group-hover/btn:flex h-5 w-5 items-center justify-center rounded-full bg-gray-700 text-white hover:bg-red-500 transition-colors shadow"
@@ -251,9 +270,12 @@ export default function ChatWidget() {
             </svg>
           </button>
 
-          {/* Main button */}
+          {/* Main button — drag + click handlers here */}
           <button
             onClick={handleBtnClick}
+            onPointerDown={onBtnPointerDown}
+            onPointerMove={onBtnPointerMove}
+            onPointerUp={onBtnPointerUp}
             aria-label="GarasjeDrøsaren"
             className="relative overflow-hidden rounded-2xl rounded-br-sm bg-orange-500 hover:bg-orange-600 shadow-lg transition-colors cursor-pointer"
             style={{ width: BTN_W, height: BTN_H }}
