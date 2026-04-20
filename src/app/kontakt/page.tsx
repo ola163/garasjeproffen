@@ -44,7 +44,7 @@ export default function Kontakt() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-12 sm:py-20">
+    <div className="mx-auto max-w-7xl px-6 py-12 sm:py-20">
       <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
         Kontakt oss
       </h1>
@@ -52,7 +52,7 @@ export default function Kontakt() {
         Ta gjerne kontakt direkte – vi svarer raskt og hjelper deg med å komme i gang.
       </p>
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-2 lg:items-start">
+      <div className="mt-10 grid gap-10 lg:grid-cols-[3fr_2fr] lg:items-start">
         {/* Left: people + address */}
         <div>
           <div className="grid gap-6 sm:grid-cols-3">
