@@ -14,6 +14,7 @@ import { GARAGE_PARAMETERS } from "@/lib/parameters";
 
 const GarageViewer      = dynamic(() => import("./GarageViewer"),      { ssr: false });
 const LocalGarageViewer = dynamic(() => import("./LocalGarageViewer"), { ssr: false });
+const GarageMapbox      = dynamic(() => import("./GarageMapbox"),      { ssr: false });
 
 /** Minimum combined side clearance: widthMm >= doorWidthMm + MIN_CLEARANCE */
 const MIN_CLEARANCE = 300;
@@ -106,12 +107,14 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     }
   }, [quoteOpen]);
 
-  const [viewMode, setViewMode] = useState<"kunde" | "test" | "dev">("test");
+  const [viewMode, setViewMode] = useState<"kunde" | "test" | "dev" | "kart">("test");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(({ isAdmin }) => {
+    fetch("/api/auth/me").then(r => r.json()).then(({ isAdmin, isLoggedIn }) => {
       setIsAdmin(!!isAdmin);
+      setIsLoggedIn(!!isLoggedIn);
     }).catch(() => {});
   }, []);
 
@@ -161,6 +164,16 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           >
             Test visning
           </button>
+          {isLoggedIn && (
+            <button
+              onClick={() => setViewMode("kart")}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
+                viewMode === "kart" ? "bg-white/90 text-gray-800 shadow-sm" : "text-white/80 hover:text-white"
+              }`}
+            >
+              Tomteplassering
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setViewMode("dev")}
@@ -176,6 +189,13 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         {viewMode === "kunde" && <LocalGarageViewer {...viewerProps} />}
         {viewMode === "test"  && <GarageViewer {...viewerProps} />}
         {viewMode === "dev"   && <LocalGarageViewer {...viewerProps} />}
+        {viewMode === "kart"  && (
+          <GarageMapbox
+            lengthMm={lengthValue}
+            widthMm={widthValue}
+            roofType={roofType}
+          />
+        )}
       </div>
 
       {/* Sidebar */}
