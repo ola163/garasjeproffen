@@ -15,13 +15,27 @@ const WELCOME: Record<Lang, string> = {
   jaersk: "Jysla jilt du stakk innom! Ikkje stress – me tar det steg for steg og finne ei god løysing saman. Kva kan eg hjelpe deg med?",
 };
 
+const IDLE_COMMENTS = [
+  "Trenger du hjelp med garasje?",
+  "Har du sett konfiguratoren vår?",
+  "Klikk på meg, eg veit alt om garasje!",
+  "Me levere i heile Rogaland!",
+  "Lurer du på noko om carport?",
+  "Dæ æ møje garasjar å velge mellom!",
+  "Spør meg, eg bite ikkje 🙂",
+];
+
 const DRAG_COMMENTS = [
   "Au! Flytte du på meg?",
-  "Eg bur helst i ro, men greit det...",
-  "Spør meg om garasje du!",
-  "Ikkje vær redd, eg biter ikkje!",
-  "Prøv å klikke på meg heller!",
+  "Eg bur helst i ro, men ok...",
+  "Spør meg om garasje heller!",
+  "Ikkje vær redd, eg bite ikkje!",
+  "Dra meg dit du vil – men klikk på meg au!",
 ];
+
+// Image is 1329×1183 → ratio ≈ 1.123 : 1
+const BTN_W = 68;
+const BTN_H = Math.round(BTN_W * (1183 / 1329)); // ≈ 60
 
 function makeSessionId() {
   return crypto.randomUUID();
@@ -37,23 +51,63 @@ export default function ChatWidget() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Draggable position
+  // Position
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [moveComment, setMoveComment] = useState<string | null>(null);
   const [hasMoved, setHasMoved] = useState(false);
   const dragData = useRef<{ startMx: number; startMy: number; startLeft: number; startTop: number } | null>(null);
-  const commentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const btnWrapRef = useRef<HTMLDivElement>(null);
-  const commentIdxRef = useRef(0);
 
+  // Comments
+  const [comment, setComment] = useState<string | null>(null);
+  const commentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleIdx = useRef(0);
+  const dragIdx = useRef(0);
+
+  function showComment(text: string, durationMs = 4000) {
+    if (commentTimer.current) clearTimeout(commentTimer.current);
+    setComment(text);
+    commentTimer.current = setTimeout(() => setComment(null), durationMs);
+  }
+
+  // Init position bottom-right
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setPos({ left: window.innerWidth - 88, top: window.innerHeight - 88 });
+      setPos({ left: window.innerWidth - BTN_W - 24, top: window.innerHeight - BTN_H - 24 });
     }
   }, []);
 
-  const onMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  // Idle comments — only when chat is closed
+  useEffect(() => {
+    function scheduleNext() {
+      const delay = 12000 + Math.random() * 18000; // 12–30s
+      idleTimer.current = setTimeout(() => {
+        if (!open) {
+          const c = IDLE_COMMENTS[idleIdx.current % IDLE_COMMENTS.length];
+          idleIdx.current++;
+          showComment(c, 5000);
+        }
+        scheduleNext();
+      }, delay);
+    }
+
+    // First one after 8s
+    idleTimer.current = setTimeout(() => {
+      if (!open) {
+        showComment(IDLE_COMMENTS[0], 5000);
+        idleIdx.current = 1;
+      }
+      scheduleNext();
+    }, 8000);
+
+    return () => {
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Drag handlers
+  const onPointerDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (!pos) return;
     const client = "touches" in e ? e.touches[0] : e;
     dragData.current = { startMx: client.clientX, startMy: client.clientY, startLeft: pos.left, startTop: pos.top };
@@ -68,24 +122,20 @@ export default function ChatWidget() {
       const dx = client.clientX - dragData.current.startMx;
       const dy = client.clientY - dragData.current.startMy;
       if (Math.abs(dx) > 4 || Math.abs(dy) > 4) setHasMoved(true);
-      const newLeft = Math.max(8, Math.min(window.innerWidth - 80, dragData.current.startLeft + dx));
-      const newTop = Math.max(8, Math.min(window.innerHeight - 80, dragData.current.startTop + dy));
-      setPos({ left: newLeft, top: newTop });
+      setPos({
+        left: Math.max(8, Math.min(window.innerWidth - BTN_W - 8, dragData.current.startLeft + dx)),
+        top:  Math.max(8, Math.min(window.innerHeight - BTN_H - 8, dragData.current.startTop + dy)),
+      });
     }
-
     function onUp() {
       if (!dragging) return;
       setDragging(false);
       if (hasMoved) {
-        const comment = DRAG_COMMENTS[commentIdxRef.current % DRAG_COMMENTS.length];
-        commentIdxRef.current++;
-        setMoveComment(comment);
-        if (commentTimer.current) clearTimeout(commentTimer.current);
-        commentTimer.current = setTimeout(() => setMoveComment(null), 3000);
+        showComment(DRAG_COMMENTS[dragIdx.current % DRAG_COMMENTS.length], 4000);
+        dragIdx.current++;
       }
       dragData.current = null;
     }
-
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
     document.addEventListener("touchmove", onMove, { passive: true });
@@ -98,6 +148,7 @@ export default function ChatWidget() {
     };
   }, [dragging, hasMoved]);
 
+  // Chat helpers
   useEffect(() => {
     if (open && lang) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -117,21 +168,17 @@ export default function ChatWidget() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: sessionId.current, messages: msgs, lang: currentLang }),
       });
-    } catch {
-      // silent
-    }
+    } catch { /* silent */ }
   }
 
   async function send() {
     const text = input.trim();
     if (!text || loading || !lang) return;
-
     const newMessages: Message[] = [...messages, { role: "user", content: text }];
     setMessages(newMessages);
     setInput("");
     setLoading(true);
     setMessages([...newMessages, { role: "assistant", content: "" }]);
-
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -139,7 +186,6 @@ export default function ChatWidget() {
         body: JSON.stringify({ messages: newMessages, lang }),
       });
       if (!res.ok || !res.body) throw new Error();
-
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let full = "";
@@ -149,13 +195,12 @@ export default function ChatWidget() {
         full += decoder.decode(value, { stream: true });
         setMessages([...newMessages, { role: "assistant", content: full }]);
       }
-      const final = [...newMessages, { role: "assistant" as const, content: full }];
-      await logConversation(final, lang);
+      await logConversation([...newMessages, { role: "assistant", content: full }], lang);
     } catch {
       const fallback = lang === "jaersk"
         ? "Oi, noko gjekk gale. Ring oss på +47 476 17 563!"
         : "Beklager, noe gikk galt. Ring oss på +47 476 17 563.";
-      setMessages([...newMessages, { role: "assistant" as const, content: fallback }]);
+      setMessages([...newMessages, { role: "assistant", content: fallback }]);
     } finally {
       setLoading(false);
     }
@@ -165,56 +210,58 @@ export default function ChatWidget() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
-  function handleBtnClick(e: React.MouseEvent) {
+  function handleClick(e: React.MouseEvent) {
     if (hasMoved) { e.preventDefault(); return; }
     setOpen((v) => !v);
+    setComment(null);
   }
 
   if (!pos) return null;
 
-  // Position chat panel: prefer left of button, fall back to right
-  const panelWidth = Math.min(520, typeof window !== "undefined" ? window.innerWidth * 0.95 : 520);
-  const panelLeft = pos.left - panelWidth - 12 > 8 ? pos.left - panelWidth - 12 : pos.left + 80;
+  const panelW = Math.min(520, typeof window !== "undefined" ? window.innerWidth * 0.95 : 520);
+  const panelLeft = pos.left - panelW - 12 > 8 ? pos.left - panelW - 12 : pos.left + BTN_W + 12;
   const panelTop = Math.max(8, Math.min(pos.top, (typeof window !== "undefined" ? window.innerHeight : 800) - 600));
 
   return (
     <>
-      {/* Draggable chat bubble button */}
+      {/* Draggable button */}
       <div
-        ref={btnWrapRef}
-        style={{ position: "fixed", left: pos.left, top: pos.top, zIndex: 50 }}
+        style={{ position: "fixed", left: pos.left, top: pos.top, zIndex: 50, width: BTN_W }}
         className={`select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
-        onMouseDown={onMouseDown}
-        onTouchStart={onMouseDown}
+        onMouseDown={onPointerDown}
+        onTouchStart={onPointerDown}
       >
-        {/* Drag/move comment bubble */}
-        {moveComment && (
+        {/* Comment bubble above button */}
+        {comment && !open && (
           <div
-            className="absolute bottom-full mb-2 right-0 animate-[fadeInUp_0.3s_ease_both] pointer-events-none"
-            style={{ minWidth: 160, maxWidth: 220 }}
+            className="absolute bottom-full mb-2 right-0 pointer-events-none animate-[fadeInUp_0.3s_ease_both]"
+            style={{ minWidth: 150, maxWidth: 220 }}
           >
             <div className="rounded-2xl rounded-br-sm bg-white px-3 py-2 shadow-lg border border-gray-100 text-sm text-gray-700 leading-snug">
-              {moveComment}
+              {comment}
             </div>
           </div>
         )}
 
-        {/* Hover tooltip */}
+        {/* Hover name tooltip */}
         <div className="group/btn relative">
-          <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg">
+          <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-2.5 py-1 text-xs font-medium text-white shadow-lg">
             GarasjeDrøsaren
           </span>
 
-          {/* Chat bubble shape button */}
+          {/* Button sized to image proportions */}
           <button
-            onClick={handleBtnClick}
+            onClick={handleClick}
             aria-label="Åpne chat"
-            className="relative flex h-16 w-16 items-center justify-center bg-orange-500 text-white shadow-lg hover:bg-orange-600 transition-colors overflow-hidden rounded-2xl rounded-br-sm"
+            className="relative overflow-hidden rounded-2xl rounded-br-sm bg-orange-500 shadow-lg hover:bg-orange-600 transition-colors"
+            style={{ width: BTN_W, height: BTN_H }}
           >
             {open ? (
-              <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <div className="flex h-full w-full items-center justify-center">
+                <svg className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
             ) : (
               <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-cover" />
             )}
@@ -225,10 +272,9 @@ export default function ChatWidget() {
       {/* Chat panel */}
       {open && (
         <div
-          style={{ position: "fixed", left: panelLeft, top: panelTop, zIndex: 50, width: panelWidth }}
+          style={{ position: "fixed", left: panelLeft, top: panelTop, zIndex: 50, width: panelW }}
           className="flex flex-col max-h-[80vh] rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden"
         >
-          {/* Hero image */}
           <div className="relative w-full h-64 shrink-0 bg-orange-50">
             <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-contain" />
             <button
@@ -242,7 +288,6 @@ export default function ChatWidget() {
             </button>
           </div>
 
-          {/* Header */}
           <div className="flex items-center gap-3 bg-orange-500 px-4 py-3 shrink-0">
             <div className="flex-1 min-w-0">
               <p className="text-base font-semibold text-white">GarasjeDrøsaren</p>
@@ -286,7 +331,6 @@ export default function ChatWidget() {
                 ))}
                 <div ref={bottomRef} />
               </div>
-
               <div className="border-t border-gray-100 bg-white p-4 flex gap-3 items-end shrink-0">
                 <textarea
                   ref={inputRef}
