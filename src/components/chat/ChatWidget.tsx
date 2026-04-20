@@ -103,14 +103,25 @@ export default function ChatWidget() {
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 flex flex-col w-[340px] max-h-[540px] rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
+        <div className="fixed bottom-24 right-6 z-50 flex flex-col w-[340px] max-h-[600px] rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
+          {/* Hero image */}
+          <div className="relative w-full h-44 shrink-0 bg-orange-50">
+            <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-contain" />
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Lukk chat"
+              className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white hover:bg-black/50 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
           {/* Header */}
-          <div className="flex items-center gap-3 bg-orange-500 px-4 py-3">
-            <div className="relative h-10 w-10 shrink-0 rounded-full overflow-hidden border-2 border-white/40">
-              <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-cover" />
-            </div>
+          <div className="flex items-center gap-3 bg-orange-500 px-4 py-2.5">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white">GarasjeDrøseren</p>
+              <p className="text-sm font-semibold text-white">GarasjeDrøsaren</p>
               <p className="text-xs text-orange-100">GarasjeProffen-assistenten</p>
             </div>
             {/* Language toggle */}
