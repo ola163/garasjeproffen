@@ -107,24 +107,40 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* Floating button with tooltip */}
-      <div className="fixed bottom-6 right-6 z-50 group/fab">
-        <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover/fab:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg">
-          GarasjeDrøsaren
-        </span>
-        <button
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Åpne chat"
-          className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-600 transition-colors overflow-hidden"
-        >
-          {open ? (
-            <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-cover" />
-          )}
-        </button>
+      {/* Floating button with speech bubble */}
+      <div className="fixed bottom-6 right-6 z-50 flex items-end gap-3 group/fab">
+        {/* Speech bubble — hidden when chat is open */}
+        {!open && (
+          <div className="relative mb-1 max-w-[200px] animate-[fadeInUp_0.4s_ease_both]">
+            <div className="rounded-2xl rounded-br-sm bg-white px-4 py-2.5 shadow-lg border border-gray-100 text-sm text-gray-700 leading-snug">
+              Kan eg hjelpe deg med garasje?
+            </div>
+            {/* Tail pointing right-down toward button */}
+            <span className="absolute -right-2 bottom-2 h-3 w-3 overflow-hidden">
+              <span className="absolute left-0 top-0 h-4 w-4 -translate-x-1/2 rotate-45 border border-gray-100 bg-white shadow" />
+            </span>
+          </div>
+        )}
+
+        {/* Button */}
+        <div className="relative group/btn">
+          <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg">
+            GarasjeDrøsaren
+          </span>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Åpne chat"
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-600 transition-colors overflow-hidden"
+          >
+            {open ? (
+              <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-cover" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Chat panel */}
