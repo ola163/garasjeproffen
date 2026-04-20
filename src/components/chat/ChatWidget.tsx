@@ -131,6 +131,9 @@ export default function ChatWidget() {
 
   const CONFIGURATOR_PATHS = ["/configurator", "/garasje", "/carport"];
   const isConfigurator = CONFIGURATOR_PATHS.some((p) => pathname?.startsWith(p));
+  const isMobileScreen = typeof window !== "undefined" && window.innerWidth < 640;
+  const hiddenOnPath = pathname?.startsWith("/admin") ||
+    (isMobileScreen && (isConfigurator || pathname?.startsWith("/min-side")));
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -138,9 +141,9 @@ export default function ChatWidget() {
     }
   }, []);
 
-  // Slide to bottom-left on configurator pages
+  // Slide to bottom-left on configurator pages (desktop only)
   useEffect(() => {
-    if (!isConfigurator) return;
+    if (!isConfigurator || window.innerWidth < 640) return;
     setAnimating(true);
     setPos({ left: 24, top: window.innerHeight - BTN_H - 24 });
     const t = setTimeout(() => setAnimating(false), 2000);
@@ -265,7 +268,7 @@ export default function ChatWidget() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
-  if (dismissed || !pos) return null;
+  if (dismissed || hiddenOnPath || !pos) return null;
 
   const onLeftSide = pos.left < (typeof window !== "undefined" ? window.innerWidth / 2 : 400);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;

@@ -65,8 +65,8 @@ export default function Kontakt() {
                 <p className="font-semibold text-gray-900">Christian S. Årsland</p>
                 <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
                 <div className="mt-4 space-y-3">
-                  <a href="mailto:christian@garasjeproffen.no" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
-                    <span className="text-base">✉</span>christian@garasjeproffen.no
+                  <a href="mailto:christian@garasjeproffen.no" className="flex items-start gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
+                    <span className="text-base shrink-0">✉</span><span className="break-all">christian@garasjeproffen.no</span>
                   </a>
                   <a href="tel:+4747617563" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
                     <span className="text-base">📱</span>+47 476 17 563

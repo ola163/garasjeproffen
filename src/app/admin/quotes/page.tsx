@@ -212,7 +212,7 @@ export default function AdminQuotesPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
           {loadingQuotes ? (
             <div className="p-8 text-center text-sm text-gray-400">Laster...</div>
           ) : filtered.length === 0 ? (
