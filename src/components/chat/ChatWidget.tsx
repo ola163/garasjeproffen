@@ -108,8 +108,8 @@ export default function ChatWidget() {
   return (
     <>
       {/* Floating button with tooltip */}
-      <div className="fixed bottom-6 right-6 z-50 group/fab flex flex-col items-end gap-2">
-        <span className="pointer-events-none opacity-0 group-hover/fab:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg mr-1">
+      <div className="fixed bottom-6 right-6 z-50 group/fab">
+        <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover/fab:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg">
           GarasjeDrøsaren
         </span>
         <button
