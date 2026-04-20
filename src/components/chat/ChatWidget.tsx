@@ -77,34 +77,26 @@ export default function ChatWidget() {
     }
   }, []);
 
-  // Idle comments — only when chat is closed
+  // Keep a ref so idle timer can read latest open state without restarting
+  const openRef = useRef(open);
+  useEffect(() => { openRef.current = open; }, [open]);
+
+  // Idle comments — fire regardless of open changes, check ref at fire time
   useEffect(() => {
-    function scheduleNext() {
-      const delay = 12000 + Math.random() * 18000; // 12–30s
+    function scheduleNext(delay: number) {
       idleTimer.current = setTimeout(() => {
-        if (!open) {
+        if (!openRef.current) {
           const c = IDLE_COMMENTS[idleIdx.current % IDLE_COMMENTS.length];
           idleIdx.current++;
           showComment(c, 5000);
         }
-        scheduleNext();
+        scheduleNext(12000 + Math.random() * 18000);
       }, delay);
     }
-
-    // First one after 8s
-    idleTimer.current = setTimeout(() => {
-      if (!open) {
-        showComment(IDLE_COMMENTS[0], 5000);
-        idleIdx.current = 1;
-      }
-      scheduleNext();
-    }, 8000);
-
-    return () => {
-      if (idleTimer.current) clearTimeout(idleTimer.current);
-    };
+    scheduleNext(8000); // first bubble after 8 s
+    return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, []); // runs once on mount
 
   // Drag handlers
   const onPointerDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -118,6 +110,8 @@ export default function ChatWidget() {
   useEffect(() => {
     function onMove(e: MouseEvent | TouchEvent) {
       if (!dragData.current || !dragging) return;
+      // Prevent page scroll on mobile while dragging
+      if ("touches" in e) e.preventDefault();
       const client = "touches" in e ? e.touches[0] : e;
       const dx = client.clientX - dragData.current.startMx;
       const dy = client.clientY - dragData.current.startMy;
@@ -138,7 +132,8 @@ export default function ChatWidget() {
     }
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
-    document.addEventListener("touchmove", onMove, { passive: true });
+    // passive: false is required to call preventDefault() on touch
+    document.addEventListener("touchmove", onMove, { passive: false });
     document.addEventListener("touchend", onUp);
     return () => {
       document.removeEventListener("mousemove", onMove);

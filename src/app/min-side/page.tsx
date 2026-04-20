@@ -111,7 +111,7 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
       {/* Admin shortcut */}
       {session.isAdmin && (
         <a
-          href="/api/auth/admin-auto-login"
+          href="/admin"
           className="mt-4 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

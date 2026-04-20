@@ -18,10 +18,15 @@ export async function POST(req: Request) {
     const db = supabaseAdmin();
     if (!db) return new Response("DB not configured", { status: 503 });
 
-    await db.from("chat_logs").upsert(
+    const { error } = await db.from("chat_logs").upsert(
       { session_id: sessionId, user_email: userEmail, lang, messages, updated_at: new Date().toISOString() },
       { onConflict: "session_id" }
     );
+
+    if (error) {
+      console.error("chat_logs upsert error:", error.message, error.details);
+      return new Response(error.message, { status: 500 });
+    }
 
     return new Response("ok");
   } catch (err) {

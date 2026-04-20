@@ -175,18 +175,18 @@ export default function AdminPage() {
   // ── Dashboard ──
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:py-12 sm:px-6">
 
         {/* Header */}
-        <div className="mb-10 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Image src="/logo-header.jpg" alt="GarasjeProffen" width={400} height={100} className="h-10 w-auto" />
+        <div className="mb-6 sm:mb-10 flex flex-wrap items-center gap-3 justify-between">
+          <div className="flex items-center gap-3">
+            <Image src="/logo-header.jpg" alt="GarasjeProffen" width={400} height={100} className="h-8 sm:h-10 w-auto" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Admin</h1>
-              <p className="text-xs text-gray-400">{user?.email}</p>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900">Admin</h1>
+              <p className="text-xs text-gray-400 truncate max-w-[180px] sm:max-w-none">{user?.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">← Til siden</Link>
             <button
               onClick={() => supabase?.auth.signOut()}
