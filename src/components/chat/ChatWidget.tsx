@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 
 type Lang = "bokmal" | "jaersk";
@@ -15,6 +15,14 @@ const WELCOME: Record<Lang, string> = {
   jaersk: "Jysla jilt du stakk innom! Ikkje stress – me tar det steg for steg og finne ei god løysing saman. Kva kan eg hjelpe deg med?",
 };
 
+const DRAG_COMMENTS = [
+  "Au! Flytte du på meg?",
+  "Eg bur helst i ro, men greit det...",
+  "Spør meg om garasje du!",
+  "Ikkje vær redd, eg biter ikkje!",
+  "Prøv å klikke på meg heller!",
+];
+
 function makeSessionId() {
   return crypto.randomUUID();
 }
@@ -28,6 +36,67 @@ export default function ChatWidget() {
   const sessionId = useRef<string>(makeSessionId());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Draggable position
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [moveComment, setMoveComment] = useState<string | null>(null);
+  const [hasMoved, setHasMoved] = useState(false);
+  const dragData = useRef<{ startMx: number; startMy: number; startLeft: number; startTop: number } | null>(null);
+  const commentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const btnWrapRef = useRef<HTMLDivElement>(null);
+  const commentIdxRef = useRef(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setPos({ left: window.innerWidth - 88, top: window.innerHeight - 88 });
+    }
+  }, []);
+
+  const onMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!pos) return;
+    const client = "touches" in e ? e.touches[0] : e;
+    dragData.current = { startMx: client.clientX, startMy: client.clientY, startLeft: pos.left, startTop: pos.top };
+    setDragging(true);
+    setHasMoved(false);
+  }, [pos]);
+
+  useEffect(() => {
+    function onMove(e: MouseEvent | TouchEvent) {
+      if (!dragData.current || !dragging) return;
+      const client = "touches" in e ? e.touches[0] : e;
+      const dx = client.clientX - dragData.current.startMx;
+      const dy = client.clientY - dragData.current.startMy;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) setHasMoved(true);
+      const newLeft = Math.max(8, Math.min(window.innerWidth - 80, dragData.current.startLeft + dx));
+      const newTop = Math.max(8, Math.min(window.innerHeight - 80, dragData.current.startTop + dy));
+      setPos({ left: newLeft, top: newTop });
+    }
+
+    function onUp() {
+      if (!dragging) return;
+      setDragging(false);
+      if (hasMoved) {
+        const comment = DRAG_COMMENTS[commentIdxRef.current % DRAG_COMMENTS.length];
+        commentIdxRef.current++;
+        setMoveComment(comment);
+        if (commentTimer.current) clearTimeout(commentTimer.current);
+        commentTimer.current = setTimeout(() => setMoveComment(null), 3000);
+      }
+      dragData.current = null;
+    }
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: true });
+    document.addEventListener("touchend", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+    };
+  }, [dragging, hasMoved]);
 
   useEffect(() => {
     if (open && lang) {
@@ -49,7 +118,7 @@ export default function ChatWidget() {
         body: JSON.stringify({ sessionId: sessionId.current, messages: msgs, lang: currentLang }),
       });
     } catch {
-      // silent — logging must never break the chat
+      // silent
     }
   }
 
@@ -61,9 +130,7 @@ export default function ChatWidget() {
     setMessages(newMessages);
     setInput("");
     setLoading(true);
-
-    const assistantMessage: Message = { role: "assistant", content: "" };
-    setMessages([...newMessages, assistantMessage]);
+    setMessages([...newMessages, { role: "assistant", content: "" }]);
 
     try {
       const res = await fetch("/api/chat", {
@@ -71,66 +138,78 @@ export default function ChatWidget() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: newMessages, lang }),
       });
-
       if (!res.ok || !res.body) throw new Error();
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let full = "";
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         full += decoder.decode(value, { stream: true });
         setMessages([...newMessages, { role: "assistant", content: full }]);
       }
-
-      const finalMessages = [...newMessages, { role: "assistant" as const, content: full }];
-      await logConversation(finalMessages, lang);
+      const final = [...newMessages, { role: "assistant" as const, content: full }];
+      await logConversation(final, lang);
     } catch {
       const fallback = lang === "jaersk"
         ? "Oi, noko gjekk gale. Ring oss på +47 476 17 563!"
         : "Beklager, noe gikk galt. Ring oss på +47 476 17 563.";
-      const errMessages = [...newMessages, { role: "assistant" as const, content: fallback }];
-      setMessages(errMessages);
+      setMessages([...newMessages, { role: "assistant" as const, content: fallback }]);
     } finally {
       setLoading(false);
     }
   }
 
   function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
+
+  function handleBtnClick(e: React.MouseEvent) {
+    if (hasMoved) { e.preventDefault(); return; }
+    setOpen((v) => !v);
+  }
+
+  if (!pos) return null;
+
+  // Position chat panel: prefer left of button, fall back to right
+  const panelWidth = Math.min(520, typeof window !== "undefined" ? window.innerWidth * 0.95 : 520);
+  const panelLeft = pos.left - panelWidth - 12 > 8 ? pos.left - panelWidth - 12 : pos.left + 80;
+  const panelTop = Math.max(8, Math.min(pos.top, (typeof window !== "undefined" ? window.innerHeight : 800) - 600));
 
   return (
     <>
-      {/* Floating button with speech bubble */}
-      <div className="fixed bottom-6 right-6 z-50 flex items-end gap-3 group/fab">
-        {/* Speech bubble — hidden when chat is open */}
-        {!open && (
-          <div className="relative mb-1 max-w-[200px] animate-[fadeInUp_0.4s_ease_both]">
-            <div className="rounded-2xl rounded-br-sm bg-white px-4 py-2.5 shadow-lg border border-gray-100 text-sm text-gray-700 leading-snug">
-              Kan eg hjelpe deg med garasje?
+      {/* Draggable chat bubble button */}
+      <div
+        ref={btnWrapRef}
+        style={{ position: "fixed", left: pos.left, top: pos.top, zIndex: 50 }}
+        className={`select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
+        onMouseDown={onMouseDown}
+        onTouchStart={onMouseDown}
+      >
+        {/* Drag/move comment bubble */}
+        {moveComment && (
+          <div
+            className="absolute bottom-full mb-2 right-0 animate-[fadeInUp_0.3s_ease_both] pointer-events-none"
+            style={{ minWidth: 160, maxWidth: 220 }}
+          >
+            <div className="rounded-2xl rounded-br-sm bg-white px-3 py-2 shadow-lg border border-gray-100 text-sm text-gray-700 leading-snug">
+              {moveComment}
             </div>
-            {/* Tail pointing right-down toward button */}
-            <span className="absolute -right-2 bottom-2 h-3 w-3 overflow-hidden">
-              <span className="absolute left-0 top-0 h-4 w-4 -translate-x-1/2 rotate-45 border border-gray-100 bg-white shadow" />
-            </span>
           </div>
         )}
 
-        {/* Button */}
-        <div className="relative group/btn">
+        {/* Hover tooltip */}
+        <div className="group/btn relative">
           <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg">
             GarasjeDrøsaren
           </span>
+
+          {/* Chat bubble shape button */}
           <button
-            onClick={() => setOpen((v) => !v)}
+            onClick={handleBtnClick}
             aria-label="Åpne chat"
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-600 transition-colors overflow-hidden"
+            className="relative flex h-16 w-16 items-center justify-center bg-orange-500 text-white shadow-lg hover:bg-orange-600 transition-colors overflow-hidden rounded-2xl rounded-br-sm"
           >
             {open ? (
               <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -145,7 +224,10 @@ export default function ChatWidget() {
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-24 right-4 z-50 flex flex-col w-[min(520px,95vw)] max-h-[80vh] rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
+        <div
+          style={{ position: "fixed", left: panelLeft, top: panelTop, zIndex: 50, width: panelWidth }}
+          className="flex flex-col max-h-[80vh] rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden"
+        >
           {/* Hero image */}
           <div className="relative w-full h-64 shrink-0 bg-orange-50">
             <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-contain" />
@@ -167,43 +249,21 @@ export default function ChatWidget() {
               <p className="text-sm text-orange-100">GarasjeProffen-assistenten</p>
             </div>
             <div className="flex gap-1 shrink-0">
-              <button
-                onClick={() => selectLang("bokmal")}
-                className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${lang === "bokmal" ? "bg-white text-orange-600" : "text-white/70 hover:text-white"}`}
-              >
-                Bokmål
-              </button>
-              <button
-                onClick={() => selectLang("jaersk")}
-                className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${lang === "jaersk" ? "bg-white text-orange-600" : "text-white/70 hover:text-white"}`}
-              >
-                Jærsk
-              </button>
+              <button onClick={() => selectLang("bokmal")} className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${lang === "bokmal" ? "bg-white text-orange-600" : "text-white/70 hover:text-white"}`}>Bokmål</button>
+              <button onClick={() => selectLang("jaersk")} className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${lang === "jaersk" ? "bg-white text-orange-600" : "text-white/70 hover:text-white"}`}>Jærsk</button>
             </div>
           </div>
 
-          {/* Language picker or messages */}
           {!lang ? (
             <div className="flex flex-col items-center justify-center flex-1 gap-5 p-10 bg-gray-50">
               <p className="text-base text-gray-600 text-center">Vel språk / Velg språk</p>
               <div className="flex gap-4">
-                <button
-                  onClick={() => selectLang("bokmal")}
-                  className="rounded-xl border-2 border-orange-200 bg-white px-6 py-3.5 text-base font-semibold text-gray-800 hover:border-orange-500 hover:bg-orange-50 transition-colors"
-                >
-                  Bokmål
-                </button>
-                <button
-                  onClick={() => selectLang("jaersk")}
-                  className="rounded-xl border-2 border-orange-200 bg-white px-6 py-3.5 text-base font-semibold text-gray-800 hover:border-orange-500 hover:bg-orange-50 transition-colors"
-                >
-                  Jærsk 🧢
-                </button>
+                <button onClick={() => selectLang("bokmal")} className="rounded-xl border-2 border-orange-200 bg-white px-6 py-3.5 text-base font-semibold text-gray-800 hover:border-orange-500 hover:bg-orange-50 transition-colors">Bokmål</button>
+                <button onClick={() => selectLang("jaersk")} className="rounded-xl border-2 border-orange-200 bg-white px-6 py-3.5 text-base font-semibold text-gray-800 hover:border-orange-500 hover:bg-orange-50 transition-colors">Jærsk 🧢</button>
               </div>
             </div>
           ) : (
             <>
-              {/* Messages */}
               <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50">
                 {messages.map((m, i) => (
                   <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -212,13 +272,7 @@ export default function ChatWidget() {
                         <Image src="/GarajseDrøsaren.png" alt="" fill className="object-cover" />
                       </div>
                     )}
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-3 text-base leading-relaxed whitespace-pre-wrap ${
-                        m.role === "user"
-                          ? "bg-orange-500 text-white rounded-br-sm"
-                          : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"
-                      }`}
-                    >
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-base leading-relaxed whitespace-pre-wrap ${m.role === "user" ? "bg-orange-500 text-white rounded-br-sm" : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"}`}>
                       {m.content}
                       {loading && i === messages.length - 1 && m.role === "assistant" && m.content === "" && (
                         <span className="inline-flex gap-1 py-1">
@@ -233,7 +287,6 @@ export default function ChatWidget() {
                 <div ref={bottomRef} />
               </div>
 
-              {/* Input */}
               <div className="border-t border-gray-100 bg-white p-4 flex gap-3 items-end shrink-0">
                 <textarea
                   ref={inputRef}
