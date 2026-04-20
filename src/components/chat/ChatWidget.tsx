@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 
 type Lang = "bokmal" | "jaersk";
-type BtnMode = "idle" | "pickup"; // idle = click opens chat, pickup = click moves
 
 interface Message {
   role: "user" | "assistant";
@@ -36,6 +35,7 @@ const DRAG_COMMENTS = [
 
 const BTN_W = 68;
 const BTN_H = Math.round(BTN_W * (1183 / 1329));
+const DRAG_THRESHOLD = 6; // px — movement below this = click, above = drag
 
 function makeSessionId() { return crypto.randomUUID(); }
 
@@ -49,21 +49,18 @@ export default function ChatWidget() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Position
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-  const [btnMode, setBtnMode] = useState<BtnMode>("idle");
-  const [hasMoved, setHasMoved] = useState(false);
-  const dragData = useRef<{ startMx: number; startMy: number; startLeft: number; startTop: number } | null>(null);
-
-  // Comments
   const [comment, setComment] = useState<string | null>(null);
   const commentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleIdx = useRef(0);
   const dragIdx = useRef(0);
-  const hasSpokenOnMove = useRef(false);
   const openRef = useRef(open);
   useEffect(() => { openRef.current = open; }, [open]);
+
+  // Drag tracking refs (no state — avoids re-render mid-drag)
+  const dragStart = useRef<{ mx: number; my: number; left: number; top: number } | null>(null);
+  const didDrag = useRef(false);
 
   function showComment(text: string, ms = 4000) {
     if (commentTimer.current) clearTimeout(commentTimer.current);
@@ -71,13 +68,14 @@ export default function ChatWidget() {
     commentTimer.current = setTimeout(() => setComment(null), ms);
   }
 
+  // Init position bottom-right
   useEffect(() => {
     if (typeof window !== "undefined") {
       setPos({ left: window.innerWidth - BTN_W - 24, top: window.innerHeight - BTN_H - 24 });
     }
   }, []);
 
-  // Idle comments (once on mount)
+  // Idle comments — run once on mount
   useEffect(() => {
     function scheduleNext(delay: number) {
       idleTimer.current = setTimeout(() => {
@@ -93,41 +91,44 @@ export default function ChatWidget() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Drag tracking (only active in pickup mode)
-  useEffect(() => {
-    if (btnMode !== "pickup") return;
+  // Pointer down — start tracking
+  function onPointerDown(e: React.MouseEvent | React.TouchEvent) {
+    if (!pos) return;
+    const client = "touches" in e ? e.touches[0] : e;
+    dragStart.current = { mx: client.clientX, my: client.clientY, left: pos.left, top: pos.top };
+    didDrag.current = false;
+  }
 
+  useEffect(() => {
     function onMove(e: MouseEvent | TouchEvent) {
-      if (!dragData.current) return;
+      if (!dragStart.current) return;
       if ("touches" in e) e.preventDefault();
       const client = "touches" in e ? e.touches[0] : e;
-      const dx = client.clientX - dragData.current.startMx;
-      const dy = client.clientY - dragData.current.startMy;
-      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
-        if (!hasMoved) {
-          setHasMoved(true);
-          // Speak immediately when first moved
-          if (!hasSpokenOnMove.current) {
-            hasSpokenOnMove.current = true;
-            showComment(DRAG_COMMENTS[dragIdx.current % DRAG_COMMENTS.length], 4000);
-            dragIdx.current++;
-          }
-        }
+      const dx = client.clientX - dragStart.current.mx;
+      const dy = client.clientY - dragStart.current.my;
+      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+        didDrag.current = true;
         setPos({
-          left: Math.max(8, Math.min(window.innerWidth - BTN_W - 8, dragData.current.startLeft + dx)),
-          top:  Math.max(8, Math.min(window.innerHeight - BTN_H - 8, dragData.current.startTop + dy)),
+          left: Math.max(8, Math.min(window.innerWidth - BTN_W - 8, dragStart.current.left + dx)),
+          top:  Math.max(8, Math.min(window.innerHeight - BTN_H - 8, dragStart.current.top + dy)),
         });
       }
     }
 
     function onUp() {
-      // drag ended
-      dragData.current = null;
-      hasSpokenOnMove.current = false;
-      // After placing: exit pickup mode
-      if (hasMoved) {
-        setHasMoved(false);
-        setBtnMode("idle");
+      if (!dragStart.current) return;
+      const wasDrag = didDrag.current;
+      dragStart.current = null;
+      didDrag.current = false;
+
+      if (wasDrag) {
+        // Dragged → show comment, do NOT open chat
+        showComment(DRAG_COMMENTS[dragIdx.current % DRAG_COMMENTS.length], 4000);
+        dragIdx.current++;
+      } else {
+        // Clean click → toggle chat
+        setComment(null);
+        setOpen((v) => !v);
       }
     }
 
@@ -141,30 +142,7 @@ export default function ChatWidget() {
       document.removeEventListener("touchmove", onMove);
       document.removeEventListener("touchend", onUp);
     };
-  }, [btnMode, hasMoved]);
-
-  function onPointerDown(e: React.MouseEvent | React.TouchEvent) {
-    if (btnMode !== "pickup" || !pos) return;
-    const client = "touches" in e ? e.touches[0] : e;
-    dragData.current = { startMx: client.clientX, startMy: client.clientY, startLeft: pos.left, startTop: pos.top };
-    // drag started
-    setHasMoved(false);
-  }
-
-  function handleBtnClick() {
-    if (btnMode === "idle") {
-      // First click: enter pickup mode
-      setBtnMode("pickup");
-      setComment("Dra meg dit du vil, eller klikk igjen for å opne chatten!");
-      if (commentTimer.current) clearTimeout(commentTimer.current);
-      commentTimer.current = setTimeout(() => setComment(null), 4000);
-    } else if (btnMode === "pickup" && !hasMoved) {
-      // Second click without moving: open chat
-      setBtnMode("idle");
-      setComment(null);
-      setOpen((v) => !v);
-    }
-  }
+  }, []);
 
   useEffect(() => {
     if (open && lang) {
@@ -236,8 +214,6 @@ export default function ChatWidget() {
   const panelLeft = pos.left - panelW - 12 > 8 ? pos.left - panelW - 12 : pos.left + BTN_W + 12;
   const panelTop = Math.max(8, Math.min(pos.top, (typeof window !== "undefined" ? window.innerHeight : 800) - 600));
 
-  const isPickup = btnMode === "pickup";
-
   return (
     <>
       {/* Draggable button */}
@@ -259,20 +235,14 @@ export default function ChatWidget() {
         {/* Tooltip */}
         <div className="group/btn relative">
           <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-2.5 py-1 text-xs font-medium text-white shadow-lg">
-            {isPickup ? "Dra for å flytte – klikk for å åpne" : "GarasjeDrøsaren"}
+            GarasjeDrøsaren
           </span>
-
           <button
-            onClick={handleBtnClick}
             aria-label="GarasjeDrøsaren"
-            className={`relative overflow-hidden transition-all shadow-lg ${
-              isPickup
-                ? "rounded-2xl rounded-br-sm ring-4 ring-orange-400 ring-offset-2 cursor-grab bg-orange-400 scale-110"
-                : "rounded-2xl rounded-br-sm bg-orange-500 hover:bg-orange-600 cursor-pointer"
-            }`}
+            className="relative overflow-hidden rounded-2xl rounded-br-sm bg-orange-500 hover:bg-orange-600 shadow-lg transition-colors cursor-pointer"
             style={{ width: BTN_W, height: BTN_H }}
           >
-            {open && !isPickup ? (
+            {open ? (
               <div className="flex h-full w-full items-center justify-center">
                 <svg className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -282,11 +252,6 @@ export default function ChatWidget() {
               <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-cover" />
             )}
           </button>
-
-          {/* Pickup mode indicator dot */}
-          {isPickup && (
-            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-orange-400 ring-2 ring-white animate-pulse" />
-          )}
         </div>
       </div>
 
