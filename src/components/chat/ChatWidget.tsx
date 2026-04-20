@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 type Lang = "bokmal" | "jaersk";
 
@@ -49,6 +50,7 @@ export default function ChatWidget() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  const pathname = usePathname();
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [comment, setComment] = useState<string | null>(null);
   const commentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,12 +70,26 @@ export default function ChatWidget() {
     commentTimer.current = setTimeout(() => setComment(null), ms);
   }
 
+  const CONFIGURATOR_PATHS = ["/configurator", "/garasje", "/carport"];
+  const isConfigurator = CONFIGURATOR_PATHS.some((p) => pathname?.startsWith(p));
+
   // Init position bottom-right
   useEffect(() => {
     if (typeof window !== "undefined") {
       setPos({ left: window.innerWidth - BTN_W - 24, top: window.innerHeight - BTN_H - 24 });
     }
   }, []);
+
+  // Move to bottom-left when entering configurator pages
+  useEffect(() => {
+    if (!isConfigurator) return;
+    showComment("Eg ska gå vekk så eg ikkje står i vegen! 👋", 5000);
+    const t = setTimeout(() => {
+      setPos({ left: 24, top: window.innerHeight - BTN_H - 24 });
+    }, 400);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConfigurator]);
 
   // Idle comments — run once on mount
   useEffect(() => {
