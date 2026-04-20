@@ -37,6 +37,7 @@ function makeSessionId() { return crypto.randomUUID(); }
 
 export default function ChatWidget() {
   const [dismissed, setDismissed] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useState<Lang | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -69,9 +70,18 @@ export default function ChatWidget() {
   }, []);
 
   function dismiss() {
-    localStorage.setItem(STORAGE_KEY, "1");
-    setDismissed(true);
-    window.dispatchEvent(new Event("gd-visibility"));
+    setOpen(false);
+    setComment(null);
+    setDismissing(true);
+    setAnimating(true);
+    setPos((p) => p ? { left: p.left, top: -BTN_H - 20 } : p);
+    setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, "1");
+      setDismissed(true);
+      setDismissing(false);
+      setAnimating(false);
+      window.dispatchEvent(new Event("gd-visibility"));
+    }, 1400);
   }
 
   function showComment(text: string, ms = 4000) {
@@ -118,6 +128,7 @@ export default function ChatWidget() {
   // All drag handlers on the button so setPointerCapture doesn't break click
   function onBtnPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     if (!pos) return;
+    e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     dragStart.current = { mx: e.clientX, my: e.clientY, left: pos.left, top: pos.top };
     didDrag.current = false;
@@ -146,6 +157,11 @@ export default function ChatWidget() {
       showComment(DRAG_COMMENTS[dragIdx.current % DRAG_COMMENTS.length], 4000);
       dragIdx.current++;
     }
+  }
+
+  function onBtnPointerCancel() {
+    dragStart.current = null;
+    didDrag.current = false;
   }
 
   function handleBtnClick() {
@@ -232,7 +248,7 @@ export default function ChatWidget() {
           zIndex: 50,
           width: BTN_W,
           touchAction: "none",
-          transition: animating ? "left 1.6s ease-in-out, top 0.6s ease" : "none",
+          transition: (animating || dismissing) ? "left 1.6s ease-in-out, top 1.2s ease" : "none",
         }}
         className="select-none"
       >
@@ -276,9 +292,10 @@ export default function ChatWidget() {
             onPointerDown={onBtnPointerDown}
             onPointerMove={onBtnPointerMove}
             onPointerUp={onBtnPointerUp}
+            onPointerCancel={onBtnPointerCancel}
             aria-label="GarasjeDrøsaren"
             className="relative overflow-hidden rounded-2xl rounded-br-sm bg-orange-500 hover:bg-orange-600 shadow-lg transition-colors cursor-pointer"
-            style={{ width: BTN_W, height: BTN_H }}
+            style={{ width: BTN_W, height: BTN_H, touchAction: "none" }}
           >
             {open ? (
               <div className="flex h-full w-full items-center justify-center">

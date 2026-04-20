@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
 interface ChatLog {
@@ -21,13 +20,6 @@ interface TopQuestion {
 
 type Tab = "innlogget" | "anonym" | "toppsporsmaal";
 
-const supabase = (() => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key);
-})();
-
 export default function ChatLoggPage() {
   const [logs, setLogs] = useState<ChatLog[]>([]);
   const [topQuestions, setTopQuestions] = useState<TopQuestion[]>([]);
@@ -40,15 +32,9 @@ export default function ChatLoggPage() {
   }, []);
 
   async function loadAll() {
-    if (!supabase) return;
     setLoading(true);
-    const { data } = await supabase
-      .from("chat_logs")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .limit(200);
-
-    const allLogs: ChatLog[] = data ?? [];
+    const res = await fetch("/api/chat/logs");
+    const allLogs: ChatLog[] = res.ok ? await res.json() : [];
     setLogs(allLogs);
 
     // Compute top questions from anonymous sessions
