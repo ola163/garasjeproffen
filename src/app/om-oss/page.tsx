@@ -60,9 +60,9 @@ export default function OmOss() {
       {/* Team + Contact */}
       <section className="mb-14">
         <h2 className="text-xl font-semibold text-gray-900">Menneskene bak</h2>
-        <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_340px]">
+        <div className="mt-6 flex flex-col gap-8 lg:flex-row">
           {/* People cards */}
-          <div className="grid gap-8 sm:grid-cols-2">
+          <div className="grid gap-8 sm:grid-cols-2 lg:flex-1">
             {/* Christian */}
             <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
               <div className="relative h-56 w-full bg-transparent">
