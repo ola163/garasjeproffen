@@ -107,20 +107,25 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* Floating button */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Åpne chat"
-        className="fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-600 transition-colors overflow-hidden"
-      >
-        {open ? (
-          <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        ) : (
-          <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-cover" />
-        )}
-      </button>
+      {/* Floating button with tooltip */}
+      <div className="fixed bottom-6 right-6 z-50 group/fab flex flex-col items-end gap-2">
+        <span className="pointer-events-none opacity-0 group-hover/fab:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg mr-1">
+          GarasjeDrøsaren
+        </span>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-label="Åpne chat"
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-600 transition-colors overflow-hidden"
+        >
+          {open ? (
+            <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-cover" />
+          )}
+        </button>
+      </div>
 
       {/* Chat panel */}
       {open && (
