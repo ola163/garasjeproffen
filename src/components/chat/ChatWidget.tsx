@@ -37,9 +37,9 @@ const DRAG_COMMENTS = [
   "No flytta du meg igjen...",
 ];
 const DISMISS_COMMENTS = [
-  "Me drøsses! 👋",
+  "Me drøses! 👋",
   "Ha det bra! Eg e i menyen om du treng meg 🙂",
-  "Me drøsses – ring om du lurer på noko du!",
+  "Me drøses – ring om du lurer på noko du!",
 ];
 
 const BTN_W = 68;
@@ -52,7 +52,6 @@ function makeSessionId() { return crypto.randomUUID(); }
 export default function ChatWidget() {
   const [dismissed, setDismissed] = useState(false);
   const [dismissing, setDismissing] = useState(false);
-  const [autoHidden, setAutoHidden] = useState(false);
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useState<Lang | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -112,7 +111,7 @@ export default function ChatWidget() {
 
   function dismiss() {
     setOpen(false);
-    showComment(DISMISS_COMMENTS[dismissIdx.current % DISMISS_COMMENTS.length], 3000);
+    showComment(DISMISS_COMMENTS[dismissIdx.current % DISMISS_COMMENTS.length], 4000);
     dismissIdx.current++;
     setTimeout(() => {
       setDismissing(true);
@@ -126,8 +125,8 @@ export default function ChatWidget() {
         setDismissing(false);
         setAnimating(false);
         window.dispatchEvent(new Event("gd-visibility"));
-      }, 1400);
-    }, 700);
+      }, 2500);
+    }, 1000);
   }
 
   const CONFIGURATOR_PATHS = ["/configurator", "/garasje", "/carport"];
@@ -139,15 +138,14 @@ export default function ChatWidget() {
     }
   }, []);
 
-  // Auto-hide on configurator pages, show again when leaving
+  // Slide to bottom-left on configurator pages
   useEffect(() => {
-    if (isConfigurator) {
-      setOpen(false);
-      setComment(null);
-      setAutoHidden(true);
-    } else {
-      setAutoHidden(false);
-    }
+    if (!isConfigurator) return;
+    setAnimating(true);
+    setPos({ left: 24, top: window.innerHeight - BTN_H - 24 });
+    const t = setTimeout(() => setAnimating(false), 2000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConfigurator]);
 
   useEffect(() => {
@@ -267,7 +265,7 @@ export default function ChatWidget() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
-  if (dismissed || autoHidden || !pos) return null;
+  if (dismissed || !pos) return null;
 
   const onLeftSide = pos.left < (typeof window !== "undefined" ? window.innerWidth / 2 : 400);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
@@ -288,7 +286,7 @@ export default function ChatWidget() {
           zIndex: 50,
           width: BTN_W,
           touchAction: "none",
-          transition: (animating || dismissing) ? "left 1.6s ease-in-out, top 1.2s ease" : "none",
+          transition: (animating || dismissing) ? "left 1.6s ease-in-out, top 2.5s ease-out" : "none",
         }}
         className="select-none"
       >
@@ -308,7 +306,7 @@ export default function ChatWidget() {
         )}
 
         <div className="group/btn relative">
-          <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-2.5 py-1 text-xs font-medium text-white shadow-lg">
+          <span className="pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-200 whitespace-nowrap rounded-lg bg-gray-900/90 px-2.5 py-1 text-xs font-medium text-white shadow-lg">
             GarasjeDrøsaren
           </span>
 
