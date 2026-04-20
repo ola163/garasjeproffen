@@ -23,6 +23,11 @@ const IDLE_COMMENTS = [
   "Dette ska me få te, men du må begynna snart!",
   "Eg he trua på deg – men nå må du setta i gang 😄",
   "Du e ikkje redde for å bli sist ferdige vel?",
+  "Dette går fort – me heise det på plass",
+  "Du, den søknaden… den tar me",
+  "Du sleppe alt det papirgreiene",
+  "Du spare deg for jysla møje arbeid her",
+  "Ikkje driv og dil – me fikse det",
 ];
 const DRAG_COMMENTS = [
   "Au! Ikkje flytt meg!",
@@ -30,6 +35,11 @@ const DRAG_COMMENTS = [
   "Au au – forsiktig no!",
   "Klikk på meg heller, eg hjelper deg!",
   "No flytta du meg igjen...",
+];
+const DISMISS_COMMENTS = [
+  "Me drøsses! 👋",
+  "Ha det bra! Eg e i menyen om du treng meg 🙂",
+  "Me drøsses – ring om du lurer på noko du!",
 ];
 
 const BTN_W = 68;
@@ -42,6 +52,7 @@ function makeSessionId() { return crypto.randomUUID(); }
 export default function ChatWidget() {
   const [dismissed, setDismissed] = useState(false);
   const [dismissing, setDismissing] = useState(false);
+  const [autoHidden, setAutoHidden] = useState(false);
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useState<Lang | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -59,6 +70,7 @@ export default function ChatWidget() {
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleIdx = useRef(0);
   const dragIdx = useRef(0);
+  const dismissIdx = useRef(0);
   const openRef = useRef(open);
   useEffect(() => { openRef.current = open; }, [open]);
 
@@ -92,25 +104,30 @@ export default function ChatWidget() {
     };
   }, []);
 
-  function dismiss() {
-    setOpen(false);
-    setComment(null);
-    setDismissing(true);
-    setAnimating(true);
-    setPos((p) => p ? { left: p.left, top: -BTN_H - 20 } : p);
-    setTimeout(() => {
-      localStorage.setItem(STORAGE_KEY, "1");
-      setDismissed(true);
-      setDismissing(false);
-      setAnimating(false);
-      window.dispatchEvent(new Event("gd-visibility"));
-    }, 1400);
-  }
-
   function showComment(text: string, ms = 4000) {
     if (commentTimer.current) clearTimeout(commentTimer.current);
     setComment(text);
     commentTimer.current = setTimeout(() => setComment(null), ms);
+  }
+
+  function dismiss() {
+    setOpen(false);
+    showComment(DISMISS_COMMENTS[dismissIdx.current % DISMISS_COMMENTS.length], 3000);
+    dismissIdx.current++;
+    setTimeout(() => {
+      setDismissing(true);
+      setAnimating(true);
+      setPos((p) => p ? { left: p.left, top: -BTN_H - 20 } : p);
+      setTimeout(() => {
+        if (commentTimer.current) clearTimeout(commentTimer.current);
+        setComment(null);
+        localStorage.setItem(STORAGE_KEY, "1");
+        setDismissed(true);
+        setDismissing(false);
+        setAnimating(false);
+        window.dispatchEvent(new Event("gd-visibility"));
+      }, 1400);
+    }, 700);
   }
 
   const CONFIGURATOR_PATHS = ["/configurator", "/garasje", "/carport"];
@@ -122,15 +139,15 @@ export default function ChatWidget() {
     }
   }, []);
 
-  // Slow animated slide to bottom-left on configurator pages
+  // Auto-hide on configurator pages, show again when leaving
   useEffect(() => {
-    if (!isConfigurator) return;
-    showComment("Eg ska gå vekk så eg ikkje står i vegen! 👋", 5000);
-    setAnimating(true);
-    setPos({ left: 24, top: window.innerHeight - BTN_H - 24 });
-    const t = setTimeout(() => setAnimating(false), 1800);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (isConfigurator) {
+      setOpen(false);
+      setComment(null);
+      setAutoHidden(true);
+    } else {
+      setAutoHidden(false);
+    }
   }, [isConfigurator]);
 
   useEffect(() => {
@@ -148,7 +165,6 @@ export default function ChatWidget() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // All drag handlers on the button so setPointerCapture doesn't break click
   function onBtnPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     if (!pos) return;
     e.preventDefault();
@@ -251,14 +267,15 @@ export default function ChatWidget() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
-  if (dismissed || !pos) return null;
+  if (dismissed || autoHidden || !pos) return null;
 
-  // Bubble appears to the right when button is on the left half of screen
   const onLeftSide = pos.left < (typeof window !== "undefined" ? window.innerWidth / 2 : 400);
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
-  const panelW = Math.min(520, typeof window !== "undefined" ? window.innerWidth * 0.95 : 520);
-  const panelLeft = pos.left - panelW - 12 > 8 ? pos.left - panelW - 12 : pos.left + BTN_W + 12;
-  const panelTop = Math.max(8, Math.min(pos.top, (typeof window !== "undefined" ? window.innerHeight : 800) - 600));
+  const panelW = isMobile ? window.innerWidth : Math.min(520, window.innerWidth * 0.95);
+  const panelLeft = isMobile ? 0 : (pos.left - panelW - 12 > 8 ? pos.left - panelW - 12 : pos.left + BTN_W + 12);
+  const panelTop = isMobile ? 0 : Math.max(8, Math.min(pos.top, window.innerHeight - 600));
+  const panelHeight = isMobile ? "100dvh" : "80vh";
 
   return (
     <>
@@ -275,18 +292,16 @@ export default function ChatWidget() {
         }}
         className="select-none"
       >
-        {/* Speech bubble — flips side based on position */}
+        {/* Speech bubble */}
         {comment && !open && (
           <div
             className="absolute bottom-full mb-2 pointer-events-none animate-[fadeInUp_0.3s_ease_both]"
-            style={{
-              [onLeftSide ? "left" : "right"]: 0,
-              minWidth: 160,
-              maxWidth: 230,
-            }}
+            style={{ [onLeftSide ? "left" : "right"]: 0, minWidth: 160, maxWidth: 230 }}
           >
-            <div className="rounded-2xl bg-white px-3 py-2 shadow-lg border border-gray-100 text-sm text-gray-700 leading-snug"
-              style={{ borderRadius: onLeftSide ? "1rem 1rem 1rem 0.25rem" : "1rem 1rem 0.25rem 1rem" }}>
+            <div
+              className="rounded-2xl bg-white px-3 py-2 shadow-lg border border-gray-100 text-sm text-gray-700 leading-snug"
+              style={{ borderRadius: onLeftSide ? "1rem 1rem 1rem 0.25rem" : "1rem 1rem 0.25rem 1rem" }}
+            >
               {comment}
             </div>
           </div>
@@ -309,7 +324,7 @@ export default function ChatWidget() {
             </svg>
           </button>
 
-          {/* Main button — drag + click handlers here */}
+          {/* Main button */}
           <button
             onClick={handleBtnClick}
             onPointerDown={onBtnPointerDown}
@@ -335,13 +350,23 @@ export default function ChatWidget() {
 
       {/* Chat panel */}
       {open && (
-        <div style={{ position: "fixed", left: panelLeft, top: panelTop, zIndex: 50, width: panelW }} className="flex flex-col max-h-[80vh] rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
-          <div className="relative w-full h-64 shrink-0 bg-orange-50">
+        <div
+          style={{ position: "fixed", left: panelLeft, top: panelTop, zIndex: 50, width: panelW, maxHeight: panelHeight }}
+          className="flex flex-col rounded-none sm:rounded-2xl border-0 sm:border border-gray-200 bg-white shadow-2xl overflow-hidden"
+        >
+          <div className="relative w-full h-48 sm:h-64 shrink-0 bg-orange-50">
             <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-contain" />
-            <button onClick={() => setOpen(false)} aria-label="Lukk chat" className="absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/30 text-white hover:bg-black/50 transition-colors">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Lukk chat"
+              className="absolute top-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white hover:bg-black/50 transition-colors"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
+
           <div className="flex items-center gap-3 bg-orange-500 px-4 py-3 shrink-0">
             <div className="flex-1 min-w-0">
               <p className="text-base font-semibold text-white">GarasjeDrøsaren</p>
@@ -352,6 +377,7 @@ export default function ChatWidget() {
               <button onClick={() => selectLang("jaersk")} className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${lang === "jaersk" ? "bg-white text-orange-600" : "text-white/70 hover:text-white"}`}>Jærsk</button>
             </div>
           </div>
+
           {!lang ? (
             <div className="flex flex-col items-center justify-center flex-1 gap-5 p-10 bg-gray-50">
               <p className="text-base text-gray-600 text-center">Vel språk / Velg språk</p>
@@ -362,11 +388,15 @@ export default function ChatWidget() {
             </div>
           ) : (
             <>
-              <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-gray-50">
                 {messages.map((m, i) => (
                   <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    {m.role === "assistant" && <div className="relative h-8 w-8 shrink-0 rounded-full overflow-hidden mt-1"><Image src="/GarajseDrøsaren.png" alt="" fill className="object-cover" /></div>}
-                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-base leading-relaxed whitespace-pre-wrap ${m.role === "user" ? "bg-orange-500 text-white rounded-br-sm" : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"}`}>
+                    {m.role === "assistant" && (
+                      <div className="relative h-8 w-8 shrink-0 rounded-full overflow-hidden mt-1">
+                        <Image src="/GarajseDrøsaren.png" alt="" fill className="object-cover" />
+                      </div>
+                    )}
+                    <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-base leading-relaxed whitespace-pre-wrap ${m.role === "user" ? "bg-orange-500 text-white rounded-br-sm" : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"}`}>
                       {m.content}
                       {loading && i === messages.length - 1 && m.role === "assistant" && m.content === "" && (
                         <span className="inline-flex gap-1 py-1">
@@ -380,10 +410,24 @@ export default function ChatWidget() {
                 ))}
                 <div ref={bottomRef} />
               </div>
-              <div className="border-t border-gray-100 bg-white p-4 flex gap-3 items-end shrink-0">
-                <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey} placeholder={lang === "jaersk" ? "Skriv noko…" : "Skriv en melding…"} rows={2} className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-3 text-base focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 max-h-36 overflow-y-auto" />
-                <button onClick={send} disabled={loading || !input.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 transition-colors">
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+              <div className="border-t border-gray-100 bg-white p-3 sm:p-4 flex gap-3 items-end shrink-0">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKey}
+                  placeholder={lang === "jaersk" ? "Skriv noko…" : "Skriv en melding…"}
+                  rows={2}
+                  className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-3 text-base focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 max-h-36 overflow-y-auto"
+                />
+                <button
+                  onClick={send}
+                  disabled={loading || !input.trim()}
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 transition-colors"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
                 </button>
               </div>
             </>
