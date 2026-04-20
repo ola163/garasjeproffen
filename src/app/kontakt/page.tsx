@@ -55,7 +55,7 @@ export default function Kontakt() {
       <div className="mt-10 grid gap-10 lg:grid-cols-2 lg:items-start">
         {/* Left: people + address */}
         <div>
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-6 sm:grid-cols-3">
             {/* Christian */}
             <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
               <div className="relative h-48 w-full bg-transparent">
@@ -90,6 +90,32 @@ export default function Kontakt() {
                   <a href="tel:+4791344486" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
                     <span className="text-base">📱</span>+47 913 44 486
                   </a>
+                </div>
+              </div>
+            </div>
+
+            {/* GarasjeDrøsaren */}
+            <div className="rounded-xl border border-orange-100 bg-white overflow-hidden shadow-sm">
+              <div className="relative h-48 w-full bg-orange-50">
+                <Image src="/GarajseDrøsaren.png" alt="GarasjeDrøsaren" fill className="object-contain" />
+              </div>
+              <div className="p-6">
+                <p className="font-semibold text-gray-900">GarasjeDrøsaren</p>
+                <p className="mt-0.5 text-sm text-orange-600">AI-rådgivar – alltid tilgjengeleg</p>
+                <div className="mt-4 space-y-3">
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem("gd-dismissed");
+                      window.dispatchEvent(new Event("gd-visibility"));
+                      window.dispatchEvent(new Event("gd-open"));
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700 hover:bg-orange-100 transition-colors"
+                  >
+                    <span className="text-base">💬</span>Start ein samtale
+                  </button>
+                  <div className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-500">
+                    <span className="text-base">🕐</span>Svarer på sekundet
+                  </div>
                 </div>
               </div>
             </div>

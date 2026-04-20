@@ -64,9 +64,22 @@ export default function ChatWidget() {
 
   useEffect(() => {
     setDismissed(localStorage.getItem(STORAGE_KEY) === "1");
-    function onV() { setDismissed(localStorage.getItem(STORAGE_KEY) === "1"); }
+    function onV() {
+      const isDismissed = localStorage.getItem(STORAGE_KEY) === "1";
+      setDismissed(isDismissed);
+      if (!isDismissed) {
+        setPos({ left: window.innerWidth - BTN_W - 24, top: window.innerHeight - BTN_H - 24 });
+      }
+    }
+    function onOpen() {
+      setOpen(true);
+    }
     window.addEventListener("gd-visibility", onV);
-    return () => window.removeEventListener("gd-visibility", onV);
+    window.addEventListener("gd-open", onOpen);
+    return () => {
+      window.removeEventListener("gd-visibility", onV);
+      window.removeEventListener("gd-open", onOpen);
+    };
   }, []);
 
   function dismiss() {
