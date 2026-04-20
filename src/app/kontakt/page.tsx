@@ -95,13 +95,13 @@ export default function Kontakt() {
             </div>
 
             {/* GarasjeDrøsaren */}
-            <div className="rounded-xl border border-orange-100 bg-white overflow-hidden shadow-sm">
-              <div className="relative h-48 w-full bg-orange-50">
+            <div className="rounded-xl overflow-hidden shadow-sm bg-orange-500">
+              <div className="relative h-48 w-full bg-orange-400">
                 <Image src="/GarajseDrøsaren.png" alt="GarasjeDrøsaren" fill className="object-contain" />
               </div>
               <div className="p-6">
-                <p className="font-semibold text-gray-900">GarasjeDrøsaren</p>
-                <p className="mt-0.5 text-sm text-orange-600">AI-rådgivar – alltid tilgjengeleg</p>
+                <p className="font-semibold text-white">GarasjeDrøsaren</p>
+                <p className="mt-0.5 text-sm text-orange-100">AI-rådgivar – alltid tilgjengeleg</p>
                 <div className="mt-4 space-y-3">
                   <button
                     onClick={() => {
@@ -109,11 +109,11 @@ export default function Kontakt() {
                       window.dispatchEvent(new Event("gd-visibility"));
                       window.dispatchEvent(new Event("gd-open"));
                     }}
-                    className="flex w-full items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700 hover:bg-orange-100 transition-colors"
+                    className="flex w-full items-center gap-3 rounded-lg bg-white/20 hover:bg-white/30 px-4 py-3 text-sm text-white transition-colors"
                   >
                     <span className="text-base">💬</span>Start ein samtale
                   </button>
-                  <div className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-500">
+                  <div className="flex items-center gap-3 rounded-lg bg-white/10 px-4 py-3 text-sm text-orange-100">
                     <span className="text-base">🕐</span>Svarer på sekundet
                   </div>
                 </div>

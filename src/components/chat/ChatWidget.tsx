@@ -19,6 +19,10 @@ const IDLE_COMMENTS = [
   "Lurer du på noko om carport?",
   "Dæ æ møje garasjar å velge mellom!",
   "Spør meg, eg bite ikkje 🙂",
+  "Du, ska eg komma bort og hjelpa deg i gang?",
+  "Dette ska me få te, men du må begynna snart!",
+  "Eg he trua på deg – men nå må du setta i gang 😄",
+  "Du e ikkje redde for å bli sist ferdige vel?",
 ];
 const DRAG_COMMENTS = [
   "Au! Ikkje flytt meg!",
@@ -67,11 +71,17 @@ export default function ChatWidget() {
     function onV() {
       const isDismissed = localStorage.getItem(STORAGE_KEY) === "1";
       setDismissed(isDismissed);
+      setDismissing(false);
+      setAnimating(false);
       if (!isDismissed) {
         setPos({ left: window.innerWidth - BTN_W - 24, top: window.innerHeight - BTN_H - 24 });
       }
     }
     function onOpen() {
+      setDismissed(false);
+      setDismissing(false);
+      setAnimating(false);
+      setPos({ left: window.innerWidth - BTN_W - 24, top: window.innerHeight - BTN_H - 24 });
       setOpen(true);
     }
     window.addEventListener("gd-visibility", onV);
