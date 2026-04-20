@@ -105,7 +105,7 @@ export default function ChatWidget() {
       {open && (
         <div className="fixed bottom-24 right-6 z-50 flex flex-col w-[340px] max-h-[600px] rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
           {/* Hero image */}
-          <div className="relative w-full h-44 shrink-0 bg-orange-50">
+          <div className="relative w-full h-64 shrink-0 bg-orange-50">
             <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-contain" />
             <button
               onClick={() => setOpen(false)}
