@@ -27,11 +27,11 @@ const IDLE_COMMENTS = [
 ];
 
 const DRAG_COMMENTS = [
-  "Au! Flytte du på meg?",
-  "Eg bur helst i ro, men ok...",
-  "Spør meg om garasje heller!",
-  "Ikkje vær redd, eg bite ikkje!",
-  "Dra meg dit du vil – men klikk på meg au!",
+  "Au! Du flytta på meg!",
+  "Eg bur helst i ro, men greit det...",
+  "Klikk på meg heller, eg hjelper deg!",
+  "Au au au, forsiktig du!",
+  "No flytta du meg – klikk på meg for hjelp!",
 ];
 
 const BTN_W = 68;
@@ -63,6 +63,7 @@ export default function ChatWidget() {
   // Drag tracking refs (no state — avoids re-render mid-drag)
   const dragStart = useRef<{ mx: number; my: number; left: number; top: number } | null>(null);
   const didDrag = useRef(false);
+  const justDragged = useRef(false); // suppresses synthetic click after drag
 
   function showComment(text: string, ms = 4000) {
     if (commentTimer.current) clearTimeout(commentTimer.current);
@@ -138,14 +139,11 @@ export default function ChatWidget() {
       didDrag.current = false;
 
       if (wasDrag) {
-        // Dragged → show comment, do NOT open chat
+        justDragged.current = true; // suppress the upcoming synthetic click
         showComment(DRAG_COMMENTS[dragIdx.current % DRAG_COMMENTS.length], 4000);
         dragIdx.current++;
-      } else {
-        // Clean click → toggle chat
-        setComment(null);
-        setOpen((v) => !v);
       }
+      // If not a drag, let the native click event handle open/close
     }
 
     document.addEventListener("mousemove", onMove);
@@ -255,6 +253,11 @@ export default function ChatWidget() {
           </span>
           <button
             aria-label="GarasjeDrøsaren"
+            onClick={() => {
+              if (justDragged.current) { justDragged.current = false; return; }
+              setComment(null);
+              setOpen((v) => !v);
+            }}
             className="relative overflow-hidden rounded-2xl rounded-br-sm bg-orange-500 hover:bg-orange-600 shadow-lg transition-colors cursor-pointer"
             style={{ width: BTN_W, height: BTN_H }}
           >
