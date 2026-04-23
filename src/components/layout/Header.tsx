@@ -42,8 +42,6 @@ export default function Header() {
       : "/soknadshjelp";
 
   const navLinks = [
-    { href: "/garasje", label: "Garasje" },
-    { href: "/carport", label: "Carport" },
     { href: "/referanseprosjekter", label: "Referanseprosjekter" },
     { href: "/om-oss", label: "Om oss" },
     { href: "/min-side", label: "Min side" },
