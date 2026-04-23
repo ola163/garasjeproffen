@@ -380,8 +380,21 @@ export default function QuoteDetailPage() {
     }
   }
 
-  const offerTotal = offerSections.reduce((total, sec) =>
-    total + sec.line_items.reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0), 0);
+  // Prefabelement inherits all Materialpakke line items automatically.
+  // getEffectiveItems returns the full item list a section contributes.
+  function getEffectiveItems(section: OfferSection): LineItem[] {
+    if (section.category !== "prefabelement") return section.line_items;
+    const mat = offerSections.find((s) => s.category === "materialpakke");
+    return [...(mat?.line_items ?? []), ...section.line_items];
+  }
+
+  const hasPrefa = offerSections.some((s) => s.category === "prefabelement");
+  const offerTotal = offerSections.reduce((total, sec) => {
+    // Skip Materialpakke in grand total when Prefabelement is present
+    // (Prefabelement already includes those items)
+    if (hasPrefa && sec.category === "materialpakke") return total;
+    return total + getEffectiveItems(sec).reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0);
+  }, 0);
 
   if (authLoading || loading) return <div className="flex min-h-screen items-center justify-center text-gray-400">Laster...</div>;
   if (!supabase || !user || !ALLOWED_ADMINS.includes(user.email?.toLowerCase() ?? "")) {
@@ -692,8 +705,13 @@ export default function QuoteDetailPage() {
               )}
 
               {offerSections.map((section, sIdx) => {
-                const sectionTotal = section.line_items.reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0);
+                const effectiveItems = getEffectiveItems(section);
+                const sectionTotal = effectiveItems.reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0);
                 const catLabel = OFFER_CATEGORIES.find(c => c.id === section.category)?.label ?? section.category;
+                const inheritedItems = section.category === "prefabelement"
+                  ? (offerSections.find((s) => s.category === "materialpakke")?.line_items ?? [])
+                  : [];
+
                 return (
                   <div key={sIdx} className="mb-4 rounded-lg border border-gray-200 overflow-hidden">
                     {/* Section header */}
@@ -706,7 +724,34 @@ export default function QuoteDetailPage() {
                     </div>
 
                     <div className="p-3 space-y-2">
-                      {/* Line items */}
+                      {/* Inherited Materialpakke items (Prefabelement only) */}
+                      {inheritedItems.length > 0 && (
+                        <div className="mb-2 rounded-lg bg-blue-50 border border-blue-100 p-2">
+                          <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wide mb-1.5">
+                            Materialer fra Materialpakke ({inheritedItems.length} linjer)
+                          </p>
+                          {inheritedItems.map((item, iIdx) => (
+                            <div key={iIdx} className="flex gap-2 items-center py-0.5 opacity-60">
+                              <span className="flex-1 truncate text-xs text-gray-600">{item.description || "–"}</span>
+                              <span className="w-14 text-center text-xs text-gray-500">{item.quantity}</span>
+                              <span className="w-28 text-right text-xs text-gray-500">
+                                {item.amount ? new Intl.NumberFormat("nb-NO", { style: "currency", currency: "NOK", maximumFractionDigits: 0 }).format(item.amount * item.quantity) : "–"}
+                              </span>
+                              <span className="w-4" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {section.category === "prefabelement" && inheritedItems.length === 0 && (
+                        <div className="mb-2 rounded-lg bg-gray-50 border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-400">
+                          Aktiver Materialpakke for å inkludere materialer automatisk.
+                        </div>
+                      )}
+
+                      {/* Editable line items */}
+                      {section.category === "prefabelement" && section.line_items.length > 0 && (
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Tillegg (montering, transport o.l.)</p>
+                      )}
                       {section.line_items.map((item, iIdx) => (
                         <div key={iIdx} className="flex gap-2 items-start">
                           <div className="flex-1 min-w-0">
@@ -764,7 +809,10 @@ export default function QuoteDetailPage() {
 
                       {/* Section subtotal */}
                       <div className="flex justify-between text-xs font-medium text-gray-600 border-t border-gray-100 pt-2">
-                        <span>Delsum {catLabel}</span>
+                        <span>
+                          {catLabel}
+                          {inheritedItems.length > 0 && <span className="ml-1 font-normal text-gray-400">(inkl. materialer)</span>}
+                        </span>
                         <span>{formatNOK(sectionTotal)}</span>
                       </div>
                     </div>
@@ -773,9 +821,14 @@ export default function QuoteDetailPage() {
               })}
 
               {/* Grand total */}
-              <div className="flex items-center justify-between rounded-lg bg-orange-50 px-4 py-3 mb-4">
-                <span className="text-sm font-medium text-gray-700">Totalt inkl. MVA</span>
-                <span className="text-lg font-bold text-gray-900">{formatNOK(offerTotal)}</span>
+              <div className="rounded-lg bg-orange-50 px-4 py-3 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Totalt inkl. MVA</span>
+                  <span className="text-lg font-bold text-gray-900">{formatNOK(offerTotal)}</span>
+                </div>
+                {hasPrefa && offerSections.some(s => s.category === "materialpakke") && (
+                  <p className="mt-1 text-xs text-orange-500">Materialpakke er inkludert i Prefabelement og telles ikke separat.</p>
+                )}
               </div>
 
               {/* Send result */}

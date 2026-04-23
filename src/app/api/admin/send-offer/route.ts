@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
-import type { OfferSection } from "@/types/quote-admin";
+import type { LineItem, OfferSection } from "@/types/quote-admin";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -23,8 +23,14 @@ function formatNOK(n: number) {
   return new Intl.NumberFormat("nb-NO", { style: "currency", currency: "NOK", maximumFractionDigits: 0 }).format(n);
 }
 
-function sectionTotal(section: OfferSection) {
-  return section.line_items.reduce((s, item) => s + item.amount * item.quantity, 0);
+function getEffectiveItems(section: OfferSection, allSections: OfferSection[]): LineItem[] {
+  if (section.category !== "prefabelement") return section.line_items;
+  const mat = allSections.find((s) => s.category === "materialpakke");
+  return [...(mat?.line_items ?? []), ...section.line_items];
+}
+
+function sectionTotal(section: OfferSection, allSections: OfferSection[]) {
+  return getEffectiveItems(section, allSections).reduce((s, item) => s + item.amount * item.quantity, 0);
 }
 
 export async function POST(request: Request) {
@@ -53,8 +59,15 @@ export async function POST(request: Request) {
     }
 
     const sb = createClient(sbUrl, sbKey);
-    const grandTotal = offerSections.reduce((t, s) => t + sectionTotal(s), 0);
-    const allLineItems = offerSections.flatMap(s => s.line_items);
+    const hasPrefa = offerSections.some((s) => s.category === "prefabelement");
+    const grandTotal = offerSections.reduce((t, s) => {
+      if (hasPrefa && s.category === "materialpakke") return t;
+      return t + sectionTotal(s, offerSections);
+    }, 0);
+    // Flatten for Klarna — use effective items but avoid duplicating materialpakke rows
+    const allLineItems: LineItem[] = hasPrefa
+      ? offerSections.flatMap(s => s.category === "materialpakke" ? [] : getEffectiveItems(s, offerSections))
+      : offerSections.flatMap(s => s.line_items);
 
     // ── Klarna Checkout ──
     const klarnaUser = process.env.KLARNA_API_USERNAME;
@@ -112,8 +125,9 @@ export async function POST(request: Request) {
     // ── Build email HTML ──
     const sectionsHtml = offerSections.map((section) => {
       const label = CATEGORY_LABELS[section.category] ?? section.category;
-      const subTotal = sectionTotal(section);
-      const rowsHtml = section.line_items.map((item) => `
+      const subTotal = sectionTotal(section, offerSections);
+      const effectiveItems = getEffectiveItems(section, offerSections);
+      const rowsHtml = effectiveItems.map((item) => `
         <tr>
           <td style="padding:7px 12px;border:1px solid #e5e7eb">${item.description}</td>
           <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:center">${item.quantity}</td>
