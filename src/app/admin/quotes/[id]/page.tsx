@@ -7,6 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import type { QuoteRow, LineItem, OfferSection, QuoteStatus } from "@/types/quote-admin";
 import Link from "next/link";
 import { adminName, ADMIN_NAMES } from "@/lib/admin-names";
+import { read, utils } from "xlsx";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -166,6 +167,31 @@ export default function QuoteDetailPage() {
 
   function updateSectionNotes(sIdx: number, notes: string) {
     setOfferSections((prev) => prev.map((s, i) => i === sIdx ? { ...s, notes } : s));
+  }
+
+  async function handleExcelUpload(sIdx: number, file: File) {
+    const data = await file.arrayBuffer();
+    const wb = read(data, { type: "array" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    // header:1 gives raw array-of-arrays; row 0 is the header
+    const rows = utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
+    const items: LineItem[] = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] as unknown[];
+      const varenr       = String(row[0] ?? "").trim();
+      const benevnelse   = String(row[1] ?? "").trim();
+      const dimensjon    = String(row[2] ?? "").trim();
+      const enhet        = String(row[3] ?? "").trim();
+      const mengde       = parseFloat(String(row[4] ?? "")) || 1;
+      if (!benevnelse) continue;
+      const parts = [varenr, benevnelse, dimensjon].filter(Boolean);
+      const description  = parts.join(" – ") + (enhet ? ` (${enhet})` : "");
+      items.push({ description, quantity: mengde, amount: 0 });
+    }
+    if (items.length === 0) return;
+    setOfferSections((prev) => prev.map((s, i) =>
+      i === sIdx ? { ...s, line_items: [...s.line_items.filter(l => l.description || l.amount), ...items] } : s
+    ));
   }
 
   async function handleDeleteQuote() {
@@ -707,10 +733,28 @@ export default function QuoteDetailPage() {
                         </div>
                       ))}
 
-                      <button onClick={() => addLineItemToSection(sIdx)}
-                        className="w-full rounded-lg border border-dashed border-gray-300 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
-                        + Legg til linje
-                      </button>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => addLineItemToSection(sIdx)}
+                          className="flex-1 rounded-lg border border-dashed border-gray-300 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
+                          + Legg til linje
+                        </button>
+                        <label className="flex cursor-pointer items-center gap-1 rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors whitespace-nowrap">
+                          <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          Last opp Excel
+                          <input
+                            type="file"
+                            accept=".xlsx,.xls,.ods,.csv"
+                            className="sr-only"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleExcelUpload(sIdx, file);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      </div>
 
                       {/* Section notes */}
                       <textarea rows={2} value={section.notes}
