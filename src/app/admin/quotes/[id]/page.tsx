@@ -50,7 +50,6 @@ export default function QuoteDetailPage() {
 
   // Offer builder state
   const [offerSections, setOfferSections] = useState<OfferSection[]>([]);
-  const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -141,7 +140,6 @@ export default function QuoteDetailPage() {
 
   function addSection(category: string) {
     setOfferSections((prev) => [...prev, { category, line_items: [{ description: "", amount: 0, quantity: 1 }], notes: "" }]);
-    setAddSectionOpen(false);
   }
 
   function removeSection(sIdx: number) {
@@ -636,9 +634,35 @@ export default function QuoteDetailPage() {
                 </div>
               </div>
 
-              {/* Sections */}
+              {/* Category toggles */}
+              <div className="mb-5 flex flex-wrap gap-2">
+                {OFFER_CATEGORIES.map((c) => {
+                  const isActive = offerSections.some((s) => s.category === c.id);
+                  const sIdx = offerSections.findIndex((s) => s.category === c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => isActive ? removeSection(sIdx) : addSection(c.id)}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all ${
+                        isActive
+                          ? "border-orange-500 bg-orange-500 text-white"
+                          : "border-gray-300 text-gray-600 hover:border-orange-400 hover:text-orange-600"
+                      }`}
+                    >
+                      {isActive && (
+                        <svg className="h-3 w-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {offerSections.length === 0 && (
-                <p className="mb-3 text-xs text-gray-400 italic">Ingen kategorier lagt til ennå.</p>
+                <p className="mb-4 text-xs text-gray-400 italic">Velg én eller flere kategorier over for å bygge tilbudet.</p>
               )}
 
               {offerSections.map((section, sIdx) => {
@@ -703,34 +727,6 @@ export default function QuoteDetailPage() {
                   </div>
                 );
               })}
-
-              {/* Add section */}
-              <div className="relative mb-4">
-                {addSectionOpen ? (
-                  <div className="rounded-lg border border-orange-300 bg-orange-50 p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Velg kategori</p>
-                    <div className="flex flex-wrap gap-2">
-                      {OFFER_CATEGORIES
-                        .filter(c => !offerSections.find(s => s.category === c.id))
-                        .map(c => (
-                          <button key={c.id} onClick={() => addSection(c.id)}
-                            className="rounded-full border border-orange-400 bg-white px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-100 transition-colors">
-                            + {c.label}
-                          </button>
-                        ))}
-                      {OFFER_CATEGORIES.every(c => offerSections.find(s => s.category === c.id)) && (
-                        <p className="text-xs text-gray-400">Alle kategorier er lagt til.</p>
-                      )}
-                    </div>
-                    <button onClick={() => setAddSectionOpen(false)} className="mt-2 text-xs text-gray-400 hover:text-gray-600">Avbryt</button>
-                  </div>
-                ) : (
-                  <button onClick={() => setAddSectionOpen(true)}
-                    className="w-full rounded-lg border-2 border-dashed border-gray-300 py-2 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
-                    + Legg til kategori
-                  </button>
-                )}
-              </div>
 
               {/* Grand total */}
               <div className="flex items-center justify-between rounded-lg bg-orange-50 px-4 py-3 mb-4">
