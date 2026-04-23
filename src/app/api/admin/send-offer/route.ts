@@ -1,25 +1,37 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
-import type { LineItem } from "@/types/quote-admin";
+import type { OfferSection } from "@/types/quote-admin";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  søknadshjelp: "Søknadshjelp",
+  materialpakke: "Materialpakke",
+  prefabelement: "Prefabelement",
+};
 
 function toOre(nok: number) {
   return Math.round(nok * 100);
 }
 
 function taxAmount(nok: number) {
-  // Norwegian 25% VAT: tax = total * 25/125 = total * 0.2
   return Math.round(toOre(nok) * 0.2);
+}
+
+function formatNOK(n: number) {
+  return new Intl.NumberFormat("nb-NO", { style: "currency", currency: "NOK", maximumFractionDigits: 0 }).format(n);
+}
+
+function sectionTotal(section: OfferSection) {
+  return section.line_items.reduce((s, item) => s + item.amount * item.quantity, 0);
 }
 
 export async function POST(request: Request) {
   try {
-    const { quoteId, lineItems, notes, adminEmail, customerEmail, customerName, ticketNumber } = await request.json() as {
+    const { quoteId, offerSections, adminEmail, customerEmail, customerName, ticketNumber } = await request.json() as {
       quoteId: string;
-      lineItems: LineItem[];
-      notes: string;
+      offerSections: OfferSection[];
       adminEmail: string;
       customerEmail: string;
       customerName: string;
@@ -30,8 +42,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Ikke tilgang" }, { status: 403 });
     }
 
-    if (!customerEmail || !ticketNumber) {
-      return NextResponse.json({ success: false, error: "Mangler kundeinformasjon" }, { status: 400 });
+    if (!customerEmail || !ticketNumber || !offerSections?.length) {
+      return NextResponse.json({ success: false, error: "Mangler kundeinformasjon eller tilbudslinjer" }, { status: 400 });
     }
 
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -41,8 +53,8 @@ export async function POST(request: Request) {
     }
 
     const sb = createClient(sbUrl, sbKey);
-
-    const offerTotal = lineItems.reduce((s, item) => s + item.amount * item.quantity, 0);
+    const grandTotal = offerSections.reduce((t, s) => t + sectionTotal(s), 0);
+    const allLineItems = offerSections.flatMap(s => s.line_items);
 
     // ── Klarna Checkout ──
     const klarnaUser = process.env.KLARNA_API_USERNAME;
@@ -55,7 +67,7 @@ export async function POST(request: Request) {
 
     if (klarnaUser && klarnaPass) {
       const auth = Buffer.from(`${klarnaUser}:${klarnaPass}`).toString("base64");
-      const orderLines = lineItems.map((item) => ({
+      const orderLines = allLineItems.map((item) => ({
         type: "physical",
         name: item.description,
         quantity: item.quantity,
@@ -64,15 +76,12 @@ export async function POST(request: Request) {
         total_amount: toOre(item.amount * item.quantity),
         total_tax_amount: taxAmount(item.amount * item.quantity),
       }));
-      const totalOre = toOre(offerTotal);
+      const totalOre = toOre(grandTotal);
       const totalTaxOre = orderLines.reduce((s, l) => s + l.total_tax_amount, 0);
 
       const klarnaRes = await fetch(`${klarnaBase}/checkout/v3/orders`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Basic ${auth}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
         body: JSON.stringify({
           purchase_country: "NO",
           purchase_currency: "NOK",
@@ -100,86 +109,92 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── Send email to customer ──
+    // ── Build email HTML ──
+    const sectionsHtml = offerSections.map((section) => {
+      const label = CATEGORY_LABELS[section.category] ?? section.category;
+      const subTotal = sectionTotal(section);
+      const rowsHtml = section.line_items.map((item) => `
+        <tr>
+          <td style="padding:7px 12px;border:1px solid #e5e7eb">${item.description}</td>
+          <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:center">${item.quantity}</td>
+          <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(item.amount * item.quantity)}</td>
+        </tr>`).join("");
+
+      return `
+        <h3 style="margin:28px 0 8px;color:#374151;font-size:15px">${label}</h3>
+        <table style="border-collapse:collapse;width:100%;font-size:14px">
+          <thead>
+            <tr style="background:#f3f4f6">
+              <th style="text-align:left;padding:7px 12px;border:1px solid #e5e7eb">Beskrivelse</th>
+              <th style="text-align:center;padding:7px 12px;border:1px solid #e5e7eb">Antall</th>
+              <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Beløp</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot>
+            <tr style="background:#f9fafb">
+              <td colspan="2" style="padding:7px 12px;border:1px solid #e5e7eb;font-weight:600">Delsum ${label}</td>
+              <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right;font-weight:700">${formatNOK(subTotal)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        ${section.notes ? `<p style="margin:8px 0 0;font-size:13px;color:#6b7280">${section.notes.replace(/\n/g, "<br>")}</p>` : ""}
+      `;
+    }).join("");
+
+    const paymentSection = paymentUrl
+      ? `<p style="margin-top:28px">
+          <a href="${paymentUrl}" style="display:inline-block;background:#e2520a;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px">
+            Betal med Klarna
+          </a>
+         </p>
+         <p style="color:#6b7280;font-size:13px;margin-top:8px">Lenken er gyldig i 14 dager.</p>`
+      : `<p style="margin-top:20px;color:#374151">Ta kontakt med oss for å gjennomføre betalingen: <a href="mailto:post@garasjeproffen.no">post@garasjeproffen.no</a></p>`;
+
+    const emailHtml = `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2 style="color:#e2520a">Tilbud fra GarasjeProffen</h2>
+        <p>Hei ${customerName},</p>
+        <p>Takk for din henvendelse. Her er tilbudet ditt (${ticketNumber}):</p>
+
+        ${sectionsHtml}
+
+        ${offerSections.length > 1 ? `
+        <div style="margin-top:20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:600;font-size:15px;color:#374151">Totalt inkl. MVA</span>
+          <span style="font-weight:700;font-size:18px;color:#ea580c">${formatNOK(grandTotal)}</span>
+        </div>` : ""}
+
+        ${paymentSection}
+
+        <hr style="margin:32px 0;border:none;border-top:1px solid #e5e7eb">
+        <p style="color:#6b7280;font-size:13px">GarasjeProffen AS · post@garasjeproffen.no · garasjeproffen.no</p>
+      </div>
+    `;
+
     const resendKey = process.env.RESEND_API_KEY;
     if (resendKey) {
       const resend = new Resend(resendKey);
-      const lineItemsHtml = lineItems
-        .map(
-          (item) => `
-          <tr>
-            <td style="padding:8px 12px;border:1px solid #e5e7eb">${item.description}</td>
-            <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:center">${item.quantity}</td>
-            <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:right">
-              ${new Intl.NumberFormat("nb-NO", { style: "currency", currency: "NOK", maximumFractionDigits: 0 }).format(item.amount * item.quantity)}
-            </td>
-          </tr>`
-        )
-        .join("");
-
-      const totalFormatted = new Intl.NumberFormat("nb-NO", {
-        style: "currency", currency: "NOK", maximumFractionDigits: 0,
-      }).format(offerTotal);
-
-      const paymentSection = paymentUrl
-        ? `<p style="margin-top:24px">
-            <a href="${paymentUrl}"
-              style="display:inline-block;background:#e2520a;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px">
-              Betal med Klarna
-            </a>
-           </p>
-           <p style="color:#6b7280;font-size:13px;margin-top:8px">Lenken er gyldig i 14 dager.</p>`
-        : `<p style="margin-top:16px;color:#374151">Ta kontakt med oss for å gjennomføre betalingen: <a href="mailto:post@garasjeproffen.no">post@garasjeproffen.no</a></p>`;
-
       await resend.emails.send({
         from: "GarasjeProffen <noreply@garasjeproffen.no>",
         to: customerEmail,
         subject: `Tilbud fra GarasjeProffen – ${ticketNumber}`,
-        html: `
-          <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-            <h2 style="color:#e2520a">Tilbud fra GarasjeProffen</h2>
-            <p>Hei ${customerName},</p>
-            <p>Takk for din henvendelse. Her er tilbudet ditt (${ticketNumber}):</p>
-
-            <table style="border-collapse:collapse;width:100%;margin-top:16px">
-              <thead>
-                <tr style="background:#f3f4f6">
-                  <th style="text-align:left;padding:8px 12px;border:1px solid #e5e7eb">Beskrivelse</th>
-                  <th style="text-align:center;padding:8px 12px;border:1px solid #e5e7eb">Antall</th>
-                  <th style="text-align:right;padding:8px 12px;border:1px solid #e5e7eb">Beløp</th>
-                </tr>
-              </thead>
-              <tbody>${lineItemsHtml}</tbody>
-              <tfoot>
-                <tr style="background:#f9fafb">
-                  <td colspan="2" style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:600">Totalt inkl. MVA</td>
-                  <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:right;font-weight:700;font-size:16px">${totalFormatted}</td>
-                </tr>
-              </tfoot>
-            </table>
-
-            ${notes ? `<div style="margin-top:20px;padding:16px;background:#f9fafb;border-radius:8px;border-left:4px solid #e2520a"><p style="margin:0;color:#374151">${notes.replace(/\n/g, "<br>")}</p></div>` : ""}
-
-            ${paymentSection}
-
-            <hr style="margin:32px 0;border:none;border-top:1px solid #e5e7eb">
-            <p style="color:#6b7280;font-size:13px">GarasjeProffen AS · post@garasjeproffen.no · garasjeproffen.no</p>
-          </div>
-        `,
+        html: emailHtml,
       });
     }
 
     // ── Update quote in DB ──
     await sb.from("quotes").update({
-      offer_line_items: lineItems,
-      offer_total: offerTotal,
-      offer_notes: notes || null,
+      offer_sections: offerSections,
+      offer_line_items: allLineItems,
+      offer_total: grandTotal,
+      offer_notes: offerSections.map(s => s.notes).filter(Boolean).join("\n\n") || null,
       klarna_order_id: klarnaOrderId,
       status: "offer_sent",
       offer_sent_at: new Date().toISOString(),
     }).eq("id", quoteId);
 
-    return NextResponse.json({ success: true, klarnaOrderId, paymentUrl, offerTotal });
+    return NextResponse.json({ success: true, klarnaOrderId, paymentUrl, offerTotal: grandTotal });
   } catch (err) {
     console.error("send-offer error:", err);
     return NextResponse.json({ success: false, error: "Noe gikk galt" }, { status: 500 });

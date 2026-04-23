@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
-import type { QuoteRow, LineItem, QuoteStatus } from "@/types/quote-admin";
+import type { QuoteRow, LineItem, OfferSection, QuoteStatus } from "@/types/quote-admin";
 import Link from "next/link";
 import { adminName, ADMIN_NAMES } from "@/lib/admin-names";
 
@@ -49,8 +49,8 @@ export default function QuoteDetailPage() {
   const [loading, setLoading] = useState(true);
 
   // Offer builder state
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
-  const [notes, setNotes] = useState("");
+  const [offerSections, setOfferSections] = useState<OfferSection[]>([]);
+  const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -93,8 +93,13 @@ export default function QuoteDetailPage() {
     if (data) {
       const q = data as QuoteRow;
       setQuote(q);
-      setLineItems(q.offer_line_items?.length ? q.offer_line_items : buildDefaultLineItems(q));
-      setNotes(q.offer_notes ?? "");
+      if (q.offer_sections?.length) {
+        setOfferSections(q.offer_sections);
+      } else {
+        const defaultItems = q.offer_line_items?.length ? q.offer_line_items : buildDefaultLineItems(q);
+        const cat = q.category ?? "materialpakke";
+        setOfferSections(defaultItems.length > 0 ? [{ category: cat, line_items: defaultItems, notes: q.offer_notes ?? "" }] : []);
+      }
       if (q.status === "new") setClaimOpen(true);
     }
     if (logData) setStatusLog(logData);
@@ -108,12 +113,12 @@ export default function QuoteDetailPage() {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     setAutoSaveStatus("saving");
     autoSaveTimer.current = setTimeout(async () => {
-      await sb.from("quotes").update({ offer_line_items: lineItems }).eq("id", quote.id);
+      await sb.from("quotes").update({ offer_sections: offerSections }).eq("id", quote.id);
       setAutoSaveStatus("saved");
       setTimeout(() => setAutoSaveStatus("idle"), 2000);
     }, 800);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineItems]);
+  }, [offerSections]);
 
   function buildDefaultLineItems(q: QuoteRow): LineItem[] {
     const pricing = q.pricing as { totalPrice?: number; basePrice?: number } | null;
@@ -128,16 +133,41 @@ export default function QuoteDetailPage() {
     return items;
   }
 
-  function addLineItem() {
-    setLineItems((prev) => [...prev, { description: "", amount: 0, quantity: 1 }]);
+  const OFFER_CATEGORIES = [
+    { id: "søknadshjelp", label: "Søknadshjelp" },
+    { id: "materialpakke", label: "Materialpakke" },
+    { id: "prefabelement", label: "Prefabelement" },
+  ];
+
+  function addSection(category: string) {
+    setOfferSections((prev) => [...prev, { category, line_items: [{ description: "", amount: 0, quantity: 1 }], notes: "" }]);
+    setAddSectionOpen(false);
   }
 
-  function updateLineItem(index: number, field: keyof LineItem, value: string | number) {
-    setLineItems((prev) => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+  function removeSection(sIdx: number) {
+    setOfferSections((prev) => prev.filter((_, i) => i !== sIdx));
   }
 
-  function removeLineItem(index: number) {
-    setLineItems((prev) => prev.filter((_, i) => i !== index));
+  function addLineItemToSection(sIdx: number) {
+    setOfferSections((prev) => prev.map((s, i) => i === sIdx
+      ? { ...s, line_items: [...s.line_items, { description: "", amount: 0, quantity: 1 }] }
+      : s));
+  }
+
+  function updateLineItemInSection(sIdx: number, iIdx: number, field: keyof LineItem, value: string | number) {
+    setOfferSections((prev) => prev.map((s, i) => i === sIdx
+      ? { ...s, line_items: s.line_items.map((item, j) => j === iIdx ? { ...item, [field]: value } : item) }
+      : s));
+  }
+
+  function removeLineItemFromSection(sIdx: number, iIdx: number) {
+    setOfferSections((prev) => prev.map((s, i) => i === sIdx
+      ? { ...s, line_items: s.line_items.filter((_, j) => j !== iIdx) }
+      : s));
+  }
+
+  function updateSectionNotes(sIdx: number, notes: string) {
+    setOfferSections((prev) => prev.map((s, i) => i === sIdx ? { ...s, notes } : s));
   }
 
   async function handleDeleteQuote() {
@@ -284,7 +314,7 @@ export default function QuoteDetailPage() {
         requesterName,
         ticketNumber: quote.ticket_number,
         customerName: quote.customer_name,
-        offerTotal: lineItems.reduce((s, i) => s + i.amount * i.quantity, 0),
+        offerTotal,
         quoteId: quote.id,
       }),
     });
@@ -306,7 +336,7 @@ export default function QuoteDetailPage() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token ?? ""}`,
         },
-        body: JSON.stringify({ quoteId: quote.id, lineItems, notes, adminEmail: user.email, customerEmail: quote.customer_email, customerName: quote.customer_name, ticketNumber: quote.ticket_number }),
+        body: JSON.stringify({ quoteId: quote.id, offerSections, adminEmail: user.email, customerEmail: quote.customer_email, customerName: quote.customer_name, ticketNumber: quote.ticket_number }),
       });
       const data = await res.json();
       if (data.success) {
@@ -326,7 +356,8 @@ export default function QuoteDetailPage() {
     }
   }
 
-  const offerTotal = lineItems.reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0);
+  const offerTotal = offerSections.reduce((total, sec) =>
+    total + sec.line_items.reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0), 0);
 
   if (authLoading || loading) return <div className="flex min-h-screen items-center justify-center text-gray-400">Laster...</div>;
   if (!supabase || !user || !ALLOWED_ADMINS.includes(user.email?.toLowerCase() ?? "")) {
@@ -599,70 +630,112 @@ export default function QuoteDetailPage() {
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Tilbudsbygger</h2>
-                {autoSaveStatus === "saving" && <span className="text-xs text-gray-400">Lagrer…</span>}
-                {autoSaveStatus === "saved" && <span className="text-xs text-green-500">Lagret ✓</span>}
+                <div className="flex items-center gap-3">
+                  {autoSaveStatus === "saving" && <span className="text-xs text-gray-400">Lagrer…</span>}
+                  {autoSaveStatus === "saved" && <span className="text-xs text-green-500">Lagret ✓</span>}
+                </div>
               </div>
 
-              {/* Line items */}
-              <div className="space-y-2 mb-3">
-                {lineItems.map((item, i) => (
-                  <div key={i} className="flex gap-2 items-start">
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="text"
-                        placeholder="Beskrivelse"
-                        value={item.description}
-                        onChange={(e) => updateLineItem(i, "description", e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                      />
+              {/* Sections */}
+              {offerSections.length === 0 && (
+                <p className="mb-3 text-xs text-gray-400 italic">Ingen kategorier lagt til ennå.</p>
+              )}
+
+              {offerSections.map((section, sIdx) => {
+                const sectionTotal = section.line_items.reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0);
+                const catLabel = OFFER_CATEGORIES.find(c => c.id === section.category)?.label ?? section.category;
+                return (
+                  <div key={sIdx} className="mb-4 rounded-lg border border-gray-200 overflow-hidden">
+                    {/* Section header */}
+                    <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
+                      <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{catLabel}</span>
+                      <button onClick={() => removeSection(sIdx)}
+                        className="text-gray-400 hover:text-red-500 transition-colors text-xs">
+                        Fjern
+                      </button>
                     </div>
-                    <div className="w-14 shrink-0">
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="Ant."
-                        value={item.quantity}
-                        onChange={(e) => updateLineItem(i, "quantity", parseInt(e.target.value) || 1)}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
-                      />
+
+                    <div className="p-3 space-y-2">
+                      {/* Line items */}
+                      {section.line_items.map((item, iIdx) => (
+                        <div key={iIdx} className="flex gap-2 items-start">
+                          <div className="flex-1 min-w-0">
+                            <input type="text" placeholder="Beskrivelse" value={item.description}
+                              onChange={(e) => updateLineItemInSection(sIdx, iIdx, "description", e.target.value)}
+                              className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                          </div>
+                          <div className="w-14 shrink-0">
+                            <input type="number" min={1} placeholder="Ant." value={item.quantity}
+                              onChange={(e) => updateLineItemInSection(sIdx, iIdx, "quantity", parseInt(e.target.value) || 1)}
+                              className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                          </div>
+                          <div className="w-28 shrink-0">
+                            <input type="number" min={0} placeholder="kr" value={item.amount || ""}
+                              onChange={(e) => updateLineItemInSection(sIdx, iIdx, "amount", parseFloat(e.target.value) || 0)}
+                              className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                          </div>
+                          <button onClick={() => removeLineItemFromSection(sIdx, iIdx)}
+                            className="shrink-0 mt-1 text-gray-400 hover:text-red-500">
+                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+
+                      <button onClick={() => addLineItemToSection(sIdx)}
+                        className="w-full rounded-lg border border-dashed border-gray-300 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
+                        + Legg til linje
+                      </button>
+
+                      {/* Section notes */}
+                      <textarea rows={2} value={section.notes}
+                        onChange={(e) => updateSectionNotes(sIdx, e.target.value)}
+                        placeholder="Notat for denne kategorien (valgfritt)…"
+                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+
+                      {/* Section subtotal */}
+                      <div className="flex justify-between text-xs font-medium text-gray-600 border-t border-gray-100 pt-2">
+                        <span>Delsum {catLabel}</span>
+                        <span>{formatNOK(sectionTotal)}</span>
+                      </div>
                     </div>
-                    <div className="w-28 shrink-0">
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="kr"
-                        value={item.amount || ""}
-                        onChange={(e) => updateLineItem(i, "amount", parseFloat(e.target.value) || 0)}
-                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-orange-400"
-                      />
-                    </div>
-                    <button onClick={() => removeLineItem(i)}
-                      className="shrink-0 mt-1 text-gray-400 hover:text-red-500">
-                      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </button>
                   </div>
-                ))}
+                );
+              })}
+
+              {/* Add section */}
+              <div className="relative mb-4">
+                {addSectionOpen ? (
+                  <div className="rounded-lg border border-orange-300 bg-orange-50 p-3">
+                    <p className="text-xs font-medium text-gray-700 mb-2">Velg kategori</p>
+                    <div className="flex flex-wrap gap-2">
+                      {OFFER_CATEGORIES
+                        .filter(c => !offerSections.find(s => s.category === c.id))
+                        .map(c => (
+                          <button key={c.id} onClick={() => addSection(c.id)}
+                            className="rounded-full border border-orange-400 bg-white px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-100 transition-colors">
+                            + {c.label}
+                          </button>
+                        ))}
+                      {OFFER_CATEGORIES.every(c => offerSections.find(s => s.category === c.id)) && (
+                        <p className="text-xs text-gray-400">Alle kategorier er lagt til.</p>
+                      )}
+                    </div>
+                    <button onClick={() => setAddSectionOpen(false)} className="mt-2 text-xs text-gray-400 hover:text-gray-600">Avbryt</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setAddSectionOpen(true)}
+                    className="w-full rounded-lg border-2 border-dashed border-gray-300 py-2 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
+                    + Legg til kategori
+                  </button>
+                )}
               </div>
 
-              <button onClick={addLineItem}
-                className="mb-4 w-full rounded-lg border-2 border-dashed border-gray-300 py-2 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
-                + Legg til linje
-              </button>
-
-              {/* Total */}
+              {/* Grand total */}
               <div className="flex items-center justify-between rounded-lg bg-orange-50 px-4 py-3 mb-4">
                 <span className="text-sm font-medium text-gray-700">Totalt inkl. MVA</span>
                 <span className="text-lg font-bold text-gray-900">{formatNOK(offerTotal)}</span>
-              </div>
-
-              {/* Notes */}
-              <div className="mb-4">
-                <label className="mb-1 block text-xs font-medium text-gray-600">Notat til kunde (valgfritt)</label>
-                <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Spesielle vilkår, leveringstid, forbehold..."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
               </div>
 
               {/* Send result */}
@@ -686,11 +759,8 @@ export default function QuoteDetailPage() {
                     Sendt til <span className="font-semibold">{quote.approval_requested_from}</span> for godkjenning.
                   </p>
                   {adminName(user?.email) === quote.approval_requested_from && (
-                    <button
-                      onClick={() => setConfirmOpen(true)}
-                      disabled={sending}
-                      className="mt-3 w-full rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
-                    >
+                    <button onClick={() => setConfirmOpen(true)} disabled={sending}
+                      className="mt-3 w-full rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50">
                       {sending ? "Sender…" : "Godkjenn og send tilbud til kunde"}
                     </button>
                   )}
@@ -701,7 +771,7 @@ export default function QuoteDetailPage() {
               {quote.status !== "pending_approval" && (
                 <button
                   onClick={() => quote.status === "offer_sent" ? setConfirmOpen(true) : setApprovalOpen(true)}
-                  disabled={sending || lineItems.length === 0 || offerTotal === 0 || quote.status === "paid" || quote.status === "cancelled"}
+                  disabled={sending || offerSections.length === 0 || offerTotal === 0 || quote.status === "paid" || quote.status === "cancelled"}
                   className="w-full rounded-lg bg-orange-500 py-3 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {quote.status === "offer_sent" ? "Send tilbud på nytt" : "Send til godkjenning"}
@@ -858,8 +928,8 @@ export default function QuoteDetailPage() {
                 <span className="font-bold text-gray-900">{formatNOK(offerTotal)}</span>
               </div>
               <div className="flex justify-between mt-1">
-                <span className="text-gray-500">Antall linjer</span>
-                <span className="text-gray-700">{lineItems.length}</span>
+                <span className="text-gray-500">Kategorier</span>
+                <span className="text-gray-700">{offerSections.length}</span>
               </div>
             </div>
             <p className="mt-3 text-xs text-gray-400">Er du sikker på at tilbudet er klart til å sendes?</p>

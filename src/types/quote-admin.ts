@@ -4,6 +4,12 @@ export interface LineItem {
   quantity: number;
 }
 
+export interface OfferSection {
+  category: string;
+  line_items: LineItem[];
+  notes: string;
+}
+
 export type QuoteStatus = 'new' | 'in_review' | 'pending_approval' | 'offer_sent' | 'paid' | 'cancelled';
 
 export interface QuoteRow {
@@ -26,6 +32,7 @@ export interface QuoteRow {
   assigned_to: string | null;
   approval_requested_from: string | null;
   approval_requested_at: string | null;
+  offer_sections: OfferSection[] | null;
   offer_line_items: LineItem[];
   offer_total: number | null;
   offer_notes: string | null;
