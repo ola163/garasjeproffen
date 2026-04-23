@@ -44,7 +44,6 @@ export default function Header() {
   const navLinks = [
     { href: "/referanseprosjekter", label: "Referanseprosjekter" },
     { href: "/om-oss", label: "Om oss" },
-    { href: "/min-side", label: "Min side" },
   ];
 
   const ctaLinks = [
@@ -81,6 +80,21 @@ export default function Header() {
               {link.label}
             </Link>
           ))}
+
+          {/* Min side – desktop */}
+          <Link
+            href="/min-side"
+            className={`hidden sm:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+              pathname === "/min-side"
+                ? "border-gray-900 bg-gray-900 text-white"
+                : "border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50"
+            }`}
+          >
+            <svg className="h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+            </svg>
+            Min side
+          </Link>
 
           {gdDismissed && (
             <button
@@ -147,7 +161,7 @@ export default function Header() {
       {mobileOpen && (
         <div className="border-t border-gray-100 bg-white px-4 pb-4 sm:hidden">
           <ul className="space-y-1 pt-2">
-            {[...navLinks, ...ctaLinks].map((link) => (
+            {[...navLinks, { href: "/min-side", label: "Min side" }, ...ctaLinks].map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
