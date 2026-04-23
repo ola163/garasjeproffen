@@ -40,7 +40,11 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
     const prefix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const urls: string[] = [];
     for (const file of files) {
-      const path = `${prefix}/${file.name}`;
+      const safeName = file.name
+        .normalize("NFD").replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-zA-Z0-9._-]/g, "-")
+        .replace(/-+/g, "-");
+      const path = `${prefix}/${safeName}`;
       const { error } = await supabase.storage.from("quote-attachments").upload(path, file, { upsert: true });
       if (!error) {
         const { data } = supabase.storage.from("quote-attachments").getPublicUrl(path);

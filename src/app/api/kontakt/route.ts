@@ -31,7 +31,11 @@ export async function POST(request: Request) {
         if (!validation.valid) {
           return NextResponse.json({ success: false, error: validation.reason }, { status: 400 });
         }
-        const path = `kontakt/${Date.now()}-${file.name}`;
+        const safeName = file.name
+          .normalize("NFD").replace(/[̀-ͯ]/g, "")
+          .replace(/[^a-zA-Z0-9._-]/g, "-")
+          .replace(/-+/g, "-");
+        const path = `kontakt/${Date.now()}-${safeName}`;
         const { error } = await sb.storage.from("quote-attachments").upload(path, buffer, { contentType: file.type, upsert: true });
         if (!error) {
           const { data } = sb.storage.from("quote-attachments").getPublicUrl(path);
