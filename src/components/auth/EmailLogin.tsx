@@ -62,11 +62,11 @@ export default function EmailLogin() {
     setOtp("");
   }
 
-  async function createSession(userEmail: string) {
+  async function createSession(idToken: string) {
     const res = await fetch("/api/auth/email-login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail }),
+      body: JSON.stringify({ idToken }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -84,7 +84,8 @@ export default function EmailLogin() {
       if (!supabase) { setError("Tjenesten er ikke tilgjengelig."); return; }
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      await createSession(data.user.email ?? email);
+      if (!data.session?.access_token) throw new Error("Ingen sesjon returnert.");
+      await createSession(data.session.access_token);
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "";
       if (msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("credentials")) {
@@ -152,7 +153,8 @@ export default function EmailLogin() {
       if (!supabase) throw new Error("no-supabase");
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
-      await createSession(data.user?.email ?? email);
+      if (!data.session?.access_token) throw new Error("Sjekk e-posten din for å bekrefte kontoen.");
+      await createSession(data.session.access_token);
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "";
       if (msg.toLowerCase().includes("already registered")) {
