@@ -65,11 +65,13 @@ export default function Kontakt() {
                 <p className="font-semibold text-gray-900">Christian S. Årsland</p>
                 <p className="mt-0.5 text-sm text-orange-600">Daglig leder</p>
                 <div className="mt-4 space-y-3">
-                  <a href="mailto:christian@garasjeproffen.no" className="flex items-start gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
-                    <span className="text-base shrink-0">✉</span><span className="break-all">christian@garasjeproffen.no</span>
+                  <a href="mailto:christian@garasjeproffen.no" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
+                    <svg className="h-4 w-4 shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>
+                    <span className="break-all">christian@garasjeproffen.no</span>
                   </a>
                   <a href="tel:+4747617563" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
-                    <span className="text-base">📱</span>+47 476 17 563
+                    <svg className="h-4 w-4 shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+                    +47 476 17 563
                   </a>
                 </div>
               </div>
@@ -85,10 +87,12 @@ export default function Kontakt() {
                 <p className="mt-0.5 text-sm text-orange-600">Teknisk sjef</p>
                 <div className="mt-4 space-y-3">
                   <a href="mailto:ola@garasjeproffen.no" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
-                    <span className="text-base">✉</span>ola@garasjeproffen.no
+                    <svg className="h-4 w-4 shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>
+                    ola@garasjeproffen.no
                   </a>
                   <a href="tel:+4791344486" className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-orange-200 hover:bg-orange-50">
-                    <span className="text-base">📱</span>+47 913 44 486
+                    <svg className="h-4 w-4 shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+                    +47 913 44 486
                   </a>
                 </div>
               </div>
@@ -111,10 +115,12 @@ export default function Kontakt() {
                     }}
                     className="flex w-full items-center gap-3 rounded-lg bg-white/20 hover:bg-white/30 px-4 py-3 text-sm text-white transition-colors"
                   >
-                    <span className="text-base">💬</span>Start ein samtale
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                    Start ein samtale
                   </button>
                   <div className="flex items-center gap-3 rounded-lg bg-white/10 px-4 py-3 text-sm text-orange-100">
-                    <span className="text-base">🕐</span>Svarer på sekundet
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Svarer på sekundet
                   </div>
                 </div>
               </div>
@@ -147,31 +153,31 @@ export default function Kontakt() {
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">Navn *</label>
               <input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)}
                 placeholder="Ola Nordmann"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">E-post *</label>
               <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="ola@eksempel.no"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Telefon</label>
               <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
                 placeholder="000 00 000"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label htmlFor="address" className="block text-sm font-medium text-gray-700">Adresse *</label>
               <input id="address" type="text" required value={address} onChange={(e) => setAddress(e.target.value)}
                 placeholder="Gateveien 1, 4342 Bryne"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label htmlFor="message" className="block text-sm font-medium text-gray-700">Melding</label>
               <textarea id="message" rows={4} value={message} onChange={(e) => setMessage(e.target.value)}
                 placeholder="Beskriv hva du ønsker hjelp med, f.eks. type bygg, størrelse, og eventuelle spørsmål..."
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Vedlegg (valgfritt)</label>

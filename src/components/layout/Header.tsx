@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const STORAGE_KEY = "gd-dismissed";
 
@@ -11,6 +11,8 @@ export default function Header() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [gdDismissed, setGdDismissed] = useState(false);
+  const [ctaOpen, setCtaOpen] = useState(false);
+  const ctaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setGdDismissed(localStorage.getItem(STORAGE_KEY) === "1");
@@ -18,6 +20,15 @@ export default function Header() {
     window.addEventListener("gd-visibility", onVisibility);
     return () => window.removeEventListener("gd-visibility", onVisibility);
   }, []);
+
+  useEffect(() => {
+    if (!ctaOpen) return;
+    function close(e: MouseEvent) {
+      if (ctaRef.current && !ctaRef.current.contains(e.target as Node)) setCtaOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [ctaOpen]);
 
   function enableGd() {
     localStorage.removeItem(STORAGE_KEY);
@@ -31,12 +42,16 @@ export default function Header() {
       : "/soknadshjelp";
 
   const navLinks = [
-    { href: "/om-oss", label: "Om oss" },
-    { href: "/kontakt", label: "Kontakt" },
+    { href: "/garasje", label: "Garasje" },
+    { href: "/carport", label: "Carport" },
     { href: "/referanseprosjekter", label: "Referanseprosjekter" },
-    { href: soknadshjelLink, label: "Søknadshjelp" },
-    { href: "/configurator", label: "Design din garasje" },
+    { href: "/om-oss", label: "Om oss" },
     { href: "/min-side", label: "Min side" },
+  ];
+
+  const ctaLinks = [
+    { href: "/configurator", label: "Design din garasje" },
+    { href: soknadshjelLink, label: "Søknadshjelp" },
   ];
 
   return (
@@ -59,7 +74,11 @@ export default function Header() {
             <Link
               key={link.href}
               href={link.href}
-              className="hidden text-sm font-medium text-gray-600 hover:text-gray-900 sm:block"
+              className={`hidden text-sm font-medium transition-colors sm:block ${
+                pathname === link.href || pathname.startsWith(link.href + "/")
+                  ? "text-gray-900"
+                  : "text-gray-500 hover:text-gray-900"
+              }`}
             >
               {link.label}
             </Link>
@@ -69,7 +88,7 @@ export default function Header() {
             <button
               onClick={enableGd}
               title="Vis GarasjeDrøsaren igjen"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 hover:bg-orange-200 transition-colors"
+              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 hover:bg-orange-200 transition-colors"
             >
               <svg className="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -77,14 +96,37 @@ export default function Header() {
             </button>
           )}
 
-          <Link
-            href="/configurator"
-            className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 sm:px-4 sm:py-2 sm:text-sm"
-          >
-            Kom i gang
-          </Link>
+          {/* Kom i gang dropdown – desktop */}
+          <div ref={ctaRef} className="relative hidden sm:block">
+            <button
+              onClick={() => setCtaOpen((o) => !o)}
+              className="flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 transition-colors"
+            >
+              Kom i gang
+              <svg
+                className={`h-4 w-4 transition-transform ${ctaOpen ? "rotate-180" : ""}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {ctaOpen && (
+              <div className="absolute right-0 top-full mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+                {ctaLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setCtaOpen(false)}
+                    className="block px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
-          {/* Hamburger button – mobile only */}
+          {/* Hamburger – mobile only */}
           <button
             onClick={() => setMobileOpen((v) => !v)}
             className="flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 sm:hidden"
@@ -107,7 +149,7 @@ export default function Header() {
       {mobileOpen && (
         <div className="border-t border-gray-100 bg-white px-4 pb-4 sm:hidden">
           <ul className="space-y-1 pt-2">
-            {navLinks.map((link) => (
+            {[...navLinks, ...ctaLinks].map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}

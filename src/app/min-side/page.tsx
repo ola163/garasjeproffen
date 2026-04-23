@@ -48,7 +48,7 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Min side</h1>
           <p className="mt-3 text-sm text-gray-500">
-            Logg inn med BankID for å se dine tilbudsforespørsler og administrere din profil.
+            Logg inn for å se dine tilbudsforespørsler og administrere din profil.
           </p>
 
           <div className="mt-6 text-left">
@@ -137,11 +137,11 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
         {!session.email ? (
           <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
             <p className="text-sm text-gray-500">
-              Vi kunne ikke hente e-postadressen din fra BankID. Kontakt oss på{" "}
+              Vi finner ingen forespørsler knyttet til denne kontoen. Kontakt oss på{" "}
               <a href="mailto:post@garasjeproffen.no" className="text-orange-500 hover:underline">
                 post@garasjeproffen.no
               </a>{" "}
-              for å koble forespørslene til din konto.
+              hvis du tror noe mangler.
             </p>
           </div>
         ) : quotes.length === 0 ? (
@@ -192,7 +192,7 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
       {/* Profile section */}
       <div className="mt-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">Din profil</h2>
-        <p className="mt-1 text-sm text-gray-400">Innlogget via SMS-verifisering.</p>
+        <p className="mt-1 text-sm text-gray-400">Innlogget med e-post og passord.</p>
         <dl className="mt-4 space-y-3 text-sm">
           <div className="flex gap-4">
             <dt className="w-24 shrink-0 font-medium text-gray-500">Navn</dt>
