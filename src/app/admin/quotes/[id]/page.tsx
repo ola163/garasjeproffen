@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import type { QuoteRow, LineItem, QuoteStatus } from "@/types/quote-admin";
@@ -42,6 +42,7 @@ function formatDate(iso: string) {
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [quote, setQuote] = useState<QuoteRow | null>(null);
@@ -63,6 +64,8 @@ export default function QuoteDetailPage() {
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitialLoad = useRef(true);
   const [statusLog, setStatusLog] = useState<{ id: string; from_status: string; to_status: string; changed_by: string; changed_at: string; note: string | null }[]>([]);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -132,6 +135,27 @@ export default function QuoteDetailPage() {
 
   function removeLineItem(index: number) {
     setLineItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleDeleteQuote() {
+    if (!supabase || !user) return;
+    setDeleting(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch("/api/admin/delete-quote", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session?.access_token ?? ""}`,
+      },
+      body: JSON.stringify({ quoteId: id }),
+    });
+    setDeleting(false);
+    if (res.ok) {
+      router.push("/admin/quotes");
+    } else {
+      const data = await res.json();
+      alert(data.error ?? "Sletting feilet.");
+    }
   }
 
   async function handleStatusChange(newStatus: QuoteStatus) {
@@ -308,6 +332,15 @@ export default function QuoteDetailPage() {
                 <p className="mt-1 text-xs text-gray-400 italic">Ingen behandler tildelt</p>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDeleteOpen(true)}
+              className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
+            >
+              Slett
+            </button>
           </div>
 
           {/* Status selector */}
@@ -568,6 +601,38 @@ export default function QuoteDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteOpen && quote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Slett forespørsel?</h2>
+            <p className="mt-2 text-sm text-gray-500">
+              Dette kan ikke angres. Forespørselen og all tilhørende historikk slettes permanent.
+            </p>
+            <div className="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Ticket</span>
+                <span className="font-mono font-semibold text-gray-900">{quote.ticket_number}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Kunde</span>
+                <span className="font-medium text-gray-900">{quote.customer_name}</span>
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setDeleteOpen(false)}
+                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Avbryt
+              </button>
+              <button onClick={handleDeleteQuote} disabled={deleting}
+                className="flex-1 rounded-lg bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50">
+                {deleting ? "Sletter…" : "Ja, slett"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Approval request modal */}
       {approvalOpen && quote && (

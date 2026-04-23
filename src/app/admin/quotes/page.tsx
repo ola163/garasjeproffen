@@ -183,7 +183,6 @@ export default function AdminQuotesPage() {
               className="rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-600">
               + Ny
             </button>
-            <Link href="/admin/leads" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Leads</Link>
             <Link href="/referanseprosjekter/admin" className="hidden sm:block rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Referanser</Link>
             <button onClick={() => supabase?.auth.signOut()} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Logg ut</button>
           </div>
