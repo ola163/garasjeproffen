@@ -27,7 +27,7 @@ const PLACEMENT_LABELS: Record<string, string> = {
 
 export async function POST(request: Request) {
   try {
-    const body: QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[]; customer: { name: string; email: string; phone?: string; message?: string; phoneVerified?: boolean } } = await request.json();
+    const body: QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[]; category?: string; buildingType?: string; customer: { name: string; email: string; phone?: string; message?: string; phoneVerified?: boolean } } = await request.json();
 
     // Validate customer info
     if (!body.customer?.name || !body.customer?.email) {
@@ -76,6 +76,8 @@ export async function POST(request: Request) {
         customer_email: body.customer.email,
         customer_phone: body.customer.phone ?? null,
         customer_message: body.customer.message ?? null,
+        category: body.category ?? null,
+        building_type: body.buildingType ?? null,
         package_type: body.packageType ?? null,
         roof_type: body.roofType ?? null,
         configuration: body.configuration ?? null,

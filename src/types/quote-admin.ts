@@ -13,6 +13,8 @@ export interface QuoteRow {
   customer_email: string;
   customer_phone: string | null;
   customer_message: string | null;
+  category: string | null;
+  building_type: string | null;
   package_type: string | null;
   roof_type: string | null;
   configuration: Record<string, unknown> | null;

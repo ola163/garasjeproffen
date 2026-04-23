@@ -58,7 +58,7 @@ export default function AdminQuotesPage() {
 
   // New manual quote
   const [newOpen, setNewOpen] = useState(false);
-  const [newForm, setNewForm] = useState({ name: "", email: "", phone: "", message: "" });
+  const [newForm, setNewForm] = useState({ name: "", email: "", phone: "", message: "", category: "materialpakke", buildingType: "garasje" });
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -99,13 +99,15 @@ export default function AdminQuotesPage() {
       customer_email: newForm.email,
       customer_phone: newForm.phone || null,
       customer_message: newForm.message || null,
+      category: newForm.category || null,
+      building_type: newForm.buildingType || null,
       status: "new",
       created_manually: true,
     }).select("id").single();
     setCreating(false);
     if (!error && inserted) {
       setNewOpen(false);
-      setNewForm({ name: "", email: "", phone: "", message: "" });
+      setNewForm({ name: "", email: "", phone: "", message: "", category: "materialpakke", buildingType: "garasje" });
       router.push(`/admin/quotes/${inserted.id}`);
     }
   }
@@ -299,6 +301,27 @@ export default function AdminQuotesPage() {
                   value={newForm.phone} onChange={(e) => setNewForm((f) => ({ ...f, phone: e.target.value }))}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Type bygg</label>
+                  <select value={newForm.buildingType} onChange={(e) => setNewForm((f) => ({ ...f, buildingType: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                    <option value="garasje">Garasje</option>
+                    <option value="carport">Carport</option>
+                    <option value="uthus">Uthus</option>
+                    <option value="næringsbygg">Næringsbygg</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Kategori</label>
+                  <select value={newForm.category} onChange={(e) => setNewForm((f) => ({ ...f, category: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                    <option value="søknadshjelp">Søknadshjelp</option>
+                    <option value="materialpakke">Materialpakke</option>
+                    <option value="prefabelement">Prefabelement</option>
+                  </select>
+                </div>
+              </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">Melding / notat</label>
                 <textarea rows={3} placeholder="Hva ønsker kunden?"
@@ -306,7 +329,7 @@ export default function AdminQuotesPage() {
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
               </div>
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => { setNewOpen(false); setNewForm({ name: "", email: "", phone: "", message: "" }); }}
+                <button type="button" onClick={() => { setNewOpen(false); setNewForm({ name: "", email: "", phone: "", message: "", category: "materialpakke", buildingType: "garasje" }); }}
                   className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
                   Avbryt
                 </button>

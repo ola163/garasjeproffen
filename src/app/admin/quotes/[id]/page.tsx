@@ -66,6 +66,9 @@ export default function QuoteDetailPage() {
   const [statusLog, setStatusLog] = useState<{ id: string; from_status: string; to_status: string; changed_by: string; changed_at: string; note: string | null }[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(false);
+  const [customerEdit, setCustomerEdit] = useState({ name: "", email: "", phone: "", message: "", category: "", building_type: "" });
+  const [savingCustomer, setSavingCustomer] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -156,6 +159,43 @@ export default function QuoteDetailPage() {
       const data = await res.json();
       alert(data.error ?? "Sletting feilet.");
     }
+  }
+
+  function openEditCustomer() {
+    if (!quote) return;
+    setCustomerEdit({
+      name: quote.customer_name,
+      email: quote.customer_email,
+      phone: quote.customer_phone ?? "",
+      message: quote.customer_message ?? "",
+      category: quote.category ?? "",
+      building_type: quote.building_type ?? "",
+    });
+    setEditingCustomer(true);
+  }
+
+  async function handleSaveCustomer() {
+    if (!supabase || !quote) return;
+    setSavingCustomer(true);
+    await supabase.from("quotes").update({
+      customer_name: customerEdit.name,
+      customer_email: customerEdit.email,
+      customer_phone: customerEdit.phone || null,
+      customer_message: customerEdit.message || null,
+      category: customerEdit.category || null,
+      building_type: customerEdit.building_type || null,
+    }).eq("id", quote.id);
+    setQuote((prev) => prev ? {
+      ...prev,
+      customer_name: customerEdit.name,
+      customer_email: customerEdit.email,
+      customer_phone: customerEdit.phone || null,
+      customer_message: customerEdit.message || null,
+      category: customerEdit.category || null,
+      building_type: customerEdit.building_type || null,
+    } : null);
+    setSavingCustomer(false);
+    setEditingCustomer(false);
   }
 
   async function handleStatusChange(newStatus: QuoteStatus) {
@@ -364,17 +404,92 @@ export default function QuoteDetailPage() {
           <div className="space-y-5">
             {/* Customer */}
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">Kunde</h2>
-              <dl className="space-y-2 text-sm">
-                <div className="flex gap-2"><dt className="w-20 shrink-0 text-gray-500">Navn</dt><dd className="font-medium text-gray-900">{quote.customer_name}</dd></div>
-                <div className="flex gap-2"><dt className="w-20 shrink-0 text-gray-500">E-post</dt><dd><a href={`mailto:${quote.customer_email}`} className="text-orange-500 hover:underline">{quote.customer_email}</a></dd></div>
-                {quote.customer_phone && <div className="flex gap-2"><dt className="w-20 shrink-0 text-gray-500">Telefon</dt><dd className="text-gray-900">{quote.customer_phone}</dd></div>}
-                {quote.customer_message && (
-                  <div className="mt-3 rounded-lg bg-gray-50 p-3">
-                    <p className="text-xs text-gray-500 mb-1">Melding</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-line">{quote.customer_message}</p>
-                  </div>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Kunde</h2>
+                {!editingCustomer && (
+                  <button onClick={openEditCustomer} className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                    Rediger
+                  </button>
                 )}
+              </div>
+
+              {editingCustomer ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-600">Type bygg</label>
+                      <select value={customerEdit.building_type} onChange={(e) => setCustomerEdit((p) => ({ ...p, building_type: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                        <option value="">–</option>
+                        <option value="garasje">Garasje</option>
+                        <option value="carport">Carport</option>
+                        <option value="uthus">Uthus</option>
+                        <option value="næringsbygg">Næringsbygg</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-600">Kategori</label>
+                      <select value={customerEdit.category} onChange={(e) => setCustomerEdit((p) => ({ ...p, category: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                        <option value="">–</option>
+                        <option value="søknadshjelp">Søknadshjelp</option>
+                        <option value="materialpakke">Materialpakke</option>
+                        <option value="prefabelement">Prefabelement</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Navn *</label>
+                    <input type="text" required value={customerEdit.name} onChange={(e) => setCustomerEdit((p) => ({ ...p, name: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">E-post *</label>
+                    <input type="email" required value={customerEdit.email} onChange={(e) => setCustomerEdit((p) => ({ ...p, email: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Telefon</label>
+                    <input type="tel" value={customerEdit.phone} onChange={(e) => setCustomerEdit((p) => ({ ...p, phone: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Melding</label>
+                    <textarea rows={3} value={customerEdit.message} onChange={(e) => setCustomerEdit((p) => ({ ...p, message: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => setEditingCustomer(false)}
+                      className="flex-1 rounded-lg border border-gray-300 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                      Avbryt
+                    </button>
+                    <button onClick={handleSaveCustomer} disabled={savingCustomer || !customerEdit.name || !customerEdit.email}
+                      className="flex-1 rounded-lg bg-orange-500 py-2 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50">
+                      {savingCustomer ? "Lagrer…" : "Lagre"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <dl className="space-y-2 text-sm">
+                  {(quote.building_type || quote.category) && (
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {quote.building_type && (
+                        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 capitalize">{quote.building_type}</span>
+                      )}
+                      {quote.category && (
+                        <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700 capitalize">{quote.category}</span>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex gap-2"><dt className="w-20 shrink-0 text-gray-500">Navn</dt><dd className="font-medium text-gray-900">{quote.customer_name}</dd></div>
+                  <div className="flex gap-2"><dt className="w-20 shrink-0 text-gray-500">E-post</dt><dd><a href={`mailto:${quote.customer_email}`} className="text-orange-500 hover:underline">{quote.customer_email}</a></dd></div>
+                  {quote.customer_phone && <div className="flex gap-2"><dt className="w-20 shrink-0 text-gray-500">Telefon</dt><dd className="text-gray-900">{quote.customer_phone}</dd></div>}
+                  {quote.customer_message && (
+                    <div className="mt-3 rounded-lg bg-gray-50 p-3">
+                      <p className="text-xs text-gray-500 mb-1">Melding</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{quote.customer_message}</p>
+                    </div>
+                  )}
                 <div className="mt-3">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-medium text-gray-600">Vedlegg {quote.attachments?.length ? `(${quote.attachments.length})` : ""}</p>
@@ -410,6 +525,7 @@ export default function QuoteDetailPage() {
                   )}
                 </div>
               </dl>
+              )}
             </div>
 
             {/* Status log */}
