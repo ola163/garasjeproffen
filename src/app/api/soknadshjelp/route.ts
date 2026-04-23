@@ -3,11 +3,21 @@ import { Resend } from "resend";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "Ugyldig forespørsel." }, { status: 400 });
+    }
+
     const { name, email, phone, address, dibk, garageConfig, permitResult, permit, total } = body;
 
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return NextResponse.json({ error: "Navn er påkrevd." }, { status: 400 });
+    }
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return NextResponse.json({ error: "Gyldig e-post er påkrevd." }, { status: 400 });
+    }
+
     const resendKey = process.env.RESEND_API_KEY;
-    console.log("Soknadshjelp RESEND_API_KEY present:", !!resendKey);
 
     if (resendKey) {
       const resend = new Resend(resendKey);
@@ -27,7 +37,7 @@ export async function POST(request: Request) {
         `
         : "<tr><td colspan='2'>Ikke spesifisert</td></tr>";
 
-      const emailResult = await resend.emails.send({
+      await resend.emails.send({
         from: "GarasjeProffen <noreply@garasjeproffen.no>",
         to: "post@garasjeproffen.no",
         replyTo: email,
@@ -59,7 +69,6 @@ export async function POST(request: Request) {
           </table>
         `,
       });
-      console.log("Soknadshjelp Resend result:", JSON.stringify(emailResult));
     } else {
       console.error("RESEND_API_KEY is not set – soknadshjelp email not sent");
     }

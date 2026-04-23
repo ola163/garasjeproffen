@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error("chat_logs upsert error:", error.message, error.details);
-      return new Response(error.message, { status: 500 });
+      return new Response("Intern feil.", { status: 500 });
     }
 
     return new Response("ok");

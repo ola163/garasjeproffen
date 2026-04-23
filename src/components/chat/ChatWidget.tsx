@@ -343,7 +343,7 @@ export default function ChatWidget() {
                 </svg>
               </div>
             ) : (
-              <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-cover" />
+              <Image src="/GarajseDrøsaren.png" alt="GarasjeDrøsaren" fill className="object-cover" />
             )}
           </button>
         </div>
@@ -356,7 +356,7 @@ export default function ChatWidget() {
           className="flex flex-col rounded-none sm:rounded-2xl border-0 sm:border border-gray-200 bg-white shadow-2xl overflow-hidden"
         >
           <div className="relative w-full h-48 sm:h-64 shrink-0 bg-orange-50">
-            <Image src="/GarajseDrøsaren.png" alt="GarajseDrøsaren" fill className="object-contain" />
+            <Image src="/GarajseDrøsaren.png" alt="GarasjeDrøsaren" fill className="object-contain" />
             <button
               onClick={() => setOpen(false)}
               aria-label="Lukk chat"
