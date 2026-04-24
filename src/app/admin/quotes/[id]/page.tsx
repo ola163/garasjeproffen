@@ -67,6 +67,8 @@ export default function QuoteDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [supplierForPrices, setSupplierForPrices] = useState("Optimera");
   const [lookingUpPrices, setLookingUpPrices] = useState(false);
+  const [savingPrices, setSavingPrices] = useState(false);
+  const [savePriceResult, setSavePriceResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEdit, setCustomerEdit] = useState({ name: "", email: "", phone: "", message: "", category: "", building_type: "" });
@@ -225,6 +227,41 @@ export default function QuoteDetailPage() {
         amount:      hit.bruttopris,
       }),
     }));
+  }
+
+  async function savePricesToDatabase(sIdx: number) {
+    const section = offerSections[sIdx];
+    if (!section) return;
+    const rows = section.line_items
+      .filter(item => item.varenr?.trim() && item.amount > 0)
+      .map(item => ({
+        supplier:       supplierForPrices,
+        varenr:         item.varenr!.trim(),
+        varebenevnelse: item.description || "",
+        dimensjon:      item.dimensjon || undefined,
+        enhet:          item.enhet     || undefined,
+        bruttopris:     item.amount,
+        nettopris:      item.amount,
+        antall:         item.quantity  || 1,
+        mva_pst:        25,
+      }));
+    if (!rows.length) {
+      setSavePriceResult({ ok: false, text: "Ingen rader med varenr og pris å lagre." });
+      return;
+    }
+    setSavingPrices(true); setSavePriceResult(null);
+    const res  = await fetch("/api/admin/supplier-prices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ supplier: supplierForPrices, rows }),
+    });
+    const json = await res.json();
+    setSavingPrices(false);
+    setSavePriceResult(res.ok
+      ? { ok: true,  text: `${json.inserted} varer lagret til ${supplierForPrices}` }
+      : { ok: false, text: json.error ?? "Feil ved lagring" }
+    );
+    setTimeout(() => setSavePriceResult(null), 4000);
   }
 
   async function lookupAllPricesInSection(sIdx: number) {
@@ -993,6 +1030,25 @@ export default function QuoteDetailPage() {
                             }
                             Hent alle priser fra {supplierForPrices}
                           </button>
+                        )}
+                        {section.category === "materialpakke" && (
+                          <button
+                            type="button"
+                            disabled={savingPrices}
+                            onClick={() => savePricesToDatabase(sIdx)}
+                            className="flex items-center gap-1.5 rounded-lg border border-dashed border-green-300 px-3 py-1.5 text-xs text-green-600 hover:border-green-500 hover:text-green-800 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {savingPrices
+                              ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
+                              : <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                            }
+                            Lagre priser til {supplierForPrices}
+                          </button>
+                        )}
+                        {savePriceResult && section.category === "materialpakke" && (
+                          <span className={`text-xs font-medium ${savePriceResult.ok ? "text-green-600" : "text-red-500"}`}>
+                            {savePriceResult.ok ? "✓ " : "✗ "}{savePriceResult.text}
+                          </span>
                         )}
                         {section.category === "prefabelement" && (
                           <button type="button" onClick={() => loadPrefabTemplate(sIdx)}
