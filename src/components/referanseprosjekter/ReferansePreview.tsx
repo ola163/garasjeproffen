@@ -22,7 +22,7 @@ export default function ReferansePreview() {
   if (projects.length === 0) return null;
 
   return (
-    <section className="w-full max-w-2xl px-6 pb-12">
+    <section className="w-full mt-10">
       <Link href="/referanseprosjekter" className="mb-1 block text-xs font-medium text-orange-500 hover:underline">
         Se alle →
       </Link>

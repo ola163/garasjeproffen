@@ -57,6 +57,8 @@ export default function Home() {
               post@garasjeproffen.no
             </span>
           </div>
+
+          <ReferansePreview />
         </div>
 
         {/* Right: configurator panel */}
@@ -171,8 +173,6 @@ export default function Home() {
         </div>
         </div>{/* end right column */}
       </div>{/* end two-column wrapper */}
-
-      <ReferansePreview />
 
       {/* SEO: geografisk dekning og tjenester – visuelt skjult, synleg for søkemotorar */}
       <section className="sr-only">
