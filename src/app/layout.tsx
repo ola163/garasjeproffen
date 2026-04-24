@@ -47,30 +47,59 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "HomeAndConstructionBusiness",
-    name: "GarasjeProffen AS",
-    url: "https://www.garasjeproffen.no",
-    email: "post@garasjeproffen.no",
-    telephone: "+4747617563",
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: "Tjødnavegen 8b",
-      postalCode: "4342",
-      addressLocality: "Bryne",
-      addressCountry: "NO",
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "HomeAndConstructionBusiness",
+      name: "GarasjeProffen AS",
+      url: "https://www.garasjeproffen.no",
+      email: "post@garasjeproffen.no",
+      telephone: "+4747617563",
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "Tjødnavegen 8b",
+        postalCode: "4342",
+        addressLocality: "Bryne",
+        addressCountry: "NO",
+      },
+      areaServed: ["Bryne", "Jæren", "Sandnes", "Stavanger", "Rogaland", "Norge"],
+      description: "GarasjeProffen AS leverer garasjer, carporter, materialpakker, prefabrikkerte løsninger og hjelp med byggesøknad på Jæren og i Rogaland.",
+      priceRange: "$$",
+      openingHoursSpecification: {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        opens: "08:00",
+        closes: "16:00",
+      },
+      hasOfferCatalog: {
+        "@type": "OfferCatalog",
+        name: "Garasje- og carporttjenester",
+        itemListElement: [
+          { "@type": "Offer", itemOffered: { "@type": "Service", name: "Prefabrikkert garasje" } },
+          { "@type": "Offer", itemOffered: { "@type": "Service", name: "Materialpakke garasje" } },
+          { "@type": "Offer", itemOffered: { "@type": "Service", name: "Carport" } },
+          { "@type": "Offer", itemOffered: { "@type": "Service", name: "Søknadshjelp" } },
+        ],
+      },
     },
-    areaServed: ["Bryne", "Jæren", "Sandnes", "Stavanger", "Rogaland", "Norge"],
-    description: "GarasjeProffen AS leverer garasjer, carporter, materialpakker, prefabrikkerte løsninger og hjelp med byggesøknad på Jæren og i Rogaland.",
-    priceRange: "$$",
-    openingHoursSpecification: {
-      "@type": "OpeningHoursSpecification",
-      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-      opens: "08:00",
-      closes: "16:00",
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "GarasjeProffen AS",
+      url: "https://www.garasjeproffen.no",
+      description: "Design din egen garasje eller carport med GarasjeProffen AS. Materialpakker, prefabrikkerte løsninger og søknadshjelp på Jæren og i Rogaland.",
+      inLanguage: "nb-NO",
+      publisher: {
+        "@type": "Organization",
+        name: "GarasjeProffen AS",
+        url: "https://www.garasjeproffen.no",
+        logo: {
+          "@type": "ImageObject",
+          url: "https://www.garasjeproffen.no/logo.jpg",
+        },
+      },
     },
-  };
+  ];
 
   return (
     <html lang="nb-NO">

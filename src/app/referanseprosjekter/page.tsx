@@ -6,8 +6,8 @@ import type { ReferanseProject } from "@/types/referanse";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Referanseprosjekter – Garasjer og carporter på Jæren",
-  description: "Se ferdige garasjer og carporter levert av GarasjeProffen AS i Rogaland. Prefabrikkerte løsninger og materialpakker til kunder på Jæren, i Stavanger og Sandnes.",
+  title: "Referanseprosjekter – Garasjer og carporter i Rogaland",
+  description: "Se ferdige garasjer, carporter og uthus levert av GarasjeProffen AS i Rogaland. Prefabrikkerte løsninger og materialpakker til kunder på Jæren, i Stavanger og Sandnes.",
   alternates: { canonical: "https://www.garasjeproffen.no/referanseprosjekter" },
 };
 
@@ -70,7 +70,7 @@ export default async function ReferanseprosjekterPage() {
             Våre referanseprosjekter
           </h1>
           <p className="mt-3 text-base text-gray-500">
-            Se hva vi har bygget for fornøyde kunder rundt om i landet.
+            Her finner du et utvalg av garasjer, carporter og uthus vi har levert til fornøyde kunder på Jæren og i Rogaland. Prosjektene spenner fra enkle materialpakker til skreddersydde prefabrikkerte løsninger – med og uten søknadshjelp.
           </p>
         </div>
 

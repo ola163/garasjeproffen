@@ -1,5 +1,28 @@
 import Link from "next/link";
 
+const FAQ_ITEMS = [
+  {
+    q: "Hva er en prefabrikkert garasje?",
+    a: "En prefabrikkert garasje er en garasje der hovedelementene – vegger, tak og rammeverk – produseres ferdig på fabrikk og fraktes til tomten din for montering. Dette gir kortere byggetid, bedre kvalitetskontroll og lavere risiko for forsinkelser sammenlignet med tradisjonell bygning.",
+  },
+  {
+    q: "Hvor lang tid tar montering av en prefabrikkert garasje?",
+    a: "For de fleste garasjer er monteringen ferdig på 1–2 dager. Eksakt tid avhenger av garasjens størrelse og tomtens tilgjengelighet.",
+  },
+  {
+    q: "Kan jeg tilpasse størrelse og utseende på en prefab garasje?",
+    a: "Ja, vi tilbyr full tilpasning av dimensjoner, tak, porttype, kledning og vinduer via vår 3D-konfigurator. Du ser resultatet i 3D og får et prisestimat med én gang.",
+  },
+  {
+    q: "Trenger jeg byggesøknad for prefabrikkert garasje?",
+    a: "Behovet for byggesøknad avhenger av størrelse og plassering – ikke om garasjen er prefabrikkert. Garasjer under 50 m² kan i mange tilfeller bygges uten søknad, men dette avhenger av kommunens reguleringsplan. Vi hjelper deg å avklare hva som gjelder for din tomt.",
+  },
+  {
+    q: "Leverer dere prefabrikkert garasje over hele Norge?",
+    a: "Vi monterer primært i Rogaland og på Jæren, men kan levere garasjeelementer for selvmontering til hele landet. Ta kontakt for mer informasjon.",
+  },
+];
+
 export const metadata = {
   title: "Prefabrikkert garasje | Rask montering | GarasjeProffen AS",
   description: "Prefabrikkert garasje fra GarasjeProffen AS – elementer produseres på verkstedet og monteres raskt på din tomt. Forutsigbar pris, høy kvalitet og kort byggetid. Rogaland og Jæren.",
@@ -55,6 +78,18 @@ export default function PrefabrikertGarasje() {
         </div>
       </section>
 
+      <section className="mt-12">
+        <h2 className="text-xl font-semibold text-gray-900">Vanlige spørsmål</h2>
+        <div className="mt-4 divide-y divide-gray-100">
+          {FAQ_ITEMS.map((item) => (
+            <div key={item.q} className="py-4">
+              <h3 className="font-semibold text-gray-900">{item.q}</h3>
+              <p className="mt-1 text-sm text-gray-600">{item.a}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="mt-10 flex flex-wrap gap-4">
         <Link href="/configurator" className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors">
           Konfigurer og få prisestimat
@@ -66,6 +101,20 @@ export default function PrefabrikertGarasje() {
           Ta kontakt
         </Link>
       </div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: FAQ_ITEMS.map((item) => ({
+              "@type": "Question",
+              name: item.q,
+              acceptedAnswer: { "@type": "Answer", text: item.a },
+            })),
+          }),
+        }}
+      />
     </div>
   );
 }

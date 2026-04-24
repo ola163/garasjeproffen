@@ -394,7 +394,7 @@ export default function ChatWidget() {
                   <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "assistant" && (
                       <div className="relative h-8 w-8 shrink-0 rounded-full overflow-hidden mt-1">
-                        <Image src="/GarajseDrøsaren.png" alt="" fill className="object-cover" />
+                        <Image src="/GarajseDrøsaren.png" alt="GarasjeDrøsaren" fill className="object-cover" />
                       </div>
                     )}
                     <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-base leading-relaxed whitespace-pre-wrap ${m.role === "user" ? "bg-orange-500 text-white rounded-br-sm" : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"}`}>

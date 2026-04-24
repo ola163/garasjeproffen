@@ -1,5 +1,28 @@
 import Link from "next/link";
 
+const FAQ_ITEMS = [
+  {
+    q: "Hvilke kommuner på Jæren leverer dere garasje til?",
+    a: "Vi betjener Time, Klepp, Hå, Gjesdal, Sandnes, Stavanger, Sola og Randaberg. Har du tomt i en annen kommune på Jæren? Ta kontakt – vi strekker oss langt for lokale kunder.",
+  },
+  {
+    q: "Kan jeg bestille materialpakke og bygge garasjen selv på Jæren?",
+    a: "Ja, vi leverer komplette materialpakker med alle materialer spesifisert og kvalitetssikret. Du kan bruke egne håndverkere eller bygge selv – pakken fungerer uansett hvem som monterer.",
+  },
+  {
+    q: "Hjelper dere med byggesøknad i Jæren-kommunene?",
+    a: "Ja, vi tilbyr søknadshjelp i alle kommunene vi betjener på Jæren. Vi kjenner lokale krav og hjelper deg gjennom prosessen – fra vurdering til innsending.",
+  },
+  {
+    q: "Hva er leveringstiden for garasje på Jæren?",
+    a: "Med base på Bryne er vi tett på Jæren og kan levere raskere enn leverandører lenger unna. Nøyaktig leveringstid avhenger av løsning og kapasitet. Kontakt oss for en oppdatert leveringstid.",
+  },
+  {
+    q: "Leverer dere garasjer utenfor Jæren?",
+    a: "Ja, vi leverer materialpakker til hele Norge. For prefabrikkerte løsninger med montering fokuserer vi primært på Jæren og Rogaland, men ta kontakt om du er usikker på om vi kan nå din adresse.",
+  },
+];
+
 export const metadata = {
   title: "Garasje på Jæren | Materialpakke og prefabrikkert | GarasjeProffen AS",
   description: "Bestill garasje eller carport på Jæren fra GarasjeProffen AS. Vi leverer prefabrikkerte løsninger og materialpakker til Time, Klepp, Hå, Gjesdal, Sandnes og Stavanger.",
@@ -44,6 +67,18 @@ export default function GarasjeJaeren() {
         </div>
       </section>
 
+      <section className="mt-12">
+        <h2 className="text-xl font-semibold text-gray-900">Vanlige spørsmål</h2>
+        <div className="mt-4 divide-y divide-gray-100">
+          {FAQ_ITEMS.map((item) => (
+            <div key={item.q} className="py-4">
+              <h3 className="font-semibold text-gray-900">{item.q}</h3>
+              <p className="mt-1 text-sm text-gray-600">{item.a}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="mt-12 rounded-xl bg-orange-50 border border-orange-100 p-8">
         <h2 className="text-xl font-semibold text-gray-900">Kom i gang</h2>
         <p className="mt-2 text-gray-600">
@@ -61,6 +96,20 @@ export default function GarasjeJaeren() {
           </Link>
         </div>
       </div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: FAQ_ITEMS.map((item) => ({
+              "@type": "Question",
+              name: item.q,
+              acceptedAnswer: { "@type": "Answer", text: item.a },
+            })),
+          }),
+        }}
+      />
     </div>
   );
 }

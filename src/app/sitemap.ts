@@ -9,6 +9,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: "/carport", priority: 0.9, changeFrequency: "monthly" as const },
     { url: "/configurator", priority: 0.8, changeFrequency: "monthly" as const },
     { url: "/soknadshjelp", priority: 0.8, changeFrequency: "monthly" as const },
+    { url: "/garasje-rogaland", priority: 0.8, changeFrequency: "monthly" as const },
+    { url: "/byggesoknad-garasje", priority: 0.8, changeFrequency: "monthly" as const },
     { url: "/garasje-bryne", priority: 0.8, changeFrequency: "monthly" as const },
     { url: "/garasje-jaeren", priority: 0.8, changeFrequency: "monthly" as const },
     { url: "/garasje-stavanger", priority: 0.8, changeFrequency: "monthly" as const },
