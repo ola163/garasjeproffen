@@ -228,24 +228,23 @@ function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM, roofType = "
 }
 
 // ── Window 100×50 GLB model ───────────────────────────────────────────────────
-function WindowGLB({ position, rotY }: { position: [number, number, number]; rotY: number }) {
+function WindowGLBInner({ position, rotY }: { position: [number, number, number]; rotY: number }) {
   const { scene } = useGLTF("/Vindu_100x50glb.glb");
 
-  const obj = useMemo(() => {
+  const group = useMemo(() => {
     const clone = scene.clone(true);
     const box = new THREE.Box3().setFromObject(clone);
     const size = new THREE.Vector3();
     box.getSize(size);
 
     if (size.x > 0.001 && size.y > 0.001) {
-      // Scale to fit 1.0 m wide × 0.5 m tall; depth fits WALL_T
       const sx = 1.0 / size.x;
       const sy = 0.5 / size.y;
       const sz = size.z > 0.001 ? (WALL_T * 3) / size.z : 1;
       clone.scale.set(sx, sy, sz);
     }
 
-    // Re-center after scaling
+    // Center clone within a group — position prop sets group location, not clone
     const box2 = new THREE.Box3().setFromObject(clone);
     const center = new THREE.Vector3();
     box2.getCenter(center);
@@ -258,10 +257,20 @@ function WindowGLB({ position, rotY }: { position: [number, number, number]; rot
       }
     });
 
-    return clone;
+    const g = new THREE.Group();
+    g.add(clone);
+    return g;
   }, [scene]);
 
-  return <primitive object={obj} position={position} rotation={[0, rotY, 0]} />;
+  return <primitive object={group} position={position} rotation={[0, rotY, 0]} />;
+}
+
+function WindowGLB({ position, rotY }: { position: [number, number, number]; rotY: number }) {
+  return (
+    <Suspense fallback={null}>
+      <WindowGLBInner position={position} rotY={rotY} />
+    </Suspense>
+  );
 }
 
 // ── Added elements renderer ───────────────────────────────────────────────────
