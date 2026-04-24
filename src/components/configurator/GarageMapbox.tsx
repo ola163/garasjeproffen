@@ -8,6 +8,15 @@ interface GarageMapboxProps {
   lengthMm: number;
   widthMm: number;
   roofType?: "saltak" | "flattak";
+  /** Controlled center – used when parent manages state */
+  externalCenter?: [number, number] | null;
+  externalRotation?: number;
+  onCenterChange?: (c: [number, number]) => void;
+  onRotationChange?: (r: number) => void;
+  /** Hide editing controls and search (for "show on plot" read-only view) */
+  readOnly?: boolean;
+  /** Force 3D extrusion mode on */
+  forceIs3D?: boolean;
 }
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -47,17 +56,35 @@ function buildGarageGeoJSON(
   };
 }
 
-export default function GarageMapbox({ lengthMm, widthMm, roofType }: GarageMapboxProps) {
+export default function GarageMapbox({
+  lengthMm, widthMm, roofType,
+  externalCenter, externalRotation,
+  onCenterChange, onRotationChange,
+  readOnly = false, forceIs3D = false,
+}: GarageMapboxProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
 
-  const [center, setCenter] = useState<[number, number] | null>(null);
-  const [rotation, setRotation] = useState(0);
+  const [internalCenter, setInternalCenter] = useState<[number, number] | null>(null);
+  const [internalRotation, setInternalRotation] = useState(0);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<{ place_name: string; center: [number, number] }[]>([]);
   const [searching, setSearching] = useState(false);
-  const [is3D, setIs3D] = useState(false);
+  const [is3D, setIs3D] = useState(forceIs3D);
+
+  // Use external state if provided, otherwise internal
+  const center   = externalCenter   !== undefined ? externalCenter   : internalCenter;
+  const rotation = externalRotation !== undefined ? externalRotation : internalRotation;
+
+  function setCenter(c: [number, number] | null) {
+    setInternalCenter(c);
+    if (c) onCenterChange?.(c);
+  }
+  function setRotation(r: number) {
+    setInternalRotation(r);
+    onRotationChange?.(r);
+  }
 
   const lengthM = lengthMm / 1000;
   const widthM = widthMm / 1000;
@@ -80,13 +107,14 @@ export default function GarageMapbox({ lengthMm, widthMm, roofType }: GarageMapb
     if (!containerRef.current || mapRef.current) return;
     mapboxgl.accessToken = TOKEN;
 
+    const initCenter = externalCenter ?? [5.7, 58.74];
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [5.7, 58.74],
-      zoom: 14,
-      pitch: 0,
-      bearing: 0,
+      center: initCenter,
+      zoom: externalCenter ? 19 : 14,
+      pitch: forceIs3D ? 60 : 0,
+      bearing: forceIs3D ? -20 : 0,
     });
     mapRef.current = map;
 
@@ -126,14 +154,30 @@ export default function GarageMapbox({ lengthMm, widthMm, roofType }: GarageMapb
       });
     });
 
-    map.on("click", (e) => {
-      const c: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-      setCenter(c);
-      if (markerRef.current) markerRef.current.remove();
-      markerRef.current = new mapboxgl.Marker({ color: "#e2520a" })
-        .setLngLat(c)
-        .addTo(map);
-    });
+    // Place marker for externally-set center on load
+    if (externalCenter) {
+      map.on("load", () => {
+        if (markerRef.current) markerRef.current.remove();
+        markerRef.current = new mapboxgl.Marker({ color: "#e2520a" })
+          .setLngLat(externalCenter)
+          .addTo(map);
+        if (forceIs3D && map.getLayer(EXTRUSION_LAYER)) {
+          map.setLayoutProperty(EXTRUSION_LAYER, "visibility", "visible");
+          map.setLayoutProperty(FILL_LAYER, "visibility", "none");
+        }
+      });
+    }
+
+    if (!readOnly) {
+      map.on("click", (e) => {
+        const c: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+        setCenter(c);
+        if (markerRef.current) markerRef.current.remove();
+        markerRef.current = new mapboxgl.Marker({ color: "#e2520a" })
+          .setLngLat(c)
+          .addTo(map);
+      });
+    }
 
     return () => {
       map.remove();
@@ -192,84 +236,90 @@ export default function GarageMapbox({ lengthMm, widthMm, roofType }: GarageMapb
 
   return (
     <div className="relative h-full w-full flex flex-col">
-      {/* Search bar */}
-      <div className="absolute top-3 left-3 right-12 z-10 flex flex-col gap-1">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => { setQuery(e.target.value); searchAddress(e.target.value); }}
-              placeholder="Søk etter adresse…"
-              className="w-full rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-sm shadow-md focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 backdrop-blur-sm"
-            />
-            {searching && (
-              <div className="absolute right-2 top-2.5 h-4 w-4 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
-            )}
+      {/* Search bar — offset below the view-mode toggle (~44px) */}
+      {!readOnly && (
+        <div className="absolute left-3 right-12 z-10 flex flex-col gap-1" style={{ top: 52 }}>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); searchAddress(e.target.value); }}
+                placeholder="Søk etter adresse…"
+                className="w-full rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-sm shadow-md focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 backdrop-blur-sm"
+              />
+              {searching && (
+                <div className="absolute right-2 top-2.5 h-4 w-4 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+              )}
+            </div>
           </div>
+
+          {suggestions.length > 0 && (
+            <ul className="rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
+              {suggestions.map((s, i) => (
+                <li key={i}>
+                  <button
+                    onClick={() => pickSuggestion(s)}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
+                  >
+                    {s.place_name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
+      )}
 
-        {suggestions.length > 0 && (
-          <ul className="rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
-            {suggestions.map((s, i) => (
-              <li key={i}>
-                <button
-                  onClick={() => pickSuggestion(s)}
-                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
-                >
-                  {s.place_name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* 3D toggle */}
-      <div className="absolute top-3 right-3 z-10 flex flex-col gap-2" style={{ marginTop: "2.75rem" }}>
-        <button
-          onClick={() => setIs3D((v) => !v)}
-          className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-md transition-colors ${
-            is3D ? "bg-orange-500 text-white" : "bg-white/95 text-gray-700 hover:bg-orange-50"
-          }`}
-        >
-          {is3D ? "3D på" : "3D av"}
-        </button>
-      </div>
+      {/* 3D toggle — only shown in edit mode */}
+      {!readOnly && (
+        <div className="absolute right-3 z-10 flex flex-col gap-2" style={{ top: 52 }}>
+          <button
+            onClick={() => setIs3D((v) => !v)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-md transition-colors ${
+              is3D ? "bg-orange-500 text-white" : "bg-white/95 text-gray-700 hover:bg-orange-50"
+            }`}
+          >
+            {is3D ? "3D på" : "3D av"}
+          </button>
+        </div>
+      )}
 
       {/* Map */}
       <div ref={containerRef} className="flex-1 w-full" />
 
-      {/* Bottom controls */}
-      <div className="absolute bottom-4 left-3 right-3 z-10">
-        <div className="rounded-xl bg-white/95 shadow-lg backdrop-blur-sm p-3 flex flex-col gap-2">
-          {!center && (
-            <p className="text-xs text-gray-500 text-center">
-              Søk etter adresse eller klikk i kartet for å plassere garasjen
-            </p>
-          )}
-          {center && (
-            <>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-gray-600 shrink-0">Roter</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={359}
-                  value={rotation}
-                  onChange={(e) => setRotation(Number(e.target.value))}
-                  className="flex-1 accent-orange-500"
-                />
-                <span className="text-xs text-gray-500 w-8 text-right">{rotation}°</span>
-              </div>
-              <p className="text-xs text-gray-400 text-center">
-                {(lengthM).toFixed(1)} m × {(widthM).toFixed(1)} m
-                {is3D ? ` × ${heightM.toFixed(1)} m høy` : ""} — klikk i kartet for å flytte
+      {/* Bottom controls — hidden in readOnly */}
+      {!readOnly && (
+        <div className="absolute bottom-4 left-3 right-3 z-10">
+          <div className="rounded-xl bg-white/95 shadow-lg backdrop-blur-sm p-3 flex flex-col gap-2">
+            {!center && (
+              <p className="text-xs text-gray-500 text-center">
+                Søk etter adresse eller klikk i kartet for å plassere garasjen
               </p>
-            </>
-          )}
+            )}
+            {center && (
+              <>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-gray-600 shrink-0">Roter</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={359}
+                    value={rotation}
+                    onChange={(e) => setRotation(Number(e.target.value))}
+                    className="flex-1 accent-orange-500"
+                  />
+                  <span className="text-xs text-gray-500 w-8 text-right">{rotation}°</span>
+                </div>
+                <p className="text-xs text-gray-400 text-center">
+                  {(lengthM).toFixed(1)} m × {(widthM).toFixed(1)} m
+                  {is3D ? ` × ${heightM.toFixed(1)} m høy` : ""} — klikk i kartet for å flytte
+                </p>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

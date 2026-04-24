@@ -111,6 +111,12 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // Shared map placement state — lifted so it persists across view mode switches
+  const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
+  const [mapRotation, setMapRotation] = useState(0);
+  // Whether to show the plot view instead of the 3D model in kunde/test mode
+  const [showOnPlot, setShowOnPlot] = useState(false);
+
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(({ isAdmin, isLoggedIn }) => {
       setIsAdmin(!!isAdmin);
@@ -186,14 +192,43 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           )}
         </div>
 
-        {viewMode === "kunde" && <LocalGarageViewer {...viewerProps} />}
-        {viewMode === "test"  && <GarageViewer {...viewerProps} />}
-        {viewMode === "dev"   && <LocalGarageViewer {...viewerProps} />}
-        {viewMode === "kart"  && (
+        {/* "Vis på tomt"-knapp — vises i kunde/test når ein tomt er vald */}
+        {(viewMode === "kunde" || viewMode === "test") && mapCenter && (
+          <button
+            onClick={() => setShowOnPlot((v) => !v)}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-white/95 px-4 py-1.5 text-xs font-semibold text-gray-700 shadow-md hover:bg-orange-50 hover:text-orange-600 transition-colors backdrop-blur-sm"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {showOnPlot ? "Vis 3D-modell" : "Vis på tomt"}
+          </button>
+        )}
+
+        {viewMode === "kunde" && !showOnPlot && <LocalGarageViewer {...viewerProps} />}
+        {viewMode === "kunde" && showOnPlot && mapCenter && (
           <GarageMapbox
-            lengthMm={lengthValue}
-            widthMm={widthValue}
-            roofType={roofType}
+            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType}
+            externalCenter={mapCenter} externalRotation={mapRotation}
+            readOnly forceIs3D
+          />
+        )}
+        {viewMode === "test" && !showOnPlot && <GarageViewer {...viewerProps} />}
+        {viewMode === "test" && showOnPlot && mapCenter && (
+          <GarageMapbox
+            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType}
+            externalCenter={mapCenter} externalRotation={mapRotation}
+            readOnly forceIs3D
+          />
+        )}
+        {viewMode === "dev" && <LocalGarageViewer {...viewerProps} />}
+        {viewMode === "kart" && (
+          <GarageMapbox
+            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType}
+            externalCenter={mapCenter} externalRotation={mapRotation}
+            onCenterChange={(c) => { setMapCenter(c); setShowOnPlot(false); }}
+            onRotationChange={setMapRotation}
           />
         )}
       </div>
