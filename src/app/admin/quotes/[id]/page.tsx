@@ -823,9 +823,10 @@ export default function QuoteDetailPage() {
                       )}
                       {section.line_items.map((item, iIdx) =>
                         section.category === "materialpakke" ? (
-                          /* 6-kolonne kortform for Materialpakke */
+                          /* Materialpakke: 3-rad layout */
                           <div key={iIdx} className="rounded-lg border border-gray-100 bg-gray-50 p-2 space-y-1.5">
-                            <div className="flex gap-1.5">
+                            {/* Rad 1: Varenr + Benevnelse + Fjern */}
+                            <div className="flex gap-1.5 items-center">
                               <input
                                 type="text" placeholder="Varenr"
                                 value={item.varenr ?? ""}
@@ -838,7 +839,13 @@ export default function QuoteDetailPage() {
                                 onChange={(e) => updateLineItemInSection(sIdx, iIdx, "description", e.target.value)}
                                 className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
                               />
+                              <button onClick={() => removeLineItemFromSection(sIdx, iIdx)} className="shrink-0 text-gray-400 hover:text-red-500">
+                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                              </button>
                             </div>
+                            {/* Rad 2: Dimensjon + Enhet + Mengde + Pris/enhet */}
                             <div className="flex gap-1.5 items-center">
                               <input
                                 type="text" placeholder="Dimensjon"
@@ -864,14 +871,12 @@ export default function QuoteDetailPage() {
                                 onChange={(e) => updateLineItemInSection(sIdx, iIdx, "amount", parseFloat(e.target.value) || 0)}
                                 className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-orange-400"
                               />
-                              <span className="w-20 shrink-0 text-right text-xs font-medium text-gray-600">
+                            </div>
+                            {/* Rad 3: Totalsum */}
+                            <div className="flex justify-end border-t border-gray-200 pt-1">
+                              <span className="text-xs font-semibold text-gray-700">
                                 {item.amount && item.quantity ? formatNOK(item.amount * item.quantity) : "–"}
                               </span>
-                              <button onClick={() => removeLineItemFromSection(sIdx, iIdx)} className="shrink-0 text-gray-400 hover:text-red-500">
-                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                              </button>
                             </div>
                           </div>
                         ) : (
