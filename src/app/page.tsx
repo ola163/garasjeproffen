@@ -174,8 +174,8 @@ export default function Home() {
 
       <ReferansePreview />
 
-      {/* SEO: geografisk dekning og tjenester */}
-      <section className="w-full max-w-5xl border-t border-gray-100 pt-8 pb-2">
+      {/* SEO: geografisk dekning og tjenester – visuelt skjult, synleg for søkemotorar */}
+      <section className="sr-only">
         <h2 className="text-center text-xs font-semibold uppercase tracking-widest text-gray-400">
           Lokalt forankret – regional rekkevidde
         </h2>
