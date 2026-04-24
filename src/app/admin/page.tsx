@@ -265,6 +265,21 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-orange-500 group-hover:underline">Åpne →</p>
           </Link>
 
+          {/* Prisdatabase */}
+          <Link
+            href="/admin/priser"
+            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-100">
+              <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 group-hover:text-yellow-600">Prisdatabase</h2>
+            <p className="mt-1 text-sm text-gray-500">Import og administrer prisfiler fra Optimera, XLBygg, Coop Obs Bygg og Neumann.</p>
+            <p className="mt-4 text-xs font-medium text-yellow-500 group-hover:underline">Åpne →</p>
+          </Link>
+
           {/* Referanseprosjekter */}
           <Link
             href="/referanseprosjekter/admin"

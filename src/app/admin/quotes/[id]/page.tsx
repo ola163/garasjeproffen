@@ -65,6 +65,8 @@ export default function QuoteDetailPage() {
   const isInitialLoad = useRef(true);
   const [statusLog, setStatusLog] = useState<{ id: string; from_status: string; to_status: string; changed_by: string; changed_at: string; note: string | null }[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [supplierForPrices, setSupplierForPrices] = useState("Optimera");
+  const [lookingUpPrices, setLookingUpPrices] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEdit, setCustomerEdit] = useState({ name: "", email: "", phone: "", message: "", category: "", building_type: "" });
@@ -204,6 +206,49 @@ export default function QuoteDetailPage() {
 
   function updateSectionNotes(sIdx: number, notes: string) {
     setOfferSections((prev) => prev.map((s, i) => i === sIdx ? { ...s, notes } : s));
+  }
+
+  // ── Price lookup from supplier database ──────────────────────────────────────
+  async function lookupPriceForItem(sIdx: number, iIdx: number, varenr: string) {
+    if (!varenr.trim()) return;
+    const res  = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(supplierForPrices)}&q=${encodeURIComponent(varenr)}&limit=1`);
+    const json = await res.json();
+    const hit  = json.data?.[0];
+    if (!hit) return;
+    setOfferSections(prev => prev.map((s, si) => si !== sIdx ? s : {
+      ...s,
+      line_items: s.line_items.map((item, ii) => ii !== iIdx ? item : {
+        ...item,
+        description: item.description || hit.varebenevnelse,
+        dimensjon:   item.dimensjon   || hit.dimensjon || "",
+        enhet:       item.enhet       || hit.enhet     || "",
+        amount:      hit.bruttopris,
+      }),
+    }));
+  }
+
+  async function lookupAllPricesInSection(sIdx: number) {
+    const section = offerSections[sIdx];
+    if (!section) return;
+    setLookingUpPrices(true);
+    const items = [...section.line_items];
+    for (let iIdx = 0; iIdx < items.length; iIdx++) {
+      const varenr = items[iIdx].varenr?.trim();
+      if (!varenr) continue;
+      const res  = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(supplierForPrices)}&q=${encodeURIComponent(varenr)}&limit=1`);
+      const json = await res.json();
+      const hit  = json.data?.[0];
+      if (!hit) continue;
+      items[iIdx] = {
+        ...items[iIdx],
+        description: items[iIdx].description || hit.varebenevnelse,
+        dimensjon:   items[iIdx].dimensjon   || hit.dimensjon || "",
+        enhet:       items[iIdx].enhet       || hit.enhet     || "",
+        amount:      hit.bruttopris,
+      };
+    }
+    setOfferSections(prev => prev.map((s, si) => si !== sIdx ? s : { ...s, line_items: items }));
+    setLookingUpPrices(false);
   }
 
   async function handleExcelUpload(sIdx: number, file: File) {
@@ -763,12 +808,25 @@ export default function QuoteDetailPage() {
                 return (
                   <div key={sIdx} className="mb-4 rounded-lg border border-gray-200 overflow-hidden">
                     {/* Section header */}
-                    <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
+                    <div className="flex items-center justify-between bg-gray-50 px-3 py-2 flex-wrap gap-2">
                       <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{catLabel}</span>
-                      <button onClick={() => removeSection(sIdx)}
-                        className="text-gray-400 hover:text-red-500 transition-colors text-xs">
-                        Fjern
-                      </button>
+                      <div className="flex items-center gap-2 ml-auto">
+                        {section.category === "materialpakke" && (
+                          <select
+                            value={supplierForPrices}
+                            onChange={e => setSupplierForPrices(e.target.value)}
+                            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                          >
+                            {["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"].map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        )}
+                        <button onClick={() => removeSection(sIdx)}
+                          className="text-gray-400 hover:text-red-500 transition-colors text-xs">
+                          Fjern
+                        </button>
+                      </div>
                     </div>
 
                     <div className="p-3 space-y-2">
@@ -825,14 +883,24 @@ export default function QuoteDetailPage() {
                         section.category === "materialpakke" ? (
                           /* Materialpakke: 3-rad layout */
                           <div key={iIdx} className="rounded-lg border border-gray-100 bg-gray-50 p-2 space-y-1.5">
-                            {/* Rad 1: Varenr + Benevnelse + Fjern */}
+                            {/* Rad 1: Varenr + Hent pris + Benevnelse + Fjern */}
                             <div className="flex gap-1.5 items-center">
                               <input
                                 type="text" placeholder="Varenr"
                                 value={item.varenr ?? ""}
                                 onChange={(e) => updateLineItemInSection(sIdx, iIdx, "varenr", e.target.value)}
+                                onBlur={(e) => { if (e.target.value) lookupPriceForItem(sIdx, iIdx, e.target.value); }}
                                 className="w-20 shrink-0 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
                               />
+                              <button
+                                title={`Hent pris fra ${supplierForPrices}`}
+                                onClick={() => lookupPriceForItem(sIdx, iIdx, item.varenr ?? "")}
+                                className="shrink-0 rounded border border-gray-200 bg-white p-1.5 text-gray-400 hover:border-orange-400 hover:text-orange-500 transition-colors"
+                              >
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                              </button>
                               <input
                                 type="text" placeholder="Varebenevnelse"
                                 value={item.description}
@@ -912,6 +980,20 @@ export default function QuoteDetailPage() {
                           className="rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
                           + Legg til linje
                         </button>
+                        {section.category === "materialpakke" && (
+                          <button
+                            type="button"
+                            disabled={lookingUpPrices}
+                            onClick={() => lookupAllPricesInSection(sIdx)}
+                            className="flex items-center gap-1.5 rounded-lg border border-dashed border-orange-300 px-3 py-1.5 text-xs text-orange-500 hover:border-orange-500 hover:text-orange-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {lookingUpPrices
+                              ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+                              : <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            }
+                            Hent alle priser fra {supplierForPrices}
+                          </button>
+                        )}
                         {section.category === "prefabelement" && (
                           <button type="button" onClick={() => loadPrefabTemplate(sIdx)}
                             className="rounded-lg border border-dashed border-blue-300 px-3 py-1.5 text-xs text-blue-500 hover:border-blue-500 hover:text-blue-700 transition-colors whitespace-nowrap">
