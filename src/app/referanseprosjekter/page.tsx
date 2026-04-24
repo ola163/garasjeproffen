@@ -5,6 +5,12 @@ import type { ReferanseProject } from "@/types/referanse";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "Referanseprosjekter – Garasjer og carporter på Jæren",
+  description: "Se ferdige garasjer og carporter levert av GarasjeProffen AS i Rogaland. Prefabrikkerte løsninger og materialpakker til kunder på Jæren, i Stavanger og Sandnes.",
+  alternates: { canonical: "https://www.garasjeproffen.no/referanseprosjekter" },
+};
+
 async function getProjects(): Promise<ReferanseProject[]> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

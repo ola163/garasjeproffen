@@ -1,8 +1,9 @@
 import SoknadshjelWizard, { type GarageConfig } from "@/components/soknadshjelp/SoknadshjelWizard";
 
 export const metadata = {
-  title: "Søknadshjelp – GarasjeProffen.no",
-  description: "Finn tomten din på kart, svar på noen spørsmål og få hjelp med byggesøknad.",
+  title: "Søknadshjelp for garasje og carport | Byggesøknad",
+  description: "Trenger du hjelp med byggesøknad for garasje eller carport? GarasjeProffen AS guider deg gjennom prosessen – finn tomten din og få en skreddersydd søknad.",
+  alternates: { canonical: "https://www.garasjeproffen.no/soknadshjelp" },
 };
 
 interface Props {

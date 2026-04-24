@@ -2,8 +2,9 @@ import { Suspense } from "react";
 import ConfiguratorShell from "@/components/configurator/ConfiguratorShell";
 
 export const metadata = {
-  title: "Design din garasje | GarasjeProffen.no",
-  description: "Tilpass garasjens dimensjoner og få et prisestimat med en gang.",
+  title: "Garasje på Jæren og Rogaland | Materialpakke og prefab",
+  description: "Bestill garasje fra GarasjeProffen AS på Bryne. Velg mellom materialpakke og prefabrikkert garasje – vi leverer på Jæren, i Stavanger, Sandnes og omegn.",
+  alternates: { canonical: "https://www.garasjeproffen.no/garasje" },
 };
 
 export default function GarasjePage() {

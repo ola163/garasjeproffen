@@ -2,8 +2,9 @@ import { Suspense } from "react";
 import ConfiguratorShell from "@/components/configurator/ConfiguratorShell";
 
 export const metadata = {
-  title: "Design din carport | GarasjeProffen.no",
-  description: "Tilpass carporten etter dine behov og få et prisestimat med en gang.",
+  title: "Carport på Jæren | Materialpakke og prefabrikkert",
+  description: "Bestill carport fra GarasjeProffen AS. Velg materialpakke eller ferdigmontert carport – vi leverer i Rogaland, fra Bryne til Stavanger og Sandnes.",
+  alternates: { canonical: "https://www.garasjeproffen.no/carport" },
 };
 
 export default function CarportPage() {
