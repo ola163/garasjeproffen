@@ -2,9 +2,9 @@ import Image from "next/image";
 import ContactForm from "@/components/om-oss/ContactForm";
 
 export const metadata = {
-  title: "Om oss – GarasjeProffen.no",
-  description:
-    "Les mer om GarasjeProffen.no – hvem vi er, hva vi gjør, og hvorfor vi brenner for gode garasjeløsninger.",
+  title: "Om oss – GarasjeProffen AS på Bryne",
+  description: "Les mer om GarasjeProffen AS – hvem vi er, hva vi gjør, og hvorfor vi brenner for gode garasjeløsninger på Jæren og i Rogaland.",
+  alternates: { canonical: "https://www.garasjeproffen.no/om-oss" },
 };
 
 export default function OmOss() {

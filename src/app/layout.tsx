@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     default: "Garasje og carport på Jæren | GarasjeProffen AS",
     template: "%s | GarasjeProffen AS",
   },
-  description: "Design din egen garasje eller carport med GarasjeProffen AS. Vi leverer materialpakker, prefabrikkerte løsninger og hjelp med byggesøknad – fra Bryne til hele Norge.",
+  description: "GarasjeProffen leverer skreddersydde garasjer, carporter, materialpakker og prefabrikkerte løsninger. Vi hjelper også med byggesøknad.",
   metadataBase: new URL("https://www.garasjeproffen.no"),
   alternates: { canonical: "https://www.garasjeproffen.no" },
   icons: {
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Garasje og carport på Jæren | GarasjeProffen AS",
-    description: "Design din egen garasje eller carport med GarasjeProffen AS. Vi leverer materialpakker, prefabrikkerte løsninger og hjelp med byggesøknad – fra Bryne til hele Norge.",
+    description: "GarasjeProffen leverer skreddersydde garasjer, carporter, materialpakker og prefabrikkerte løsninger. Vi hjelper også med byggesøknad.",
     url: "https://www.garasjeproffen.no",
     siteName: "GarasjeProffen AS",
     images: [{ url: "/logo.jpg", width: 600, height: 600, alt: "GarasjeProffen AS" }],
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary",
     title: "Garasje og carport på Jæren | GarasjeProffen AS",
-    description: "Design din egen garasje eller carport med GarasjeProffen AS. Materialpakke, prefab og byggesøknad.",
+    description: "GarasjeProffen leverer skreddersydde garasjer, carporter, materialpakker og prefabrikkerte løsninger. Vi hjelper også med byggesøknad.",
     images: ["/logo.jpg"],
   },
 };

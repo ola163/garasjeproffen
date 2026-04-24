@@ -6,8 +6,8 @@ import type { ReferanseProject } from "@/types/referanse";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Referanseprosjekter – Garasjer og carporter i Rogaland",
-  description: "Se ferdige garasjer, carporter og uthus levert av GarasjeProffen AS i Rogaland. Prefabrikkerte løsninger og materialpakker til kunder på Jæren, i Stavanger og Sandnes.",
+  title: "Referanseprosjekter – garasjer og carporter i Rogaland",
+  description: "Se tidligere garasje-, carport- og byggesøknadsprosjekter fra GarasjeProffen på Jæren og i Rogaland.",
   alternates: { canonical: "https://www.garasjeproffen.no/referanseprosjekter" },
 };
 
