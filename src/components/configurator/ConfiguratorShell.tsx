@@ -137,6 +137,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     roofType,
     focusSide,
     addedElements,
+    buildingType,
   };
 
   return (

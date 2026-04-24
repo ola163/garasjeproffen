@@ -9,6 +9,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { AddedElement, ElementCategory } from "./DoorWindowAdder";
 
 useGLTF.preload("/Vindu_100x50glb.glb");
+useGLTF.preload("/Carport_GLB.glb");
 
 interface GarageViewerProps {
   lengthMm: number;
@@ -17,6 +18,7 @@ interface GarageViewerProps {
   doorHeightMm: number;
   roofType?: "saltak" | "flattak";
   addedElements?: AddedElement[];
+  buildingType?: string;
 }
 
 // ── Window rendering constants (mirror LocalGarageViewer) ─────────────────────
@@ -189,8 +191,10 @@ function DimensionLine({
   );
 }
 
-function GarageModel({ lengthMm, widthMm, roofType }: { lengthMm: number; widthMm: number; roofType?: string }) {
-  const modelUrl = roofType === "flattak" ? "/garasje_flatt_tak.glb" : "/garasje_saltak.glb";
+function GarageModel({ lengthMm, widthMm, roofType, buildingType }: { lengthMm: number; widthMm: number; roofType?: string; buildingType?: string }) {
+  const modelUrl = buildingType === "carport"
+    ? "/Carport_GLB.glb"
+    : roofType === "flattak" ? "/garasje_flatt_tak.glb" : "/garasje_saltak.glb";
   const { scene: rawScene } = useGLTF(modelUrl);
   // Clone so mutations don't affect the cached scene shared across remounts
   const scene = useMemo(() => rawScene.clone(true), [rawScene]);
@@ -283,7 +287,7 @@ class GltfErrorBoundary extends Component<
   }
 }
 
-export default function GarageViewer({ lengthMm, widthMm, roofType, addedElements = [] }: GarageViewerProps) {
+export default function GarageViewer({ lengthMm, widthMm, roofType, addedElements = [], buildingType }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
 
   return (
@@ -302,7 +306,7 @@ export default function GarageViewer({ lengthMm, widthMm, roofType, addedElement
 
         <GltfErrorBoundary onError={(msg) => console.error("3D-feil:", msg)}>
           <Suspense fallback={null}>
-            <GarageModel key={roofType ?? "saltak"} lengthMm={lengthMm} widthMm={widthMm} roofType={roofType} />
+            <GarageModel key={`${buildingType ?? "garasje"}-${roofType ?? "saltak"}`} lengthMm={lengthMm} widthMm={widthMm} roofType={roofType} buildingType={buildingType} />
           </Suspense>
         </GltfErrorBoundary>
         <GarageWindowElements elements={addedElements} lengthM={lengthMm / 1000} widthM={widthMm / 1000} />

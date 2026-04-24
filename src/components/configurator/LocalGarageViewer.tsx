@@ -7,6 +7,7 @@ import { OrbitControls, useGLTF } from "@react-three/drei";
 import type { AddedElement, WallSide, ElementCategory } from "./DoorWindowAdder";
 
 useGLTF.preload("/Vindu_100x50glb.glb");
+useGLTF.preload("/Carport_GLB.glb");
 
 interface LocalGarageViewerProps {
   lengthMm: number;
@@ -16,6 +17,7 @@ interface LocalGarageViewerProps {
   roofType?: "saltak" | "flattak";
   focusSide?: WallSide | null;
   addedElements?: AddedElement[];
+  buildingType?: string;
 }
 
 // ── Dimensions ───────────────────────────────────────────────────────────────
@@ -363,6 +365,34 @@ function GarageElements({ elements, lengthM, widthM }: {
   return <>{meshes}</>;
 }
 
+// ── Carport GLB model ─────────────────────────────────────────────────────────
+function CarportModel({ lengthM, widthM }: { lengthM: number; widthM: number }) {
+  const { scene: rawScene } = useGLTF("/Carport_GLB.glb");
+  const scene = useMemo(() => rawScene.clone(true), [rawScene]);
+
+  useEffect(() => {
+    scene.scale.set(1, 1, 1);
+    scene.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(scene);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const scaleX = size.x > 0 ? widthM  / size.x : 1;
+    const scaleZ = size.z > 0 ? lengthM / size.z : 1;
+    scene.scale.set(scaleX, 1, scaleZ);
+    scene.updateMatrixWorld(true);
+    const finalBox = new THREE.Box3().setFromObject(scene);
+    const center = new THREE.Vector3(); finalBox.getCenter(center);
+    scene.position.set(-center.x, -finalBox.min.y, -center.z);
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+  }, [scene, lengthM, widthM]);
+
+  return <primitive object={scene} dispose={null} />;
+}
+
 // ── Camera controller ─────────────────────────────────────────────────────────
 function CameraController({ focusSide, lengthM, widthM }: {
   focusSide: WallSide | null | undefined; lengthM: number; widthM: number;
@@ -408,7 +438,7 @@ function CameraController({ focusSide, lengthM, widthM }: {
 // ── Viewer ───────────────────────────────────────────────────────────────────
 export default function LocalGarageViewer({
   lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType = "saltak",
-  focusSide, addedElements = [],
+  focusSide, addedElements = [], buildingType = "garasje",
 }: LocalGarageViewerProps) {
   const lengthM = lengthMm / 1000;
   const widthM  = widthMm  / 1000;
@@ -431,12 +461,18 @@ export default function LocalGarageViewer({
         <directionalLight position={[-6, 4, -6]} intensity={0.22} />
 
         <Suspense fallback={null}>
-          <GarageGeometry
-            lengthM={lengthM} widthM={widthM}
-            doorWidthM={doorWidthMm / 1000} doorHeightM={doorHeightMm / 1000}
-            roofType={roofType} elements={addedElements}
-          />
-          <GarageElements elements={addedElements} lengthM={lengthM} widthM={widthM} />
+          {buildingType === "carport" ? (
+            <CarportModel lengthM={lengthM} widthM={widthM} />
+          ) : (
+            <>
+              <GarageGeometry
+                lengthM={lengthM} widthM={widthM}
+                doorWidthM={doorWidthMm / 1000} doorHeightM={doorHeightMm / 1000}
+                roofType={roofType} elements={addedElements}
+              />
+              <GarageElements elements={addedElements} lengthM={lengthM} widthM={widthM} />
+            </>
+          )}
         </Suspense>
 
         <CameraController focusSide={focusSide} lengthM={lengthM} widthM={widthM} />
