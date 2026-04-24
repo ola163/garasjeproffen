@@ -17,21 +17,17 @@ export const metadata = {
 export default function GarasjePage() {
   return (
     <>
-      <div className="mx-auto max-w-4xl px-6 pt-10 pb-3">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
-          Garasje på Jæren og i Rogaland
-        </h1>
-        <p className="mt-2 max-w-2xl text-base text-gray-600">
+      <div className="sr-only">
+        <h1>Garasje på Jæren og i Rogaland</h1>
+        <p>
           Konfigurer garasjen din i 3D og motta et prisestimat med én gang. Velg{" "}
-          <Link href="/materialpakke-garasje" className="text-orange-600 hover:underline">materialpakke for selvbygging</Link>
+          <Link href="/materialpakke-garasje">materialpakke for selvbygging</Link>
           {" "}eller{" "}
-          <Link href="/prefabrikkert-garasje" className="text-orange-600 hover:underline">prefabrikkert garasje med montering</Link>
+          <Link href="/prefabrikkert-garasje">prefabrikkert garasje med montering</Link>
           {" "}– levert av GarasjeProffen AS fra Bryne.
         </p>
-        <div className="mt-3 flex flex-wrap gap-4 text-sm">
-          <Link href="/byggesoknad-garasje" className="text-gray-500 hover:text-orange-600">Hjelp med byggesøknad og nabovarsel</Link>
-          <Link href="/garasje-rogaland" className="text-gray-500 hover:text-orange-600">Levering i hele Rogaland</Link>
-        </div>
+        <Link href="/byggesoknad-garasje">Hjelp med byggesøknad og nabovarsel</Link>
+        <Link href="/garasje-rogaland">Levering i hele Rogaland</Link>
       </div>
       <Suspense
         fallback={
