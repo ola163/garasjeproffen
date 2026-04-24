@@ -1,7 +1,10 @@
 export interface LineItem {
   description: string;
-  amount: number;   // NOK inkl. MVA
+  amount: number;   // NOK inkl. MVA, per enhet
   quantity: number;
+  varenr?: string;
+  dimensjon?: string;
+  enhet?: string;
 }
 
 export interface OfferSection {

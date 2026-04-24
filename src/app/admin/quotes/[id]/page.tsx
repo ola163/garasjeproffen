@@ -139,8 +139,41 @@ export default function QuoteDetailPage() {
     { id: "prefabelement", label: "Prefabelement" },
   ];
 
+  const SOKNADSHJELP_TEMPLATE: LineItem[] = [
+    { description: "Tegnearbeid", amount: 5000, quantity: 1 },
+    { description: "Nabovarsel", amount: 3000, quantity: 1 },
+    { description: "Dispensasjon", amount: 0, quantity: 1 },
+  ];
+
+  const PREFAB_TEMPLATE: LineItem[] = [
+    { description: "Bindingsverk av tre, uisolert", enhet: "m²", quantity: 31, amount: 1534.71 },
+    { description: "Gesims forkant, panel, netting, spikerslag, fugleband", enhet: "lm", quantity: 20, amount: 1525.33 },
+    { description: "Gesimsavslutning, flate tak inkl. beslag", enhet: "lm", quantity: 7, amount: 4249.28 },
+    { description: "Limtredrager, gran, 90x315", enhet: "lm", quantity: 6, amount: 1275.00 },
+    { description: "Limtresøyle, gran, beslag, 90x90x2500", enhet: "stk", quantity: 2, amount: 1679.98 },
+    { description: "Nedløp for takrenne, stål plastisert 85mm", enhet: "lm", quantity: 3, amount: 489.23 },
+    { description: "Sluk inkl rør for flate tak", enhet: "stk", quantity: 1, amount: 171.67 },
+    { description: "Sperretak av I-bjelker, papptekking, gipsplater innv.", enhet: "m²", quantity: 42, amount: 1643.04 },
+    { description: "Takrenner, stål plastisert, 125mm", enhet: "lm", quantity: 7, amount: 937.10 },
+    { description: "Vindu, trevegg fastkarm 10x20", enhet: "stk", quantity: 4, amount: 22856.66 },
+  ];
+
   function addSection(category: string) {
-    setOfferSections((prev) => [...prev, { category, line_items: [{ description: "", amount: 0, quantity: 1 }], notes: "" }]);
+    const defaultItems: LineItem[] =
+      category === "søknadshjelp"
+        ? SOKNADSHJELP_TEMPLATE.map((item) => ({ ...item }))
+        : [{ description: "", amount: 0, quantity: 1 }];
+    setOfferSections((prev) => [...prev, { category, line_items: defaultItems, notes: "" }]);
+  }
+
+  function loadPrefabTemplate(sIdx: number) {
+    setOfferSections((prev) =>
+      prev.map((s, i) =>
+        i === sIdx
+          ? { ...s, line_items: [...s.line_items.filter((l) => l.description || l.amount), ...PREFAB_TEMPLATE.map((item) => ({ ...item }))] }
+          : s
+      )
+    );
   }
 
   function removeSection(sIdx: number) {
@@ -148,8 +181,12 @@ export default function QuoteDetailPage() {
   }
 
   function addLineItemToSection(sIdx: number) {
+    const section = offerSections[sIdx];
+    const newItem: LineItem = section?.category === "materialpakke"
+      ? { description: "", amount: 0, quantity: 1, varenr: "", dimensjon: "", enhet: "" }
+      : { description: "", amount: 0, quantity: 1 };
     setOfferSections((prev) => prev.map((s, i) => i === sIdx
-      ? { ...s, line_items: [...s.line_items, { description: "", amount: 0, quantity: 1 }] }
+      ? { ...s, line_items: [...s.line_items, newItem] }
       : s));
   }
 
@@ -173,20 +210,24 @@ export default function QuoteDetailPage() {
     const data = await file.arrayBuffer();
     const wb = read(data, { type: "array" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    // header:1 gives raw array-of-arrays; row 0 is the header
     const rows = utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
     const items: LineItem[] = [];
+    const isMatpak = offerSections[sIdx]?.category === "materialpakke";
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i] as unknown[];
-      const varenr       = String(row[0] ?? "").trim();
-      const benevnelse   = String(row[1] ?? "").trim();
-      const dimensjon    = String(row[2] ?? "").trim();
-      const enhet        = String(row[3] ?? "").trim();
-      const mengde       = parseFloat(String(row[4] ?? "")) || 1;
+      const varenr     = String(row[0] ?? "").trim();
+      const benevnelse = String(row[1] ?? "").trim();
+      const dimensjon  = String(row[2] ?? "").trim();
+      const enhet      = String(row[3] ?? "").trim();
+      const mengde     = parseFloat(String(row[4] ?? "")) || 1;
       if (!benevnelse) continue;
-      const parts = [varenr, benevnelse, dimensjon].filter(Boolean);
-      const description  = parts.join(" – ") + (enhet ? ` (${enhet})` : "");
-      items.push({ description, quantity: mengde, amount: 0 });
+      if (isMatpak) {
+        items.push({ description: benevnelse, varenr, dimensjon, enhet, quantity: mengde, amount: 0 });
+      } else {
+        const parts = [varenr, benevnelse, dimensjon].filter(Boolean);
+        const description = parts.join(" – ") + (enhet ? ` (${enhet})` : "");
+        items.push({ description, quantity: mengde, amount: 0 });
+      }
     }
     if (items.length === 0) return;
     setOfferSections((prev) => prev.map((s, i) =>
@@ -750,55 +791,120 @@ export default function QuoteDetailPage() {
 
                       {/* Editable line items */}
                       {section.category === "prefabelement" && section.line_items.length > 0 && (
-                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Tillegg (montering, transport o.l.)</p>
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                          {inheritedItems.length > 0 ? "Tillegg (montering, transport o.l.)" : "Prefab-kostnader"}
+                        </p>
                       )}
-                      {section.line_items.map((item, iIdx) => (
-                        <div key={iIdx} className="flex gap-2 items-start">
-                          <div className="flex-1 min-w-0">
-                            <input type="text" placeholder="Beskrivelse" value={item.description}
-                              onChange={(e) => updateLineItemInSection(sIdx, iIdx, "description", e.target.value)}
-                              className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                      {section.line_items.map((item, iIdx) =>
+                        section.category === "materialpakke" ? (
+                          /* 6-kolonne kortform for Materialpakke */
+                          <div key={iIdx} className="rounded-lg border border-gray-100 bg-gray-50 p-2 space-y-1.5">
+                            <div className="flex gap-1.5">
+                              <input
+                                type="text" placeholder="Varenr"
+                                value={item.varenr ?? ""}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "varenr", e.target.value)}
+                                className="w-20 shrink-0 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <input
+                                type="text" placeholder="Varebenevnelse"
+                                value={item.description}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "description", e.target.value)}
+                                className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                            </div>
+                            <div className="flex gap-1.5 items-center">
+                              <input
+                                type="text" placeholder="Dimensjon"
+                                value={item.dimensjon ?? ""}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "dimensjon", e.target.value)}
+                                className="w-24 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <input
+                                type="text" placeholder="Enhet"
+                                value={item.enhet ?? ""}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "enhet", e.target.value)}
+                                className="w-16 rounded border border-gray-300 px-2 py-1.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <input
+                                type="number" placeholder="Mengde" min={0} step={0.01}
+                                value={item.quantity || ""}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "quantity", parseFloat(e.target.value) || 0)}
+                                className="w-16 rounded border border-gray-300 px-2 py-1.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <input
+                                type="number" placeholder="Pris/enhet" min={0} step={0.01}
+                                value={item.amount || ""}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "amount", parseFloat(e.target.value) || 0)}
+                                className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <span className="w-20 shrink-0 text-right text-xs font-medium text-gray-600">
+                                {item.amount && item.quantity ? formatNOK(item.amount * item.quantity) : "–"}
+                              </span>
+                              <button onClick={() => removeLineItemFromSection(sIdx, iIdx)} className="shrink-0 text-gray-400 hover:text-red-500">
+                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                              </button>
+                            </div>
                           </div>
-                          <div className="w-14 shrink-0">
-                            <input type="number" min={1} placeholder="Ant." value={item.quantity}
-                              onChange={(e) => updateLineItemInSection(sIdx, iIdx, "quantity", parseInt(e.target.value) || 1)}
-                              className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                        ) : (
+                          /* Enkel form for Søknadshjelp og Prefabelement */
+                          <div key={iIdx} className="flex gap-2 items-start">
+                            <div className="flex-1 min-w-0">
+                              <input type="text" placeholder="Beskrivelse" value={item.description}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "description", e.target.value)}
+                                className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                            </div>
+                            <div className="w-14 shrink-0">
+                              <input type="number" min={0} step={0.01} placeholder="Ant." value={item.quantity || ""}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "quantity", parseFloat(e.target.value) || 1)}
+                                className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                            </div>
+                            <div className="w-28 shrink-0">
+                              <input type="number" min={0} placeholder="kr" value={item.amount || ""}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "amount", parseFloat(e.target.value) || 0)}
+                                className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                            </div>
+                            <button onClick={() => removeLineItemFromSection(sIdx, iIdx)}
+                              className="shrink-0 mt-1 text-gray-400 hover:text-red-500">
+                              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                            </button>
                           </div>
-                          <div className="w-28 shrink-0">
-                            <input type="number" min={0} placeholder="kr" value={item.amount || ""}
-                              onChange={(e) => updateLineItemInSection(sIdx, iIdx, "amount", parseFloat(e.target.value) || 0)}
-                              className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-orange-400" />
-                          </div>
-                          <button onClick={() => removeLineItemFromSection(sIdx, iIdx)}
-                            className="shrink-0 mt-1 text-gray-400 hover:text-red-500">
-                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
+                        )
+                      )}
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => addLineItemToSection(sIdx)}
-                          className="flex-1 rounded-lg border border-dashed border-gray-300 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
+                          className="rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
                           + Legg til linje
                         </button>
-                        <label className="flex cursor-pointer items-center gap-1 rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors whitespace-nowrap">
-                          <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                          </svg>
-                          Last opp Excel
-                          <input
-                            type="file"
-                            accept=".xlsx,.xls,.ods,.csv"
-                            className="sr-only"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleExcelUpload(sIdx, file);
-                              e.target.value = "";
-                            }}
-                          />
-                        </label>
+                        {section.category === "prefabelement" && (
+                          <button type="button" onClick={() => loadPrefabTemplate(sIdx)}
+                            className="rounded-lg border border-dashed border-blue-300 px-3 py-1.5 text-xs text-blue-500 hover:border-blue-500 hover:text-blue-700 transition-colors whitespace-nowrap">
+                            Last inn standard mal
+                          </button>
+                        )}
+                        {section.category !== "søknadshjelp" && (
+                          <label className="flex cursor-pointer items-center gap-1 rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors whitespace-nowrap">
+                            <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            Last opp Excel
+                            <input
+                              type="file"
+                              accept=".xlsx,.xls,.ods,.csv"
+                              className="sr-only"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleExcelUpload(sIdx, file);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
                       </div>
 
                       {/* Section notes */}
