@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -88,6 +89,21 @@ export default function AdminKunderPage() {
     );
   }
 
+  function exportToExcel() {
+    const rows = customers.map((c) => ({
+      "Navn": c.name,
+      "E-post": c.email,
+      "Telefon": c.phone ?? "",
+      "Antall forespørsler": c.quoteCount,
+      "Siste forespørsel": formatDate(c.lastQuote),
+      "Statuser": c.statuses.join(", "),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Kunder");
+    XLSX.writeFile(wb, `kunder-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
   const filtered = customers.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -105,6 +121,13 @@ export default function AdminKunderPage() {
             <h1 className="mt-1 text-xl font-bold text-gray-900">Kunderegister</h1>
             <p className="text-xs text-gray-400">{customers.length} unike kunder</p>
           </div>
+          <button onClick={exportToExcel} disabled={customers.length === 0}
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5">
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Excel
+          </button>
           <button onClick={() => supabase?.auth.signOut()} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Logg ut</button>
         </div>
 

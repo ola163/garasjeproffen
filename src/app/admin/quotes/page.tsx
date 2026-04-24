@@ -7,6 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import type { QuoteRow, QuoteStatus } from "@/types/quote-admin";
 import Link from "next/link";
 import { adminName } from "@/lib/admin-names";
+import * as XLSX from "xlsx";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -162,6 +163,33 @@ export default function AdminQuotesPage() {
     );
   }
 
+  function exportToExcel() {
+    const rows = quotes.map((q) => {
+      const p = (q.configuration as { parameters?: Record<string, number> } | null)?.parameters;
+      return {
+        "Ticket": q.ticket_number,
+        "Navn": q.customer_name,
+        "E-post": q.customer_email,
+        "Telefon": q.customer_phone ?? "",
+        "Kategori": q.category ?? "",
+        "Bygg": q.building_type ?? "",
+        "Pakke": q.package_type ?? "",
+        "Bredde (m)": p?.width ? p.width / 1000 : "",
+        "Lengde (m)": p?.length ? p.length / 1000 : "",
+        "Tak": q.roof_type ?? "",
+        "Status": STATUS_LABELS[q.status] ?? q.status,
+        "Behandler": adminName(q.assigned_to),
+        "Total (kr)": q.offer_total ?? "",
+        "Manuell": q.created_manually ? "Ja" : "Nei",
+        "Dato": new Date(q.created_at).toLocaleDateString("nb-NO"),
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Forespørsler");
+    XLSX.writeFile(wb, `forespørsler-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
   const filtered = activeFilter === "all" ? quotes : quotes.filter((q) => q.status === activeFilter);
 
   const counts = quotes.reduce((acc, q) => {
@@ -184,6 +212,13 @@ export default function AdminQuotesPage() {
             <button onClick={() => setNewOpen(true)}
               className="rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-600">
               + Ny
+            </button>
+            <button onClick={exportToExcel} disabled={quotes.length === 0}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Excel
             </button>
             <Link href="/referanseprosjekter/admin" className="hidden sm:block rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Referanser</Link>
             <button onClick={() => supabase?.auth.signOut()} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Logg ut</button>
