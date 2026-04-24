@@ -17,6 +17,8 @@ interface GarageMapboxProps {
   readOnly?: boolean;
   /** Force 3D extrusion mode on */
   forceIs3D?: boolean;
+  /** Street-view perspective: camera positioned in front of garage at ground level */
+  streetView?: boolean;
 }
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -60,7 +62,7 @@ export default function GarageMapbox({
   lengthMm, widthMm, roofType,
   externalCenter, externalRotation,
   onCenterChange, onRotationChange,
-  readOnly = false, forceIs3D = false,
+  readOnly = false, forceIs3D = false, streetView = false,
 }: GarageMapboxProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -108,13 +110,26 @@ export default function GarageMapbox({
     mapboxgl.accessToken = TOKEN;
 
     const initCenter = externalCenter ?? [5.7, 58.74];
+    const initRot    = externalRotation ?? 0;
+
+    // For street view: position camera 28 m in front of the garage
+    let streetCenter: [number, number] = initCenter;
+    if (streetView && externalCenter) {
+      const rad    = ((initRot + 180) * Math.PI) / 180; // direction FROM garage TO viewer
+      const distM  = 28;
+      const lat    = initCenter[1];
+      const dLng   = (distM * Math.sin(rad)) / (111320 * Math.cos((lat * Math.PI) / 180));
+      const dLat   = (distM * Math.cos(rad)) / 111320;
+      streetCenter = [initCenter[0] + dLng, initCenter[1] + dLat];
+    }
+
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: initCenter,
-      zoom: externalCenter ? 19 : 14,
-      pitch: forceIs3D ? 60 : 0,
-      bearing: forceIs3D ? -20 : 0,
+      center: streetView && externalCenter ? streetCenter : initCenter,
+      zoom: streetView ? 19.5 : externalCenter ? 19 : 14,
+      pitch: streetView ? 72 : forceIs3D ? 60 : 0,
+      bearing: streetView ? initRot : forceIs3D ? -20 : 0,
     });
     mapRef.current = map;
 
@@ -154,14 +169,14 @@ export default function GarageMapbox({
       });
     });
 
-    // Place marker for externally-set center on load
+    // Place marker and activate 3D extrusion for externally-set center
     if (externalCenter) {
       map.on("load", () => {
         if (markerRef.current) markerRef.current.remove();
         markerRef.current = new mapboxgl.Marker({ color: "#e2520a" })
           .setLngLat(externalCenter)
           .addTo(map);
-        if (forceIs3D && map.getLayer(EXTRUSION_LAYER)) {
+        if ((forceIs3D || streetView) && map.getLayer(EXTRUSION_LAYER)) {
           map.setLayoutProperty(EXTRUSION_LAYER, "visibility", "visible");
           map.setLayoutProperty(FILL_LAYER, "visibility", "none");
         }

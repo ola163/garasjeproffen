@@ -32,6 +32,7 @@ const WINDOW_COLOR  = "#9ECFEA";
 const FRAME_COLOR   = "#FFFFFF";
 const SILL_COLOR    = "#E0E0DE";
 const DOOR_EL_COLOR = "#C4A882";
+const RECESS_COLOR  = "#1a1a1a"; // dark plate behind frame to suggest wall opening
 
 function getElDims(cat: ElementCategory) {
   const w  = cat === "door" ? 0.9 : 1.0;
@@ -75,6 +76,7 @@ function GarageWindowElements({ elements, lengthM, widthM }: {
   const matDoorEl = useMemo(() => new THREE.MeshStandardMaterial({ color: DOOR_EL_COLOR, roughness: 0.6 }), []);
   const matFrame  = useMemo(() => new THREE.MeshStandardMaterial({ color: FRAME_COLOR,   roughness: 0.5 }), []);
   const matSill   = useMemo(() => new THREE.MeshStandardMaterial({ color: SILL_COLOR,    roughness: 0.55 }), []);
+  const matRecess = useMemo(() => new THREE.MeshStandardMaterial({ color: RECESS_COLOR,  roughness: 1.0 }), []);
 
   const meshes: React.ReactNode[] = [];
   elements.forEach((el, idx) => {
@@ -92,9 +94,17 @@ function GarageWindowElements({ elements, lengthM, widthM }: {
         const x      = widthM * frac;
         const rotY   = el.side === "back" ? Math.PI : 0;
         if (isGLBWindow) {
-          meshes.push(<WindowGLB key={key} position={[x, cy, wCz]} rotY={rotY} />);
+          meshes.push(
+            <mesh key={`${key}-rc`} position={[x, cy, wFace + dir * 0.002]} material={matRecess}>
+              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.01, h + FRAME_BORDER * 2 + 0.01, 0.006]} />
+            </mesh>,
+            <WindowGLB key={key} position={[x, cy, wCz]} rotY={rotY} />,
+          );
         } else if (isWindow) {
           meshes.push(
+            <mesh key={`${key}-rc`} position={[x, cy, wFace + dir * 0.002]} material={matRecess}>
+              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.01, h + FRAME_BORDER * 2 + 0.01, 0.006]} />
+            </mesh>,
             <mesh key={`${key}-fr`} position={[x, cy, wFace + dir * FRAME_DEPTH / 2]} material={matFrame} castShadow receiveShadow>
               <boxGeometry args={[w + FRAME_BORDER * 2, h + FRAME_BORDER * 2, FRAME_DEPTH]} />
             </mesh>,
@@ -115,9 +125,17 @@ function GarageWindowElements({ elements, lengthM, widthM }: {
         const z      = lengthM * frac;
         const rotY   = el.side === "right" ? -Math.PI / 2 : Math.PI / 2;
         if (isGLBWindow) {
-          meshes.push(<WindowGLB key={key} position={[wCx, cy, z]} rotY={rotY} />);
+          meshes.push(
+            <mesh key={`${key}-rc`} position={[wFace + dir * 0.002, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matRecess}>
+              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.01, h + FRAME_BORDER * 2 + 0.01, 0.006]} />
+            </mesh>,
+            <WindowGLB key={key} position={[wCx, cy, z]} rotY={rotY} />,
+          );
         } else if (isWindow) {
           meshes.push(
+            <mesh key={`${key}-rc`} position={[wFace + dir * 0.002, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matRecess}>
+              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.01, h + FRAME_BORDER * 2 + 0.01, 0.006]} />
+            </mesh>,
             <mesh key={`${key}-fr`} position={[wFace + dir * FRAME_DEPTH / 2, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matFrame} castShadow receiveShadow>
               <boxGeometry args={[w + FRAME_BORDER * 2, h + FRAME_BORDER * 2, FRAME_DEPTH]} />
             </mesh>,
