@@ -20,8 +20,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://www.garasjeproffen.no" },
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/favicon.png", type: "image/png" },
+      { url: "/favicon.png", type: "image/png", sizes: "any" },
+      { url: "/favicon.ico" },
     ],
     apple: { url: "/apple-touch-icon.png", type: "image/png" },
   },
@@ -39,6 +39,12 @@ export const metadata: Metadata = {
     title: "Garasje og carport på Jæren | GarasjeProffen AS",
     description: "GarasjeProffen leverer skreddersydde garasjer, carporter, materialpakker og prefabrikkerte løsninger. Vi hjelper også med byggesøknad.",
     images: ["/logo.jpg"],
+  },
+  other: {
+    "geo.region": "NO-11",
+    "geo.placename": "Bryne, Rogaland",
+    "geo.position": "58.7298;5.4964",
+    "ICBM": "58.7298, 5.4964",
   },
 };
 

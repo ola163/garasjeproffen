@@ -24,9 +24,15 @@ function formatNOK(n: number) {
 }
 
 function getEffectiveItems(section: OfferSection, allSections: OfferSection[]): LineItem[] {
-  if (section.category !== "prefabelement") return section.line_items;
+  const sok = allSections.find((s) => s.category === "søknadshjelp");
   const mat = allSections.find((s) => s.category === "materialpakke");
-  return [...(mat?.line_items ?? []), ...section.line_items];
+  if (section.category === "prefabelement") {
+    return [...(sok?.line_items ?? []), ...(mat?.line_items ?? []), ...section.line_items];
+  }
+  if (section.category === "materialpakke") {
+    return [...(sok?.line_items ?? []), ...section.line_items];
+  }
+  return section.line_items;
 }
 
 function sectionTotal(section: OfferSection, allSections: OfferSection[]) {
@@ -60,14 +66,17 @@ export async function POST(request: Request) {
 
     const sb = createClient(sbUrl, sbKey);
     const hasPrefa = offerSections.some((s) => s.category === "prefabelement");
+    const hasMatpak = offerSections.some((s) => s.category === "materialpakke");
     const grandTotal = offerSections.reduce((t, s) => {
       if (hasPrefa && s.category === "materialpakke") return t;
+      if ((hasPrefa || hasMatpak) && s.category === "søknadshjelp") return t;
       return t + sectionTotal(s, offerSections);
     }, 0);
-    // Flatten for Klarna — use effective items but avoid duplicating materialpakke rows
-    const allLineItems: LineItem[] = hasPrefa
-      ? offerSections.flatMap(s => s.category === "materialpakke" ? [] : getEffectiveItems(s, offerSections))
-      : offerSections.flatMap(s => s.line_items);
+    const allLineItems: LineItem[] = offerSections.flatMap(s => {
+      if (hasPrefa && s.category === "materialpakke") return [];
+      if ((hasPrefa || hasMatpak) && s.category === "søknadshjelp") return [];
+      return getEffectiveItems(s, offerSections);
+    });
 
     // ── Klarna Checkout ──
     const klarnaUser = process.env.KLARNA_API_USERNAME;
@@ -123,7 +132,11 @@ export async function POST(request: Request) {
     }
 
     // ── Build email HTML ──
-    const sectionsHtml = offerSections.map((section) => {
+    const sectionsHtml = offerSections.filter(section => {
+      if (hasPrefa && section.category === "materialpakke") return false;
+      if ((hasPrefa || hasMatpak) && section.category === "søknadshjelp") return false;
+      return true;
+    }).map((section) => {
       const label = CATEGORY_LABELS[section.category] ?? section.category;
       const subTotal = sectionTotal(section, offerSections);
       const effectiveItems = getEffectiveItems(section, offerSections);

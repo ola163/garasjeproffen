@@ -6,9 +6,15 @@ import type { ReferanseProject } from "@/types/referanse";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Referanseprosjekter – garasjer og carporter i Rogaland",
-  description: "Se tidligere garasje-, carport- og byggesøknadsprosjekter fra GarasjeProffen på Jæren og i Rogaland.",
+  title: "Referanseprosjekter | Garasjer og carporter på Jæren | GarasjeProffen",
+  description: "Se referanseprosjekter fra GarasjeProffen. Vi leverer garasjer, carporter, uthus, materialpakker og prefabrikkerte løsninger på Jæren og i Rogaland.",
   alternates: { canonical: "https://www.garasjeproffen.no/referanseprosjekter" },
+  openGraph: {
+    title: "Referanseprosjekter | Garasjer og carporter på Jæren | GarasjeProffen",
+    description: "Se referanseprosjekter fra GarasjeProffen. Vi leverer garasjer, carporter, uthus, materialpakker og prefabrikkerte løsninger på Jæren og i Rogaland.",
+    url: "https://www.garasjeproffen.no/referanseprosjekter",
+    images: [{ url: "/logo.jpg", width: 600, height: 600, alt: "GarasjeProffen AS" }],
+  },
 };
 
 async function getProjects(): Promise<ReferanseProject[]> {

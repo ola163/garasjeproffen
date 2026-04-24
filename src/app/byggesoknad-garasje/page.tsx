@@ -132,23 +132,34 @@ export default function ByggesoknadGarasje() {
 
       <p className="mt-8 text-sm text-gray-500">
         Se også:{" "}
+        <Link href="/garasje-rogaland" className="text-orange-600 hover:underline">Garasje i Rogaland</Link>{" · "}
+        <Link href="/garasje-jaeren" className="text-orange-600 hover:underline">Garasje på Jæren</Link>{" · "}
         <Link href="/prefabrikkert-garasje" className="text-orange-600 hover:underline">Prefabrikkert garasje</Link>{" · "}
-        <Link href="/materialpakke-garasje" className="text-orange-600 hover:underline">Materialpakke</Link>{" · "}
-        <Link href="/garasje-jaeren" className="text-orange-600 hover:underline">Garasje på Jæren</Link>
+        <Link href="/materialpakke-garasje" className="text-orange-600 hover:underline">Materialpakke</Link>
       </p>
 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "FAQPage",
-            mainEntity: FAQ_ITEMS.map((item) => ({
-              "@type": "Question",
-              name: item.q,
-              acceptedAnswer: { "@type": "Answer", text: item.a },
-            })),
-          }),
+          __html: JSON.stringify([
+            {
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: FAQ_ITEMS.map((item) => ({
+                "@type": "Question",
+                name: item.q,
+                acceptedAnswer: { "@type": "Answer", text: item.a },
+              })),
+            },
+            {
+              "@context": "https://schema.org",
+              "@type": "BreadcrumbList",
+              itemListElement: [
+                { "@type": "ListItem", position: 1, name: "Forside", item: "https://www.garasjeproffen.no" },
+                { "@type": "ListItem", position: 2, name: "Byggesøknad for garasje", item: "https://www.garasjeproffen.no/byggesoknad-garasje" },
+              ],
+            },
+          ]),
         }}
       />
     </div>

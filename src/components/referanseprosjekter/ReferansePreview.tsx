@@ -23,12 +23,10 @@ export default function ReferansePreview() {
 
   return (
     <section className="w-full max-w-2xl px-6 pb-12">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Referanseprosjekter</h2>
-        <Link href="/referanseprosjekter" className="text-xs font-medium text-orange-500 hover:underline">
-          Se alle →
-        </Link>
-      </div>
+      <Link href="/referanseprosjekter" className="mb-1 block text-xs font-medium text-orange-500 hover:underline">
+        Se alle →
+      </Link>
+      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-400">Referanseprosjekter</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {projects.map((p) => (
           <Link

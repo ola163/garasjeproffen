@@ -173,6 +173,31 @@ export default function Home() {
       </div>{/* end two-column wrapper */}
 
       <ReferansePreview />
+
+      {/* SEO: geografisk dekning og tjenester */}
+      <section className="w-full max-w-5xl border-t border-gray-100 pt-8 pb-2">
+        <h2 className="text-center text-xs font-semibold uppercase tracking-widest text-gray-400">
+          Lokalt forankret – regional rekkevidde
+        </h2>
+        <p className="mx-auto mt-3 max-w-2xl text-center text-sm leading-relaxed text-gray-500">
+          GarasjeProffen AS holder til på Bryne og leverer garasjer, carporter og uthus på{" "}
+          <Link href="/garasje-jaeren" className="text-orange-500 hover:underline">Jæren</Link>
+          {" "}og i{" "}
+          <Link href="/garasje-rogaland" className="text-orange-500 hover:underline">hele Rogaland</Link>
+          {" "}– Time, Klepp, Hå, Gjesdal, Sandnes, Stavanger, Sola og Randaberg.
+          Vi tilbyr{" "}
+          <Link href="/materialpakke-garasje" className="text-orange-500 hover:underline">materialpakker for selvbygging</Link>
+          ,{" "}
+          <Link href="/prefabrikkert-garasje" className="text-orange-500 hover:underline">prefabrikkerte garasjer med rask montering</Link>
+          {" "}og hjelp med{" "}
+          <Link href="/byggesoknad-garasje" className="text-orange-500 hover:underline">byggesøknad og nabovarsel</Link>.
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {["Bryne", "Time", "Klepp", "Hå", "Gjesdal", "Sandnes", "Stavanger", "Sola", "Randaberg"].map((k) => (
+            <span key={k} className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">{k}</span>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
