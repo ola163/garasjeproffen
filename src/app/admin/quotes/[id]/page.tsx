@@ -51,6 +51,11 @@ export default function QuoteDetailPage() {
 
   // Offer builder state
   const [offerSections, setOfferSections] = useState<OfferSection[]>([]);
+  const [savedSections, setSavedSections] = useState<OfferSection[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveOk, setSaveOk] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [pendingHref, setPendingHref] = useState("");
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -59,10 +64,7 @@ export default function QuoteDetailPage() {
   const [approvalTarget, setApprovalTarget] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [statusConfirm, setStatusConfirm] = useState<QuoteStatus | null>(null);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [uploadingFile, setUploadingFile] = useState(false);
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isInitialLoad = useRef(true);
   const [statusLog, setStatusLog] = useState<{ id: string; from_status: string; to_status: string; changed_by: string; changed_at: string; note: string | null }[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [supplierForPrices, setSupplierForPrices] = useState("Optimera");
@@ -97,32 +99,45 @@ export default function QuoteDetailPage() {
     if (data) {
       const q = data as QuoteRow;
       setQuote(q);
-      if (q.offer_sections?.length) {
-        setOfferSections(q.offer_sections);
-      } else {
-        const defaultItems = q.offer_line_items?.length ? q.offer_line_items : buildDefaultLineItems(q);
-        const cat = q.category ?? "materialpakke";
-        setOfferSections(defaultItems.length > 0 ? [{ category: cat, line_items: defaultItems, notes: q.offer_notes ?? "" }] : []);
-      }
+      const sections = q.offer_sections?.length
+        ? q.offer_sections
+        : (() => {
+            const defaultItems = q.offer_line_items?.length ? q.offer_line_items : buildDefaultLineItems(q);
+            const cat = q.category ?? "materialpakke";
+            return defaultItems.length > 0 ? [{ category: cat, line_items: defaultItems, notes: q.offer_notes ?? "" }] : [];
+          })();
+      setOfferSections(sections);
+      setSavedSections(sections);
       if (q.status === "new") setClaimOpen(true);
     }
     if (logData) setStatusLog(logData);
     setLoading(false);
   }
 
+  const hasUnsavedChanges = JSON.stringify(offerSections) !== JSON.stringify(savedSections);
+
   useEffect(() => {
-    if (isInitialLoad.current) { isInitialLoad.current = false; return; }
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ""; }
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  function navigate(href: string) {
+    if (hasUnsavedChanges) { setPendingHref(href); setLeaveConfirmOpen(true); }
+    else router.push(href);
+  }
+
+  async function handleManualSave() {
     if (!supabase || !quote) return;
-    const sb = supabase;
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    setAutoSaveStatus("saving");
-    autoSaveTimer.current = setTimeout(async () => {
-      await sb.from("quotes").update({ offer_sections: offerSections }).eq("id", quote.id);
-      setAutoSaveStatus("saved");
-      setTimeout(() => setAutoSaveStatus("idle"), 2000);
-    }, 800);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offerSections]);
+    setSaving(true);
+    await supabase.from("quotes").update({ offer_sections: offerSections }).eq("id", quote.id);
+    setSavedSections(JSON.parse(JSON.stringify(offerSections)));
+    setSaving(false);
+    setSaveOk(true);
+    setTimeout(() => setSaveOk(false), 2500);
+  }
 
   function buildDefaultLineItems(q: QuoteRow): LineItem[] {
     const pricing = q.pricing as { totalPrice?: number; basePrice?: number } | null;
@@ -542,11 +557,11 @@ export default function QuoteDetailPage() {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/admin/quotes" className="text-gray-400 hover:text-gray-600">
+            <button onClick={() => navigate("/admin/quotes")} className="text-gray-400 hover:text-gray-600">
               <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
-            </Link>
+            </button>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold text-gray-900 font-mono">{quote.ticket_number}</h1>
@@ -811,9 +826,16 @@ export default function QuoteDetailPage() {
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Tilbudsbygger</h2>
-                <div className="flex items-center gap-3">
-                  {autoSaveStatus === "saving" && <span className="text-xs text-gray-400">Lagrer…</span>}
-                  {autoSaveStatus === "saved" && <span className="text-xs text-green-500">Lagret ✓</span>}
+                <div className="flex items-center gap-2">
+                  {hasUnsavedChanges && <span className="text-xs text-amber-600 font-medium">● Ulagrede endringer</span>}
+                  {saveOk && !hasUnsavedChanges && <span className="text-xs text-green-600">Lagret ✓</span>}
+                  <button
+                    onClick={handleManualSave}
+                    disabled={saving || !hasUnsavedChanges}
+                    className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {saving ? "Lagrer…" : "Lagre"}
+                  </button>
                 </div>
               </div>
 
@@ -1343,6 +1365,86 @@ export default function QuoteDetailPage() {
           </div>
         </div>
       )}
+      {/* Leave confirmation modal */}
+      {leaveConfirmOpen && (() => {
+        const CAT = OFFER_CATEGORIES.reduce((m, c) => { m[c.id] = c.label; return m; }, {} as Record<string, string>);
+        const diffs: { label: string; old: string; new: string }[] = [];
+
+        // Removed sections
+        savedSections.forEach(s => {
+          if (!offerSections.find(c => c.category === s.category))
+            diffs.push({ label: `Seksjon fjernet`, old: CAT[s.category] ?? s.category, new: "–" });
+        });
+        // Added sections
+        offerSections.forEach(s => {
+          if (!savedSections.find(c => c.category === s.category))
+            diffs.push({ label: `Seksjon lagt til`, old: "–", new: CAT[s.category] ?? s.category });
+        });
+        // Changed line items within matching sections
+        offerSections.forEach(cs => {
+          const ss = savedSections.find(s => s.category === cs.category);
+          if (!ss) return;
+          const catLabel = CAT[cs.category] ?? cs.category;
+          const maxLen = Math.max(cs.line_items.length, ss.line_items.length);
+          for (let i = 0; i < maxLen; i++) {
+            const ci = cs.line_items[i];
+            const si = ss.line_items[i];
+            if (!si && ci)  { diffs.push({ label: `${catLabel} – ny linje`, old: "–", new: ci.description || `${formatNOK(ci.amount)} × ${ci.quantity}` }); continue; }
+            if (si && !ci)  { diffs.push({ label: `${catLabel} – linje fjernet`, old: si.description || `${formatNOK(si.amount)} × ${si.quantity}`, new: "–" }); continue; }
+            if (si && ci) {
+              if (si.description !== ci.description)
+                diffs.push({ label: `${catLabel} – beskrivelse`, old: si.description || "–", new: ci.description || "–" });
+              if (si.amount !== ci.amount)
+                diffs.push({ label: `${catLabel} – pris`, old: formatNOK(si.amount), new: formatNOK(ci.amount) });
+              if (si.quantity !== ci.quantity)
+                diffs.push({ label: `${catLabel} – mengde`, old: String(si.quantity), new: String(ci.quantity) });
+            }
+          }
+          if ((ss.notes ?? "") !== (cs.notes ?? ""))
+            diffs.push({ label: `${catLabel} – notat`, old: ss.notes || "–", new: cs.notes || "–" });
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+              <h2 className="text-lg font-bold text-gray-900">Ulagrede endringer</h2>
+              <p className="mt-1 text-sm text-gray-500">Du har endringer som ikke er lagret. Hva vil du gjøre?</p>
+
+              {diffs.length > 0 && (
+                <div className="mt-4 max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                  {diffs.map((d, i) => (
+                    <div key={i} className="px-3 py-2.5 text-xs">
+                      <p className="font-semibold text-gray-700 mb-1">{d.label}</p>
+                      <div className="flex gap-3">
+                        <div className="flex-1 rounded bg-red-50 px-2 py-1 text-red-700 line-through truncate">{d.old}</div>
+                        <svg className="h-4 w-4 shrink-0 self-center text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                        <div className="flex-1 rounded bg-green-50 px-2 py-1 text-green-800 font-medium truncate">{d.new}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 flex gap-3">
+                <button onClick={() => setLeaveConfirmOpen(false)}
+                  className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                  Avbryt
+                </button>
+                <button
+                  onClick={async () => { await handleManualSave(); setLeaveConfirmOpen(false); router.push(pendingHref); }}
+                  disabled={saving}
+                  className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50">
+                  {saving ? "Lagrer…" : "Lagre og gå ut"}
+                </button>
+                <button onClick={() => { setLeaveConfirmOpen(false); router.push(pendingHref); }}
+                  className="flex-1 rounded-lg border border-red-200 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50">
+                  Forkast endringer
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
