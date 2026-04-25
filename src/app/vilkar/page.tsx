@@ -54,7 +54,7 @@ export default function VilkarPage() {
             </p>
             <p className="mt-3">
               GarasjeProffen AS er behandlingsansvarlig. Kontaktinformasjon:
-              org.nr. [org.nr.], [adresse], e-post: post@garasjeproffen.no.
+              org.nr. 937 606 966, [adresse], e-post: post@garasjeproffen.no.
             </p>
           </div>
 
@@ -204,7 +204,7 @@ export default function VilkarPage() {
           <div>
             <h2 className="mb-3 text-lg font-semibold text-gray-900">1. Behandlingsansvarlig</h2>
             <p>
-              GarasjeProffen AS (org.nr. [org.nr.]) er behandlingsansvarlig for personopplysninger
+              GarasjeProffen AS (org.nr. 937 606 966) er behandlingsansvarlig for personopplysninger
               som samles inn gjennom våre digitale tjenester. Vi er forpliktet til å behandle
               personopplysninger i samsvar med personopplysningsloven og EUs personvernforordning
               (GDPR).
@@ -432,7 +432,7 @@ export default function VilkarPage() {
             <ul className="ml-4 mt-2 list-disc space-y-2">
               <li><strong>Supabase:</strong> Database og autentisering (brukerkontoer, prosjektdata)</li>
               <li><strong>Anthropic:</strong> AI-modell for chatbot-funksjonen</li>
-              <li><strong>Firebase (Google):</strong> SMS-verifisering av mobilnummer</li>
+              <li><strong>Firebase (Google):</strong> SMS-verifisering av mobilnummer, bot- og spambeskyttelse (reCAPTCHA)</li>
               <li><strong>Klarna:</strong> Betalingsformidling</li>
               <li><strong>Resend:</strong> Utsending av e-post</li>
               <li><strong>Vercel:</strong> Hosting og driftsmiljø for nettstedet</li>
@@ -492,8 +492,47 @@ export default function VilkarPage() {
             </p>
           </div>
 
+          {/* reCAPTCHA / bot-beskyttelse */}
+          <div className="rounded-xl border-2 border-blue-100 bg-blue-50 p-6">
+            <h2 className="mb-3 text-lg font-semibold text-blue-900">
+              10. Bot- og spambeskyttelse – Firebase reCAPTCHA
+            </h2>
+            <div className="space-y-3 text-[15px] text-blue-900">
+              <p>
+                GarasjeProffen bruker Firebase reCAPTCHA (levert av Google/Firebase) for å beskytte
+                kontaktskjemaer, registrering, innlogging og andre digitale funksjoner mot automatiserte
+                innsendinger (roboter/bots), spam og misbruk.
+              </p>
+              <p>
+                <strong>Hva behandles:</strong> Når du bruker et beskyttet skjema kan teknisk informasjon
+                behandles av Firebase/Google for å vurdere om handlingen utføres av en ekte bruker:
+              </p>
+              <ul className="ml-4 list-disc space-y-1">
+                <li>IP-adresse</li>
+                <li>Nettlesertype og -versjon</li>
+                <li>Enhetsinformasjon og operativsystem</li>
+                <li>Tidspunkt og varighet for interaksjonen</li>
+                <li>Brukerinteraksjon (musebevegelse, tastetrykk o.l.)</li>
+                <li>Sikkerhetsrelaterte signaler og nettverksinformasjon</li>
+              </ul>
+              <p>
+                <strong>Formål:</strong> Sikkerhet, driftsstabilitet og misbruksforebygging (GDPR art. 6.1.f –
+                berettiget interesse).
+              </p>
+              <p>
+                <strong>Databehandler:</strong> Google Ireland Limited / Firebase (en del av Google LLC).
+                Dataene behandles på Googles infrastruktur og kan overføres til USA i henhold til EUs
+                standardkontrakter (SCC). Se Googles personvernerklæring for mer informasjon.
+              </p>
+              <p>
+                reCAPTCHA-token lagres ikke permanent hos GarasjeProffen og brukes kun til å verifisere
+                at innsendingen er fra et menneske, ikke som et spor av din aktivitet over tid.
+              </p>
+            </div>
+          </div>
+
           <div>
-            <h2 className="mb-3 text-lg font-semibold text-gray-900">10. Dine rettigheter</h2>
+            <h2 className="mb-3 text-lg font-semibold text-gray-900">11. Dine rettigheter</h2>
             <p>
               Etter GDPR har du følgende rettigheter, som du kan utøve ved å kontakte oss på
               post@garasjeproffen.no:
@@ -518,7 +557,7 @@ export default function VilkarPage() {
           </div>
 
           <div>
-            <h2 className="mb-3 text-lg font-semibold text-gray-900">11. Klage til Datatilsynet</h2>
+            <h2 className="mb-3 text-lg font-semibold text-gray-900">12. Klage til Datatilsynet</h2>
             <p>
               Dersom du mener at vi behandler dine personopplysninger i strid med
               personvernregelverket, har du rett til å klage til Datatilsynet:
@@ -536,7 +575,7 @@ export default function VilkarPage() {
           </div>
 
           <div>
-            <h2 className="mb-3 text-lg font-semibold text-gray-900">12. Endringer i personvernerklæringen</h2>
+            <h2 className="mb-3 text-lg font-semibold text-gray-900">13. Endringer i personvernerklæringen</h2>
             <p>
               Denne personvernerklæringen kan oppdateres. Vesentlige endringer varsles til
               registrerte brukere via e-post. Gjeldende versjon er alltid tilgjengelig på{" "}

@@ -18,6 +18,10 @@ export default function Kontakt() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recaptchaRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const mountedAt    = useRef(Date.now());
+
+  const MIN_SUBMIT_MS = 3000;
+  const GENERIC_ERROR = "Vi kunne ikke bekrefte innsendingen. Prøv igjen, eller kontakt oss direkte på post@garasjeproffen.no.";
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => setIsLoggedIn(d.isLoggedIn)).catch(() => {});
@@ -31,24 +35,15 @@ export default function Kontakt() {
     setSubmitting(true);
     setResult(null);
 
-    // Detect test submissions — skip API and show test message
-    const isTest = [name, email, message].every(
-      (v) => v.trim().toLowerCase() === "test" || v.trim() === "1"
-    );
-    if (isTest || isLocalhost) {
-      await new Promise((r) => setTimeout(r, 500));
-      if (isTest && !isLocalhost) {
-        setResult({ success: false, error: "Dette er bare en test." });
-      } else {
-        setResult({ success: true });
-      }
-      setName(""); setEmail(""); setPhone(""); setAddress(""); setMessage(""); setFiles([]);
+    // Minimum time check — catch very fast bot submissions
+    if (Date.now() - mountedAt.current < MIN_SUBMIT_MS) {
+      setResult({ success: false, error: GENERIC_ERROR });
       setSubmitting(false);
       return;
     }
 
     try {
-      // reCAPTCHA-verifisering via Firebase (kun produksjon)
+      // reCAPTCHA-verifisering via Firebase — alltid aktiv
       const auth = await getFirebaseAuth();
       if (!auth) throw new Error("Firebase utilgjengelig");
       const { RecaptchaVerifier } = await import("firebase/auth");
@@ -64,6 +59,8 @@ export default function Kontakt() {
       formData.append("phone", phone);
       formData.append("address", address);
       formData.append("message", message);
+      // Honeypot — always empty for real users
+      formData.append("website", "");
       files.forEach((f) => formData.append("files", f));
       const res = await fetch("/api/kontakt", { method: "POST", body: formData });
       const data = await res.json();
@@ -76,9 +73,9 @@ export default function Kontakt() {
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "";
       if (msg.includes("Firebase") || msg.includes("recaptcha") || msg.includes("reCAPTCHA")) {
-        setResult({ success: false, error: "Verifisering feilet. Last siden på nytt og prøv igjen." });
+        setResult({ success: false, error: GENERIC_ERROR });
       } else {
-        setResult({ success: false, error: "Nettverksfeil. Vennligst prøv igjen." });
+        setResult({ success: false, error: GENERIC_ERROR });
       }
       recaptchaRef.current?.clear();
       recaptchaRef.current = null;
@@ -193,6 +190,10 @@ export default function Kontakt() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            {/* Honeypot — hidden from real users, bots fill it */}
+            <div aria-hidden="true" style={{ display: "none" }}>
+              <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+            </div>
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">Navn *</label>
               <input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)}
@@ -265,6 +266,10 @@ export default function Kontakt() {
               className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? (files.length > 0 ? "Laster opp vedlegg…" : "Sender...") : "Send melding"}
             </button>
+            <p className="text-[11px] text-gray-400 text-center leading-snug">
+              Dette skjemaet er beskyttet mot spam og misbruk.{" "}
+              <a href="/vilkar#personvern" className="underline hover:text-gray-600">Personvernerklæring</a>.
+            </p>
           </form>
         )}
         </div>
