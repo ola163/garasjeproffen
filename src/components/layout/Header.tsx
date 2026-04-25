@@ -48,6 +48,7 @@ export default function Header() {
   const navLinks = [
     { href: "/referanseprosjekter", label: "Referanseprosjekter" },
     { href: "/om-oss", label: "Om oss" },
+    { href: "/kontakt", label: "Kontakt oss" },
   ];
 
   const ctaLinks = [

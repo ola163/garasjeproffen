@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import { getFirebaseAuth } from "@/lib/firebase";
 
 export default function Kontakt() {
   const [name, setName] = useState("");
@@ -14,15 +15,48 @@ export default function Kontakt() {
   const [result, setResult] = useState<{ success: boolean; error?: string } | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recaptchaRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => setIsLoggedIn(d.isLoggedIn)).catch(() => {});
   }, []);
+
+  const isLocalhost = typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setSubmitting(true);
     setResult(null);
+
+    // Detect test submissions — skip API and show test message
+    const isTest = [name, email, message].every(
+      (v) => v.trim().toLowerCase() === "test" || v.trim() === "1"
+    );
+    if (isTest || isLocalhost) {
+      await new Promise((r) => setTimeout(r, 500));
+      if (isTest && !isLocalhost) {
+        setResult({ success: false, error: "Dette er bare en test." });
+      } else {
+        setResult({ success: true });
+      }
+      setName(""); setEmail(""); setPhone(""); setAddress(""); setMessage(""); setFiles([]);
+      setSubmitting(false);
+      return;
+    }
+
     try {
+      // reCAPTCHA-verifisering via Firebase (kun produksjon)
+      const auth = await getFirebaseAuth();
+      if (!auth) throw new Error("Firebase utilgjengelig");
+      const { RecaptchaVerifier } = await import("firebase/auth");
+      if (!recaptchaRef.current) {
+        recaptchaRef.current = new RecaptchaVerifier(auth, containerRef.current!, { size: "invisible" });
+      }
+      await recaptchaRef.current.verify();
+
       const formData = new FormData();
       formData.append("name", name);
       formData.append("email", email);
@@ -35,9 +69,18 @@ export default function Kontakt() {
       setResult(data);
       if (data.success) {
         setName(""); setEmail(""); setPhone(""); setAddress(""); setMessage(""); setFiles([]);
+        recaptchaRef.current?.clear();
+        recaptchaRef.current = null;
       }
-    } catch {
-      setResult({ success: false, error: "Nettverksfeil. Vennligst prøv igjen." });
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message ?? "";
+      if (msg.includes("Firebase") || msg.includes("recaptcha") || msg.includes("reCAPTCHA")) {
+        setResult({ success: false, error: "Verifisering feilet. Last siden på nytt og prøv igjen." });
+      } else {
+        setResult({ success: false, error: "Nettverksfeil. Vennligst prøv igjen." });
+      }
+      recaptchaRef.current?.clear();
+      recaptchaRef.current = null;
     } finally {
       setSubmitting(false);
     }
@@ -157,7 +200,7 @@ export default function Kontakt() {
             </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">E-post *</label>
-              <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              <input id="email" type={isLocalhost ? "text" : "email"} required={!isLocalhost} value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="ola@eksempel.no"
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
@@ -220,6 +263,7 @@ export default function Kontakt() {
               className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? (files.length > 0 ? "Laster opp vedlegg…" : "Sender...") : "Send melding"}
             </button>
+            <div ref={containerRef} />
           </form>
         )}
         </div>

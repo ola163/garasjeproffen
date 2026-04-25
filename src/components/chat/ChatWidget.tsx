@@ -465,6 +465,20 @@ export default function ChatWidget() {
             </button>
           </div>
 
+          {/* AI disclaimer — only in AI mode */}
+          {mode === "ai" && (
+            <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2.5">
+              <p className="text-[11px] leading-snug text-amber-800">
+                <span className="font-semibold">Kunstig intelligens.</span>{" "}
+                Ikke skriv inn sensitive opplysninger, fødselsnummer, betalingsinformasjon eller passord.
+                Meldinger og teknisk informasjon kan lagres for å svare på henvendelsen din,
+                følge opp prosjektet, forbedre tjenesten og ivareta sikkerhet.
+                AI-svar er veiledende og må kontrolleres før de brukes til bestilling,
+                byggesøknad eller tekniske vurderinger.
+              </p>
+            </div>
+          )}
+
           {/* Body */}
           {mode === "guided" ? (
             <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-3">

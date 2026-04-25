@@ -5,9 +5,21 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getFirebaseAuth } from "@/lib/firebase";
 import type { ConfirmationResult } from "firebase/auth";
+import Link from "next/link";
 
 type Tab = "login" | "register";
 type RegisterStep = "details" | "phone";
+
+interface ConsentPayload {
+  termsAccepted: true;
+  termsVersion: string;
+  privacyPolicyVersion: string;
+  marketingConsent: boolean;
+  userAgent: string;
+}
+
+const TERMS_VERSION = "1.0";
+const PRIVACY_VERSION = "1.0";
 
 export default function EmailLogin() {
   const router = useRouter();
@@ -20,6 +32,10 @@ export default function EmailLogin() {
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
 
+  // Consent state (registration only)
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(true);
+
   // Register phone step
   const [registerStep, setRegisterStep] = useState<RegisterStep>("details");
   const [phone, setPhone] = useState("");
@@ -31,6 +47,9 @@ export default function EmailLogin() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recaptchaRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Stash consent for use in step 2
+  const pendingConsentRef = useRef<ConsentPayload | null>(null);
 
   async function sendPasswordReset() {
     if (!email) { setError("Skriv inn e-postadressen din først."); return; }
@@ -60,13 +79,15 @@ export default function EmailLogin() {
     setRegisterStep("details");
     setOtpSent(false);
     setOtp("");
+    setTermsAccepted(false);
+    setMarketingConsent(false);
   }
 
-  async function createSession(idToken: string) {
+  async function createSession(idToken: string, consent?: ConsentPayload) {
     const res = await fetch("/api/auth/email-login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
+      body: JSON.stringify({ idToken, consent }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -103,6 +124,18 @@ export default function EmailLogin() {
     setError("");
     if (password !== confirmPassword) { setError("Passordene stemmer ikke."); return; }
     if (password.length < 6) { setError("Passordet må være minst 6 tegn."); return; }
+    if (!termsAccepted) {
+      setError("Du må lese og godta brukervilkårene og personvernerklæringen for å opprette konto.");
+      return;
+    }
+    // Stash consent before moving to phone step
+    pendingConsentRef.current = {
+      termsAccepted: true,
+      termsVersion: TERMS_VERSION,
+      privacyPolicyVersion: PRIVACY_VERSION,
+      marketingConsent,
+      userAgent: navigator.userAgent,
+    };
     setRegisterStep("phone");
   }
 
@@ -154,7 +187,7 @@ export default function EmailLogin() {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       if (!data.session?.access_token) throw new Error("Sjekk e-posten din for å bekrefte kontoen.");
-      await createSession(data.session.access_token);
+      await createSession(data.session.access_token, pendingConsentRef.current ?? undefined);
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "";
       if (msg.toLowerCase().includes("already registered")) {
@@ -247,7 +280,7 @@ export default function EmailLogin() {
         </div>
       )}
 
-      {/* Register — step 1: email + password */}
+      {/* Register — step 1: email + password + consent */}
       {tab === "register" && registerStep === "details" && (
         <form onSubmit={handleRegisterDetails} className="space-y-4">
           <div>
@@ -268,11 +301,63 @@ export default function EmailLogin() {
               placeholder="••••••••"
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
           </div>
+
+          {/* Consent checkboxes */}
+          <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+
+            {/* Checkbox 1 — mandatory */}
+            <label className={`flex cursor-pointer gap-3 ${!termsAccepted ? "" : ""}`}>
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+              />
+              <span className="text-xs leading-relaxed text-gray-700">
+                <span className="font-semibold">Obligatorisk.</span>{" "}
+                Jeg har lest og godtar GarasjeProffens{" "}
+                <Link href="/vilkar#brukervilkar" target="_blank" className="font-medium text-orange-600 underline hover:text-orange-700">
+                  brukervilkår
+                </Link>{" "}
+                og{" "}
+                <Link href="/vilkar#personvern" target="_blank" className="font-medium text-orange-600 underline hover:text-orange-700">
+                  personvernerklæring
+                </Link>
+                .
+              </span>
+            </label>
+
+            {/* Divider */}
+            <div className="border-t border-gray-200" />
+
+            {/* Checkbox 2 — voluntary */}
+            <label className="flex cursor-pointer gap-3">
+              <input
+                type="checkbox"
+                checked={marketingConsent}
+                onChange={(e) => setMarketingConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+              />
+              <span className="text-xs leading-relaxed text-gray-700">
+                Ja takk, send meg nyheter og tilbud på e-post
+              </span>
+            </label>
+          </div>
+
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <button type="submit"
-            className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600">
+
+          <button
+            type="submit"
+            disabled={!termsAccepted}
+            className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+          >
             Neste: verifiser mobilnummer
           </button>
+          {!termsAccepted && (
+            <p className="text-center text-xs text-gray-400">
+              Du må godta brukervilkårene for å fortsette.
+            </p>
+          )}
         </form>
       )}
 

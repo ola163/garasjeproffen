@@ -431,16 +431,23 @@ export default function ProfileEditor({ isAdmin = false }: { isAdmin?: boolean }
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   async function fetchProfile() {
-    const res = await fetch("/api/profile/me");
-    const json = await res.json();
-    setProfile(json.profile ?? null);
-    setLoadingProfile(false);
+    try {
+      const res = await fetch("/api/profile/me");
+      if (!res.ok) return;
+      const json = await res.json();
+      setProfile(json.profile ?? null);
+    } catch { /* silent */ } finally {
+      setLoadingProfile(false);
+    }
   }
 
   async function fetchChanges() {
-    const res = await fetch("/api/profile/changes");
-    const json = await res.json();
-    setChanges(json.changes ?? []);
+    try {
+      const res = await fetch("/api/profile/changes");
+      if (!res.ok) return;
+      const json = await res.json();
+      setChanges(json.changes ?? []);
+    } catch { /* silent */ }
   }
 
   useEffect(() => { fetchProfile(); fetchChanges(); }, []);

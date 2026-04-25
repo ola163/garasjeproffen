@@ -35,7 +35,7 @@ export default function DevPanel() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-[9999]">
+    <div className="fixed top-4 left-4 z-[9999]">
       {open ? (
         <div className="w-64 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
           {/* Header */}
