@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { Resend } from "resend";
+
+const ADMINS = ["christian@garasjeproffen.no", "ola@garasjeproffen.no"];
+const ACTIVE_STATUSES = ["new", "in_review", "pending_approval", "offer_sent"];
 
 function getSB() {
   return createClient(
@@ -26,26 +30,70 @@ export async function POST(req: NextRequest) {
   const sb = getSB();
   const { data: existing } = await sb
     .from("user_profiles")
-    .select("address, address_pending")
+    .select("address")
     .eq("email", email)
     .maybeSingle();
 
+  const oldAddress = existing?.address ?? null;
   const now = new Date().toISOString();
 
-  // Store pending address on profile
+  // Save address directly — no approval step
   await sb.from("user_profiles").upsert(
-    { email, address_pending: address.trim(), updated_at: now },
+    { email, address: address.trim(), address_pending: null, updated_at: now },
     { onConflict: "email" }
   );
 
-  // Log the change request
-  const { data: logEntry } = await sb.from("profile_change_log").insert({
+  // Log as completed
+  await sb.from("profile_change_log").insert({
     user_email: email,
     change_type: "address",
-    old_value: existing?.address ?? null,
+    old_value: oldAddress,
     new_value: address.trim(),
-    status: "pending_approval",
-  }).select("id").single();
+    status: "completed",
+  });
 
-  return NextResponse.json({ ok: true, logId: logEntry?.id });
+  // Check for active quotes — notify admin if any
+  const { data: activeQuotes } = await sb
+    .from("quotes")
+    .select("id, ticket_number, customer_name")
+    .eq("customer_email", email)
+    .in("status", ACTIVE_STATUSES);
+
+  if (activeQuotes && activeQuotes.length > 0) {
+    const note = `Adresse endret etter innsendelse. Ny adresse: ${address.trim()}${oldAddress ? ` (tidligere: ${oldAddress})` : ""}`;
+
+    // Flag each active quote
+    await Promise.all(
+      activeQuotes.map((q) =>
+        sb.from("quotes").update({ address_change_note: note }).eq("id", q.id)
+      )
+    );
+
+    // Email admins
+    const resendKey = process.env.RESEND_API_KEY;
+    if (resendKey) {
+      const resend = new Resend(resendKey);
+      const quoteLinks = activeQuotes
+        .map(
+          (q) =>
+            `<li style="margin-bottom:4px"><a href="https://www.garasjeproffen.no/admin/quotes/${q.id}">${q.ticket_number} – ${q.customer_name}</a></li>`
+        )
+        .join("");
+      await resend.emails.send({
+        from: "GarasjeProffen <noreply@garasjeproffen.no>",
+        to: ADMINS,
+        subject: `Adresse endret etter innsendt forespørsel – ${email}`,
+        html: `
+          <p><strong>${email}</strong> har endret sin adresse.</p>
+          <p><strong>Ny adresse:</strong> ${address.trim()}</p>
+          ${oldAddress ? `<p><strong>Gammel adresse:</strong> ${oldAddress}</p>` : ""}
+          <p>Følgende aktive forespørsler er berørt:</p>
+          <ul>${quoteLinks}</ul>
+          <p style="color:#6b7280;font-size:12px">Varselet vises også i forespørselen i adminpanelet.</p>
+        `,
+      });
+    }
+  }
+
+  return NextResponse.json({ ok: true });
 }

@@ -276,6 +276,12 @@ export default function AdminQuotesPage() {
                         {q.created_manually && (
                           <span className="ml-1.5 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">Manuell</span>
                         )}
+                        {q.address_change_note && (
+                          <span title="Adresse endret etter innsendelse" className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                            Adresse endret
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-gray-900">{q.customer_name}</p>

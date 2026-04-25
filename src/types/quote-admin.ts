@@ -43,4 +43,5 @@ export interface QuoteRow {
   offer_sent_at: string | null;
   paid_at: string | null;
   created_at: string;
+  address_change_note: string | null;
 }

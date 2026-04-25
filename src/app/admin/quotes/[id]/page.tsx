@@ -73,6 +73,7 @@ export default function QuoteDetailPage() {
   const [savingPrices, setSavingPrices] = useState(false);
   const [savePriceResult, setSavePriceResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [dismissingAddressAlert, setDismissingAddressAlert] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEdit, setCustomerEdit] = useState({ name: "", email: "", phone: "", message: "", category: "", building_type: "" });
   const [savingCustomer, setSavingCustomer] = useState(false);
@@ -522,6 +523,14 @@ export default function QuoteDetailPage() {
     setUploadingFile(false);
   }
 
+  async function dismissAddressAlert() {
+    if (!supabase || !quote) return;
+    setDismissingAddressAlert(true);
+    await supabase.from("quotes").update({ address_change_note: null }).eq("id", quote.id);
+    setQuote((prev) => prev ? { ...prev, address_change_note: null } : null);
+    setDismissingAddressAlert(false);
+  }
+
   async function handleDeleteAttachment(url: string) {
     if (!supabase || !quote) return;
     const updated = (quote.attachments ?? []).filter((u) => u !== url);
@@ -694,6 +703,26 @@ export default function QuoteDetailPage() {
             ))}
           </div>
         </div>
+
+        {/* Address change alert */}
+        {quote.address_change_note && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+            <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800">Adresse endret etter innsendelse</p>
+              <p className="mt-0.5 text-sm text-amber-700">{quote.address_change_note}</p>
+            </div>
+            <button
+              onClick={dismissAddressAlert}
+              disabled={dismissingAddressAlert}
+              className="shrink-0 rounded-lg border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+            >
+              Sett som lest
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 

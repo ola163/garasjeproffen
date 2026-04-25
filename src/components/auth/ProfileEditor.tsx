@@ -277,8 +277,8 @@ function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onS
       body: JSON.stringify({ address: newAddress.trim() }),
     });
     setSaving(false);
-    if (res.ok) { setMsg({ type: "info", text: "Adresseendring sendt til godkjenning av administrator." }); setNewAddress(""); onSaved(); }
-    else { const d = await res.json(); setMsg({ type: "error", text: d.error ?? "Feil ved innsending." }); }
+    if (res.ok) { setMsg({ type: "success", text: "Adresse oppdatert." }); setNewAddress(""); onSaved(); }
+    else { const d = await res.json(); setMsg({ type: "error", text: d.error ?? "Feil ved lagring." }); }
   }
 
   return (
@@ -289,25 +289,18 @@ function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onS
           <p className="font-medium text-gray-900 mt-0.5">{profile.address}</p>
         </div>
       )}
-      {profile?.address_pending && (
-        <div className="flex items-center gap-2 rounded-lg bg-yellow-50 border border-yellow-200 px-3 py-2 text-sm text-yellow-800">
-          <svg className="h-4 w-4 shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          Venter godkjenning: <span className="font-medium">{profile.address_pending}</span>
-        </div>
-      )}
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">
-          {profile?.address ? "Ny adresse (krever godkjenning)" : "Adresse (krever godkjenning)"}
+          {profile?.address ? "Ny adresse" : "Adresse"}
         </label>
         <input type="text" value={newAddress} onChange={e => setNewAddress(e.target.value)}
           placeholder="Gateadresse, postnummer, sted"
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400" />
-        <p className="mt-1 text-xs text-gray-400">Adresseendring må godkjennes av en administrator før den trer i kraft.</p>
       </div>
       {msg && <div className={`rounded-lg px-3 py-2 text-sm ${msg.type === "success" ? "bg-green-50 text-green-700" : msg.type === "error" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{msg.text}</div>}
       <button type="submit" disabled={saving || !newAddress.trim()}
         className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50 transition-colors">
-        {saving ? "Sender…" : "Send til godkjenning"}
+        {saving ? "Lagrer…" : "Lagre adresse"}
       </button>
     </form>
   );
