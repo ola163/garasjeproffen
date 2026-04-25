@@ -261,15 +261,56 @@ function PhoneSection({ profile, onSaved }: { profile: UserProfile | null; onSav
 }
 
 // ── Address ──────────────────────────────────────────────────────────────────
+type AddressSuggestion = { adressetekst: string; postnummer: string; poststed: string };
+
 function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onSaved: () => void }) {
-  const [street,     setStreet]     = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [city,       setCity]       = useState("");
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<Msg | null>(null);
+  const [street,      setStreet]      = useState("");
+  const [postalCode,  setPostalCode]  = useState("");
+  const [city,        setCity]        = useState("");
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+  const [showSugg,    setShowSugg]    = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [msg,         setMsg]         = useState<Msg | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef  = useRef<HTMLDivElement>(null);
 
   const combined = [street.trim(), postalCode.trim(), city.trim()].filter(Boolean).join(", ");
   const canSave  = street.trim() && postalCode.trim() && city.trim();
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowSugg(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  function handleStreetChange(val: string) {
+    setStreet(val);
+    setShowSugg(false);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (val.trim().length < 3) { setSuggestions([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://ws.geonorge.no/adresser/v1/sok?sok=${encodeURIComponent(val)}&treffPerSide=6&asciiKompatibel=true`
+        );
+        const json = await res.json() as { adresser?: AddressSuggestion[] };
+        setSuggestions(json.adresser ?? []);
+        setShowSugg((json.adresser?.length ?? 0) > 0);
+      } catch { /* ignore network errors */ }
+    }, 280);
+  }
+
+  function pickSuggestion(s: AddressSuggestion) {
+    setStreet(s.adressetekst);
+    setPostalCode(s.postnummer);
+    setCity(s.poststed.charAt(0).toUpperCase() + s.poststed.slice(1).toLowerCase());
+    setSuggestions([]);
+    setShowSugg(false);
+  }
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
@@ -300,16 +341,42 @@ function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onS
           <p className="font-medium text-gray-900 mt-0.5">{profile.address}</p>
         </div>
       )}
-      <div>
+
+      {/* Street with autocomplete */}
+      <div ref={wrapperRef} className="relative">
         <label className="block text-xs font-medium text-gray-600 mb-1">Gateadresse</label>
-        <input type="text" value={street} onChange={e => setStreet(e.target.value)}
+        <input
+          type="text"
+          value={street}
+          onChange={e => handleStreetChange(e.target.value)}
+          onFocus={() => suggestions.length > 0 && setShowSugg(true)}
           placeholder="Eksempelveien 12"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400" />
+          autoComplete="off"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+        />
+        {showSugg && suggestions.length > 0 && (
+          <ul className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
+            {suggestions.map((s, i) => (
+              <li key={i}>
+                <button
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); pickSuggestion(s); }}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-orange-50 transition-colors"
+                >
+                  <span className="font-medium text-gray-900">{s.adressetekst}</span>
+                  <span className="ml-2 text-xs text-gray-400">{s.postnummer} {s.poststed}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Postnummer</label>
-          <input type="text" inputMode="numeric" maxLength={4} value={postalCode} onChange={e => setPostalCode(e.target.value.replace(/\D/g, ""))}
+          <input type="text" inputMode="numeric" maxLength={4} value={postalCode}
+            onChange={e => setPostalCode(e.target.value.replace(/\D/g, ""))}
             placeholder="4342"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400" />
         </div>
@@ -320,6 +387,7 @@ function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onS
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400" />
         </div>
       </div>
+
       {msg && <div className={`rounded-lg px-3 py-2 text-sm ${msg.type === "success" ? "bg-green-50 text-green-700" : msg.type === "error" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{msg.text}</div>}
       <button type="submit" disabled={saving || !canSave}
         className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50 transition-colors">
