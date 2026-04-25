@@ -151,9 +151,17 @@ CREATE TABLE IF NOT EXISTS profile_change_log (
   note         text
 );
 
--- Index for fast lookup by user
-CREATE INDEX IF NOT EXISTS idx_profile_change_log_email ON profile_change_log (user_email);
+-- Indexes for fast lookup
+CREATE INDEX IF NOT EXISTS idx_profile_change_log_email  ON profile_change_log (user_email);
 CREATE INDEX IF NOT EXISTS idx_profile_change_log_status ON profile_change_log (status);
+
+-- Enable RLS (blocks anon/authenticated direct access; service_role bypasses automatically)
+ALTER TABLE user_profiles      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profile_change_log ENABLE ROW LEVEL SECURITY;
+
+-- No client-side policies needed: all reads/writes go through API routes
+-- that use SUPABASE_SERVICE_ROLE_KEY, which bypasses RLS entirely.
+-- This means the anon and authenticated keys cannot access these tables directly.
           `.trim()}</pre>
         </details>
 
