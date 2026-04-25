@@ -581,12 +581,18 @@ export default function QuoteDetailPage() {
               </svg>
               PDF
             </a>
-            <button
-              onClick={() => setDeleteOpen(true)}
-              className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
-            >
-              Slett
-            </button>
+            {quote.status === "cancelled" ? (
+              <button
+                onClick={() => setDeleteOpen(true)}
+                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
+              >
+                Slett
+              </button>
+            ) : (
+              <span title="Kanseller forespørselen før sletting" className="cursor-not-allowed rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-300">
+                Slett
+              </span>
+            )}
           </div>
 
           {/* Status selector */}
