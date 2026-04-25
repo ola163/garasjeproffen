@@ -294,9 +294,7 @@ function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onS
     if (val.trim().length < 3) { setSuggestions([]); return; }
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `https://ws.geonorge.no/adresser/v1/sok?sok=${encodeURIComponent(val)}&treffPerSide=6&asciiKompatibel=true`
-        );
+        const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(val)}`);
         const json = await res.json() as { adresser?: AddressSuggestion[] };
         setSuggestions(json.adresser ?? []);
         setShowSugg((json.adresser?.length ?? 0) > 0);
