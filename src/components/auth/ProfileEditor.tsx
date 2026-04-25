@@ -262,23 +262,34 @@ function PhoneSection({ profile, onSaved }: { profile: UserProfile | null; onSav
 
 // ── Address ──────────────────────────────────────────────────────────────────
 function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onSaved: () => void }) {
-  const [newAddress, setNewAddress] = useState("");
+  const [street,     setStreet]     = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [city,       setCity]       = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<Msg | null>(null);
 
+  const combined = [street.trim(), postalCode.trim(), city.trim()].filter(Boolean).join(", ");
+  const canSave  = street.trim() && postalCode.trim() && city.trim();
+
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
-    if (!newAddress.trim()) return;
+    if (!canSave) return;
     setSaving(true); setMsg(null);
     const token = await getBearerToken();
     const res = await fetch("/api/profile/request-address", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ address: newAddress.trim() }),
+      body: JSON.stringify({ address: combined }),
     });
     setSaving(false);
-    if (res.ok) { setMsg({ type: "success", text: "Adresse oppdatert." }); setNewAddress(""); onSaved(); }
-    else { const d = await res.json(); setMsg({ type: "error", text: d.error ?? "Feil ved lagring." }); }
+    if (res.ok) {
+      setMsg({ type: "success", text: "Adresse oppdatert." });
+      setStreet(""); setPostalCode(""); setCity("");
+      onSaved();
+    } else {
+      const d = await res.json();
+      setMsg({ type: "error", text: d.error ?? "Feil ved lagring." });
+    }
   }
 
   return (
@@ -290,15 +301,27 @@ function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onS
         </div>
       )}
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">
-          {profile?.address ? "Ny adresse" : "Adresse"}
-        </label>
-        <input type="text" value={newAddress} onChange={e => setNewAddress(e.target.value)}
-          placeholder="Gateadresse, postnummer, sted"
+        <label className="block text-xs font-medium text-gray-600 mb-1">Gateadresse</label>
+        <input type="text" value={street} onChange={e => setStreet(e.target.value)}
+          placeholder="Eksempelveien 12"
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400" />
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Postnummer</label>
+          <input type="text" inputMode="numeric" maxLength={4} value={postalCode} onChange={e => setPostalCode(e.target.value.replace(/\D/g, ""))}
+            placeholder="4342"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Sted</label>
+          <input type="text" value={city} onChange={e => setCity(e.target.value)}
+            placeholder="Bryne"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400" />
+        </div>
+      </div>
       {msg && <div className={`rounded-lg px-3 py-2 text-sm ${msg.type === "success" ? "bg-green-50 text-green-700" : msg.type === "error" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{msg.text}</div>}
-      <button type="submit" disabled={saving || !newAddress.trim()}
+      <button type="submit" disabled={saving || !canSave}
         className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50 transition-colors">
         {saving ? "Lagrer…" : "Lagre adresse"}
       </button>
