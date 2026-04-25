@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ChatWidget from "@/components/chat/ChatWidget";
+import DevPanel from "@/components/dev/DevPanel";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -122,6 +123,7 @@ export default function RootLayout({
         <main>{children}</main>
         <Footer />
         <ChatWidget />
+        <DevPanel />
       </body>
     </html>
   );

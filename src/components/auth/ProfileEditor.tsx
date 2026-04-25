@@ -122,6 +122,7 @@ function ProfileSection({ onLogged }: { onLogged: () => void }) {
 
 // ── Phone ────────────────────────────────────────────────────────────────────
 function PhoneSection({ profile, onSaved }: { profile: UserProfile | null; onSaved: () => void }) {
+  const [showEdit, setShowEdit] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [otpSent,  setOtpSent]  = useState(false);
   const [otp,      setOtp]      = useState("");
@@ -133,6 +134,12 @@ function PhoneSection({ profile, onSaved }: { profile: UserProfile | null; onSav
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recaptchaRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  function handleCancel() {
+    setShowEdit(false);
+    setNewPhone(""); setOtp(""); setOtpSent(false); setMsg(null);
+    recaptchaRef.current?.clear(); recaptchaRef.current = null;
+  }
 
   async function sendOtp() {
     if (!newPhone.trim()) { setMsg({ type: "error", text: "Skriv inn nytt telefonnummer." }); return; }
@@ -169,11 +176,47 @@ function PhoneSection({ profile, onSaved }: { profile: UserProfile | null; onSav
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ phone: newPhone.trim() }),
       });
-      if (res.ok) { setMsg({ type: "success", text: "Telefonnummer oppdatert." }); setNewPhone(""); setOtp(""); setOtpSent(false); onSaved(); }
-      else { const d = await res.json(); setMsg({ type: "error", text: d.error ?? "Feil ved lagring." }); }
+      if (res.ok) {
+        setMsg({ type: "success", text: "Telefonnummer oppdatert." });
+        setShowEdit(false); setNewPhone(""); setOtp(""); setOtpSent(false);
+        onSaved();
+      } else { const d = await res.json(); setMsg({ type: "error", text: d.error ?? "Feil ved lagring." }); }
     } finally { setSaving(false); }
   }
 
+  // Collapsed view — just show current number + button
+  if (!showEdit) {
+    return (
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          {profile?.phone ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-900">{profile.phone}</span>
+              {profile.phone_verified_at && (
+                <span className="flex items-center gap-1 text-xs text-green-600">
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Verifisert
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm text-gray-400">Ikke registrert</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowEdit(true)}
+          className="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          {profile?.phone ? "Endre telefonnummer" : "Legg til telefonnummer"}
+        </button>
+      </div>
+    );
+  }
+
+  // Edit view
   return (
     <div className="space-y-3">
       {profile?.phone && (
@@ -192,7 +235,7 @@ function PhoneSection({ profile, onSaved }: { profile: UserProfile | null; onSav
         <input type="tel" value={newPhone} onChange={e => { setNewPhone(e.target.value); setOtpSent(false); }} disabled={otpSent}
           placeholder={profile?.phone ? "Nytt nummer" : "Telefonnummer"}
           className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:bg-gray-50" />
-        <button type="button" onClick={otpSent ? sendOtp : sendOtp} disabled={sending || !newPhone.trim()}
+        <button type="button" onClick={sendOtp} disabled={sending || !newPhone.trim()}
           className="shrink-0 rounded-lg bg-orange-500 px-3 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
           {sending ? "Sender…" : otpSent ? "Send på nytt" : "Send kode"}
         </button>
@@ -209,6 +252,9 @@ function PhoneSection({ profile, onSaved }: { profile: UserProfile | null; onSav
         </div>
       )}
       {msg && <div className={`rounded-lg px-3 py-2 text-sm ${msg.type === "success" ? "bg-green-50 text-green-700" : msg.type === "error" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{msg.text}</div>}
+      <button type="button" onClick={handleCancel} className="text-xs text-gray-400 hover:text-gray-600">
+        Avbryt
+      </button>
       <div ref={containerRef} />
     </div>
   );
@@ -297,10 +343,7 @@ function ChangeLog({ changes }: { changes: ChangeLog[] }) {
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
-type Tab = "profil" | "telefon" | "adresse" | "logg";
-
-export default function ProfileEditor() {
-  const [tab, setTab] = useState<Tab>("profil");
+export default function ProfileEditor({ isAdmin = false }: { isAdmin?: boolean }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [changes, setChanges] = useState<ChangeLog[]>([]);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -320,46 +363,55 @@ export default function ProfileEditor() {
 
   useEffect(() => { fetchProfile(); fetchChanges(); }, []);
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "profil",   label: "Navn / E-post" },
-    { id: "telefon",  label: "Telefon" },
-    { id: "adresse",  label: "Adresse" },
-    { id: "logg",     label: `Logg${changes.length ? ` (${changes.length})` : ""}` },
-  ];
-
   const pendingCount = changes.filter(c => c.status === "pending_approval").length;
 
   return (
-    <div className="mt-4">
-      {/* Tab bar */}
-      <div className="flex gap-1 rounded-lg bg-gray-100 p-1 mb-5">
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-all ${tab === t.id ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
-            {t.label}
-            {t.id === "adresse" && pendingCount > 0 && (
-              <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-bold text-white">{pendingCount}</span>
-            )}
-          </button>
-        ))}
+    <div className="mt-4 space-y-6">
+      {/* Navn / E-post */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Navn og e-post</h3>
+        <ProfileSection onLogged={() => { fetchChanges(); }} />
       </div>
 
-      {/* Tab content */}
-      {tab === "profil" && (
-        <ProfileSection onLogged={() => { fetchChanges(); }} />
-      )}
-      {tab === "telefon" && (
-        loadingProfile
-          ? <div className="h-16 animate-pulse rounded-lg bg-gray-100" />
+      <div className="border-t border-gray-100" />
+
+      {/* Telefon */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Telefonnummer</h3>
+        {loadingProfile
+          ? <div className="h-8 animate-pulse rounded-lg bg-gray-100" />
           : <PhoneSection profile={profile} onSaved={() => { fetchProfile(); fetchChanges(); }} />
-      )}
-      {tab === "adresse" && (
-        loadingProfile
+        }
+      </div>
+
+      <div className="border-t border-gray-100" />
+
+      {/* Adresse */}
+      <div>
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+          Adresse
+          {pendingCount > 0 && (
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-bold text-white">{pendingCount}</span>
+          )}
+        </h3>
+        {loadingProfile
           ? <div className="h-16 animate-pulse rounded-lg bg-gray-100" />
           : <AddressSection profile={profile} onSaved={() => { fetchProfile(); fetchChanges(); }} />
-      )}
-      {tab === "logg" && (
-        <ChangeLog changes={changes} />
+        }
+      </div>
+
+      {/* Logg — kun for admin */}
+      {isAdmin && (
+        <>
+          <div className="border-t border-gray-100" />
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">
+              Endringslogg
+              {changes.length > 0 && <span className="ml-2 text-xs font-normal text-gray-400">({changes.length})</span>}
+            </h3>
+            <ChangeLog changes={changes} />
+          </div>
+        </>
       )}
     </div>
   );

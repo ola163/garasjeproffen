@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
-import PhoneVerify from "@/components/auth/PhoneVerify";
 import EmailLogin from "@/components/auth/EmailLogin";
 import ProfileEditor from "@/components/auth/ProfileEditor";
 
@@ -193,15 +192,8 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
       {/* Profile section */}
       <div className="mt-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">Din profil</h2>
-        <p className="mt-1 text-sm text-gray-400">Endre navn og e-postadresse.</p>
-        <ProfileEditor />
-        <div className="mt-6 border-t border-gray-100 pt-5">
-          <p className="text-sm font-medium text-gray-700">Verifiser telefonnummer</p>
-          <p className="mt-0.5 text-xs text-gray-400">Kreves for å legge ved filer i forespørsler.</p>
-          <div className="mt-3">
-            <PhoneVerify />
-          </div>
-        </div>
+        <p className="mt-1 text-sm text-gray-400">Administrer kontaktinformasjonen din.</p>
+        <ProfileEditor isAdmin={isAdmin} />
       </div>
 
       <div className="mt-8 text-center">
