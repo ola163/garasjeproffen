@@ -64,7 +64,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 flex flex-col gap-1 border-t border-gray-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-gray-400">Tjødnavegen 8b, 4342 Bryne</p>
+          <p className="text-xs text-gray-400">Tjødnavegen 8b, 4342 Bryne &middot; Org.nr. 937 606 966</p>
           <p className="text-xs text-gray-400">&copy; {new Date().getFullYear()} GarasjeProffen.no</p>
         </div>
       </div>
