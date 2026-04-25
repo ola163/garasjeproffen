@@ -18,6 +18,7 @@ const GarageMapbox      = dynamic(() => import("./GarageMapbox"),      { ssr: fa
 
 /** Minimum combined side clearance: widthMm >= doorWidthMm + MIN_CLEARANCE */
 const MIN_CLEARANCE = 300;
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
 const lengthParam     = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
 const widthParam      = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
@@ -127,10 +128,35 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   // Whether to show the plot view instead of the 3D model in kunde/test mode
   const [showOnPlot, setShowOnPlot] = useState(false);
 
+  // Tomteplassering sidebar state
+  const [placementOpen, setPlacementOpen] = useState(false);
+  const [kommuneQuery, setKommuneQuery] = useState("");
+  const [kommuneSuggestions, setKommuneSuggestions] = useState<{ place_name: string; center: [number, number]; id: string }[]>([]);
+  const [kommuneSearching, setKommuneSearching] = useState(false);
+  const [selectedKommune, setSelectedKommune] = useState<{ name: string; center: [number, number] } | null>(null);
+
   // Auto-activate plot view when entering test mode with a plot already selected
   useEffect(() => {
     if (viewMode === "test" && mapCenter) setShowOnPlot(true);
   }, [viewMode, mapCenter]);
+
+  // Auto-open placement section when switching to kart mode
+  useEffect(() => {
+    if (viewMode === "kart") setPlacementOpen(true);
+  }, [viewMode]);
+
+  async function searchKommune(q: string) {
+    if (!q.trim()) { setKommuneSuggestions([]); return; }
+    setKommuneSearching(true);
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${MAPBOX_TOKEN}&country=no&types=district,place&language=no&limit=6`;
+      const res = await fetch(url);
+      const data = await res.json();
+      setKommuneSuggestions(data.features ?? []);
+    } finally {
+      setKommuneSearching(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(({ isAdmin, isLoggedIn }) => {
@@ -186,16 +212,14 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           >
             Test visning
           </button>
-          {isLoggedIn && (
-            <button
-              onClick={() => setViewMode("kart")}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
-                viewMode === "kart" ? "bg-white/90 text-gray-800 shadow-sm" : "text-white/80 hover:text-white"
-              }`}
-            >
-              Tomteplassering
-            </button>
-          )}
+          <button
+            onClick={() => setViewMode("kart")}
+            className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
+              viewMode === "kart" ? "bg-white/90 text-gray-800 shadow-sm" : "text-white/80 hover:text-white"
+            }`}
+          >
+            Tomteplassering
+          </button>
           {isAdmin && (
             <button
               onClick={() => setViewMode("dev")}
@@ -232,7 +256,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             readOnly forceIs3D
           />
         )}
-        {viewMode === "test" && !showOnPlot && <GarageViewer {...viewerProps} />}
+        {viewMode === "test" && !showOnPlot && <GarageViewer {...viewerProps} rotationDeg={mapRotation} />}
         {viewMode === "test" && showOnPlot && mapCenter && (
           <GarageMapbox
             lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
@@ -247,6 +271,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             externalCenter={mapCenter} externalRotation={mapRotation}
             onCenterChange={(c) => { setMapCenter(c); setShowOnPlot(false); }}
             onRotationChange={setMapRotation}
+            defaultCenter={selectedKommune?.center}
+            showNeighbors
           />
         )}
       </div>
@@ -509,6 +535,118 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               </div>
             )}
           </div>}
+
+          {/* Tomteplassering */}
+          <div className="mt-6 border-t border-gray-100 pt-5">
+            <button
+              type="button"
+              onClick={() => setPlacementOpen((o) => !o)}
+              className="flex w-full items-center justify-between text-sm font-semibold text-gray-700 hover:text-gray-900"
+            >
+              <span className="flex items-center gap-2">
+                Tomteplassering
+                {mapCenter && <span className="text-xs font-normal text-green-600">✓ Plassert</span>}
+              </span>
+              <svg className={`h-4 w-4 text-gray-400 transition-transform ${placementOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            {placementOpen && (
+              <div className="mt-4 space-y-3">
+                {mapCenter ? (
+                  <>
+                    <p className="text-xs text-green-700 font-medium">Garasjen er plassert på kartet.</p>
+                    {viewMode === "kart" ? (
+                      <button
+                        onClick={() => { setViewMode("test"); setShowOnPlot(true); }}
+                        className="w-full rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+                      >
+                        Bekreft plassering ✓
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setViewMode("kart")}
+                        className="w-full rounded-xl border border-gray-200 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        Endre plassering
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setMapCenter(null); setMapRotation(0); }}
+                      className="w-full rounded-xl border border-gray-200 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      Fjern plassering
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {viewMode !== "kart" && (
+                      <>
+                        <p className="text-xs text-gray-500">
+                          Søk etter din kommune, velg plassering i kartet og se garasjen i 3D på tomten.
+                        </p>
+
+                        {/* Kommune search */}
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={kommuneQuery}
+                            onChange={(e) => { setKommuneQuery(e.target.value); searchKommune(e.target.value); }}
+                            placeholder="Søk etter din kommune…"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                          />
+                          {kommuneSearching && (
+                            <div className="absolute right-2 top-2.5 h-4 w-4 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+                          )}
+                          {kommuneSuggestions.length > 0 && (
+                            <ul className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
+                              {kommuneSuggestions.map((s) => (
+                                <li key={s.id}>
+                                  <button
+                                    onClick={() => {
+                                      setKommuneQuery(s.place_name.split(",")[0]);
+                                      setSelectedKommune({ name: s.place_name, center: s.center });
+                                      setKommuneSuggestions([]);
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
+                                  >
+                                    {s.place_name}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        {selectedKommune && (
+                          <button
+                            onClick={() => setViewMode("kart")}
+                            className="w-full rounded-xl bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors"
+                          >
+                            Velg plassering på kart →
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => setViewMode("kart")}
+                          className="w-full rounded-xl border border-gray-200 py-2 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+                        >
+                          Åpne kart direkte
+                        </button>
+                      </>
+                    )}
+
+                    {viewMode === "kart" && (
+                      <p className="text-xs text-gray-500 text-center">
+                        Klikk i kartet for å plassere garasjen. Skru på 3D for å se nabobygg.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="mt-6 rounded-lg bg-red-50 border border-red-200 p-3">
             <p className="text-xs text-red-600 leading-relaxed">

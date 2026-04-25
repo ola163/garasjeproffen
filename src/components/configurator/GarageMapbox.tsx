@@ -22,6 +22,10 @@ interface GarageMapboxProps {
   forceIs3D?: boolean;
   /** Street-view perspective: camera positioned in front of garage at ground level */
   streetView?: boolean;
+  /** Show Mapbox 3D buildings layer (neighboring properties) when in 3D mode */
+  showNeighbors?: boolean;
+  /** Initial map center when no garage is placed yet (overrides default Rogaland center) */
+  defaultCenter?: [number, number];
 }
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -81,6 +85,7 @@ export default function GarageMapbox({
   externalCenter, externalRotation,
   onCenterChange, onRotationChange,
   readOnly = false, forceIs3D = false, streetView = false,
+  showNeighbors = false, defaultCenter,
 }: GarageMapboxProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -176,7 +181,7 @@ export default function GarageMapbox({
     if (!containerRef.current || mapRef.current) return;
     mapboxgl.accessToken = TOKEN;
 
-    const initCenter = externalCenter ?? [5.7, 58.74];
+    const initCenter = externalCenter ?? defaultCenter ?? [5.7, 58.74];
     const initRot    = externalRotation ?? 0;
 
     let streetCenter: [number, number] = initCenter;
@@ -233,6 +238,25 @@ export default function GarageMapbox({
         source: SOURCE_ID,
         paint: { "line-color": "#fff", "line-width": 2 },
       });
+
+      // Neighboring buildings (Mapbox Streets data) shown when 3D is active
+      if (showNeighbors) {
+        map.addLayer({
+          id: "neighbors-3d",
+          source: "composite",
+          "source-layer": "building",
+          filter: ["==", "extrude", "true"],
+          type: "fill-extrusion",
+          minzoom: 15,
+          paint: {
+            "fill-extrusion-color": "#c8c8c8",
+            "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], 15, 0, 15.05, ["get", "height"]],
+            "fill-extrusion-base":   ["interpolate", ["linear"], ["zoom"], 15, 0, 15.05, ["get", "min_height"]],
+            "fill-extrusion-opacity": 0.65,
+          },
+          layout: { visibility: "none" },
+        });
+      }
 
       // Three.js custom layer — renders the actual GLB garage model
       const customLayer: mapboxgl.CustomLayerInterface = {
@@ -356,13 +380,17 @@ export default function GarageMapbox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roofType, buildingType]);
 
-  // 3D toggle: 2D footprint vs GLB model, animate camera
+  // 3D toggle: 2D footprint vs GLB model, animate camera, show/hide neighbors
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
     if (map.getLayer(FILL_LAYER)) map.setLayoutProperty(FILL_LAYER, "visibility", is3D ? "none" : "visible");
     if (map.getLayer(EXTRUSION_LAYER)) map.setLayoutProperty(EXTRUSION_LAYER, "visibility", "none");
+    if (showNeighbors && map.getLayer("neighbors-3d")) {
+      map.setLayoutProperty("neighbors-3d", "visibility", is3D ? "visible" : "none");
+    }
     map.easeTo({ pitch: is3D ? 60 : 0, bearing: is3D ? -20 : 0, duration: 600 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [is3D]);
 
   // Update extrusion height when roofType changes (fallback if GLB not loaded)

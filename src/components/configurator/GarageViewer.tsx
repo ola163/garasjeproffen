@@ -19,6 +19,7 @@ interface GarageViewerProps {
   roofType?: "saltak" | "flattak";
   addedElements?: AddedElement[];
   buildingType?: string;
+  rotationDeg?: number;
 }
 
 // ── Window rendering constants (mirror LocalGarageViewer) ─────────────────────
@@ -191,7 +192,7 @@ function DimensionLine({
   );
 }
 
-function GarageModel({ lengthMm, widthMm, roofType, buildingType }: { lengthMm: number; widthMm: number; roofType?: string; buildingType?: string }) {
+function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg }: { lengthMm: number; widthMm: number; roofType?: string; buildingType?: string; rotationDeg?: number }) {
   const modelUrl = buildingType === "carport"
     ? "/Carport_GLB.glb"
     : roofType === "flattak" ? "/garasje_flatt_tak.glb" : "/garasje_saltak.glb";
@@ -221,6 +222,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType }: { lengthMm: 
     const finalBox = new Box3().setFromObject(scene);
     const center   = finalBox.getCenter(new Vector3());
     scene.position.set(-center.x, -finalBox.min.y, -center.z);
+    scene.rotation.y = ((rotationDeg ?? 0) * Math.PI) / 180;
 
     boxRef.current = new Box3().setFromObject(scene);
 
@@ -237,7 +239,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType }: { lengthMm: 
         });
       }
     });
-  }, [scene, lengthMm, widthMm]);
+  }, [scene, lengthMm, widthMm, rotationDeg]);
 
   const W = widthMm  / 1000;
   const L = lengthMm / 1000;
@@ -287,7 +289,7 @@ class GltfErrorBoundary extends Component<
   }
 }
 
-export default function GarageViewer({ lengthMm, widthMm, roofType, addedElements = [], buildingType }: GarageViewerProps) {
+export default function GarageViewer({ lengthMm, widthMm, roofType, addedElements = [], buildingType, rotationDeg }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
 
   return (
@@ -306,7 +308,7 @@ export default function GarageViewer({ lengthMm, widthMm, roofType, addedElement
 
         <GltfErrorBoundary onError={(msg) => console.error("3D-feil:", msg)}>
           <Suspense fallback={null}>
-            <GarageModel key={`${buildingType ?? "garasje"}-${roofType ?? "saltak"}`} lengthMm={lengthMm} widthMm={widthMm} roofType={roofType} buildingType={buildingType} />
+            <GarageModel key={`${buildingType ?? "garasje"}-${roofType ?? "saltak"}`} lengthMm={lengthMm} widthMm={widthMm} roofType={roofType} buildingType={buildingType} rotationDeg={rotationDeg} />
           </Suspense>
         </GltfErrorBoundary>
         <GarageWindowElements elements={addedElements} lengthM={lengthMm / 1000} widthM={widthMm / 1000} />
