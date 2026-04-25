@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 interface GarageMapboxProps {
   lengthMm: number;
   widthMm: number;
   roofType?: "saltak" | "flattak";
+  buildingType?: "garasje" | "carport";
   /** Controlled center – used when parent manages state */
   externalCenter?: [number, number] | null;
   externalRotation?: number;
@@ -58,8 +61,23 @@ function buildGarageGeoJSON(
   };
 }
 
+function getModelUrl(bt?: string, rt?: string): string {
+  if (bt === "carport") return "/Carport_GLB.glb";
+  return rt === "saltak" ? "/garasje_saltak.glb" : "/garasje_flatt_tak.glb";
+}
+
+type ThreeState = {
+  scene: THREE.Scene;
+  camera: THREE.Camera;
+  renderer: THREE.WebGLRenderer;
+  model: THREE.Group | null;
+  origSize: THREE.Vector3 | null;
+  origCenter: THREE.Vector3 | null;
+  origMinY: number;
+};
+
 export default function GarageMapbox({
-  lengthMm, widthMm, roofType,
+  lengthMm, widthMm, roofType, buildingType,
   externalCenter, externalRotation,
   onCenterChange, onRotationChange,
   readOnly = false, forceIs3D = false, streetView = false,
@@ -67,6 +85,13 @@ export default function GarageMapbox({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const threeRef = useRef<ThreeState | null>(null);
+
+  // Render-time refs — read by Mapbox render callback, written by React effects
+  const centerRenderRef = useRef<[number, number] | null>(null);
+  const rotationRenderRef = useRef<number>(0);
+  const is3DRenderRef = useRef<boolean>(forceIs3D);
+  const dimsRenderRef = useRef({ widthMm, lengthMm });
 
   const [internalCenter, setInternalCenter] = useState<[number, number] | null>(null);
   const [internalRotation, setInternalRotation] = useState(0);
@@ -75,7 +100,6 @@ export default function GarageMapbox({
   const [searching, setSearching] = useState(false);
   const [is3D, setIs3D] = useState(forceIs3D);
 
-  // Use external state if provided, otherwise internal
   const center   = externalCenter   !== undefined ? externalCenter   : internalCenter;
   const rotation = externalRotation !== undefined ? externalRotation : internalRotation;
 
@@ -97,6 +121,49 @@ export default function GarageMapbox({
   const EXTRUSION_LAYER = "garage-3d";
   const OUTLINE_LAYER = "garage-outline";
 
+  function applyModelScale(
+    model: THREE.Group,
+    origSize: THREE.Vector3,
+    origCenter: THREE.Vector3,
+    origMinY: number,
+    wMm: number,
+    lMm: number,
+  ) {
+    const scaleX = (wMm / 1000) / origSize.x;
+    const scaleZ = (lMm / 1000) / origSize.z;
+    model.scale.set(scaleX, 1, scaleZ);
+    model.position.set(-origCenter.x * scaleX, -origMinY, -origCenter.z * scaleZ);
+  }
+
+  function loadModel(url: string) {
+    const three = threeRef.current;
+    if (!three) return;
+    if (three.model) {
+      three.scene.remove(three.model);
+      three.model = null;
+    }
+    const { widthMm: w, lengthMm: l } = dimsRenderRef.current;
+    new GLTFLoader().load(url, (gltf) => {
+      const t = threeRef.current;
+      if (!t) return;
+      const model = gltf.scene;
+      model.scale.set(1, 1, 1);
+      const box = new THREE.Box3().setFromObject(model);
+      const origSize = new THREE.Vector3();
+      box.getSize(origSize);
+      const origCenter = new THREE.Vector3();
+      box.getCenter(origCenter);
+      const origMinY = box.min.y;
+      t.origSize = origSize;
+      t.origCenter = origCenter;
+      t.origMinY = origMinY;
+      applyModelScale(model, origSize, origCenter, origMinY, w, l);
+      t.model = model;
+      t.scene.add(model);
+      mapRef.current?.triggerRepaint();
+    });
+  }
+
   const updateGarage = useCallback(() => {
     const map = mapRef.current;
     if (!map || !center) return;
@@ -112,10 +179,9 @@ export default function GarageMapbox({
     const initCenter = externalCenter ?? [5.7, 58.74];
     const initRot    = externalRotation ?? 0;
 
-    // For street view: position camera 28 m in front of the garage
     let streetCenter: [number, number] = initCenter;
     if (streetView && externalCenter) {
-      const rad    = ((initRot + 180) * Math.PI) / 180; // direction FROM garage TO viewer
+      const rad    = ((initRot + 180) * Math.PI) / 180;
       const distM  = 28;
       const lat    = initCenter[1];
       const dLng   = (distM * Math.sin(rad)) / (111320 * Math.cos((lat * Math.PI) / 180));
@@ -167,21 +233,75 @@ export default function GarageMapbox({
         source: SOURCE_ID,
         paint: { "line-color": "#fff", "line-width": 2 },
       });
-    });
 
-    // Place marker and activate 3D extrusion for externally-set center
-    if (externalCenter) {
-      map.on("load", () => {
+      // Three.js custom layer — renders the actual GLB garage model
+      const customLayer: mapboxgl.CustomLayerInterface = {
+        id: "glb-model",
+        type: "custom",
+        renderingMode: "3d",
+        onAdd(_map, gl) {
+          const renderer = new THREE.WebGLRenderer({
+            canvas: map.getCanvas(),
+            context: gl as unknown as WebGL2RenderingContext,
+            antialias: true,
+          });
+          renderer.autoClear = false;
+
+          const scene = new THREE.Scene();
+          scene.add(new THREE.AmbientLight(0xffffff, 2.5));
+          const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+          sun.position.set(1, 3, 2).normalize();
+          scene.add(sun);
+
+          threeRef.current = {
+            scene,
+            camera: new THREE.Camera(),
+            renderer,
+            model: null,
+            origSize: null,
+            origCenter: null,
+            origMinY: 0,
+          };
+
+          loadModel(getModelUrl(buildingType, roofType));
+        },
+        render(_gl, matrix) {
+          const three = threeRef.current;
+          if (!three?.model || !is3DRenderRef.current || !centerRenderRef.current) return;
+
+          const [lng, lat] = centerRenderRef.current;
+          const mc = mapboxgl.MercatorCoordinate.fromLngLat({ lng, lat }, 0);
+          const s = mc.meterInMercatorCoordinateUnits();
+          const rotRad = (rotationRenderRef.current * Math.PI) / 180;
+
+          // Build model-to-mercator matrix: translate → scale (flip Y for coord system) → align Z-up → rotate
+          const l = new THREE.Matrix4()
+            .makeTranslation(mc.x, mc.y, mc.z)
+            .scale(new THREE.Vector3(s, -s, s))
+            .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))
+            .multiply(new THREE.Matrix4().makeRotationY(-rotRad));
+
+          three.camera.projectionMatrix = new THREE.Matrix4()
+            .fromArray(matrix)
+            .multiply(l);
+
+          three.renderer.resetState();
+          three.renderer.render(three.scene, three.camera);
+        },
+      };
+      map.addLayer(customLayer);
+
+      // Place marker for externally-set center
+      if (externalCenter) {
         if (markerRef.current) markerRef.current.remove();
         markerRef.current = new mapboxgl.Marker({ color: "#e2520a" })
           .setLngLat(externalCenter)
           .addTo(map);
-        if ((forceIs3D || streetView) && map.getLayer(EXTRUSION_LAYER)) {
-          map.setLayoutProperty(EXTRUSION_LAYER, "visibility", "visible");
+        if (forceIs3D || streetView) {
           map.setLayoutProperty(FILL_LAYER, "visibility", "none");
         }
-      });
-    }
+      }
+    });
 
     if (!readOnly) {
       map.on("click", (e) => {
@@ -197,24 +317,55 @@ export default function GarageMapbox({
     return () => {
       map.remove();
       mapRef.current = null;
+      threeRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    updateGarage();
-  }, [updateGarage]);
+  useEffect(() => { updateGarage(); }, [updateGarage]);
 
+  // Sync render refs so Mapbox render callback always sees fresh values
+  useEffect(() => {
+    centerRenderRef.current = center;
+    if (center) mapRef.current?.triggerRepaint();
+  }, [center]);
+
+  useEffect(() => {
+    rotationRenderRef.current = rotation;
+    mapRef.current?.triggerRepaint();
+  }, [rotation]);
+
+  useEffect(() => {
+    is3DRenderRef.current = is3D;
+    mapRef.current?.triggerRepaint();
+  }, [is3D]);
+
+  // Rescale model live when dimensions change
+  useEffect(() => {
+    dimsRenderRef.current = { widthMm, lengthMm };
+    const three = threeRef.current;
+    if (!three?.model || !three.origSize || !three.origCenter) return;
+    applyModelScale(three.model, three.origSize, three.origCenter, three.origMinY, widthMm, lengthMm);
+    mapRef.current?.triggerRepaint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widthMm, lengthMm]);
+
+  // Reload model when roof type or building type changes
+  useEffect(() => {
+    loadModel(getModelUrl(buildingType, roofType));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roofType, buildingType]);
+
+  // 3D toggle: 2D footprint vs GLB model, animate camera
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
-    const vis = is3D ? "visible" : "none";
-    if (map.getLayer(EXTRUSION_LAYER)) map.setLayoutProperty(EXTRUSION_LAYER, "visibility", vis);
     if (map.getLayer(FILL_LAYER)) map.setLayoutProperty(FILL_LAYER, "visibility", is3D ? "none" : "visible");
+    if (map.getLayer(EXTRUSION_LAYER)) map.setLayoutProperty(EXTRUSION_LAYER, "visibility", "none");
     map.easeTo({ pitch: is3D ? 60 : 0, bearing: is3D ? -20 : 0, duration: 600 });
   }, [is3D]);
 
-  // Update extrusion height when roofType changes
+  // Update extrusion height when roofType changes (fallback if GLB not loaded)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;

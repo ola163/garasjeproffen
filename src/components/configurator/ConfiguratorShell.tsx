@@ -28,12 +28,22 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const searchParams = useSearchParams();
   const initialPackage = searchParams.get("package") === "prefab" ? "prefab" : "materialpakke";
 
+  const urlWidth  = Number(searchParams.get("width"));
+  const urlLength = Number(searchParams.get("length"));
+  const urlRoof   = searchParams.get("roofType");
+
   const [packageType, setPackageType] = useState<PackageType>(initialPackage);
-  const [roofType, setRoofType] = useState<"saltak" | "flattak">("flattak");
+  const [roofType, setRoofType] = useState<"saltak" | "flattak">(
+    urlRoof === "saltak" ? "saltak" : "flattak"
+  );
 
   // Dimension state — kept in React state (not URL) to avoid router.replace re-mounts
-  const [lengthValue,     setLengthValue]     = useState(lengthParam.defaultValue);
-  const [widthValue,      setWidthValue]       = useState(widthParam.defaultValue);
+  const [lengthValue, setLengthValue] = useState(
+    urlLength >= lengthParam.min! && urlLength <= lengthParam.max! ? urlLength : lengthParam.defaultValue
+  );
+  const [widthValue, setWidthValue] = useState(
+    urlWidth >= widthParam.min! && urlWidth <= widthParam.max! ? urlWidth : widthParam.defaultValue
+  );
   const [doorWidthValue,  setDoorWidthValue]   = useState(doorWidthParam.defaultValue);
   const [doorHeightValue, setDoorHeightValue]  = useState(doorHeightParam.defaultValue);
 
@@ -217,7 +227,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         {viewMode === "kunde" && !showOnPlot && <LocalGarageViewer {...viewerProps} />}
         {viewMode === "kunde" && showOnPlot && mapCenter && (
           <GarageMapbox
-            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType}
+            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
             externalCenter={mapCenter} externalRotation={mapRotation}
             readOnly forceIs3D
           />
@@ -225,7 +235,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         {viewMode === "test" && !showOnPlot && <GarageViewer {...viewerProps} />}
         {viewMode === "test" && showOnPlot && mapCenter && (
           <GarageMapbox
-            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType}
+            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
             externalCenter={mapCenter} externalRotation={mapRotation}
             readOnly forceIs3D streetView
           />
@@ -233,7 +243,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         {viewMode === "dev" && <LocalGarageViewer {...viewerProps} />}
         {viewMode === "kart" && (
           <GarageMapbox
-            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType}
+            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
             externalCenter={mapCenter} externalRotation={mapRotation}
             onCenterChange={(c) => { setMapCenter(c); setShowOnPlot(false); }}
             onRotationChange={setMapRotation}
