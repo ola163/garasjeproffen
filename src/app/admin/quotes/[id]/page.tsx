@@ -161,6 +161,30 @@ export default function QuoteDetailPage() {
   }, [hasUnsavedChanges]);
 
   useEffect(() => {
+    // Intercept all anchor clicks (header links, any <Link> on the page)
+    function onLinkClick(e: MouseEvent) {
+      if (!hasUnsavedChangesRef.current) return;
+      const anchor = (e.target as Element).closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:") || anchor.target === "_blank") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingHref(href);
+      setLeaveConfirmOpen(true);
+    }
+    window.addEventListener("click", onLinkClick, true);
+
+    // Intercept browser back/forward button
+    function onPopState() {
+      if (!hasUnsavedChangesRef.current) return;
+      window.history.pushState(null, "", window.location.href);
+      setPendingHref("__back__");
+      setLeaveConfirmOpen(true);
+    }
+    window.addEventListener("popstate", onPopState);
+
+    // Intercept programmatic Next.js navigation (router.push etc.)
     const origPushState = window.history.pushState.bind(window.history);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window.history as any).pushState = function(data: unknown, unused: string, url?: string | URL | null) {
@@ -171,7 +195,12 @@ export default function QuoteDetailPage() {
       }
       origPushState(data, unused, url);
     };
-    return () => { window.history.pushState = origPushState; };
+
+    return () => {
+      window.removeEventListener("click", onLinkClick, true);
+      window.removeEventListener("popstate", onPopState);
+      window.history.pushState = origPushState;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1488,12 +1517,22 @@ export default function QuoteDetailPage() {
                 Avbryt
               </button>
               <button
-                onClick={async () => { await handleManualSave(); setLeaveConfirmOpen(false); router.push(pendingHref); }}
+                onClick={async () => {
+                  await handleManualSave();
+                  setLeaveConfirmOpen(false);
+                  if (pendingHref === "__back__") history.go(-1);
+                  else router.push(pendingHref);
+                }}
                 disabled={saving}
                 className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50">
                 {saving ? "Lagrer…" : "Lagre og gå ut"}
               </button>
-              <button onClick={() => { hasUnsavedChangesRef.current = false; setLeaveConfirmOpen(false); router.push(pendingHref); }}
+              <button onClick={() => {
+                hasUnsavedChangesRef.current = false;
+                setLeaveConfirmOpen(false);
+                if (pendingHref === "__back__") history.go(-1);
+                else router.push(pendingHref);
+              }}
                 className="flex-1 rounded-lg border border-red-200 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50">
                 Forkast endringer
               </button>
