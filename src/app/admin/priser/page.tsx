@@ -142,19 +142,35 @@ export default function PriserPage() {
       setImportMsg({ ok: false, text: "Ingen rader ble funnet i filen." });
       return;
     }
-    const res  = await fetch("/api/admin/supplier-prices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ supplier: sup, rows: parsed }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setImportMsg({ ok: false, text: json.error ?? "Feil ved import" });
-    } else {
-      setImportMsg({ ok: true, text: `${json.inserted} varer importert for ${sup}` });
-      await loadRows();
-      await loadCounts();
+
+    const BATCH = 1500;
+    let totalInserted = 0;
+
+    for (let i = 0; i < parsed.length; i += BATCH) {
+      const batch = parsed.slice(i, i + BATCH);
+      const res = await fetch("/api/admin/supplier-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplier: sup, rows: batch }),
+      });
+
+      const text = await res.text();
+      let json: { inserted?: number; error?: string } = {};
+      try { json = JSON.parse(text); } catch {
+        setImportMsg({ ok: false, text: `Serverfeil: ${text.slice(0, 120)}` });
+        return;
+      }
+
+      if (!res.ok) {
+        setImportMsg({ ok: false, text: json.error ?? "Feil ved import" });
+        return;
+      }
+      totalInserted += json.inserted ?? 0;
     }
+
+    setImportMsg({ ok: true, text: `${totalInserted} varer importert for ${sup}` });
+    await loadRows();
+    await loadCounts();
   }
 
   // ── Delete supplier's prices ───────────────────────────────────────────────
