@@ -53,7 +53,8 @@ export default function Kontakt() {
       if (!auth) throw new Error("Firebase utilgjengelig");
       const { RecaptchaVerifier } = await import("firebase/auth");
       if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier(auth, containerRef.current!, { size: "invisible" });
+        recaptchaRef.current = new RecaptchaVerifier(auth, containerRef.current!, { size: "normal" });
+        recaptchaRef.current.render();
       }
       await recaptchaRef.current.verify();
 
@@ -259,11 +260,11 @@ export default function Kontakt() {
             {result?.error && (
               <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{result.error}</div>
             )}
+            <div ref={containerRef} className="flex justify-center" />
             <button type="submit" disabled={submitting}
               className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? (files.length > 0 ? "Laster opp vedlegg…" : "Sender...") : "Send melding"}
             </button>
-            <div ref={containerRef} />
           </form>
         )}
         </div>
