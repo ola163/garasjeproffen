@@ -280,6 +280,21 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-yellow-500 group-hover:underline">Åpne →</p>
           </Link>
 
+          {/* Profilendringer */}
+          <Link
+            href="/admin/profil-endringer"
+            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-teal-100">
+              <svg className="h-6 w-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 group-hover:text-teal-600">Profilendringer</h2>
+            <p className="mt-1 text-sm text-gray-500">Godkjenn adresseendringer og se logg over alle profilendringer.</p>
+            <p className="mt-4 text-xs font-medium text-teal-500 group-hover:underline">Åpne →</p>
+          </Link>
+
           {/* Referanseprosjekter */}
           <Link
             href="/referanseprosjekter/admin"
