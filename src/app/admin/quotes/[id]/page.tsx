@@ -55,6 +55,7 @@ export default function QuoteDetailPage() {
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
   const [pendingHref, setPendingHref] = useState("");
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
@@ -115,6 +116,41 @@ export default function QuoteDetailPage() {
   }
 
   const hasUnsavedChanges = JSON.stringify(offerSections) !== JSON.stringify(savedSections);
+  const hasUnsavedChangesRef = useRef(false);
+  hasUnsavedChangesRef.current = hasUnsavedChanges;
+
+  function computeDiffs(current: OfferSection[], saved: OfferSection[]) {
+    const CAT = OFFER_CATEGORIES.reduce((m, c) => { m[c.id] = c.label; return m; }, {} as Record<string, string>);
+    const diffs: { label: string; old: string; new: string }[] = [];
+    saved.forEach(s => {
+      if (!current.find(c => c.category === s.category))
+        diffs.push({ label: "Seksjon fjernet", old: CAT[s.category] ?? s.category, new: "–" });
+    });
+    current.forEach(s => {
+      if (!saved.find(c => c.category === s.category))
+        diffs.push({ label: "Seksjon lagt til", old: "–", new: CAT[s.category] ?? s.category });
+    });
+    current.forEach(cs => {
+      const ss = saved.find(s => s.category === cs.category);
+      if (!ss) return;
+      const catLabel = CAT[cs.category] ?? cs.category;
+      const maxLen = Math.max(cs.line_items.length, ss.line_items.length);
+      for (let i = 0; i < maxLen; i++) {
+        const ci = cs.line_items[i];
+        const si = ss.line_items[i];
+        if (!si && ci)  { diffs.push({ label: `${catLabel} – ny linje`, old: "–", new: ci.description || `${formatNOK(ci.amount)} × ${ci.quantity}` }); continue; }
+        if (si && !ci)  { diffs.push({ label: `${catLabel} – linje fjernet`, old: si.description || `${formatNOK(si.amount)} × ${si.quantity}`, new: "–" }); continue; }
+        if (si && ci) {
+          if (si.description !== ci.description) diffs.push({ label: `${catLabel} – beskrivelse`, old: si.description || "–", new: ci.description || "–" });
+          if (si.amount !== ci.amount) diffs.push({ label: `${catLabel} – pris`, old: formatNOK(si.amount), new: formatNOK(ci.amount) });
+          if (si.quantity !== ci.quantity) diffs.push({ label: `${catLabel} – mengde`, old: String(si.quantity), new: String(ci.quantity) });
+        }
+      }
+      if ((ss.notes ?? "") !== (cs.notes ?? ""))
+        diffs.push({ label: `${catLabel} – notat`, old: ss.notes || "–", new: cs.notes || "–" });
+    });
+    return diffs;
+  }
 
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
@@ -123,6 +159,21 @@ export default function QuoteDetailPage() {
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    const origPushState = window.history.pushState.bind(window.history);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window.history as any).pushState = function(data: unknown, unused: string, url?: string | URL | null) {
+      if (hasUnsavedChangesRef.current && url != null) {
+        setPendingHref(String(url));
+        setLeaveConfirmOpen(true);
+        return;
+      }
+      origPushState(data, unused, url);
+    };
+    return () => { window.history.pushState = origPushState; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function navigate(href: string) {
     if (hasUnsavedChanges) { setPendingHref(href); setLeaveConfirmOpen(true); }
@@ -134,6 +185,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     await supabase.from("quotes").update({ offer_sections: offerSections }).eq("id", quote.id);
     setSavedSections(JSON.parse(JSON.stringify(offerSections)));
+    hasUnsavedChangesRef.current = false;
     setSaving(false);
     setSaveOk(true);
     setTimeout(() => setSaveOk(false), 2500);
@@ -830,7 +882,8 @@ export default function QuoteDetailPage() {
                     PDF
                   </a>
                   <button
-                    onClick={handleManualSave}
+                    type="button"
+                    onClick={() => setSaveConfirmOpen(true)}
                     disabled={saving || !hasUnsavedChanges}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
@@ -1368,52 +1421,15 @@ export default function QuoteDetailPage() {
           </div>
         </div>
       )}
-      {/* Leave confirmation modal */}
-      {leaveConfirmOpen && (() => {
-        const CAT = OFFER_CATEGORIES.reduce((m, c) => { m[c.id] = c.label; return m; }, {} as Record<string, string>);
-        const diffs: { label: string; old: string; new: string }[] = [];
-
-        // Removed sections
-        savedSections.forEach(s => {
-          if (!offerSections.find(c => c.category === s.category))
-            diffs.push({ label: `Seksjon fjernet`, old: CAT[s.category] ?? s.category, new: "–" });
-        });
-        // Added sections
-        offerSections.forEach(s => {
-          if (!savedSections.find(c => c.category === s.category))
-            diffs.push({ label: `Seksjon lagt til`, old: "–", new: CAT[s.category] ?? s.category });
-        });
-        // Changed line items within matching sections
-        offerSections.forEach(cs => {
-          const ss = savedSections.find(s => s.category === cs.category);
-          if (!ss) return;
-          const catLabel = CAT[cs.category] ?? cs.category;
-          const maxLen = Math.max(cs.line_items.length, ss.line_items.length);
-          for (let i = 0; i < maxLen; i++) {
-            const ci = cs.line_items[i];
-            const si = ss.line_items[i];
-            if (!si && ci)  { diffs.push({ label: `${catLabel} – ny linje`, old: "–", new: ci.description || `${formatNOK(ci.amount)} × ${ci.quantity}` }); continue; }
-            if (si && !ci)  { diffs.push({ label: `${catLabel} – linje fjernet`, old: si.description || `${formatNOK(si.amount)} × ${si.quantity}`, new: "–" }); continue; }
-            if (si && ci) {
-              if (si.description !== ci.description)
-                diffs.push({ label: `${catLabel} – beskrivelse`, old: si.description || "–", new: ci.description || "–" });
-              if (si.amount !== ci.amount)
-                diffs.push({ label: `${catLabel} – pris`, old: formatNOK(si.amount), new: formatNOK(ci.amount) });
-              if (si.quantity !== ci.quantity)
-                diffs.push({ label: `${catLabel} – mengde`, old: String(si.quantity), new: String(ci.quantity) });
-            }
-          }
-          if ((ss.notes ?? "") !== (cs.notes ?? ""))
-            diffs.push({ label: `${catLabel} – notat`, old: ss.notes || "–", new: cs.notes || "–" });
-        });
-
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
-              <h2 className="text-lg font-bold text-gray-900">Ulagrede endringer</h2>
-              <p className="mt-1 text-sm text-gray-500">Du har endringer som ikke er lagret. Hva vil du gjøre?</p>
-
-              {diffs.length > 0 && (
+      {/* Save confirmation modal */}
+      {saveConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Lagre endringer</h2>
+            <p className="mt-1 text-sm text-gray-500">Følgende endringer vil bli lagret:</p>
+            {(() => {
+              const diffs = computeDiffs(offerSections, savedSections);
+              return diffs.length > 0 ? (
                 <div className="mt-4 max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
                   {diffs.map((d, i) => (
                     <div key={i} className="px-3 py-2.5 text-xs">
@@ -1426,28 +1442,65 @@ export default function QuoteDetailPage() {
                     </div>
                   ))}
                 </div>
-              )}
-
-              <div className="mt-5 flex gap-3">
-                <button onClick={() => setLeaveConfirmOpen(false)}
-                  className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
-                  Avbryt
-                </button>
-                <button
-                  onClick={async () => { await handleManualSave(); setLeaveConfirmOpen(false); router.push(pendingHref); }}
-                  disabled={saving}
-                  className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50">
-                  {saving ? "Lagrer…" : "Lagre og gå ut"}
-                </button>
-                <button onClick={() => { setLeaveConfirmOpen(false); router.push(pendingHref); }}
-                  className="flex-1 rounded-lg border border-red-200 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50">
-                  Forkast endringer
-                </button>
-              </div>
+              ) : null;
+            })()}
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setSaveConfirmOpen(false)}
+                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Avbryt
+              </button>
+              <button
+                onClick={async () => { await handleManualSave(); setSaveConfirmOpen(false); }}
+                disabled={saving}
+                className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50">
+                {saving ? "Lagrer…" : "Lagre"}
+              </button>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
+      {/* Leave confirmation modal */}
+      {leaveConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Ulagrede endringer</h2>
+            <p className="mt-1 text-sm text-gray-500">Du har endringer som ikke er lagret. Hva vil du gjøre?</p>
+            {(() => {
+              const diffs = computeDiffs(offerSections, savedSections);
+              return diffs.length > 0 ? (
+                <div className="mt-4 max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                  {diffs.map((d, i) => (
+                    <div key={i} className="px-3 py-2.5 text-xs">
+                      <p className="font-semibold text-gray-700 mb-1">{d.label}</p>
+                      <div className="flex gap-3">
+                        <div className="flex-1 rounded bg-red-50 px-2 py-1 text-red-700 line-through truncate">{d.old}</div>
+                        <svg className="h-4 w-4 shrink-0 self-center text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                        <div className="flex-1 rounded bg-green-50 px-2 py-1 text-green-800 font-medium truncate">{d.new}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setLeaveConfirmOpen(false)}
+                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Avbryt
+              </button>
+              <button
+                onClick={async () => { await handleManualSave(); setLeaveConfirmOpen(false); router.push(pendingHref); }}
+                disabled={saving}
+                className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50">
+                {saving ? "Lagrer…" : "Lagre og gå ut"}
+              </button>
+              <button onClick={() => { hasUnsavedChangesRef.current = false; setLeaveConfirmOpen(false); router.push(pendingHref); }}
+                className="flex-1 rounded-lg border border-red-200 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50">
+                Forkast endringer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
