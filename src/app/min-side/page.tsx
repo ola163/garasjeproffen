@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import PhoneVerify from "@/components/auth/PhoneVerify";
 import EmailLogin from "@/components/auth/EmailLogin";
+import ProfileEditor from "@/components/auth/ProfileEditor";
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Ny",
@@ -192,19 +193,8 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
       {/* Profile section */}
       <div className="mt-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">Din profil</h2>
-        <p className="mt-1 text-sm text-gray-400">Innlogget med e-post og passord.</p>
-        <dl className="mt-4 space-y-3 text-sm">
-          <div className="flex gap-4">
-            <dt className="w-24 shrink-0 font-medium text-gray-500">Navn</dt>
-            <dd className="text-gray-900">{session.name}</dd>
-          </div>
-          {session.email && (
-            <div className="flex gap-4">
-              <dt className="w-24 shrink-0 font-medium text-gray-500">E-post</dt>
-              <dd className="text-gray-900">{session.email}</dd>
-            </div>
-          )}
-        </dl>
+        <p className="mt-1 text-sm text-gray-400">Endre navn og e-postadresse.</p>
+        <ProfileEditor />
         <div className="mt-6 border-t border-gray-100 pt-5">
           <p className="text-sm font-medium text-gray-700">Verifiser telefonnummer</p>
           <p className="mt-0.5 text-xs text-gray-400">Kreves for å legge ved filer i forespørsler.</p>
