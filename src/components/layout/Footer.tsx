@@ -39,13 +39,18 @@ export default function Footer() {
 
           {/* Col 3 – områder */}
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Områder</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Områder vi dekker</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Landsdekkende</p>
+            <ul className="mb-3 space-y-1 text-xs text-gray-400">
+              <li>Hele Norge</li>
+            </ul>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Hovedområde</p>
             <ul className="space-y-1 text-xs text-gray-400">
-              <li><Link href="/garasje-rogaland"  className="hover:text-orange-500">Garasje i Rogaland</Link></li>
-              <li><Link href="/garasje-jaeren"    className="hover:text-orange-500">Garasje på Jæren</Link></li>
-              <li><Link href="/garasje-bryne"     className="hover:text-orange-500">Garasje i Bryne</Link></li>
-              <li><Link href="/garasje-sandnes"   className="hover:text-orange-500">Garasje i Sandnes</Link></li>
-              <li><Link href="/garasje-stavanger" className="hover:text-orange-500">Garasje i Stavanger</Link></li>
+              <li><Link href="/garasje-rogaland"  className="hover:text-orange-500">Rogaland</Link></li>
+              <li><Link href="/garasje-jaeren"    className="hover:text-orange-500">Jæren</Link></li>
+              <li><Link href="/garasje-bryne"     className="hover:text-orange-500">Bryne</Link></li>
+              <li><Link href="/garasje-sandnes"   className="hover:text-orange-500">Sandnes</Link></li>
+              <li><Link href="/garasje-stavanger" className="hover:text-orange-500">Stavanger</Link></li>
             </ul>
           </div>
 
