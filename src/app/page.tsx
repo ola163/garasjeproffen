@@ -84,16 +84,20 @@ export default function Home() {
           <div className="w-full">
             <button
               onClick={() => setOpen((o) => !o)}
-              className="flex w-full items-center justify-between rounded-lg bg-orange-500 px-6 py-3 text-lg font-medium text-white hover:bg-orange-600"
+              className="flex w-full items-center gap-3 rounded-xl bg-orange-500 px-5 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-orange-600 transition-colors"
             >
-              <span>Start garasjedesign</span>
+              {/* House icon */}
+              <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+              </svg>
+              <span className="flex-1 text-left">Start garasjedesign</span>
+              {/* Arrow — rotates 90° when submenu is open */}
               <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className={`h-5 w-5 transition-transform ${open ? "rotate-180" : ""}`}
+                className={`h-5 w-5 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
                 viewBox="0 0 20 20"
                 fill="currentColor"
               >
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
 
@@ -167,9 +171,13 @@ export default function Home() {
 
           <Link
             href="/soknadshjelp"
-            className="flex w-full items-center rounded-lg border border-orange-400 px-6 py-3 text-lg font-medium text-orange-600 hover:bg-orange-50"
+            className="flex w-full items-center gap-3 rounded-xl border border-orange-300 bg-white px-5 py-3.5 text-base font-semibold text-orange-600 shadow-sm hover:bg-orange-50 transition-colors"
           >
-            Søknadshjelp – byggesøknad
+            {/* Document icon */}
+            <svg className="h-5 w-5 shrink-0 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+            </svg>
+            Få hjelp med byggesøknad
           </Link>
         </div>
         </div>{/* end right column */}
