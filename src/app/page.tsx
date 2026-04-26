@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import type { Metadata } from "next";
 import HeroButtons from "@/components/home/HeroButtons";
 import ReferansePreview from "@/components/referanseprosjekter/ReferansePreview";
@@ -87,55 +86,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Business info — server-rendered, visible to crawlers and security filters */}
-      <section className="w-full max-w-5xl border-t border-gray-100 pt-8">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 text-sm text-gray-500">
-          <div>
-            <p className="font-semibold text-gray-700 mb-1">GarasjeProffen AS</p>
-            <p>Org.nr. 937 606 966</p>
-            <p>Tjødnavegen 8b, 4342 Bryne</p>
-            <p>Rogaland, Norge</p>
-          </div>
-          <div>
-            <p className="font-semibold text-gray-700 mb-1">Kontakt</p>
-            <a href="tel:+4747617563" className="block hover:text-orange-500">+47 476 17 563 (Christian)</a>
-            <a href="tel:+4791344486" className="block hover:text-orange-500">+47 913 44 486 (Ola)</a>
-            <a href="mailto:post@garasjeproffen.no" className="block hover:text-orange-500">post@garasjeproffen.no</a>
-          </div>
-          <div>
-            <p className="font-semibold text-gray-700 mb-1">Tjenester</p>
-            <Link href="/garasje" className="block hover:text-orange-500">Garasje</Link>
-            <Link href="/carport" className="block hover:text-orange-500">Carport</Link>
-            <Link href="/materialpakke-garasje" className="block hover:text-orange-500">Materialpakke</Link>
-            <Link href="/prefabrikkert-garasje" className="block hover:text-orange-500">Prefabrikkert løsning</Link>
-            <Link href="/soknadshjelp" className="block hover:text-orange-500">Søknadshjelp</Link>
-          </div>
-          <div>
-            <p className="font-semibold text-gray-700 mb-1">Informasjon</p>
-            <Link href="/om-oss" className="block hover:text-orange-500">Om GarasjeProffen</Link>
-            <Link href="/kontakt" className="block hover:text-orange-500">Kontakt oss</Link>
-            <Link href="/referanseprosjekter" className="block hover:text-orange-500">Referanseprosjekter</Link>
-            <Link href="/vilkar" className="block hover:text-orange-500">Personvernerklæring og vilkår</Link>
-          </div>
-        </div>
-
-        {/* Geographic coverage — SEO */}
-        <p className="mt-6 text-xs text-gray-400 leading-relaxed">
-          GarasjeProffen AS holder til på Bryne og leverer garasjer, carporter og uthus på{" "}
-          <Link href="/garasje-jaeren" className="text-orange-500 hover:underline">Jæren</Link>
-          {" "}og i{" "}
-          <Link href="/garasje-rogaland" className="text-orange-500 hover:underline">Rogaland</Link>
-          {" "}– Time, Klepp, Hå, Gjesdal,{" "}
-          <Link href="/garasje-sandnes" className="text-orange-500 hover:underline">Sandnes</Link>,{" "}
-          <Link href="/garasje-stavanger" className="text-orange-500 hover:underline">Stavanger</Link>,
-          {" "}Sola og Randaberg. Vi tilbyr{" "}
-          <Link href="/materialpakke-garasje" className="text-orange-500 hover:underline">materialpakker for selvbygging</Link>
-          ,{" "}
-          <Link href="/prefabrikkert-garasje" className="text-orange-500 hover:underline">prefabrikkerte garasjer</Link>
-          {" "}og hjelp med{" "}
-          <Link href="/byggesoknad-garasje" className="text-orange-500 hover:underline">byggesøknad og nabovarsel</Link>.
-        </p>
-      </section>
     </div>
   );
 }

@@ -4,18 +4,21 @@ export default function Footer() {
   return (
     <footer className="border-t border-gray-200 bg-white">
       <div className="mx-auto max-w-7xl px-6 py-10">
+
+        {/* 4-column grid */}
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Col 1 – contact */}
+
+          {/* Col 1 – company info */}
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Kontakt</p>
+            <p className="mb-2 text-sm font-semibold text-gray-700">GarasjeProffen AS</p>
             <div className="space-y-0.5 text-xs text-gray-400">
-              <a href="mailto:christian@garasjeproffen.no" className="block hover:text-orange-500">
-                Christian – christian@garasjeproffen.no
+              <p>Org.nr. 937 606 966</p>
+              <p>Tjødnavegen 8b, 4342 Bryne</p>
+              <p>Rogaland, Norge</p>
+              <a href="mailto:post@garasjeproffen.no" className="block mt-2 hover:text-orange-500">
+                post@garasjeproffen.no
               </a>
               <a href="tel:+4747617563" className="block hover:text-orange-500">+47 476 17 563</a>
-              <a href="mailto:ola@garasjeproffen.no" className="block mt-2 hover:text-orange-500">
-                Ola – ola@garasjeproffen.no
-              </a>
               <a href="tel:+4791344486" className="block hover:text-orange-500">+47 913 44 486</a>
             </div>
           </div>
@@ -24,21 +27,25 @@ export default function Footer() {
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Tjenester</p>
             <ul className="space-y-1 text-xs text-gray-400">
-              <li><Link href="/prefabrikkert-garasje" className="hover:text-orange-500">Prefabrikkert garasje</Link></li>
-              <li><Link href="/materialpakke-garasje" className="hover:text-orange-500">Materialpakke garasje</Link></li>
-              <li><Link href="/soknadshjelp" className="hover:text-orange-500">Søknadshjelp</Link></li>
-              <li><Link href="/byggesoknad-garasje" className="hover:text-orange-500">Byggesøknad for garasje</Link></li>
-              <li><Link href="/configurator" className="hover:text-orange-500">3D-konfigurator</Link></li>
+              <li><Link href="/garasje"                className="hover:text-orange-500">Garasje</Link></li>
+              <li><Link href="/carport"                className="hover:text-orange-500">Carport</Link></li>
+              <li><Link href="/prefabrikkert-garasje"  className="hover:text-orange-500">Prefabrikkert løsning</Link></li>
+              <li><Link href="/materialpakke-garasje"  className="hover:text-orange-500">Materialpakke</Link></li>
+              <li><Link href="/soknadshjelp"           className="hover:text-orange-500">Søknadshjelp</Link></li>
+              <li><Link href="/byggesoknad-garasje"    className="hover:text-orange-500">Byggesøknad for garasje</Link></li>
+              <li><Link href="/configurator"           className="hover:text-orange-500">3D-konfigurator</Link></li>
             </ul>
           </div>
 
-          {/* Col 3 – lokalt */}
+          {/* Col 3 – områder */}
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Områder</p>
             <ul className="space-y-1 text-xs text-gray-400">
-              <li><Link href="/garasje-rogaland" className="hover:text-orange-500">Garasje i Rogaland</Link></li>
-              <li><Link href="/garasje-jaeren" className="hover:text-orange-500">Garasje på Jæren</Link></li>
-              <li><Link href="/referanseprosjekter" className="hover:text-orange-500">Referanseprosjekter</Link></li>
+              <li><Link href="/garasje-rogaland"  className="hover:text-orange-500">Garasje i Rogaland</Link></li>
+              <li><Link href="/garasje-jaeren"    className="hover:text-orange-500">Garasje på Jæren</Link></li>
+              <li><Link href="/garasje-bryne"     className="hover:text-orange-500">Garasje i Bryne</Link></li>
+              <li><Link href="/garasje-sandnes"   className="hover:text-orange-500">Garasje i Sandnes</Link></li>
+              <li><Link href="/garasje-stavanger" className="hover:text-orange-500">Garasje i Stavanger</Link></li>
             </ul>
           </div>
 
@@ -46,10 +53,11 @@ export default function Footer() {
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Om oss</p>
             <ul className="space-y-1 text-xs text-gray-400 mb-4">
-              <li><Link href="/om-oss" className="hover:text-orange-500">Om GarasjeProffen</Link></li>
-              <li><Link href="/kontakt" className="hover:text-orange-500">Kontakt oss</Link></li>
-              <li><Link href="/vilkar" className="hover:text-orange-500">Personvernerklæring</Link></li>
-              <li><Link href="/vilkar" className="hover:text-orange-500">Brukervilkår</Link></li>
+              <li><Link href="/om-oss"              className="hover:text-orange-500">Om GarasjeProffen</Link></li>
+              <li><Link href="/kontakt"             className="hover:text-orange-500">Kontakt oss</Link></li>
+              <li><Link href="/referanseprosjekter" className="hover:text-orange-500">Referanseprosjekter</Link></li>
+              <li><Link href="/vilkar"              className="hover:text-orange-500">Personvernerklæring</Link></li>
+              <li><Link href="/vilkar"              className="hover:text-orange-500">Brukervilkår</Link></li>
             </ul>
             <a
               href="https://www.facebook.com/garasjeproffen"
@@ -65,13 +73,29 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 flex flex-col gap-1 border-t border-gray-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-gray-400">Tjødnavegen 8b, 4342 Bryne</p>
-          <div className="flex flex-col items-start gap-0.5 sm:items-end">
-            <p className="text-xs text-gray-400">&copy; {new Date().getFullYear()} GarasjeProffen.no</p>
-            <p className="text-xs text-gray-400">Org.nr. 937 606 966</p>
-          </div>
+        {/* Geographic coverage — SEO text */}
+        <p className="mt-8 border-t border-gray-100 pt-6 text-xs text-gray-400 leading-relaxed">
+          GarasjeProffen AS holder til på Bryne og leverer garasjer, carporter og uthus på{" "}
+          <Link href="/garasje-jaeren"    className="hover:text-orange-500 hover:underline">Jæren</Link>
+          {" "}og i{" "}
+          <Link href="/garasje-rogaland"  className="hover:text-orange-500 hover:underline">Rogaland</Link>
+          {" "}– Time, Klepp, Hå, Gjesdal,{" "}
+          <Link href="/garasje-sandnes"   className="hover:text-orange-500 hover:underline">Sandnes</Link>,{" "}
+          <Link href="/garasje-stavanger" className="hover:text-orange-500 hover:underline">Stavanger</Link>,
+          {" "}Sola og Randaberg. Vi tilbyr{" "}
+          <Link href="/materialpakke-garasje" className="hover:text-orange-500 hover:underline">materialpakker for selvbygging</Link>
+          ,{" "}
+          <Link href="/prefabrikkert-garasje" className="hover:text-orange-500 hover:underline">prefabrikkerte garasjer</Link>
+          {" "}og hjelp med{" "}
+          <Link href="/byggesoknad-garasje"   className="hover:text-orange-500 hover:underline">byggesøknad og nabovarsel</Link>.
+        </p>
+
+        {/* Bottom bar */}
+        <div className="mt-4 flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-gray-400">Tjødnavegen 8b, 4342 Bryne · Org.nr. 937 606 966</p>
+          <p className="text-xs text-gray-400">&copy; {new Date().getFullYear()} GarasjeProffen AS</p>
         </div>
+
       </div>
     </footer>
   );
