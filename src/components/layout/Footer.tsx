@@ -48,6 +48,8 @@ export default function Footer() {
             <ul className="space-y-1 text-xs text-gray-400 mb-4">
               <li><Link href="/om-oss" className="hover:text-orange-500">Om GarasjeProffen</Link></li>
               <li><Link href="/kontakt" className="hover:text-orange-500">Kontakt oss</Link></li>
+              <li><Link href="/vilkar" className="hover:text-orange-500">Personvernerklæring</Link></li>
+              <li><Link href="/vilkar" className="hover:text-orange-500">Brukervilkår</Link></li>
             </ul>
             <a
               href="https://www.facebook.com/garasjeproffen"

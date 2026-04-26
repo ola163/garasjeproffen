@@ -1,31 +1,30 @@
-"use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
+import HeroButtons from "@/components/home/HeroButtons";
 import ReferansePreview from "@/components/referanseprosjekter/ReferansePreview";
 
+export const metadata: Metadata = {
+  title: "Garasje og carport tilpasset din tomt | GarasjeProffen AS",
+  description:
+    "GarasjeProffen AS leverer garasjer og carporter tilpasset mål, behov og tomt. Velg materialpakke for egen montering eller prefabrikkert løsning. Org.nr. 937 606 966.",
+  alternates: { canonical: "https://www.garasjeproffen.no" },
+};
+
 export default function Home() {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [buildingType, setBuildingType] = useState<"garasje" | "carport">("garasje");
-
-  function handlePackage(pkg: "materialpakke" | "prefab") {
-    router.push(`/${buildingType}?package=${pkg}`);
-  }
-
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center px-6 py-12 gap-12">
       <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center lg:items-start gap-12 lg:gap-16">
 
-        {/* Left: description */}
+        {/* Left: description — server-rendered, crawlable */}
         <div className="flex-1 text-left order-last lg:order-first">
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 leading-snug">
             Garasje og carport tilpasset din tomt
           </h2>
           <p className="mt-4 text-base text-gray-600 leading-relaxed">
-            GarasjeProffen leverer garasjer og carporter tilpasset mål, behov og tomt. Velg mellom komplette materialpakker for egen montering, eller prefabrikkerte løsninger som gir en raskere og mer effektiv byggeprosess.
+            GarasjeProffen AS leverer garasjer og carporter tilpasset mål, behov og tomt.
+            Velg mellom komplette materialpakker for egen montering, eller prefabrikkerte
+            løsninger som gir en raskere og mer effektiv byggeprosess.
           </p>
           <ul className="mt-6 space-y-3">
             {[
@@ -44,168 +43,98 @@ export default function Home() {
               </li>
             ))}
           </ul>
+
+          {/* Contact info — server-rendered */}
           <div className="mt-8 flex flex-wrap gap-4 text-sm text-gray-500">
-            <span className="flex items-center gap-1.5">
+            <a href="tel:+4747617563" className="flex items-center gap-1.5 hover:text-orange-500">
               <svg className="h-4 w-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
               </svg>
               +47 476 17 563
-            </span>
-            <span className="flex items-center gap-1.5">
+            </a>
+            <a href="mailto:post@garasjeproffen.no" className="flex items-center gap-1.5 hover:text-orange-500">
               <svg className="h-4 w-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
               </svg>
               post@garasjeproffen.no
-            </span>
+            </a>
           </div>
 
+          {/* Referanseprosjekter — client component, lazy */}
           <ReferansePreview />
         </div>
 
         {/* Right: configurator panel */}
         <div className="w-full max-w-sm flex-shrink-0 text-center order-first lg:order-last">
-        <Image
-          src="/logo.jpg"
-          alt="GarasjeProffen.no"
-          width={400}
-          height={120}
-          className="mx-auto mb-6 h-auto w-72"
-          priority
-        />
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-          Start garasjedesign
-        </h1>
-        <p className="mt-3 text-base text-gray-600">
-          Tilpass garasjen etter dine mål og tomt, og få et prisestimat med én gang.
-        </p>
+          <Image
+            src="/logo.jpg"
+            alt="GarasjeProffen AS – garasjer og carporter"
+            width={400}
+            height={120}
+            className="mx-auto mb-6 h-auto w-72"
+            priority
+          />
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            Start garasjedesign
+          </h1>
+          <p className="mt-3 text-base text-gray-600">
+            Tilpass garasjen etter dine mål og tomt, og få et prisestimat med én gang.
+          </p>
 
-        <div className="mt-8 flex flex-col items-center gap-3">
-          {/* Start design with submenu */}
-          <div className="w-full">
-            <button
-              onClick={() => setOpen((o) => !o)}
-              className="flex w-full items-center gap-3 rounded-xl bg-orange-500 px-5 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-orange-600 transition-colors"
-            >
-              {/* House icon */}
-              <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-              </svg>
-              <span className="flex-1 text-left">Start garasjedesign</span>
-              {/* Arrow — rotates 90° when submenu is open */}
-              <svg
-                className={`h-5 w-5 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-
-            {open && (
-              <div className="mt-1 flex flex-col gap-1 rounded-lg border border-gray-200 bg-white p-2 shadow-md">
-                {/* Step 1 — Building type */}
-                <p className="px-2 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Hva vil du bygge?
-                </p>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setBuildingType("garasje")}
-                    className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
-                      buildingType === "garasje"
-                        ? "border-orange-500 bg-orange-500 text-white"
-                        : "border-gray-200 text-gray-600 hover:border-orange-300 hover:bg-orange-50"
-                    }`}
-                  >
-                    Garasje
-                  </button>
-                  <button
-                    onClick={() => setBuildingType("carport")}
-                    className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
-                      buildingType === "carport"
-                        ? "border-orange-500 bg-orange-500 text-white"
-                        : "border-gray-200 text-gray-600 hover:border-orange-300 hover:bg-orange-50"
-                    }`}
-                  >
-                    Carport
-                  </button>
-                </div>
-
-                {/* Step 2 — Package type */}
-                <p className="mt-2 px-2 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Velg løsning
-                </p>
-                <button
-                  onClick={() => handlePackage("materialpakke")}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-orange-50 transition-colors"
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500">
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-6 w-6">
-                      <rect x="11" y="13" width="3.5" height="9" rx="1.2" fill="white" transform="rotate(-45 12.75 17.5)"/>
-                      <rect x="7" y="3" width="10" height="6" rx="1.5" fill="white"/>
-                      <rect x="5.5" y="8" width="7" height="3.5" rx="1" fill="white"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Materialpakke</p>
-                    <p className="text-xs text-gray-500">Bygg selv – komplett materialpakke</p>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => handlePackage("prefab")}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-orange-50 transition-colors"
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Prefabrikert løsning</p>
-                    <p className="text-xs text-gray-500">Ferdige elementer – rask montering</p>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <Link
-            href="/soknadshjelp"
-            className="flex w-full items-center gap-3 rounded-xl border border-orange-300 bg-white px-5 py-3.5 text-base font-semibold text-orange-600 shadow-sm hover:bg-orange-50 transition-colors"
-          >
-            {/* Document icon */}
-            <svg className="h-5 w-5 shrink-0 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-            </svg>
-            Få hjelp med byggesøknad
-          </Link>
+          {/* Interactive buttons — client component */}
+          <HeroButtons />
         </div>
-        </div>{/* end right column */}
-      </div>{/* end two-column wrapper */}
+      </div>
 
-      {/* SEO: geografisk dekning og tjenester – visuelt skjult, synleg for søkemotorar */}
-      <section className="sr-only">
-        <h2 className="text-center text-xs font-semibold uppercase tracking-widest text-gray-400">
-          Lokalt forankret – regional rekkevidde
-        </h2>
-        <p className="mx-auto mt-3 max-w-2xl text-center text-sm leading-relaxed text-gray-500">
+      {/* Business info — server-rendered, visible to crawlers and security filters */}
+      <section className="w-full max-w-5xl border-t border-gray-100 pt-8">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 text-sm text-gray-500">
+          <div>
+            <p className="font-semibold text-gray-700 mb-1">GarasjeProffen AS</p>
+            <p>Org.nr. 937 606 966</p>
+            <p>Tjødnavegen 8b, 4342 Bryne</p>
+            <p>Rogaland, Norge</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-700 mb-1">Kontakt</p>
+            <a href="tel:+4747617563" className="block hover:text-orange-500">+47 476 17 563 (Christian)</a>
+            <a href="tel:+4791344486" className="block hover:text-orange-500">+47 913 44 486 (Ola)</a>
+            <a href="mailto:post@garasjeproffen.no" className="block hover:text-orange-500">post@garasjeproffen.no</a>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-700 mb-1">Tjenester</p>
+            <Link href="/garasje" className="block hover:text-orange-500">Garasje</Link>
+            <Link href="/carport" className="block hover:text-orange-500">Carport</Link>
+            <Link href="/materialpakke-garasje" className="block hover:text-orange-500">Materialpakke</Link>
+            <Link href="/prefabrikkert-garasje" className="block hover:text-orange-500">Prefabrikkert løsning</Link>
+            <Link href="/soknadshjelp" className="block hover:text-orange-500">Søknadshjelp</Link>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-700 mb-1">Informasjon</p>
+            <Link href="/om-oss" className="block hover:text-orange-500">Om GarasjeProffen</Link>
+            <Link href="/kontakt" className="block hover:text-orange-500">Kontakt oss</Link>
+            <Link href="/referanseprosjekter" className="block hover:text-orange-500">Referanseprosjekter</Link>
+            <Link href="/vilkar" className="block hover:text-orange-500">Personvernerklæring og vilkår</Link>
+          </div>
+        </div>
+
+        {/* Geographic coverage — SEO */}
+        <p className="mt-6 text-xs text-gray-400 leading-relaxed">
           GarasjeProffen AS holder til på Bryne og leverer garasjer, carporter og uthus på{" "}
           <Link href="/garasje-jaeren" className="text-orange-500 hover:underline">Jæren</Link>
           {" "}og i{" "}
-          <Link href="/garasje-rogaland" className="text-orange-500 hover:underline">hele Rogaland</Link>
-          {" "}– Time, Klepp, Hå, Gjesdal, Sandnes, Stavanger, Sola og Randaberg.
-          Vi tilbyr{" "}
+          <Link href="/garasje-rogaland" className="text-orange-500 hover:underline">Rogaland</Link>
+          {" "}– Time, Klepp, Hå, Gjesdal,{" "}
+          <Link href="/garasje-sandnes" className="text-orange-500 hover:underline">Sandnes</Link>,{" "}
+          <Link href="/garasje-stavanger" className="text-orange-500 hover:underline">Stavanger</Link>,
+          {" "}Sola og Randaberg. Vi tilbyr{" "}
           <Link href="/materialpakke-garasje" className="text-orange-500 hover:underline">materialpakker for selvbygging</Link>
           ,{" "}
-          <Link href="/prefabrikkert-garasje" className="text-orange-500 hover:underline">prefabrikkerte garasjer med rask montering</Link>
+          <Link href="/prefabrikkert-garasje" className="text-orange-500 hover:underline">prefabrikkerte garasjer</Link>
           {" "}og hjelp med{" "}
           <Link href="/byggesoknad-garasje" className="text-orange-500 hover:underline">byggesøknad og nabovarsel</Link>.
         </p>
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {["Bryne", "Time", "Klepp", "Hå", "Gjesdal", "Sandnes", "Stavanger", "Sola", "Randaberg"].map((k) => (
-            <span key={k} className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">{k}</span>
-          ))}
-        </div>
       </section>
     </div>
   );
