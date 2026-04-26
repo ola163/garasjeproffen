@@ -19,11 +19,13 @@ export default function HeroButtons() {
       <div className="w-full">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="flex w-full items-center gap-3 rounded-xl bg-orange-500 px-5 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-orange-600 transition-colors"
+          className="flex w-full items-center gap-3 rounded-xl bg-orange-500 px-3 py-3 text-base font-semibold text-white shadow-sm hover:bg-orange-600 transition-colors"
         >
-          <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-          </svg>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-600/60">
+            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+            </svg>
+          </span>
           <span className="flex-1 text-left">Start garasjedesign</span>
           <svg
             className={`h-5 w-5 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
@@ -102,11 +104,13 @@ export default function HeroButtons() {
 
       <Link
         href="/soknadshjelp"
-        className="flex w-full items-center gap-3 rounded-xl border border-orange-300 bg-white px-5 py-3.5 text-base font-semibold text-orange-600 shadow-sm hover:bg-orange-50 transition-colors"
+        className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
       >
-        <svg className="h-5 w-5 shrink-0 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-        </svg>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+          <svg className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+          </svg>
+        </span>
         Få hjelp med byggesøknad
       </Link>
     </div>
