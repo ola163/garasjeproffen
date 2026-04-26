@@ -22,18 +22,19 @@ export default function Home() {
         {/* Left: description */}
         <div className="flex-1 text-left order-last lg:order-first">
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 leading-snug">
-            Vi bygger garasjer og carporter som varer
+            Garasje og carport tilpasset din tomt
           </h2>
           <p className="mt-4 text-base text-gray-600 leading-relaxed">
-            GarasjeProffen tilbyr skreddersydde garasjer og carporter — enten som komplette materialpakker du bygger selv, eller som prefabrikerte løsninger med rask montering.
+            GarasjeProffen leverer garasjer og carporter tilpasset mål, behov og tomt. Velg mellom komplette materialpakker for egen montering, eller prefabrikkerte løsninger som gir en raskere og mer effektiv byggeprosess.
           </p>
           <ul className="mt-6 space-y-3">
             {[
-              "Tilpasses dine mål og tomt",
-              "Materialpakke eller prefabrikert løsning",
-              "Rask levering over hele Norge",
-              "Vi hjelper deg med byggesøknaden",
-              "Personlig oppfølging gjennom hele prosessen",
+              "Tilpasses dine mål, behov og tomt",
+              "Materialpakke leveres klar for montering – du bygger selv",
+              "Prefabrikkerte moduler – heises på plass av oss",
+              "Effektiv produksjon med redusert materialsvinn",
+              "Levering over hele Norge",
+              "Vi kan bistå med tegninger og byggesøknad",
             ].map((text) => (
               <li key={text} className="flex items-start gap-3 text-sm text-gray-700">
                 <svg className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
@@ -72,10 +73,10 @@ export default function Home() {
           priority
         />
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-          Design din egen garasje
+          Start garasjedesign
         </h1>
         <p className="mt-3 text-base text-gray-600">
-          Tilpass garasjen etter dine behov og få et prisestimat med én gang.
+          Tilpass garasjen etter dine mål og tomt, og få et prisestimat med én gang.
         </p>
 
         <div className="mt-8 flex flex-col items-center gap-3">
@@ -85,7 +86,7 @@ export default function Home() {
               onClick={() => setOpen((o) => !o)}
               className="flex w-full items-center justify-between rounded-lg bg-orange-500 px-6 py-3 text-lg font-medium text-white hover:bg-orange-600"
             >
-              <span>Start design</span>
+              <span>Start garasjedesign</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className={`h-5 w-5 transition-transform ${open ? "rotate-180" : ""}`}
@@ -168,7 +169,7 @@ export default function Home() {
             href="/soknadshjelp"
             className="w-full rounded-lg border border-orange-400 px-8 py-3 text-lg font-medium text-orange-600 hover:bg-orange-50"
           >
-            Søknadshjelp
+            Søknadshjelp – byggesøknad
           </Link>
         </div>
         </div>{/* end right column */}
