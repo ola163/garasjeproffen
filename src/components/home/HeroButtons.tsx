@@ -19,7 +19,7 @@ export default function HeroButtons() {
       <div className="w-full">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="flex w-full items-center gap-3 rounded-tl-full rounded-bl-full rounded-tr-xl rounded-br-xl bg-orange-500 px-3 py-3 text-base font-semibold text-white shadow-sm hover:bg-orange-600 transition-colors"
+          className="flex w-full items-center gap-3 rounded-xl rounded-tl-full rounded-bl-full bg-orange-500 px-3 py-3 text-base font-semibold text-white shadow-sm hover:bg-orange-600 transition-colors"
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-600/60">
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
