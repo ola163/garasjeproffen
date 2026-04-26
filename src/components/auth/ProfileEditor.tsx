@@ -263,6 +263,8 @@ function PhoneSection({ profile, onSaved }: { profile: UserProfile | null; onSav
 // ── Address ──────────────────────────────────────────────────────────────────
 type AddressSuggestion = { adressetekst: string; postnummer: string; poststed: string };
 
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+
 function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onSaved: () => void }) {
   const [street,      setStreet]      = useState("");
   const [postalCode,  setPostalCode]  = useState("");
@@ -270,6 +272,7 @@ function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onS
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSugg,    setShowSugg]    = useState(false);
   const [saving,      setSaving]      = useState(false);
+  const [detecting,   setDetecting]   = useState(false);
   const [msg,         setMsg]         = useState<Msg | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapperRef  = useRef<HTMLDivElement>(null);
@@ -286,6 +289,53 @@ function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onS
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
+
+  async function detectLocation() {
+    if (!navigator.geolocation) {
+      setMsg({ type: "error", text: "Nettleseren støtter ikke geolokalisering." });
+      return;
+    }
+    setDetecting(true);
+    setMsg(null);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude: lat, longitude: lng } }) => {
+        try {
+          const res = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address&language=no&country=no&access_token=${MAPBOX_TOKEN}`
+          );
+          const data = await res.json();
+          const f = data.features?.[0];
+          if (!f) {
+            setMsg({ type: "error", text: "Fant ingen adresse for posisjonen din." });
+            return;
+          }
+          type Ctx = { id: string; text: string };
+          const ctx: Ctx[] = f.context ?? [];
+          const streetText = `${f.text ?? ""}${f.address ? ` ${f.address}` : ""}`.trim();
+          const postcode   = ctx.find((c) => c.id.startsWith("postcode"))?.text ?? "";
+          const place      = ctx.find((c) => c.id.startsWith("place"))?.text ?? "";
+          setStreet(streetText);
+          setPostalCode(postcode);
+          setCity(place ? place.charAt(0).toUpperCase() + place.slice(1).toLowerCase() : "");
+          setMsg({ type: "info", text: "Posisjon funnet – sjekk og korriger om nødvendig." });
+        } catch {
+          setMsg({ type: "error", text: "Feil ved henting av adresse fra posisjon." });
+        } finally {
+          setDetecting(false);
+        }
+      },
+      (err) => {
+        setDetecting(false);
+        setMsg({
+          type: "error",
+          text: err.code === err.PERMISSION_DENIED
+            ? "Tilgang til posisjon nektet. Tillat posisjon i nettleseren og prøv igjen."
+            : "Kunne ikke hente posisjon.",
+        });
+      },
+      { timeout: 10000, maximumAge: 60000 }
+    );
+  }
 
   function handleStreetChange(val: string) {
     setStreet(val);
@@ -339,6 +389,23 @@ function AddressSection({ profile, onSaved }: { profile: UserProfile | null; onS
           <p className="font-medium text-gray-900 mt-0.5">{profile.address}</p>
         </div>
       )}
+
+      {/* Detect location */}
+      <button
+        type="button"
+        onClick={detectLocation}
+        disabled={detecting}
+        className="flex items-center gap-1.5 text-xs text-orange-600 hover:text-orange-700 disabled:opacity-50 transition-colors"
+      >
+        {detecting ? (
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+        ) : (
+          <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+          </svg>
+        )}
+        {detecting ? "Henter posisjon…" : "Finn min posisjon automatisk"}
+      </button>
 
       {/* Street with autocomplete */}
       <div ref={wrapperRef} className="relative">
