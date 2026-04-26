@@ -134,6 +134,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [kommuneSuggestions, setKommuneSuggestions] = useState<{ place_name: string; center: [number, number]; id: string }[]>([]);
   const [kommuneSearching, setKommuneSearching] = useState(false);
   const [selectedKommune, setSelectedKommune] = useState<{ name: string; center: [number, number] } | null>(null);
+  const [detectingPos, setDetectingPos] = useState(false);
 
   // Auto-activate plot view when entering test mode with a plot already selected
   useEffect(() => {
@@ -144,6 +145,31 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   useEffect(() => {
     if (viewMode === "kart") setPlacementOpen(true);
   }, [viewMode]);
+
+  async function detectPosition() {
+    if (!navigator.geolocation) return;
+    setDetectingPos(true);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude: lat, longitude: lng } }) => {
+        try {
+          const res = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=place,district&language=no&country=no&access_token=${MAPBOX_TOKEN}`
+          );
+          const data = await res.json();
+          const name = data.features?.[0]?.place_name?.split(",")?.[0] ?? "Min posisjon";
+          setSelectedKommune({ name, center: [lng, lat] });
+          setKommuneQuery(name);
+        } catch {
+          setSelectedKommune({ name: "Min posisjon", center: [lng, lat] });
+        } finally {
+          setDetectingPos(false);
+          setViewMode("kart");
+        }
+      },
+      () => setDetectingPos(false),
+      { timeout: 10000, maximumAge: 60000 }
+    );
+  }
 
   async function searchKommune(q: string) {
     if (!q.trim()) { setKommuneSuggestions([]); return; }
@@ -586,6 +612,29 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                         <p className="text-xs text-gray-500">
                           Søk etter din kommune, velg plassering i kartet og se garasjen i 3D på tomten.
                         </p>
+
+                        {/* Auto-detect position */}
+                        <button
+                          type="button"
+                          onClick={detectPosition}
+                          disabled={detectingPos}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-400 py-2.5 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-50 transition-colors"
+                        >
+                          {detectingPos ? (
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          ) : (
+                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          {detectingPos ? "Henter posisjon…" : "Finn min posisjon"}
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 border-t border-gray-100" />
+                          <span className="text-xs text-gray-400">eller søk</span>
+                          <div className="flex-1 border-t border-gray-100" />
+                        </div>
 
                         {/* Kommune search */}
                         <div className="relative">
