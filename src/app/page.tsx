@@ -167,7 +167,7 @@ export default function Home() {
 
           <Link
             href="/soknadshjelp"
-            className="w-full rounded-lg border border-orange-400 px-8 py-3 text-lg font-medium text-orange-600 hover:bg-orange-50"
+            className="flex w-full items-center rounded-lg border border-orange-400 px-6 py-3 text-lg font-medium text-orange-600 hover:bg-orange-50"
           >
             Søknadshjelp – byggesøknad
           </Link>
