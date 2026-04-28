@@ -22,6 +22,9 @@ interface IpEntry {
 interface StatsData {
   totalVisits: number;
   uniqueIpCount: number;
+  uniqueIpDay: number;
+  uniqueIpWeek: number;
+  uniqueIpMonth: number;
   uniqueIps: IpEntry[];
   topPages: { path: string; count: number }[];
 }
@@ -68,20 +71,26 @@ export default function StatistikkPage() {
         {!loading && data && (
           <>
             {/* Summary cards */}
-            <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <p className="text-xs text-gray-400">Totale sidevisninger</p>
-                <p className="mt-1 text-3xl font-bold text-gray-900">{data.totalVisits.toLocaleString("nb-NO")}</p>
+                <p className="text-xs text-gray-400">I dag</p>
+                <p className="mt-1 text-3xl font-bold text-orange-500">{data.uniqueIpDay.toLocaleString("nb-NO")}</p>
+                <p className="mt-0.5 text-xs text-gray-400">unike IPs</p>
               </div>
               <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <p className="text-xs text-gray-400">Unike IP-adresser</p>
-                <p className="mt-1 text-3xl font-bold text-orange-500">{data.uniqueIpCount.toLocaleString("nb-NO")}</p>
+                <p className="text-xs text-gray-400">Denne uken</p>
+                <p className="mt-1 text-3xl font-bold text-orange-500">{data.uniqueIpWeek.toLocaleString("nb-NO")}</p>
+                <p className="mt-0.5 text-xs text-gray-400">unike IPs</p>
               </div>
-              <div className="col-span-2 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:col-span-1">
-                <p className="text-xs text-gray-400">Snitt visninger / IP</p>
-                <p className="mt-1 text-3xl font-bold text-gray-900">
-                  {data.uniqueIpCount > 0 ? (data.totalVisits / data.uniqueIpCount).toFixed(1) : "0"}
-                </p>
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p className="text-xs text-gray-400">Denne måneden</p>
+                <p className="mt-1 text-3xl font-bold text-orange-500">{data.uniqueIpMonth.toLocaleString("nb-NO")}</p>
+                <p className="mt-0.5 text-xs text-gray-400">unike IPs</p>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p className="text-xs text-gray-400">Totalt</p>
+                <p className="mt-1 text-3xl font-bold text-gray-900">{data.uniqueIpCount.toLocaleString("nb-NO")}</p>
+                <p className="mt-0.5 text-xs text-gray-400">unike IPs</p>
               </div>
             </div>
 

@@ -23,6 +23,22 @@ export async function GET() {
 
   const rows = data ?? [];
 
+  // Unique IPs per period
+  const now = new Date();
+  const startOfDay   = new Date(now); startOfDay.setHours(0, 0, 0, 0);
+  const startOfWeek  = new Date(now); startOfWeek.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1)); startOfWeek.setHours(0, 0, 0, 0);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const uniqueDay   = new Set<string>();
+  const uniqueWeek  = new Set<string>();
+  const uniqueMonth = new Set<string>();
+  for (const row of rows) {
+    const t = new Date(row.visited_at);
+    if (t >= startOfDay)   uniqueDay.add(row.ip);
+    if (t >= startOfWeek)  uniqueWeek.add(row.ip);
+    if (t >= startOfMonth) uniqueMonth.add(row.ip);
+  }
+
   // Aggregate unique IPs
   const ipMap = new Map<string, { count: number; firstSeen: string; lastSeen: string; paths: Set<string>; emails: Set<string> }>();
   for (const row of rows) {
@@ -100,6 +116,9 @@ export async function GET() {
   return Response.json({
     totalVisits: rows.length,
     uniqueIpCount: uniqueIps.length,
+    uniqueIpDay:   uniqueDay.size,
+    uniqueIpWeek:  uniqueWeek.size,
+    uniqueIpMonth: uniqueMonth.size,
     uniqueIps,
     topPages,
   });
