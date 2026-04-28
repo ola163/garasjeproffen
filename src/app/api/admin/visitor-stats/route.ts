@@ -42,6 +42,37 @@ export async function GET() {
     }
   }
 
+  // Batch geo-lookup via ip-api.com (free, up to 100 IPs per request)
+  const allIps = Array.from(ipMap.keys());
+  const geoMap = new Map<string, { city: string; region: string; country: string }>();
+  const privateRanges = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|unknown)/;
+  const publicIps = allIps.filter((ip) => !privateRanges.test(ip));
+
+  for (let i = 0; i < publicIps.length; i += 100) {
+    const chunk = publicIps.slice(i, i + 100);
+    try {
+      const res = await fetch(
+        "http://ip-api.com/batch?lang=no&fields=query,status,country,regionName,city",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(chunk.map((q) => ({ query: q }))),
+        }
+      );
+      if (res.ok) {
+        const results: { query: string; status: string; country: string; regionName: string; city: string }[] =
+          await res.json();
+        for (const r of results) {
+          if (r.status === "success") {
+            geoMap.set(r.query, { city: r.city, region: r.regionName, country: r.country });
+          }
+        }
+      }
+    } catch {
+      // geo lookup is best-effort
+    }
+  }
+
   const uniqueIps = Array.from(ipMap.entries())
     .map(([ip, v]) => ({
       ip,
@@ -49,6 +80,7 @@ export async function GET() {
       firstSeen: v.firstSeen,
       lastSeen: v.lastSeen,
       paths: Array.from(v.paths).slice(0, 10),
+      geo: geoMap.get(ip) ?? null,
     }))
     .sort((a, b) => b.count - a.count);
 

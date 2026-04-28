@@ -3,12 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+interface GeoInfo {
+  city: string;
+  region: string;
+  country: string;
+}
+
 interface IpEntry {
   ip: string;
   count: number;
   firstSeen: string;
   lastSeen: string;
   paths: string[];
+  geo: GeoInfo | null;
 }
 
 interface StatsData {
@@ -23,6 +30,12 @@ function fmt(iso: string) {
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function GeoTag({ geo }: { geo: GeoInfo | null }) {
+  if (!geo) return <span className="text-gray-300 text-xs">—</span>;
+  const parts = [geo.city, geo.region, geo.country].filter(Boolean);
+  return <span className="text-gray-500 text-xs">{parts.join(", ")}</span>;
 }
 
 export default function StatistikkPage() {
@@ -49,7 +62,7 @@ export default function StatistikkPage() {
           </div>
         </div>
 
-        {loading && <p className="text-sm text-gray-400">Laster statistikk…</p>}
+        {loading && <p className="text-sm text-gray-400">Laster statistikk og geolokasjon…</p>}
 
         {!loading && data && (
           <>
@@ -94,9 +107,9 @@ export default function StatistikkPage() {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP-adresse</th>
+                      <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sted</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Besøk</th>
                       <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sist sett</th>
-                      <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Første besøk</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -111,20 +124,30 @@ export default function StatistikkPage() {
                             <span className="mr-2 text-gray-300">{expanded === entry.ip ? "▾" : "▸"}</span>
                             {entry.ip}
                           </td>
+                          <td className="hidden sm:table-cell px-4 py-3">
+                            <GeoTag geo={entry.geo} />
+                          </td>
                           <td className="px-4 py-3 text-right font-semibold text-orange-500">{entry.count}</td>
                           <td className="hidden sm:table-cell px-4 py-3 text-gray-500">{fmt(entry.lastSeen)}</td>
-                          <td className="hidden sm:table-cell px-4 py-3 text-gray-400">{fmt(entry.firstSeen)}</td>
                         </tr>
                         {expanded === entry.ip && (
                           <tr key={`${entry.ip}-expanded`} className="bg-orange-50">
-                            <td colSpan={4} className="px-6 py-3">
-                              <p className="text-xs font-medium text-gray-500 mb-1">Besøkte sider:</p>
-                              <div className="flex flex-wrap gap-2">
-                                {entry.paths.length > 0
-                                  ? entry.paths.map((p) => (
-                                      <span key={p} className="rounded bg-white border border-gray-200 px-2 py-0.5 font-mono text-xs text-gray-700">{p}</span>
-                                    ))
-                                  : <span className="text-xs text-gray-400">Ingen sideinfo</span>}
+                            <td colSpan={4} className="px-6 py-3 space-y-2">
+                              {entry.geo && (
+                                <p className="text-xs text-gray-600">
+                                  Lokasjon: <strong>{[entry.geo.city, entry.geo.region, entry.geo.country].filter(Boolean).join(", ")}</strong>
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-500">Første besøk: {fmt(entry.firstSeen)}</p>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 mb-1">Besøkte sider:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {entry.paths.length > 0
+                                    ? entry.paths.map((p) => (
+                                        <span key={p} className="rounded bg-white border border-gray-200 px-2 py-0.5 font-mono text-xs text-gray-700">{p}</span>
+                                      ))
+                                    : <span className="text-xs text-gray-400">Ingen sideinfo</span>}
+                                </div>
                               </div>
                             </td>
                           </tr>
