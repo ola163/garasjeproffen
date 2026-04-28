@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import ConfiguratorShell from "@/components/configurator/ConfiguratorShell";
 
 export const metadata = {
@@ -21,17 +20,6 @@ export default function CarportPage() {
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
           Carport på Jæren og i Rogaland
         </h1>
-        <p className="mt-2 max-w-2xl text-base text-gray-600">
-          Design carporten din i 3D og få et prisestimat med én gang. Vi leverer carporter som{" "}
-          <Link href="/materialpakke-garasje" className="text-orange-600 hover:underline">materialpakke for selvbygging</Link>
-          {" "}eller som{" "}
-          <Link href="/prefabrikkert-garasje" className="text-orange-600 hover:underline">prefabrikkert løsning med montering</Link>
-          {" "}– tilpasset tomten din i Rogaland.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-4 text-sm">
-          <Link href="/byggesoknad-garasje" className="text-gray-500 hover:text-orange-600">Trenger du byggesøknad?</Link>
-          <Link href="/garasje-rogaland" className="text-gray-500 hover:text-orange-600">Se alle løsninger i Rogaland</Link>
-        </div>
       </div>
       <Suspense
         fallback={
