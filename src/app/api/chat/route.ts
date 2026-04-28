@@ -1,7 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 const SYSTEM_PROMPT_BOKMAL = `Du er GarasjeDrøsaren – en hjelpsom og vennlig assistent for GarasjeProffen.no. GarasjeProffen er en norsk leverandør av garasjebygg som tilbyr skreddersydde og prefabrikkerte løsninger for garasjer, carporter, boder og næringsbygg. De holder til på Bryne i Rogaland og betjener primært kunder på Sør-Vestlandet.
 
 Svar alltid på bokmål. Hold svarene korte og vennlige – maks 3–4 setninger. Still ett naturlig oppfølgingsspørsmål om gangen.
@@ -63,6 +61,9 @@ Du skal IKKJE gje råd om sjølvbygg, tilrå konkurrentar eller gje bindande pri
 Ring direkte: 476 17 563 (Christian) eller 913 44 486 (Ola). E-post: post@garasjeproffen.no`;
 
 export async function POST(req: Request) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return new Response("ANTHROPIC_API_KEY ikke satt", { status: 503 });
+
   try {
     const { messages, lang } = await req.json();
 
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
     }
 
     const systemPrompt = lang === "jaersk" ? SYSTEM_PROMPT_JAERSK : SYSTEM_PROMPT_BOKMAL;
+    const client = new Anthropic({ apiKey });
 
     const stream = client.messages.stream({
       model: "claude-haiku-4-5-20251001",
@@ -82,15 +84,20 @@ export async function POST(req: Request) {
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const chunk of stream) {
-          if (
-            chunk.type === "content_block_delta" &&
-            chunk.delta.type === "text_delta"
-          ) {
-            controller.enqueue(encoder.encode(chunk.delta.text));
+        try {
+          for await (const chunk of stream) {
+            if (
+              chunk.type === "content_block_delta" &&
+              chunk.delta.type === "text_delta"
+            ) {
+              controller.enqueue(encoder.encode(chunk.delta.text));
+            }
           }
+          controller.close();
+        } catch (streamErr) {
+          console.error("Chat stream error:", streamErr instanceof Error ? streamErr.message : String(streamErr));
+          controller.error(streamErr);
         }
-        controller.close();
       },
     });
 
@@ -98,7 +105,7 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   } catch (err) {
-    console.error("Chat API error:", err);
+    console.error("Chat API error:", err instanceof Error ? err.message : String(err));
     return new Response("Feil ved chat-forespørsel", { status: 500 });
   }
 }
