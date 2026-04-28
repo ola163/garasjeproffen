@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
+const BOT_UA = /bot|crawl|spider|slurp|vercel|lighthouse|prerender|headless|chrome-lighthouse|dataforseo|semrush|ahrefs|mj12|googlebot|bingbot|facebookexternalhit/i;
+
 export async function POST(req: Request) {
   try {
     const { path } = await req.json();
@@ -12,6 +14,8 @@ export async function POST(req: Request) {
     const ip =
       req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
     const userAgent = req.headers.get("user-agent") ?? null;
+
+    if (userAgent && BOT_UA.test(userAgent)) return new Response("ok");
 
     const cookieStore = await cookies();
     const userEmail = cookieStore.get("gp-user")?.value ?? null;
