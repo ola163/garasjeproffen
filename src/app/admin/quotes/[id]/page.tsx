@@ -74,6 +74,7 @@ export default function QuoteDetailPage() {
   const [savePriceResult, setSavePriceResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [dismissingAddressAlert, setDismissingAddressAlert] = useState(false);
+  const [parsingPdf, setParsingPdf] = useState<number | null>(null);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEdit, setCustomerEdit] = useState({ name: "", email: "", phone: "", message: "", category: "", building_type: "" });
   const [savingCustomer, setSavingCustomer] = useState(false);
@@ -412,6 +413,29 @@ export default function QuoteDetailPage() {
     setOfferSections((prev) => prev.map((s, i) =>
       i === sIdx ? { ...s, line_items: [...s.line_items.filter(l => l.description || l.amount), ...items] } : s
     ));
+  }
+
+  async function handlePdfUpload(sIdx: number, file: File) {
+    setParsingPdf(sIdx);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/parse-pdf", { method: "POST", body: fd });
+      if (!res.ok) { alert("PDF-analyse feilet."); return; }
+      const items: { varenr: string; description: string; quantity: number; enhet: string; amount: number }[] = await res.json();
+      if (!items.length) { alert("Ingen varelinjer funnet i PDF-en."); return; }
+      const isMatpak = offerSections[sIdx]?.category === "materialpakke";
+      const lineItems = items.map((item) =>
+        isMatpak
+          ? { description: item.description, varenr: item.varenr ?? "", dimensjon: "", enhet: item.enhet ?? "", quantity: item.quantity ?? 1, amount: item.amount ?? 0 }
+          : { description: [item.varenr, item.description].filter(Boolean).join(" – "), quantity: item.quantity ?? 1, amount: item.amount ?? 0 }
+      );
+      setOfferSections((prev) => prev.map((s, i) =>
+        i === sIdx ? { ...s, line_items: [...s.line_items.filter((l) => l.description || l.amount), ...lineItems] } : s
+      ));
+    } finally {
+      setParsingPdf(null);
+    }
   }
 
   async function handleDeleteQuote() {
@@ -1222,6 +1246,37 @@ export default function QuoteDetailPage() {
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) handleExcelUpload(sIdx, file);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                        {section.category !== "søknadshjelp" && (
+                          <label className={`flex cursor-pointer items-center gap-1 rounded-lg border border-dashed px-3 py-1.5 text-xs transition-colors whitespace-nowrap ${parsingPdf === sIdx ? "border-indigo-300 text-indigo-400 cursor-wait" : "border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-500"}`}>
+                            {parsingPdf === sIdx ? (
+                              <>
+                                <svg className="h-3.5 w-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                </svg>
+                                Analyserer PDF…
+                              </>
+                            ) : (
+                              <>
+                                <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Les PDF med AI
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              className="sr-only"
+                              disabled={parsingPdf !== null}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handlePdfUpload(sIdx, file);
                                 e.target.value = "";
                               }}
                             />
