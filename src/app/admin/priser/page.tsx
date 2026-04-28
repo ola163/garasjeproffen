@@ -71,7 +71,7 @@ export default function PriserPage() {
   const [search, setSearch]           = useState("");
   const [loading, setLoading]         = useState(false);
   const [importing, setImporting]     = useState(false);
-  const [importMsg, setImportMsg]     = useState<{ ok: boolean; text: string } | null>(null);
+  const [importMsg, setImportMsg]     = useState<{ ok: boolean; warn?: boolean; text: string } | null>(null);
   const [counts, setCounts]           = useState<Record<string, number>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -143,6 +143,15 @@ export default function PriserPage() {
       return;
     }
 
+    // Detect duplicate varenr within the file before uploading
+    const varenrCount = new Map<string, number>();
+    for (const row of parsed) {
+      if (row.varenr) varenrCount.set(row.varenr, (varenrCount.get(row.varenr) ?? 0) + 1);
+    }
+    const duplicates = Array.from(varenrCount.entries())
+      .filter(([, n]) => n > 1)
+      .map(([varenr]) => varenr);
+
     const BATCH = 1500;
     let totalInserted = 0;
 
@@ -168,7 +177,17 @@ export default function PriserPage() {
       totalInserted += json.inserted ?? 0;
     }
 
-    setImportMsg({ ok: true, text: `${totalInserted} varer importert for ${sup}` });
+    if (duplicates.length > 0) {
+      const shown = duplicates.slice(0, 8).join(", ");
+      const extra = duplicates.length > 8 ? ` … og ${duplicates.length - 8} til` : "";
+      setImportMsg({
+        ok: true,
+        warn: true,
+        text: `${totalInserted} varer importert for ${sup}. ⚠ ${duplicates.length} duplikat varenr (siste rad brukt): ${shown}${extra}`,
+      });
+    } else {
+      setImportMsg({ ok: true, text: `${totalInserted} varer importert for ${sup}` });
+    }
     await loadRows();
     await loadCounts();
   }
@@ -279,9 +298,10 @@ export default function PriserPage() {
 
           {importMsg && (
             <div className={`mt-3 rounded-lg px-4 py-2.5 text-sm font-medium ${
-              importMsg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+              importMsg.warn ? "bg-yellow-50 text-yellow-800" :
+              importMsg.ok  ? "bg-green-50 text-green-700"   : "bg-red-50 text-red-700"
             }`}>
-              {importMsg.ok ? "✓ " : "✗ "}{importMsg.text}
+              {importMsg.warn ? "" : importMsg.ok ? "✓ " : "✗ "}{importMsg.text}
             </div>
           )}
         </div>

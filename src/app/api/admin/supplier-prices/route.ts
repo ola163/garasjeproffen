@@ -77,10 +77,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "supplier and rows required" }, { status: 400 });
   }
 
-  // Deduplicate by varenr — keep last occurrence to avoid
+  // Deduplicate by supplier+varenr — keep last occurrence to avoid
   // "ON CONFLICT DO UPDATE command cannot affect row a second time"
   const deduped = Array.from(
-    rows.reduce((map, r) => map.set(r.varenr, r), new Map<string, SupplierPriceRow>()).values()
+    rows.reduce((map, r) => map.set(`${supplier}|${r.varenr}`, r), new Map<string, SupplierPriceRow>()).values()
   );
 
   // Upsert in batches of 500
