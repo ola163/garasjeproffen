@@ -22,10 +22,9 @@ export async function POST(req: Request) {
   const anthropic = new Anthropic({ apiKey });
 
   try {
-    const message = await anthropic.beta.messages.create({
+    const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 4096,
-      betas: ["pdfs-2024-09-25"],
       messages: [
         {
           role: "user",
@@ -82,7 +81,8 @@ Hvis dokumentet ikke inneholder varelinjer, returner [].`,
 
     return Response.json(items);
   } catch (err) {
-    console.error("PDF parse error:", err instanceof Error ? err.message : String(err));
-    return new Response("PDF-analyse feilet", { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("PDF parse error:", msg);
+    return new Response(`PDF-analyse feilet: ${msg}`, { status: 500 });
   }
 }
