@@ -17,6 +17,7 @@ interface IpEntry {
   paths: string[];
   emails: string[];
   geo: GeoInfo | null;
+  countryCode: string | null;
 }
 
 interface StatsData {
@@ -95,8 +96,8 @@ export default function StatistikkPage() {
             </div>
 
             {(() => {
-              const norske  = data.uniqueIps.filter((e) => !e.geo || e.geo.country === "Norge");
-              const utland  = data.uniqueIps.filter((e) => e.geo && e.geo.country !== "Norge");
+              const norske  = data.uniqueIps.filter((e) => !e.countryCode || e.countryCode === "NO");
+              const utland  = data.uniqueIps.filter((e) => e.countryCode && e.countryCode !== "NO");
 
               const IpTable = ({ entries, emptyMsg }: { entries: IpEntry[]; emptyMsg: string }) => (
                 <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">

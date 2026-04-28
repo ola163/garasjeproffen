@@ -62,7 +62,7 @@ export async function GET() {
 
   // Batch geo-lookup via ip-api.com (free, up to 100 IPs per request)
   const allIps = Array.from(ipMap.keys());
-  const geoMap = new Map<string, { city: string; region: string; country: string }>();
+  const geoMap = new Map<string, { city: string; region: string; country: string; countryCode: string }>();
   const privateRanges = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|unknown)/;
   const publicIps = allIps.filter((ip) => !privateRanges.test(ip));
 
@@ -70,7 +70,7 @@ export async function GET() {
     const chunk = publicIps.slice(i, i + 100);
     try {
       const res = await fetch(
-        "http://ip-api.com/batch?lang=no&fields=query,status,country,regionName,city",
+        "http://ip-api.com/batch?lang=no&fields=query,status,country,countryCode,regionName,city",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -78,11 +78,11 @@ export async function GET() {
         }
       );
       if (res.ok) {
-        const results: { query: string; status: string; country: string; regionName: string; city: string }[] =
+        const results: { query: string; status: string; country: string; countryCode: string; regionName: string; city: string }[] =
           await res.json();
         for (const r of results) {
           if (r.status === "success") {
-            geoMap.set(r.query, { city: r.city, region: r.regionName, country: r.country });
+            geoMap.set(r.query, { city: r.city, region: r.regionName, country: r.country, countryCode: r.countryCode });
           }
         }
       }
@@ -100,6 +100,7 @@ export async function GET() {
       paths: Array.from(v.paths).slice(0, 10),
       emails: Array.from(v.emails),
       geo: geoMap.get(ip) ?? null,
+      countryCode: geoMap.get(ip)?.countryCode ?? null,
     }))
     .sort((a, b) => b.count - a.count);
 
