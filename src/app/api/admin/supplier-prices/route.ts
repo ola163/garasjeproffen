@@ -77,10 +77,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "supplier and rows required" }, { status: 400 });
   }
 
+  // Deduplicate by varenr — keep last occurrence to avoid
+  // "ON CONFLICT DO UPDATE command cannot affect row a second time"
+  const deduped = Array.from(
+    rows.reduce((map, r) => map.set(r.varenr, r), new Map<string, SupplierPriceRow>()).values()
+  );
+
   // Upsert in batches of 500
   let inserted = 0;
-  for (let i = 0; i < rows.length; i += 500) {
-    const batch = rows.slice(i, i + 500).map(r => ({ ...r, supplier, updated_at: new Date().toISOString() }));
+  for (let i = 0; i < deduped.length; i += 500) {
+    const batch = deduped.slice(i, i + 500).map(r => ({ ...r, supplier, updated_at: new Date().toISOString() }));
     const { error } = await sb
       .from("supplier_prices")
       .upsert(batch, { onConflict: "supplier,varenr" });
