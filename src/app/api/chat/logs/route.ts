@@ -1,6 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 
 export async function GET() {
+  const cookieStore = await cookies();
+  if (cookieStore.get("gp-admin")?.value !== "1") {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return new Response("DB not configured", { status: 503 });

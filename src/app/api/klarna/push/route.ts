@@ -24,14 +24,16 @@ export async function POST(request: Request) {
 
     if (order.status === "checkout_complete") {
       const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if (sbUrl && sbKey) {
-        const sb = createClient(sbUrl, sbKey);
-        await sb
-          .from("quotes")
-          .update({ status: "paid", paid_at: new Date().toISOString() })
-          .eq("klarna_order_id", orderId);
+      const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!sbUrl || !sbKey) {
+        console.error("Klarna push: SUPABASE_SERVICE_ROLE_KEY ikke satt");
+        return NextResponse.json({ ok: false, error: "DB ikke konfigurert" }, { status: 500 });
       }
+      const sb = createClient(sbUrl, sbKey);
+      await sb
+        .from("quotes")
+        .update({ status: "paid", paid_at: new Date().toISOString() })
+        .eq("klarna_order_id", orderId);
     }
 
     // Klarna requires a 200 response to acknowledge

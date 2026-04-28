@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -7,7 +8,13 @@ function db() {
   return createClient(url, key);
 }
 
+async function requireAdmin() {
+  const cookieStore = await cookies();
+  return cookieStore.get("gp-admin")?.value === "1";
+}
+
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!await requireAdmin()) return new Response("Unauthorized", { status: 401 });
   const { id } = await params;
   const client = db();
   if (!client) return new Response("DB not configured", { status: 503 });
@@ -17,6 +24,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!await requireAdmin()) return new Response("Unauthorized", { status: 401 });
   const { id } = await params;
   const { flagged } = await req.json();
   const client = db();

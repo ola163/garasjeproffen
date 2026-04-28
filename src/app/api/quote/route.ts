@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     // then insert explicitly so the same number is used in DB and emails
     let ticketNumber: string = quoteId;
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey);
       const { data: ticketData } = await sb.rpc("next_ticket_number");
@@ -88,8 +88,6 @@ export async function POST(request: Request) {
       });
       if (dbErr) console.error("Supabase quote insert error:", dbErr.message);
     }
-
-    console.log("addedElements received:", JSON.stringify(elements));
 
     // Expand "both" placement into two rows (left + right)
     const expandedElements = elements.flatMap((el) =>

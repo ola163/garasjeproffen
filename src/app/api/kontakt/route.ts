@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
     // ── Upload attachments to Supabase Storage ────────────────────────────────
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const attachmentUrls: string[] = [];
     if (sbUrl && sbKey && realFiles.length > 0) {
       const sb = createClient(sbUrl, sbKey);

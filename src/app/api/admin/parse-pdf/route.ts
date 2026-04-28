@@ -60,8 +60,23 @@ Hvis dokumentet ikke inneholder varelinjer, returner [].`,
   if (!jsonMatch) return Response.json([]);
 
   try {
-    const items = JSON.parse(jsonMatch[0]);
-    return Response.json(Array.isArray(items) ? items : []);
+    const raw = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(raw)) return Response.json([]);
+
+    // Sanitise and validate each item — prevents prompt injection from affecting the caller
+    const items = raw
+      .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
+      .map((item) => ({
+        varenr:      String(item.varenr      ?? "").slice(0, 50),
+        description: String(item.description ?? "").slice(0, 300),
+        quantity:    Math.max(0, Number(item.quantity) || 1),
+        enhet:       String(item.enhet       ?? "").slice(0, 20),
+        amount:      Math.max(0, Number(item.amount)   || 0),
+      }))
+      .filter((item) => item.description.length > 0)
+      .slice(0, 500);
+
+    return Response.json(items);
   } catch {
     return Response.json([]);
   }

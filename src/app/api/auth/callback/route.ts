@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const errorParam = url.searchParams.get("error");
 
   if (errorParam) {
-    return NextResponse.redirect(new URL(`/min-side?error=${errorParam}`, url.origin));
+    return NextResponse.redirect(new URL("/min-side?error=innlogging_avbrutt", url.origin));
   }
 
   const savedState = request.headers.get("cookie")
@@ -40,8 +40,7 @@ export async function GET(request: Request) {
     response.cookies.delete("oidc_nonce");
     return response;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("OIDC callback error:", msg);
-    return NextResponse.redirect(new URL(`/min-side?error=${encodeURIComponent(msg)}`, url.origin));
+    console.error("OIDC callback error:", err instanceof Error ? err.message : String(err));
+    return NextResponse.redirect(new URL("/min-side?error=innlogging_feilet", url.origin));
   }
 }
