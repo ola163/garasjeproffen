@@ -421,7 +421,7 @@ export default function QuoteDetailPage() {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/admin/parse-pdf", { method: "POST", body: fd });
-      if (!res.ok) { alert("PDF-analyse feilet."); return; }
+      if (!res.ok) { alert(`PDF-analyse feilet (${res.status}): ${await res.text()}`); return; }
       const items: { varenr: string; description: string; quantity: number; enhet: string; amount: number }[] = await res.json();
       if (!items.length) { alert("Ingen varelinjer funnet i PDF-en."); return; }
       const isMatpak = offerSections[sIdx]?.category === "materialpakke";
