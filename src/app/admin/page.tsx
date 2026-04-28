@@ -295,6 +295,21 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-teal-500 group-hover:underline">Åpne →</p>
           </Link>
 
+          {/* Statistikk */}
+          <Link
+            href="/admin/statistikk"
+            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100">
+              <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 group-hover:text-indigo-600">Statistikk</h2>
+            <p className="mt-1 text-sm text-gray-500">Unike IP-adresser, sidevisninger og topp-sider.</p>
+            <p className="mt-4 text-xs font-medium text-indigo-500 group-hover:underline">Åpne →</p>
+          </Link>
+
           {/* Referanseprosjekter */}
           <Link
             href="/referanseprosjekter/admin"
