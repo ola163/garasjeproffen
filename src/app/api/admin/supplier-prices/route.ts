@@ -29,6 +29,9 @@ async function isAdmin(req: NextRequest): Promise<boolean> {
 
 // GET /api/admin/supplier-prices?supplier=Optimera&q=tre&limit=50&offset=0
 export async function GET(req: NextRequest) {
+  if (!(await isAdmin(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const sb = getSupabase();
   const { searchParams } = new URL(req.url);
   const supplier = searchParams.get("supplier") ?? "";

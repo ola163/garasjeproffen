@@ -13,11 +13,15 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/min-side?error=innlogging_avbrutt", url.origin));
   }
 
-  const savedState = request.headers.get("cookie")
-    ?.split(";")
+  const cookies = request.headers.get("cookie") ?? "";
+
+  const savedState = cookies.split(";")
     .find((c) => c.trim().startsWith("oidc_state="))
-    ?.split("=")[1]
-    ?.trim();
+    ?.split("=")[1]?.trim();
+
+  const savedNonce = cookies.split(";")
+    .find((c) => c.trim().startsWith("oidc_nonce="))
+    ?.split("=")[1]?.trim();
 
   if (!code || !state || state !== savedState) {
     return NextResponse.redirect(new URL("/min-side?error=invalid_state", url.origin));
@@ -27,6 +31,10 @@ export async function GET(request: Request) {
     const redirectUri = getRedirectUri(url.origin);
     const tokens = await exchangeCode(code, redirectUri);
     const claims = decodeIdToken(tokens.id_token);
+
+    if (savedNonce && claims.nonce !== savedNonce) {
+      return NextResponse.redirect(new URL("/min-side?error=invalid_nonce", url.origin));
+    }
 
     const response = NextResponse.redirect(new URL("/min-side", url.origin));
     const session = await getIronSession<CustomerSession>(request, response, sessionOptions);

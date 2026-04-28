@@ -19,14 +19,18 @@ function allow(ip: string, prefix: string, limit: number, windowMs: number): boo
 }
 
 const RATE_LIMITS: Array<{ prefix: string; limit: number; windowMs: number }> = [
-  { prefix: "/api/auth/email-login",      limit: 5,  windowMs: 60_000 },
-  { prefix: "/api/chat",                  limit: 20, windowMs: 60_000 },
-  { prefix: "/api/kontakt",               limit: 5,  windowMs: 60_000 },
-  { prefix: "/api/soknadshjelp",          limit: 5,  windowMs: 60_000 },
-  { prefix: "/api/quote",                 limit: 10, windowMs: 60_000 },
-  { prefix: "/api/address-suggest",       limit: 30, windowMs: 60_000 },
-  { prefix: "/api/admin/parse-pdf",       limit: 10, windowMs: 60_000 },
-  { prefix: "/api/admin/visitor-stats",   limit: 20, windowMs: 60_000 },
+  { prefix: "/api/auth/email-login",           limit: 5,  windowMs: 60_000 },
+  { prefix: "/api/chat",                       limit: 20, windowMs: 60_000 },
+  { prefix: "/api/kontakt",                    limit: 5,  windowMs: 60_000 },
+  { prefix: "/api/soknadshjelp",               limit: 5,  windowMs: 60_000 },
+  { prefix: "/api/quote",                      limit: 10, windowMs: 60_000 },
+  { prefix: "/api/address-suggest",            limit: 30, windowMs: 60_000 },
+  { prefix: "/api/admin/parse-pdf",            limit: 10, windowMs: 60_000 },
+  { prefix: "/api/admin/visitor-stats",        limit: 20, windowMs: 60_000 },
+  { prefix: "/api/admin/send-offer",           limit: 20, windowMs: 60_000 },
+  { prefix: "/api/admin/upload-attachment",    limit: 20, windowMs: 60_000 },
+  { prefix: "/api/admin/supplier-prices",      limit: 30, windowMs: 60_000 },
+  { prefix: "/api/osm-buildings",              limit: 30, windowMs: 60_000 },
 ];
 
 export function middleware(request: NextRequest) {
@@ -65,6 +69,7 @@ export const config = {
     "/api/quote/:path*",
     "/api/address-suggest",
     "/api/admin/:path*",
+    "/api/osm-buildings",
     "/admin/:path*",
   ],
 };

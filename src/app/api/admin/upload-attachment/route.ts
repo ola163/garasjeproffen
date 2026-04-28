@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 import { validateFile } from "@/lib/file-validation";
 
-const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
-
 export async function POST(request: Request) {
+  const cookieStore = await cookies();
+  if (cookieStore.get("gp-admin")?.value !== "1") {
+    return NextResponse.json({ success: false, error: "Ikke tilgang" }, { status: 401 });
+  }
+
   try {
     const formData = await request.formData();
-    const adminEmail = formData.get("adminEmail") as string;
     const ticketNumber = formData.get("ticketNumber") as string;
     const quoteId = formData.get("quoteId") as string;
     const files = formData.getAll("files") as File[];
-
-    if (!ALLOWED_ADMINS.includes((adminEmail ?? "").toLowerCase())) {
-      return NextResponse.json({ success: false, error: "Ikke tilgang" }, { status: 403 });
-    }
 
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

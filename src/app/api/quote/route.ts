@@ -7,6 +7,15 @@ import { calculatePrice, formatPrice } from "@/lib/pricing";
 
 const RECIPIENT = "post@garasjeproffen.no";
 
+function esc(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 const SIDE_LABELS: Record<string, string> = {
   front: "Frontvegg",
   back: "Bakvegg",
@@ -136,16 +145,16 @@ export async function POST(request: Request) {
       const adminEmail = resend.emails.send({
         from: "GarasjeProffen <noreply@garasjeproffen.no>",
         to: RECIPIENT,
-        subject: `Ny tilbudsforespørsel – ${body.customer.name} (${ticketNumber})`,
+        subject: `Ny tilbudsforespørsel – ${esc(body.customer.name)} (${ticketNumber})`,
         html: `
           <h2>Ny tilbudsforespørsel</h2>
           <p><strong>Referansenummer:</strong> ${ticketNumber}</p>
           <h3>Kunde</h3>
           <table>
-            <tr><td><strong>Navn:</strong></td><td>${body.customer.name}</td></tr>
-            <tr><td><strong>E-post:</strong></td><td>${body.customer.email}</td></tr>
-            <tr><td><strong>Telefon:</strong></td><td>${body.customer.phone || "–"}${body.customer.phoneVerified ? ' <span style="color:#16a34a;font-size:12px">✓ Verifisert</span>' : ""}</td></tr>
-            <tr><td><strong>Melding:</strong></td><td>${body.customer.message || "–"}</td></tr>
+            <tr><td><strong>Navn:</strong></td><td>${esc(body.customer.name)}</td></tr>
+            <tr><td><strong>E-post:</strong></td><td>${esc(body.customer.email)}</td></tr>
+            <tr><td><strong>Telefon:</strong></td><td>${esc(body.customer.phone) || "–"}${body.customer.phoneVerified ? ' <span style="color:#16a34a;font-size:12px">✓ Verifisert</span>' : ""}</td></tr>
+            <tr><td><strong>Melding:</strong></td><td>${esc(body.customer.message) || "–"}</td></tr>
           </table>
           <h3>Konfigurasjon</h3>
           <table>
@@ -182,7 +191,7 @@ export async function POST(request: Request) {
         html: `
           <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
             <h2 style="color:#ea580c">Takk for din forespørsel!</h2>
-            <p>Hei ${body.customer.name},</p>
+            <p>Hei ${esc(body.customer.name)},</p>
             <p>Vi har mottatt din tilbudsforespørsel og tar kontakt med deg så snart som mulig.</p>
             <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;margin:20px 0">
               <p style="margin:0;font-size:13px;color:#9a3412">Ditt referansenummer</p>

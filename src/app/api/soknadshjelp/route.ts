@@ -17,6 +17,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Gyldig e-post er påkrevd." }, { status: 400 });
     }
 
+    function esc(s: unknown): string {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+    }
+
     const resendKey = process.env.RESEND_API_KEY;
 
     if (resendKey) {
@@ -24,16 +30,16 @@ export async function POST(request: Request) {
 
       const dibkRows = dibk
         ? Object.entries(dibk as Record<string, string>)
-            .map(([k, v]) => `<tr><td><strong>${k}:</strong></td><td>${v || "–"}</td></tr>`)
+            .map(([k, v]) => `<tr><td><strong>${esc(k)}:</strong></td><td>${esc(v) || "–"}</td></tr>`)
             .join("")
         : "";
 
       const garageRows = garageConfig
         ? `
-          <tr><td><strong>Lengde:</strong></td><td>${garageConfig.lengthMm / 1000} m</td></tr>
-          <tr><td><strong>Bredde:</strong></td><td>${garageConfig.widthMm / 1000} m</td></tr>
-          <tr><td><strong>Portbredde:</strong></td><td>${garageConfig.doorWidthMm} mm</td></tr>
-          <tr><td><strong>Porthøyde:</strong></td><td>${garageConfig.doorHeightMm} mm</td></tr>
+          <tr><td><strong>Lengde:</strong></td><td>${Number(garageConfig.lengthMm) / 1000} m</td></tr>
+          <tr><td><strong>Bredde:</strong></td><td>${Number(garageConfig.widthMm) / 1000} m</td></tr>
+          <tr><td><strong>Portbredde:</strong></td><td>${Number(garageConfig.doorWidthMm)} mm</td></tr>
+          <tr><td><strong>Porthøyde:</strong></td><td>${Number(garageConfig.doorHeightMm)} mm</td></tr>
         `
         : "<tr><td colspan='2'>Ikke spesifisert</td></tr>";
 
@@ -41,16 +47,16 @@ export async function POST(request: Request) {
         from: "GarasjeProffen <noreply@garasjeproffen.no>",
         to: "post@garasjeproffen.no",
         replyTo: email,
-        subject: `Søknadshjelp-forespørsel – ${name}`,
+        subject: `Søknadshjelp-forespørsel – ${esc(name)}`,
         html: `
           <h2>Ny forespørsel via Søknadshjelp</h2>
 
           <h3>Kunde</h3>
           <table>
-            <tr><td><strong>Navn:</strong></td><td>${name}</td></tr>
-            <tr><td><strong>E-post:</strong></td><td>${email}</td></tr>
-            <tr><td><strong>Telefon:</strong></td><td>${phone || "–"}</td></tr>
-            <tr><td><strong>Adresse/tomt:</strong></td><td>${address || "–"}</td></tr>
+            <tr><td><strong>Navn:</strong></td><td>${esc(name)}</td></tr>
+            <tr><td><strong>E-post:</strong></td><td>${esc(email)}</td></tr>
+            <tr><td><strong>Telefon:</strong></td><td>${esc(phone) || "–"}</td></tr>
+            <tr><td><strong>Adresse/tomt:</strong></td><td>${esc(address) || "–"}</td></tr>
           </table>
 
           <h3>Garasjekonfigurasjon</h3>
@@ -60,7 +66,7 @@ export async function POST(request: Request) {
           <table>${dibkRows}</table>
 
           <h3>Søknadsresultat</h3>
-          <p><strong>${permitResult ?? "–"}</strong></p>
+          <p><strong>${esc(permitResult) || "–"}</strong></p>
 
           <h3>Prisestimat</h3>
           <table>
