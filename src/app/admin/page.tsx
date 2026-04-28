@@ -197,14 +197,11 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Cards */}
+        {/* Main cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
           {/* Quotes */}
-          <Link
-            href="/admin/quotes"
-            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
+          <Link href="/admin/quotes" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100">
               <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -221,10 +218,7 @@ export default function AdminPage() {
           </Link>
 
           {/* Kontakthenvendelser */}
-          <Link
-            href="/admin/kontakt"
-            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
+          <Link href="/admin/kontakt" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100">
               <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -235,41 +229,8 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-purple-500 group-hover:underline">Åpne →</p>
           </Link>
 
-          {/* Kunderegister */}
-          <Link
-            href="/admin/kunder"
-            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-green-100">
-              <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
-            <h2 className="text-base font-semibold text-gray-900 group-hover:text-green-600">Kunderegister</h2>
-            <p className="mt-1 text-sm text-gray-500">Oversikt over alle kunder som har sendt forespørsler.</p>
-            <p className="mt-4 text-xs font-medium text-green-500 group-hover:underline">Åpne →</p>
-          </Link>
-
-          {/* Chat-logg */}
-          <Link
-            href="/admin/chat-logg"
-            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100">
-              <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-            </div>
-            <h2 className="text-base font-semibold text-gray-900 group-hover:text-orange-600">Chat-logg</h2>
-            <p className="mt-1 text-sm text-gray-500">Samtaler med GarasjeDrøsaren – innloggede og anonyme, topp-spørsmål.</p>
-            <p className="mt-4 text-xs font-medium text-orange-500 group-hover:underline">Åpne →</p>
-          </Link>
-
           {/* Prisdatabase */}
-          <Link
-            href="/admin/priser"
-            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
+          <Link href="/admin/priser" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-100">
               <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -281,10 +242,7 @@ export default function AdminPage() {
           </Link>
 
           {/* Profilendringer */}
-          <Link
-            href="/admin/profil-endringer"
-            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
+          <Link href="/admin/profil-endringer" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-teal-100">
               <svg className="h-6 w-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -295,26 +253,8 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-teal-500 group-hover:underline">Åpne →</p>
           </Link>
 
-          {/* Statistikk */}
-          <Link
-            href="/admin/statistikk"
-            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100">
-              <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <h2 className="text-base font-semibold text-gray-900 group-hover:text-indigo-600">Statistikk</h2>
-            <p className="mt-1 text-sm text-gray-500">Unike IP-adresser, sidevisninger og topp-sider.</p>
-            <p className="mt-4 text-xs font-medium text-indigo-500 group-hover:underline">Åpne →</p>
-          </Link>
-
           {/* Referanseprosjekter */}
-          <Link
-            href="/referanseprosjekter/admin"
-            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
+          <Link href="/referanseprosjekter/admin" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
               <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -328,6 +268,53 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-blue-500 group-hover:underline">Åpne →</p>
           </Link>
 
+        </div>
+
+        {/* Analyse section */}
+        <div className="mt-8">
+          <div className="mb-4 flex items-center gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Analyse</h2>
+            <div className="flex-1 border-t border-gray-200" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+
+            {/* Kunderegister */}
+            <Link href="/admin/kunder" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-green-100">
+                <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <h3 className="text-sm font-semibold text-gray-900 group-hover:text-green-600">Kunderegister</h3>
+              <p className="mt-1 text-xs text-gray-500">Alle kunder som har sendt forespørsler.</p>
+              <p className="mt-3 text-xs font-medium text-green-500 group-hover:underline">Åpne →</p>
+            </Link>
+
+            {/* Chat-logg */}
+            <Link href="/admin/chat-logg" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100">
+                <svg className="h-5 w-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+              </div>
+              <h3 className="text-sm font-semibold text-gray-900 group-hover:text-orange-600">Chat-logg</h3>
+              <p className="mt-1 text-xs text-gray-500">Samtaler med GarasjeDrøsaren og topp-spørsmål.</p>
+              <p className="mt-3 text-xs font-medium text-orange-500 group-hover:underline">Åpne →</p>
+            </Link>
+
+            {/* Statistikk */}
+            <Link href="/admin/statistikk" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100">
+                <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600">Statistikk</h3>
+              <p className="mt-1 text-xs text-gray-500">Unike IP-adresser, besøk per periode og topp-sider.</p>
+              <p className="mt-3 text-xs font-medium text-indigo-500 group-hover:underline">Åpne →</p>
+            </Link>
+
+          </div>
         </div>
       </div>
     </div>
