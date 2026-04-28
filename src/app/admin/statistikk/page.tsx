@@ -15,6 +15,7 @@ interface IpEntry {
   firstSeen: string;
   lastSeen: string;
   paths: string[];
+  emails: string[];
   geo: GeoInfo | null;
 }
 
@@ -123,6 +124,11 @@ export default function StatistikkPage() {
                           <td className="px-4 py-3 font-mono text-gray-800">
                             <span className="mr-2 text-gray-300">{expanded === entry.ip ? "▾" : "▸"}</span>
                             {entry.ip}
+                            {entry.emails.length > 0 && (
+                              <span title={entry.emails.join(", ")} className="ml-2 inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+                                innlogget
+                              </span>
+                            )}
                           </td>
                           <td className="hidden sm:table-cell px-4 py-3">
                             <GeoTag geo={entry.geo} />
@@ -133,6 +139,11 @@ export default function StatistikkPage() {
                         {expanded === entry.ip && (
                           <tr key={`${entry.ip}-expanded`} className="bg-orange-50">
                             <td colSpan={4} className="px-6 py-3 space-y-2">
+                              {entry.emails.length > 0 && (
+                                <p className="text-xs text-gray-700">
+                                  Bruker: <strong>{entry.emails.join(", ")}</strong>
+                                </p>
+                              )}
                               {entry.geo && (
                                 <p className="text-xs text-gray-600">
                                   Lokasjon: <strong>{[entry.geo.city, entry.geo.region, entry.geo.country].filter(Boolean).join(", ")}</strong>

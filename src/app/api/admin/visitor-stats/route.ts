@@ -15,7 +15,7 @@ export async function GET() {
 
   const { data, error } = await db
     .from("visitor_logs")
-    .select("ip, path, user_agent, visited_at")
+    .select("ip, path, user_agent, user_email, visited_at")
     .order("visited_at", { ascending: false })
     .limit(5000);
 
@@ -24,7 +24,7 @@ export async function GET() {
   const rows = data ?? [];
 
   // Aggregate unique IPs
-  const ipMap = new Map<string, { count: number; firstSeen: string; lastSeen: string; paths: Set<string> }>();
+  const ipMap = new Map<string, { count: number; firstSeen: string; lastSeen: string; paths: Set<string>; emails: Set<string> }>();
   for (const row of rows) {
     const entry = ipMap.get(row.ip);
     if (!entry) {
@@ -33,12 +33,14 @@ export async function GET() {
         firstSeen: row.visited_at,
         lastSeen: row.visited_at,
         paths: new Set(row.path ? [row.path] : []),
+        emails: new Set(row.user_email ? [row.user_email] : []),
       });
     } else {
       entry.count++;
       if (row.visited_at < entry.firstSeen) entry.firstSeen = row.visited_at;
       if (row.visited_at > entry.lastSeen) entry.lastSeen = row.visited_at;
       if (row.path) entry.paths.add(row.path);
+      if (row.user_email) entry.emails.add(row.user_email);
     }
   }
 
@@ -80,6 +82,7 @@ export async function GET() {
       firstSeen: v.firstSeen,
       lastSeen: v.lastSeen,
       paths: Array.from(v.paths).slice(0, 10),
+      emails: Array.from(v.emails),
       geo: geoMap.get(ip) ?? null,
     }))
     .sort((a, b) => b.count - a.count);
