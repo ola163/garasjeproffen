@@ -172,7 +172,7 @@ export default function Kontakt() {
           <div className="mt-6 rounded-xl bg-gray-50 px-6 py-5">
             <p className="text-sm text-gray-500">
               <span className="font-medium text-gray-700">Besøksadresse</span><br />
-              Tjødnavegen 8b, 4342 Bryne
+              Tjødnavegen 8b, 4344 Bryne
             </p>
           </div>
         </div>
@@ -215,7 +215,7 @@ export default function Kontakt() {
             <div>
               <label htmlFor="address" className="block text-sm font-medium text-gray-700">Adresse *</label>
               <input id="address" type="text" required value={address} onChange={(e) => setAddress(e.target.value)}
-                placeholder="Gateveien 1, 4342 Bryne"
+                placeholder="Gateveien 1, 4344 Bryne"
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>

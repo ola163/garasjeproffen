@@ -911,10 +911,12 @@ export default function QuoteDetailPage() {
                 <div className="flex gap-2"><dt className="w-24 shrink-0 text-gray-500">Pakke</dt><dd className="text-gray-900">{quote.package_type === "prefab" ? "Prefabrikert løsning" : "Materialpakke"}</dd></div>
                 <div className="flex gap-2"><dt className="w-24 shrink-0 text-gray-500">Taktype</dt><dd className="text-gray-900">{quote.roof_type === "saltak" ? "Saltak" : "Flattak"}</dd></div>
                 {p && <>
-                  <div className="flex gap-2"><dt className="w-24 shrink-0 text-gray-500">Bredde</dt><dd className="text-gray-900">{(p.width ?? 0) / 1000} m</dd></div>
-                  <div className="flex gap-2"><dt className="w-24 shrink-0 text-gray-500">Lengde</dt><dd className="text-gray-900">{(p.length ?? 0) / 1000} m</dd></div>
-                  <div className="flex gap-2"><dt className="w-24 shrink-0 text-gray-500">Portbredde</dt><dd className="text-gray-900">{p.doorWidth ?? "–"} mm</dd></div>
-                  <div className="flex gap-2"><dt className="w-24 shrink-0 text-gray-500">Porthøyde</dt><dd className="text-gray-900">{p.doorHeight ?? "–"} mm</dd></div>
+                  <div className="flex gap-2"><dt className="w-28 shrink-0 text-gray-500">Bredde</dt><dd className="text-gray-900">{(p.width ?? 0) / 1000} m</dd></div>
+                  <div className="flex gap-2"><dt className="w-28 shrink-0 text-gray-500">Lengde</dt><dd className="text-gray-900">{(p.length ?? 0) / 1000} m</dd></div>
+                  <div className="flex gap-2"><dt className="w-28 shrink-0 text-gray-500">Areal</dt><dd className="text-gray-900">{(((p.width ?? 0) / 1000) * ((p.length ?? 0) / 1000)).toFixed(1)} m²</dd></div>
+                  <div className="flex gap-2"><dt className="w-28 shrink-0 text-gray-500">Portbredde</dt><dd className="text-gray-900">{p.doorWidth ?? "–"} mm</dd></div>
+                  <div className="flex gap-2"><dt className="w-28 shrink-0 text-gray-500">Porthøyde</dt><dd className="text-gray-900">{p.doorHeight ?? "–"} mm</dd></div>
+                  <div className="flex gap-2"><dt className="w-28 shrink-0 text-gray-500">Veggbredde</dt><dd className="text-gray-900">{Math.round(((p.width ?? 0) - (p.doorWidth ?? 0)) / 2)} mm per side</dd></div>
                 </>}
               </dl>
 

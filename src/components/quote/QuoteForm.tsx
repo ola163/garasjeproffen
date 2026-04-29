@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import type { GarageConfiguration, PricingResult } from "@/types/configurator";
 import type { QuoteResponse } from "@/types/quote";
 import type { AddedElement } from "@/components/configurator/DoorWindowAdder";
-import { supabase } from "@/lib/supabase";
 
 interface QuoteFormProps {
   configuration: GarageConfiguration;
@@ -52,50 +51,23 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   const p = configuration.parameters;
   const soknadUrl = `/soknadshjelp?buildingType=${buildingType}&lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=${p.doorHeight ?? 2125}&roofType=${roofType}`;
 
-  async function uploadFiles(): Promise<string[]> {
-    if (!supabase || files.length === 0) return [];
-    const prefix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const urls: string[] = [];
-    for (const file of files) {
-      const safeName = file.name
-        .normalize("NFD").replace(/[̀-ͯ]/g, "")
-        .replace(/[^a-zA-Z0-9._-]/g, "-")
-        .replace(/-+/g, "-");
-      const path = `${prefix}/${safeName}`;
-      const { error } = await supabase.storage.from("quote-attachments").upload(path, file, { upsert: true });
-      if (!error) {
-        const { data } = supabase.storage.from("quote-attachments").getPublicUrl(path);
-        urls.push(data.publicUrl);
-      }
-    }
-    return urls;
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setResult(null);
     try {
-      const attachmentUrls = await uploadFiles();
-      const res = await fetch("/api/quote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          configuration,
-          pricing,
-          packageType,
-          roofType,
-          addedElements,
-          category,
-          buildingType,
-          customer: { name, email, phone, message },
-          attachmentUrls,
-        }),
-      });
+      const formData = new FormData();
+      formData.append("data", JSON.stringify({
+        configuration, pricing, packageType, roofType, addedElements,
+        category, buildingType,
+        customer: { name, email, phone, message },
+      }));
+      files.forEach((f) => formData.append("files", f));
+      const res = await fetch("/api/quote", { method: "POST", body: formData });
       const data: QuoteResponse = await res.json();
       setResult(data);
       if (data.success) {
-        setName(""); setEmail(""); setPhone(""); setFiles([]);
+        setName(""); setEmail(""); setPhone(""); setMessage(""); setFiles([]);
       }
     } catch {
       setResult({ success: false, error: "Nettverksfeil. Vennligst prøv igjen." });

@@ -20,6 +20,7 @@ interface GarageMapboxProps {
   streetView?: boolean;
   showNeighbors?: boolean;
   defaultCenter?: [number, number];
+  onAddressSelect?: (address: string, coords: [number, number]) => void;
 }
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -207,7 +208,7 @@ export default function GarageMapbox({
   externalCenter, externalRotation,
   onCenterChange, onRotationChange,
   readOnly = false, forceIs3D = false, streetView = false,
-  showNeighbors = false, defaultCenter,
+  showNeighbors = false, defaultCenter, onAddressSelect,
 }: GarageMapboxProps) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const mapRef        = useRef<mapboxgl.Map | null>(null);
@@ -640,6 +641,8 @@ export default function GarageMapbox({
     setCenter(s.center);
     if (markerRef.current) markerRef.current.remove();
     markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(s.center).addTo(map);
+    try { localStorage.setItem("gp-map-address", s.place_name); } catch {}
+    onAddressSelect?.(s.place_name, s.center);
   }
 
   // ─── Warning badge config ────────────────────────────────────────────────

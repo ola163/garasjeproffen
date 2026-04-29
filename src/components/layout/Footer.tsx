@@ -13,7 +13,7 @@ export default function Footer() {
             <p className="mb-2 text-sm font-semibold text-gray-700">GarasjeProffen AS</p>
             <div className="space-y-0.5 text-xs text-gray-400">
               <p>Org.nr. 937 606 966</p>
-              <p>Tjødnavegen 8b, 4342 Bryne</p>
+              <p>Tjødnavegen 8b, 4344 Bryne</p>
               <p>Rogaland, Norge</p>
               <a href="mailto:post@garasjeproffen.no" className="block mt-2 hover:text-orange-500">
                 post@garasjeproffen.no
@@ -97,7 +97,7 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="mt-4 flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-gray-400">Tjødnavegen 8b, 4342 Bryne · Org.nr. 937 606 966</p>
+          <p className="text-xs text-gray-400">Tjødnavegen 8b, 4344 Bryne · Org.nr. 937 606 966</p>
           <p className="text-xs text-gray-400">&copy; {new Date().getFullYear()} GarasjeProffen AS</p>
         </div>
 

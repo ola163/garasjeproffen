@@ -292,14 +292,29 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         )}
         {viewMode === "dev" && <LocalGarageViewer {...viewerProps} />}
         {viewMode === "kart" && (
-          <GarageMapbox
-            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
-            externalCenter={mapCenter} externalRotation={mapRotation}
-            onCenterChange={(c) => { setMapCenter(c); setShowOnPlot(false); }}
-            onRotationChange={setMapRotation}
-            defaultCenter={selectedKommune?.center}
-            showNeighbors
-          />
+          isLoggedIn ? (
+            <GarageMapbox
+              lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
+              externalCenter={mapCenter} externalRotation={mapRotation}
+              onCenterChange={(c) => { setMapCenter(c); setShowOnPlot(false); }}
+              onRotationChange={setMapRotation}
+              defaultCenter={selectedKommune?.center}
+              showNeighbors
+            />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-stone-100 p-8 text-center">
+              <svg className="h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Logg inn for å bruke tomteplassering</p>
+                <p className="mt-1 text-xs text-gray-400">Plasser garasjen din på din tomt med satellittkart.</p>
+              </div>
+              <a href="/min-side" className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-medium text-white hover:bg-orange-600 transition-colors">
+                Logg inn / Registrer deg
+              </a>
+            </div>
+          )
         )}
       </div>
 

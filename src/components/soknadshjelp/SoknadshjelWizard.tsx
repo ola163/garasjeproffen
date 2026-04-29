@@ -605,9 +605,15 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, onBack }: {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 export default function SoknadshjelWizard({ garageConfig, initialBuildingType }: { garageConfig?: GarageConfig; initialBuildingType?: BuildingType }) {
   const skipType = !!initialBuildingType;
-  const [step, setStep] = useState(skipType ? 1 : 0);
+  const savedAddress = typeof window !== "undefined" ? (localStorage.getItem("gp-map-address") ?? "") : "";
+  const hasAddress = !!savedAddress;
+
+  const [step, setStep] = useState(() => {
+    if (skipType) return hasAddress ? 2 : 1;
+    return 0;
+  });
   const [buildingType, setBuildingType] = useState<BuildingType | null>(initialBuildingType ?? null);
-  const [address, setAddress] = useState("");
+  const [address, setAddress] = useState(savedAddress);
   const autoFilled = garageConfig ? autoFillDibk(garageConfig) : {};
   const [dibk, setDibk] = useState<DibkAnswers>({ ...defaultDibk, ...autoFilled });
 
@@ -624,15 +630,20 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
           – port {garageConfig.doorWidthMm} mm
         </div>
       )}
+      {hasAddress && step >= 2 && (
+        <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          📍 Adresse hentet fra tomteplassering: <span className="font-medium">{address}</span>
+        </div>
+      )}
       <StepBar step={step} skipType={skipType} />
       {step === 0 && (
-        <StepBuildingType selected={buildingType} onNext={(t) => { setBuildingType(t); setStep(1); }} />
+        <StepBuildingType selected={buildingType} onNext={(t) => { setBuildingType(t); setStep(hasAddress ? 2 : 1); }} />
       )}
       {step === 1 && (
         <StepMap garageConfig={garageConfig} onNext={(_, __, addr) => { setAddress(addr); setStep(2); }} onBack={() => setStep(skipType ? 1 : 0)} />
       )}
       {step === 2 && (
-        <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} onNext={() => setStep(3)} onBack={() => setStep(1)} />
+        <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} onNext={() => setStep(3)} onBack={() => setStep(!skipType && hasAddress ? 0 : 1)} />
       )}
       {step === 3 && (
         <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} onBack={() => setStep(2)} />

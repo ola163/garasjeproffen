@@ -34,9 +34,48 @@ const PLACEMENT_LABELS: Record<string, string> = {
   both: "Begge sider",
 };
 
+async function uploadFilesServerSide(files: File[]): Promise<string[]> {
+  const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey || files.length === 0) return [];
+  const sb = createClient(sbUrl, sbKey);
+  const prefix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const urls: string[] = [];
+  for (const file of files) {
+    const safeName = file.name
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
+    const bytes = await file.arrayBuffer();
+    const { error } = await sb.storage.from("quote-attachments").upload(`${prefix}/${safeName}`, bytes, {
+      contentType: file.type || "application/octet-stream", upsert: true,
+    });
+    if (!error) {
+      const { data } = sb.storage.from("quote-attachments").getPublicUrl(`${prefix}/${safeName}`);
+      urls.push(data.publicUrl);
+    }
+  }
+  return urls;
+}
+
+type RequestBody = QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[]; category?: string; buildingType?: string; customer: { name: string; email: string; phone?: string; message?: string; phoneVerified?: boolean } };
+
 export async function POST(request: Request) {
   try {
-    const body: QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[]; category?: string; buildingType?: string; customer: { name: string; email: string; phone?: string; message?: string; phoneVerified?: boolean } } = await request.json();
+    const contentType = request.headers.get("content-type") ?? "";
+    let body: RequestBody;
+    let uploadedFiles: File[] = [];
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const raw = formData.get("data");
+      if (typeof raw !== "string") {
+        return NextResponse.json<QuoteResponse>({ success: false, error: "Ugyldig forespørsel." }, { status: 400 });
+      }
+      body = JSON.parse(raw);
+      uploadedFiles = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+    } else {
+      body = await request.json();
+    }
 
     // Validate customer info
     if (!body.customer?.name || !body.customer?.email) {
@@ -66,7 +105,9 @@ export async function POST(request: Request) {
     const pricing = calculatePrice(body.configuration);
     const p = body.configuration.parameters;
     const elements = body.addedElements ?? [];
-    const attachmentUrls = body.attachmentUrls ?? [];
+    const attachmentUrls = uploadedFiles.length > 0
+      ? await uploadFilesServerSide(uploadedFiles)
+      : (body.attachmentUrls ?? []);
 
     const quoteId = `Q-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
@@ -175,7 +216,7 @@ export async function POST(request: Request) {
           ${attachmentUrls.length > 0 ? `
           <h3 style="margin-top:16px">Vedlegg (${attachmentUrls.length})</h3>
           <ul style="padding-left:16px;margin:4px 0">
-            ${attachmentUrls.map((url) => {
+            ${attachmentUrls.map((url: string) => {
               const name = decodeURIComponent(url.split("/").pop() ?? url);
               return `<li style="margin-bottom:4px"><a href="${url}" style="color:#e2520a">${name}</a></li>`;
             }).join("")}
