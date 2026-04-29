@@ -130,10 +130,10 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
   // Tomteplassering sidebar state
   const [placementOpen, setPlacementOpen] = useState(false);
-  const [kommuneQuery, setKommuneQuery] = useState("");
-  const [kommuneSuggestions, setKommuneSuggestions] = useState<{ place_name: string; center: [number, number]; id: string }[]>([]);
-  const [kommuneSearching, setKommuneSearching] = useState(false);
-  const [selectedKommune, setSelectedKommune] = useState<{ name: string; center: [number, number] } | null>(null);
+  const [addressQuery, setAddressQuery] = useState("");
+  const [addressSuggestions, setAddressSuggestions] = useState<{ place_name: string; center: [number, number]; id: string }[]>([]);
+  const [addressSearching, setAddressSearching] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [detectingPos, setDetectingPos] = useState(false);
 
   // Auto-activate plot view when entering test mode with a plot already selected
@@ -146,6 +146,15 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     if (viewMode === "kart") setPlacementOpen(true);
   }, [viewMode]);
 
+  function pickAddress(placeName: string, center: [number, number]) {
+    setAddressQuery(placeName);
+    setAddressSuggestions([]);
+    setSelectedAddress(placeName);
+    setMapCenter(center);
+    try { localStorage.setItem("gp-map-address", placeName); } catch {}
+    setViewMode("kart");
+  }
+
   async function detectPosition() {
     if (!navigator.geolocation) return;
     setDetectingPos(true);
@@ -153,17 +162,15 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       async ({ coords: { latitude: lat, longitude: lng } }) => {
         try {
           const res = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=place,district&language=no&country=no&access_token=${MAPBOX_TOKEN}`
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,place&language=no&country=no&access_token=${MAPBOX_TOKEN}`
           );
           const data = await res.json();
-          const name = data.features?.[0]?.place_name?.split(",")?.[0] ?? "Min posisjon";
-          setSelectedKommune({ name, center: [lng, lat] });
-          setKommuneQuery(name);
+          const name = data.features?.[0]?.place_name ?? "Min posisjon";
+          pickAddress(name, [lng, lat]);
         } catch {
-          setSelectedKommune({ name: "Min posisjon", center: [lng, lat] });
+          pickAddress("Min posisjon", [lng, lat]);
         } finally {
           setDetectingPos(false);
-          setViewMode("kart");
         }
       },
       () => setDetectingPos(false),
@@ -171,16 +178,16 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     );
   }
 
-  async function searchKommune(q: string) {
-    if (!q.trim()) { setKommuneSuggestions([]); return; }
-    setKommuneSearching(true);
+  async function searchAddress(q: string) {
+    if (!q.trim()) { setAddressSuggestions([]); return; }
+    setAddressSearching(true);
     try {
-      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${MAPBOX_TOKEN}&country=no&types=district,place&language=no&limit=6`;
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${MAPBOX_TOKEN}&country=no&types=address,place&language=no&limit=6`;
       const res = await fetch(url);
       const data = await res.json();
-      setKommuneSuggestions(data.features ?? []);
+      setAddressSuggestions(data.features ?? []);
     } finally {
-      setKommuneSearching(false);
+      setAddressSearching(false);
     }
   }
 
@@ -298,7 +305,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               externalCenter={mapCenter} externalRotation={mapRotation}
               onCenterChange={(c) => { setMapCenter(c); setShowOnPlot(false); }}
               onRotationChange={setMapRotation}
-              defaultCenter={selectedKommune?.center}
+              defaultCenter={mapCenter ?? undefined}
               showNeighbors
             />
           ) : (
@@ -625,7 +632,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     {viewMode !== "kart" && (
                       <>
                         <p className="text-xs text-gray-500">
-                          Søk etter din kommune, velg plassering i kartet og se garasjen i 3D på tomten.
+                          Søk etter din adresse for å plassere garasjen automatisk, og se den i 3D på tomten.
                         </p>
 
                         {/* Auto-detect position */}
@@ -651,28 +658,24 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                           <div className="flex-1 border-t border-gray-100" />
                         </div>
 
-                        {/* Kommune search */}
+                        {/* Address search */}
                         <div className="relative">
                           <input
                             type="text"
-                            value={kommuneQuery}
-                            onChange={(e) => { setKommuneQuery(e.target.value); searchKommune(e.target.value); }}
-                            placeholder="Søk etter din kommune…"
+                            value={addressQuery}
+                            onChange={(e) => { setAddressQuery(e.target.value); searchAddress(e.target.value); }}
+                            placeholder="Søk etter din adresse…"
                             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
                           />
-                          {kommuneSearching && (
+                          {addressSearching && (
                             <div className="absolute right-2 top-2.5 h-4 w-4 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
                           )}
-                          {kommuneSuggestions.length > 0 && (
+                          {addressSuggestions.length > 0 && (
                             <ul className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
-                              {kommuneSuggestions.map((s) => (
+                              {addressSuggestions.map((s) => (
                                 <li key={s.id}>
                                   <button
-                                    onClick={() => {
-                                      setKommuneQuery(s.place_name.split(",")[0]);
-                                      setSelectedKommune({ name: s.place_name, center: s.center });
-                                      setKommuneSuggestions([]);
-                                    }}
+                                    onClick={() => pickAddress(s.place_name, s.center)}
                                     className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
                                   >
                                     {s.place_name}
@@ -683,13 +686,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                           )}
                         </div>
 
-                        {selectedKommune && (
-                          <button
-                            onClick={() => setViewMode("kart")}
-                            className="w-full rounded-xl bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors"
-                          >
-                            Velg plassering på kart →
-                          </button>
+                        {selectedAddress && (
+                          <p className="text-xs text-green-700 font-medium">✓ {selectedAddress}</p>
                         )}
 
                         <button
