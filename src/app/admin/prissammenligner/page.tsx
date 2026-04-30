@@ -42,6 +42,7 @@ interface Source {
   name: string;
   rows: PriceRow[];
   fromDb?: boolean;
+  hasUpload?: boolean; // merged source where an uploaded quote overrides DB
 }
 
 interface ComparisonRow {
@@ -180,6 +181,43 @@ function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): Co
   });
 }
 
+// Merge sources by supplier name: uploaded prices override DB prices per varenr.
+// Sources with the same name are collapsed into one effective source.
+function mergeEffectiveSources(sources: Source[]): Source[] {
+  const byName = new Map<string, { db?: Source; uploads: Source[] }>();
+  for (const src of sources) {
+    if (!byName.has(src.name)) byName.set(src.name, { uploads: [] });
+    const entry = byName.get(src.name)!;
+    if (src.fromDb) entry.db = src;
+    else entry.uploads.push(src);
+  }
+
+  const result: Source[] = [];
+  for (const [name, { db, uploads }] of byName) {
+    if (uploads.length === 0) {
+      if (db) result.push(db);
+      continue;
+    }
+    // Merge all uploads (last write wins per varenr)
+    const uploadMap = new Map<string, PriceRow>();
+    for (const src of uploads) {
+      for (const row of src.rows) uploadMap.set(row.varenr.trim().toLowerCase(), row);
+    }
+    const uploadedRows = Array.from(uploadMap.values());
+
+    if (!db) {
+      const last = uploads[uploads.length - 1];
+      result.push({ ...last, name, rows: uploadedRows });
+    } else {
+      // Uploaded takes priority; DB fills in varenrs not in uploaded file
+      const uploadedKeys = new Set(uploadMap.keys());
+      const dbFallback = db.rows.filter(r => !uploadedKeys.has(r.varenr.trim().toLowerCase()));
+      result.push({ id: `merged-${name}`, name, rows: [...uploadedRows, ...dbFallback], hasUpload: true });
+    }
+  }
+  return result;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 function PrissammenlignInner() {
@@ -202,7 +240,7 @@ function PrissammenlignInner() {
 
   // File upload
   const [showUpload, setShowUpload] = useState(false);
-  const [pendingName, setPendingName] = useState("");
+  const [pendingName, setPendingName] = useState(DB_SUPPLIERS[0]);
   const [pending, setPending] = useState<PendingUpload | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -375,7 +413,7 @@ function PrissammenlignInner() {
     const id = `upload-${Date.now()}`;
     setSources(prev => [...prev, { id, name: pending.name || "Ukjent", rows }]);
     setPending(null);
-    setPendingName("");
+    setPendingName(DB_SUPPLIERS[0]);
     setShowUpload(false);
   }
 
@@ -386,7 +424,9 @@ function PrissammenlignInner() {
   }
 
   const projectItems = selectedProject?.line_items ?? [];
-  const comparison = useMemo(() => buildComparison(projectItems, sources), [projectItems, sources]);
+  // Merge sources by name so uploaded quotes override DB prices
+  const effectiveSources = useMemo(() => mergeEffectiveSources(sources), [sources]);
+  const comparison = useMemo(() => buildComparison(projectItems, effectiveSources), [projectItems, effectiveSources]);
 
   const filtered = useMemo(() => comparison.filter(row => {
     if (searchQuery) {
@@ -394,27 +434,27 @@ function PrissammenlignInner() {
       if (!row.varenr.toLowerCase().includes(q) && !row.beskrivelse.toLowerCase().includes(q)) return false;
     }
     if (filter === "diff") {
-      const prices = sources.map(s => row.cells[s.id]).filter((p): p is number => p !== undefined);
+      const prices = effectiveSources.map(s => row.cells[s.id]).filter((p): p is number => p !== undefined);
       if (prices.length < 2) return false;
       return Math.max(...prices) - Math.min(...prices) > 0.01;
     }
     if (filter === "missing") {
-      return sources.some(s => row.cells[s.id] === undefined);
+      return effectiveSources.some(s => row.cells[s.id] === undefined);
     }
     return true;
-  }), [comparison, searchQuery, filter, sources]);
+  }), [comparison, searchQuery, filter, effectiveSources]);
 
   // Per-supplier totals (unit price × qty)
   const totals = useMemo(() => {
     const t: Record<string, number> = {};
     for (const row of comparison) {
-      for (const src of sources) {
+      for (const src of effectiveSources) {
         const p = row.cells[src.id];
         if (p !== undefined) t[src.id] = (t[src.id] ?? 0) + p * row.qty;
       }
     }
     return t;
-  }, [comparison, sources]);
+  }, [comparison, effectiveSources]);
 
   const filteredProjects = useMemo(() => {
     const q = projectSearch.toLowerCase();
@@ -423,8 +463,8 @@ function PrissammenlignInner() {
       : projectList;
   }, [projectList, projectSearch]);
 
-  const cheapestTotal = sources.length > 1
-    ? Math.min(...sources.map(s => totals[s.id] ?? Infinity).filter(v => v < Infinity))
+  const cheapestTotal = effectiveSources.length > 1
+    ? Math.min(...effectiveSources.map(s => totals[s.id] ?? Infinity).filter(v => v < Infinity))
     : null;
 
   if (isAdmin === null) {
@@ -589,13 +629,13 @@ function PrissammenlignInner() {
                 <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Leverandørnavn</label>
-                    <input
-                      type="text"
-                      placeholder="f.eks. Bygget AS"
+                    <select
                       value={pendingName}
                       onChange={e => setPendingName(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-orange-400 focus:outline-none"
-                    />
+                    >
+                      {DB_SUPPLIERS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
                   </div>
                   <input
                     ref={fileInputRef}
@@ -616,16 +656,19 @@ function PrissammenlignInner() {
             </div>
 
             {/* Stats + Velg tilbud */}
-            {comparison.length > 0 && sources.length > 0 && (
+            {comparison.length > 0 && effectiveSources.length > 0 && (
               <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm space-y-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Totalpris (mengde × enhetspris)</p>
-                {sources.map(s => {
+                {effectiveSources.map(s => {
                   const total = totals[s.id];
                   const isCheapest = cheapestTotal !== null && total === cheapestTotal;
                   return (
                     <div key={s.id} className="space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`truncate font-medium ${isCheapest ? "text-green-700" : "text-gray-700"}`}>{s.name}</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`truncate font-medium ${isCheapest ? "text-green-700" : "text-gray-700"}`}>{s.name}</span>
+                          {s.hasUpload && <span className="shrink-0 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] font-semibold text-orange-600">tilbud</span>}
+                        </div>
                         <span className={`font-semibold tabular-nums ${isCheapest ? "text-green-700" : "text-gray-800"}`}>
                           {total !== undefined ? formatPrice(total) : "—"}
                         </span>
@@ -645,8 +688,8 @@ function PrissammenlignInner() {
                     </div>
                   );
                 })}
-                {cheapestTotal !== null && sources.length > 1 && (() => {
-                  const maxTotal = Math.max(...sources.map(s => totals[s.id] ?? 0));
+                {cheapestTotal !== null && effectiveSources.length > 1 && (() => {
+                  const maxTotal = Math.max(...effectiveSources.map(s => totals[s.id] ?? 0));
                   const diff = maxTotal - cheapestTotal;
                   return diff > 0 ? (
                     <div className="border-t border-gray-100 pt-2 text-xs text-orange-600 font-medium">
@@ -721,7 +764,7 @@ function PrissammenlignInner() {
                     Legg til i sammenligning
                   </button>
                   <button
-                    onClick={() => { setPending(null); setPendingName(""); }}
+                    onClick={() => { setPending(null); setPendingName(DB_SUPPLIERS[0]); }}
                     className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-500 hover:bg-gray-50"
                   >
                     Avbryt
@@ -774,34 +817,36 @@ function PrissammenlignInner() {
                         <th className="px-3 py-3 text-left font-medium text-gray-500 min-w-[200px]">Beskrivelse</th>
                         <th className="px-3 py-3 text-right font-medium text-gray-500 min-w-[50px]">Mengde</th>
                         <th className="px-3 py-3 text-left font-medium text-gray-500">Enhet</th>
-                        {sources.map(s => (
+                        {effectiveSources.map(s => (
                           <th key={s.id} className="px-3 py-3 text-right font-medium text-gray-700 min-w-[120px] whitespace-nowrap">
-                            {s.name}
-                            {s.fromDb && <span className="ml-1 text-[9px] font-normal text-gray-400">DB</span>}
+                            <span>{s.name}</span>
+                            {s.hasUpload
+                              ? <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] font-semibold text-orange-600">tilbud</span>
+                              : <span className="ml-1 text-[9px] font-normal text-gray-400">DB</span>}
                           </th>
                         ))}
-                        {sources.length > 0 && (
+                        {effectiveSources.length > 0 && (
                           <th className="px-3 py-3 text-right font-medium text-gray-500 min-w-[100px]">Billigst total</th>
                         )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {sources.length === 0 && comparison.length > 0 && (
+                      {effectiveSources.length === 0 && comparison.length > 0 && (
                         <tr>
                           <td colSpan={4} className="py-8 text-center text-sm text-gray-400">
                             Velg leverandører eller last opp tilbud for å sammenligne priser
                           </td>
                         </tr>
                       )}
-                      {filtered.length === 0 && sources.length > 0 && (
+                      {filtered.length === 0 && effectiveSources.length > 0 && (
                         <tr>
-                          <td colSpan={5 + sources.length} className="py-8 text-center text-sm text-gray-400">
+                          <td colSpan={5 + effectiveSources.length} className="py-8 text-center text-sm text-gray-400">
                             Ingen varer funnet
                           </td>
                         </tr>
                       )}
                       {filtered.map(row => {
-                        const presentPrices = sources
+                        const presentPrices = effectiveSources
                           .map(s => row.cells[s.id])
                           .filter((p): p is number => p !== undefined);
                         const minUnitPrice = presentPrices.length ? Math.min(...presentPrices) : null;
@@ -817,7 +862,7 @@ function PrissammenlignInner() {
                             </td>
                             <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{row.qty}</td>
                             <td className="px-3 py-2.5 text-xs text-gray-400">{row.enhet ?? ""}</td>
-                            {sources.map(s => {
+                            {effectiveSources.map(s => {
                               const pris = row.cells[s.id];
                               const rank = row.ranks[s.id];
                               const isCheapest = rank === 1 && presentPrices.length > 1;
@@ -843,7 +888,7 @@ function PrissammenlignInner() {
                                 </td>
                               );
                             })}
-                            {sources.length > 0 && (
+                            {effectiveSources.length > 0 && (
                               <td className="px-3 py-2.5 text-right text-xs tabular-nums text-green-700 font-medium">
                                 {cheapestTotal !== null ? formatPrice(cheapestTotal) : <span className="text-gray-200">—</span>}
                               </td>
@@ -852,11 +897,11 @@ function PrissammenlignInner() {
                         );
                       })}
                       {/* Totals row */}
-                      {sources.length > 0 && comparison.length > 0 && (
+                      {effectiveSources.length > 0 && comparison.length > 0 && (
                         <tr className="bg-gray-50 font-semibold text-sm border-t-2 border-gray-200">
                           <td className="sticky left-0 bg-gray-50 px-3 py-3 text-gray-700" colSpan={3}>Totalt</td>
                           <td />
-                          {sources.map(s => {
+                          {effectiveSources.map(s => {
                             const total = totals[s.id];
                             const isCheapest = cheapestTotal !== null && total === cheapestTotal;
                             return (
