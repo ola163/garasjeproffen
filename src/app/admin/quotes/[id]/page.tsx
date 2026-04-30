@@ -308,6 +308,10 @@ export default function QuoteDetailPage() {
     setOfferSections((prev) => prev.map((s, i) => i === sIdx ? { ...s, notes } : s));
   }
 
+  function updateSectionField(sIdx: number, field: keyof OfferSection, value: unknown) {
+    setOfferSections((prev) => prev.map((s, i) => i === sIdx ? { ...s, [field]: value } : s));
+  }
+
   // ── Price lookup from supplier database ──────────────────────────────────────
   async function lookupPriceForItem(sIdx: number, iIdx: number, varenr: string) {
     if (!varenr.trim()) return;
@@ -646,10 +650,19 @@ export default function QuoteDetailPage() {
 
   const hasPrefa = offerSections.some((s) => s.category === "prefabelement");
   const hasMatpak = offerSections.some((s) => s.category === "materialpakke");
+  const sokSection = offerSections.find((s) => s.category === "søknadshjelp");
+  const sokAdj = (sokSection?.påslag_kr ?? 0) - (sokSection?.rabatt_kr ?? 0);
+
   const offerTotal = offerSections.reduce((total, sec) => {
     if (hasPrefa && sec.category === "materialpakke") return total;
     if ((hasPrefa || hasMatpak) && sec.category === "søknadshjelp") return total;
-    return total + getEffectiveItems(sec).reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0);
+    const lineTotal = getEffectiveItems(sec).reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0);
+    const adj = (sec.category === "materialpakke" || sec.category === "prefabelement")
+      ? sokAdj
+      : sec.category === "søknadshjelp"
+        ? (sec.påslag_kr ?? 0) - (sec.rabatt_kr ?? 0)
+        : 0;
+    return total + lineTotal + adj;
   }, 0);
 
   if (authLoading || loading) return <div className="flex min-h-screen items-center justify-center text-gray-400">Laster...</div>;
@@ -1012,7 +1025,13 @@ export default function QuoteDetailPage() {
 
               {offerSections.map((section, sIdx) => {
                 const effectiveItems = getEffectiveItems(section);
-                const sectionTotal = effectiveItems.reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0);
+                const sectionSubtotal = effectiveItems.reduce((s, item) => s + (item.amount || 0) * (item.quantity || 1), 0);
+                const sectionAdj = (section.category === "materialpakke" || section.category === "prefabelement")
+                  ? sokAdj
+                  : section.category === "søknadshjelp"
+                    ? (section.påslag_kr ?? 0) - (section.rabatt_kr ?? 0)
+                    : 0;
+                const sectionTotal = sectionSubtotal + sectionAdj;
                 const catLabel = OFFER_CATEGORIES.find(c => c.id === section.category)?.label ?? section.category;
                 const sokItems = (section.category === "materialpakke" || section.category === "prefabelement")
                   ? (offerSections.find((s) => s.category === "søknadshjelp")?.line_items ?? [])
@@ -1172,8 +1191,8 @@ export default function QuoteDetailPage() {
                                 className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                             </div>
                             <div className="w-14 shrink-0">
-                              <input type="number" min={0} step={0.01} placeholder="Ant." value={item.quantity || ""}
-                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "quantity", parseFloat(e.target.value) || 1)}
+                              <input type="number" min={0} step={1} placeholder="Ant." value={item.quantity || ""}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "quantity", parseInt(e.target.value) || 1)}
                                 className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400" />
                             </div>
                             <div className="w-28 shrink-0">
@@ -1191,11 +1210,57 @@ export default function QuoteDetailPage() {
                         )
                       )}
 
+                      {/* Påslag og rabatt — kun for søknadshjelp */}
+                      {section.category === "søknadshjelp" && (
+                        <div className="space-y-1 mt-1">
+                          {section.påslag_kr !== undefined && (
+                            <div className="flex gap-2 items-center rounded-lg bg-yellow-50 border border-yellow-100 px-2 py-1.5">
+                              <span className="flex-1 text-xs font-medium text-yellow-700">Påslag (internt)</span>
+                              <input
+                                type="number" min={0} step={1} placeholder="kr"
+                                value={section.påslag_kr || ""}
+                                onChange={(e) => updateSectionField(sIdx, "påslag_kr", parseFloat(e.target.value) || 0)}
+                                className="w-28 rounded border border-yellow-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                              />
+                              <button onClick={() => updateSectionField(sIdx, "påslag_kr", undefined)} className="text-yellow-400 hover:text-red-500">
+                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                              </button>
+                            </div>
+                          )}
+                          {section.rabatt_kr !== undefined && (
+                            <div className="flex gap-2 items-center rounded-lg bg-green-50 border border-green-100 px-2 py-1.5">
+                              <span className="flex-1 text-xs font-medium text-green-700">Rabatt til kunde</span>
+                              <input
+                                type="number" min={0} step={1} placeholder="kr"
+                                value={section.rabatt_kr || ""}
+                                onChange={(e) => updateSectionField(sIdx, "rabatt_kr", parseFloat(e.target.value) || 0)}
+                                className="w-28 rounded border border-green-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-green-400"
+                              />
+                              <button onClick={() => updateSectionField(sIdx, "rabatt_kr", undefined)} className="text-green-400 hover:text-red-500">
+                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => addLineItemToSection(sIdx)}
                           className="rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
                           + Legg til linje
                         </button>
+                        {section.category === "søknadshjelp" && section.påslag_kr === undefined && (
+                          <button type="button" onClick={() => updateSectionField(sIdx, "påslag_kr", 0)}
+                            className="rounded-lg border border-dashed border-yellow-300 px-3 py-1.5 text-xs text-yellow-600 hover:border-yellow-500 transition-colors">
+                            + Legg til påslag
+                          </button>
+                        )}
+                        {section.category === "søknadshjelp" && section.rabatt_kr === undefined && (
+                          <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_kr", 0)}
+                            className="rounded-lg border border-dashed border-green-300 px-3 py-1.5 text-xs text-green-600 hover:border-green-500 transition-colors">
+                            + Legg til rabatt
+                          </button>
+                        )}
                         {section.category === "materialpakke" && (
                           <button
                             type="button"
@@ -1293,16 +1358,43 @@ export default function QuoteDetailPage() {
                         className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
 
                       {/* Section subtotal */}
-                      <div className="flex justify-between text-xs font-medium text-gray-600 border-t border-gray-100 pt-2">
-                        <span>
-                          {catLabel}
-                          {(sokItems.length > 0 || inheritedItems.length > 0) && (
-                            <span className="ml-1 font-normal text-gray-400">
-                              (inkl.{sokItems.length > 0 ? " søknadshjelp" : ""}{sokItems.length > 0 && inheritedItems.length > 0 ? " +" : ""}{inheritedItems.length > 0 ? " materialer" : ""})
+                      <div className="border-t border-gray-100 pt-2 space-y-0.5">
+                        {section.category === "søknadshjelp" && (section.påslag_kr || section.rabatt_kr) ? (
+                          <>
+                            <div className="flex justify-between text-xs text-gray-400">
+                              <span>Subtotal</span>
+                              <span>{formatNOK(sectionSubtotal)}</span>
+                            </div>
+                            {!!section.påslag_kr && (
+                              <div className="flex justify-between text-xs text-yellow-600">
+                                <span>Påslag (internt)</span>
+                                <span>+{formatNOK(section.påslag_kr)}</span>
+                              </div>
+                            )}
+                            {!!section.rabatt_kr && (
+                              <div className="flex justify-between text-xs text-green-600">
+                                <span>Rabatt til kunde</span>
+                                <span>−{formatNOK(section.rabatt_kr)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between text-xs font-medium text-gray-700 border-t border-gray-100 pt-0.5">
+                              <span>{catLabel}</span>
+                              <span>{formatNOK(sectionTotal)}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex justify-between text-xs font-medium text-gray-600">
+                            <span>
+                              {catLabel}
+                              {(sokItems.length > 0 || inheritedItems.length > 0) && (
+                                <span className="ml-1 font-normal text-gray-400">
+                                  (inkl.{sokItems.length > 0 ? " søknadshjelp" : ""}{sokItems.length > 0 && inheritedItems.length > 0 ? " +" : ""}{inheritedItems.length > 0 ? " materialer" : ""})
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
-                        <span>{formatNOK(sectionTotal)}</span>
+                            <span>{formatNOK(sectionTotal)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
