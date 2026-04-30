@@ -11,6 +11,18 @@ import { read, utils } from "xlsx";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
+const ENHETER: { value: string; label: string }[] = [
+  { value: "stk",   label: "stk — stykk" },
+  { value: "m²",    label: "m² — kvadratmeter" },
+  { value: "m³",    label: "m³ — kubikkmeter" },
+  { value: "lm",    label: "lm — løpemeter" },
+  { value: "m",     label: "m — meter" },
+  { value: "rs",    label: "rs — rundsum" },
+  { value: "time",  label: "time — arbeidstime" },
+  { value: "sett",  label: "sett — komplett sett" },
+  { value: "pk",    label: "pk — pakke" },
+];
+
 const STATUS_LABELS: Record<QuoteStatus, string> = {
   new: "Ny", in_review: "Under behandling", pending_approval: "Venter godkjenning",
   offer_sent: "Tilbud sendt", paid: "Betalt", cancelled: "Kansellert",
@@ -1137,12 +1149,17 @@ export default function QuoteDetailPage() {
                                 onChange={(e) => updateLineItemInSection(sIdx, iIdx, "dimensjon", e.target.value)}
                                 className="w-24 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
                               />
-                              <input
-                                type="text" placeholder="Enhet"
+                              <select
                                 value={item.enhet ?? ""}
                                 onChange={(e) => updateLineItemInSection(sIdx, iIdx, "enhet", e.target.value)}
-                                className="w-16 rounded border border-gray-300 px-2 py-1.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-orange-400"
-                              />
+                                className="w-28 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400 bg-white"
+                                title={ENHETER.find(e => e.value === item.enhet)?.label ?? "Velg enhet"}
+                              >
+                                <option value="">Enhet…</option>
+                                {ENHETER.map(e => (
+                                  <option key={e.value} value={e.value}>{e.label}</option>
+                                ))}
+                              </select>
                               <input
                                 type="number" placeholder="Mengde" min={0} step={0.01}
                                 value={item.quantity || ""}
