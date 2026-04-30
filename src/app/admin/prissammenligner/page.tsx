@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 // @ts-ignore
 import * as XLSX from "xlsx";
 import Link from "next/link";
@@ -182,6 +183,8 @@ function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): Co
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function PrissammenlignPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   // Project
@@ -190,6 +193,7 @@ export default function PrissammenlignPage() {
   const [projectSearch, setProjectSearch] = useState("");
   const [selectedProject, setSelectedProject] = useState<ProjectSummary | null>(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const pendingProjectId = searchParams.get("project");
 
   // DB suppliers
   const [dbSelected, setDbSelected] = useState<Record<string, boolean>>({});
@@ -206,6 +210,11 @@ export default function PrissammenlignPage() {
   // Table
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "diff" | "missing">("all");
+
+  // Apply modal
+  const [applySource, setApplySource] = useState<Source | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [applyResult, setApplyResult] = useState<{ updatedCount: number; missedCount: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -225,17 +234,45 @@ export default function PrissammenlignPage() {
   }, [isAdmin]);
 
   // When project changes, clear sources and re-fetch selected DB suppliers
+  // Auto-select project from URL param once project list is loaded
+  useEffect(() => {
+    if (!pendingProjectId || !projectList.length || selectedProject) return;
+    const found = projectList.find(p => p.id === pendingProjectId);
+    if (found) selectProject(found);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingProjectId, projectList]);
+
   function selectProject(project: ProjectSummary) {
     setSelectedProject(project);
     setShowProjectPicker(false);
     setProjectSearch("");
     setSources([]);
-    // Re-fetch all currently selected DB suppliers for new varenrs
     const selected = Object.entries(dbSelected).filter(([, v]) => v).map(([k]) => k);
     for (const sup of selected) {
       fetchDbSupplier(sup, project.line_items.map(i => i.varenr));
     }
   }
+
+  const applyToQuote = useCallback(async (source: Source) => {
+    if (!selectedProject) return;
+    setApplying(true);
+    try {
+      const items = source.rows.map(r => ({ varenr: r.varenr, unitPrice: r.pris }));
+      const res = await fetch("/api/admin/prissammenligner/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteId: selectedProject.id, supplierName: source.name, items }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Feil");
+      setApplyResult({ updatedCount: json.updatedCount, missedCount: json.missedCount });
+    } catch (err) {
+      alert(`Feil: ${err instanceof Error ? err.message : "Ukjent feil"}`);
+      setApplySource(null);
+    } finally {
+      setApplying(false);
+    }
+  }, [selectedProject]);
 
   async function fetchDbSupplier(supplier: string, varenrs?: string[]) {
     const project = selectedProject;
@@ -410,6 +447,14 @@ export default function PrissammenlignPage() {
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-600">← Admin</Link>
           <h1 className="text-xl font-bold text-gray-900">Prissammenligner</h1>
+          {selectedProject && (
+            <Link
+              href={`/admin/quotes/${selectedProject.id}`}
+              className="ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100"
+            >
+              ← Tilbake til {selectedProject.ticket_number}
+            </Link>
+          )}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[300px,1fr]">
@@ -570,19 +615,33 @@ export default function PrissammenlignPage() {
               )}
             </div>
 
-            {/* Stats */}
+            {/* Stats + Velg tilbud */}
             {comparison.length > 0 && sources.length > 0 && (
-              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm space-y-2">
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm space-y-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Totalpris (mengde × enhetspris)</p>
                 {sources.map(s => {
                   const total = totals[s.id];
                   const isCheapest = cheapestTotal !== null && total === cheapestTotal;
                   return (
-                    <div key={s.id} className="flex items-center justify-between gap-2">
-                      <span className="text-gray-600 truncate">{s.name}</span>
-                      <span className={`font-semibold tabular-nums ${isCheapest ? "text-green-700" : "text-gray-800"}`}>
-                        {total !== undefined ? formatPrice(total) : "—"}
-                      </span>
+                    <div key={s.id} className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`truncate font-medium ${isCheapest ? "text-green-700" : "text-gray-700"}`}>{s.name}</span>
+                        <span className={`font-semibold tabular-nums ${isCheapest ? "text-green-700" : "text-gray-800"}`}>
+                          {total !== undefined ? formatPrice(total) : "—"}
+                        </span>
+                      </div>
+                      {selectedProject && (
+                        <button
+                          onClick={() => { setApplySource(s); setApplyResult(null); }}
+                          className={`w-full rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                            isCheapest
+                              ? "border-green-400 bg-green-50 text-green-700 hover:bg-green-100"
+                              : "border-gray-200 text-gray-500 hover:border-orange-300 hover:text-orange-600"
+                          }`}
+                        >
+                          {isCheapest ? "✓ Velg dette tilbudet" : "Velg dette tilbudet"}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -819,6 +878,88 @@ export default function PrissammenlignPage() {
           </div>
         </div>
       </div>
+
+      {/* Apply modal */}
+      {applySource && selectedProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            {applyResult ? (
+              <>
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                  <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h2 className="text-base font-semibold text-gray-900">Tilbud overført!</h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  <span className="font-medium text-green-700">{applyResult.updatedCount} varer</span> ble oppdatert med priser fra {applySource.name}.
+                  {applyResult.missedCount > 0 && (
+                    <span className="text-orange-600"> {applyResult.missedCount} varer mangler varenr-treff og beholdt sin pris.</span>
+                  )}
+                </p>
+                <div className="mt-5 flex gap-3">
+                  <button
+                    onClick={() => router.push(`/admin/quotes/${selectedProject.id}`)}
+                    className="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700"
+                  >
+                    Gå til tilbudet →
+                  </button>
+                  <button
+                    onClick={() => { setApplySource(null); setApplyResult(null); }}
+                    className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50"
+                  >
+                    Lukk
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-base font-semibold text-gray-900">Overfør tilbud til prosjekt?</h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  Priser fra <span className="font-medium">{applySource.name}</span> vil bli satt på
+                  alle varer med varenr-treff i <span className="font-medium">{selectedProject.ticket_number} – {selectedProject.customer_name}</span>.
+                </p>
+                <div className="mt-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-500 space-y-1">
+                  <div className="flex justify-between">
+                    <span>Leverandør</span>
+                    <span className="font-medium text-gray-700">{applySource.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Varer tilgjengelig</span>
+                    <span className="font-medium text-gray-700">{applySource.rows.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Prosjektvarer med varenr</span>
+                    <span className="font-medium text-gray-700">{selectedProject.varenr_count}</span>
+                  </div>
+                  {totals[applySource.id] !== undefined && (
+                    <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
+                      <span>Estimert totalsum</span>
+                      <span className="font-semibold text-gray-900">{formatPrice(totals[applySource.id])}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-5 flex gap-3">
+                  <button
+                    onClick={() => applyToQuote(applySource)}
+                    disabled={applying}
+                    className="flex-1 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                  >
+                    {applying ? "Overfører…" : "Overfør priser"}
+                  </button>
+                  <button
+                    onClick={() => setApplySource(null)}
+                    disabled={applying}
+                    className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Avbryt
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

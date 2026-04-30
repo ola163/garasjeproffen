@@ -1138,15 +1138,23 @@ export default function QuoteDetailPage() {
                       <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{catLabel}</span>
                       <div className="flex items-center gap-2 ml-auto">
                         {section.category === "materialpakke" && (
-                          <select
-                            value={supplierForPrices}
-                            onChange={e => setSupplierForPrices(e.target.value)}
-                            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-orange-400"
-                          >
-                            {["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"].map(s => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                          </select>
+                          <>
+                            <select
+                              value={supplierForPrices}
+                              onChange={e => setSupplierForPrices(e.target.value)}
+                              className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                            >
+                              {["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"].map(s => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                            <Link
+                              href={`/admin/prissammenligner?project=${quote?.id}`}
+                              className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 whitespace-nowrap"
+                            >
+                              Sammenlign →
+                            </Link>
+                          </>
                         )}
                         <button onClick={() => removeSection(sIdx)}
                           className="text-gray-400 hover:text-red-500 transition-colors text-xs">
