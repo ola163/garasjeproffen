@@ -35,13 +35,29 @@ function getEffectiveItems(section: OfferSection, all: OfferSection[]): LineItem
   return section.line_items;
 }
 
+function adjNok(value: number | undefined, type: "kr" | "pst" | undefined, base: number) {
+  if (!value) return 0;
+  return type === "pst" ? base * value / 100 : value;
+}
+
 function computeTotal(sections: OfferSection[]): number {
   const hasPrefa  = sections.some((s) => s.category === "prefabelement");
   const hasMatpak = sections.some((s) => s.category === "materialpakke");
+  const sok = sections.find((s) => s.category === "søknadshjelp");
+  const sokBase = sok ? sok.line_items.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0) : 0;
+  const sokAdj = adjNok(sok?.påslag_value, sok?.påslag_type, sokBase)
+               - adjNok(sok?.rabatt_value, sok?.rabatt_type, sokBase);
+
   return sections.reduce((total, sec) => {
     if (hasPrefa  && sec.category === "materialpakke") return total;
     if ((hasPrefa || hasMatpak) && sec.category === "søknadshjelp") return total;
-    return total + getEffectiveItems(sec, sections).reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
+    const lineTotal = getEffectiveItems(sec, sections).reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
+    const adj = (sec.category === "materialpakke" || sec.category === "prefabelement")
+      ? sokAdj
+      : sec.category === "søknadshjelp"
+        ? adjNok(sec.påslag_value, sec.påslag_type, lineTotal) - adjNok(sec.rabatt_value, sec.rabatt_type, lineTotal)
+        : 0;
+    return total + lineTotal + adj;
   }, 0);
 }
 
@@ -171,7 +187,10 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
           if (isHidden) return null;
 
           const effective = getEffectiveItems(section, sections);
-          const sectionTotal = effective.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
+          const sectionSubtotal = effective.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
+          const ownBase = section.line_items.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
+          const rabattNok = section.category === "søknadshjelp" ? adjNok(section.rabatt_value, section.rabatt_type, ownBase) : 0;
+          const sectionTotal = sectionSubtotal - rabattNok;
 
           const sokItems  = (section.category === "materialpakke" || section.category === "prefabelement") ? (sections.find((s) => s.category === "søknadshjelp")?.line_items ?? []) : [];
           const matItems  = section.category === "prefabelement" ? (sections.find((s) => s.category === "materialpakke")?.line_items ?? []) : [];
@@ -231,6 +250,20 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
                       <td className="right">{item.amount ? nok(item.amount * item.quantity) : "–"}</td>
                     </tr>
                   ))}
+                  {/* Rabatt — kun for søknadshjelp, vises alltid i prosent */}
+                  {section.category === "søknadshjelp" && !!section.rabatt_value && (() => {
+                    const pst = section.rabatt_type === "pst"
+                      ? section.rabatt_value
+                      : ownBase > 0 ? Math.round(section.rabatt_value / ownBase * 1000) / 10 : 0;
+                    return (
+                      <tr style={{ background: "#f0fdf4" }}>
+                        <td colSpan={4} style={{ textAlign: "right", paddingRight: 8, color: "#16a34a", fontStyle: "italic", fontSize: "9pt" }}>
+                          Rabatt {pst % 1 === 0 ? pst : pst.toFixed(1)}%
+                        </td>
+                        <td className="right" colSpan={2} style={{ color: "#16a34a", fontSize: "9pt" }}>−{nok(rabattNok)}</td>
+                      </tr>
+                    );
+                  })()}
                   {/* Subtotal */}
                   <tr className="subtotal-row">
                     {isMat && <td />}

@@ -650,8 +650,15 @@ export default function QuoteDetailPage() {
 
   const hasPrefa = offerSections.some((s) => s.category === "prefabelement");
   const hasMatpak = offerSections.some((s) => s.category === "materialpakke");
+  function adjNok(value: number | undefined, type: "kr" | "pst" | undefined, base: number) {
+    if (!value) return 0;
+    return type === "pst" ? base * value / 100 : value;
+  }
+
   const sokSection = offerSections.find((s) => s.category === "søknadshjelp");
-  const sokAdj = (sokSection?.påslag_kr ?? 0) - (sokSection?.rabatt_kr ?? 0);
+  const sokBase = sokSection?.line_items.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0) ?? 0;
+  const sokAdj = adjNok(sokSection?.påslag_value, sokSection?.påslag_type, sokBase)
+               - adjNok(sokSection?.rabatt_value, sokSection?.rabatt_type, sokBase);
 
   const offerTotal = offerSections.reduce((total, sec) => {
     if (hasPrefa && sec.category === "materialpakke") return total;
@@ -660,7 +667,7 @@ export default function QuoteDetailPage() {
     const adj = (sec.category === "materialpakke" || sec.category === "prefabelement")
       ? sokAdj
       : sec.category === "søknadshjelp"
-        ? (sec.påslag_kr ?? 0) - (sec.rabatt_kr ?? 0)
+        ? adjNok(sec.påslag_value, sec.påslag_type, lineTotal) - adjNok(sec.rabatt_value, sec.rabatt_type, lineTotal)
         : 0;
     return total + lineTotal + adj;
   }, 0);
@@ -1029,7 +1036,8 @@ export default function QuoteDetailPage() {
                 const sectionAdj = (section.category === "materialpakke" || section.category === "prefabelement")
                   ? sokAdj
                   : section.category === "søknadshjelp"
-                    ? (section.påslag_kr ?? 0) - (section.rabatt_kr ?? 0)
+                    ? adjNok(section.påslag_value, section.påslag_type, sectionSubtotal)
+                      - adjNok(section.rabatt_value, section.rabatt_type, sectionSubtotal)
                     : 0;
                 const sectionTotal = sectionSubtotal + sectionAdj;
                 const catLabel = OFFER_CATEGORIES.find(c => c.id === section.category)?.label ?? section.category;
@@ -1213,30 +1221,44 @@ export default function QuoteDetailPage() {
                       {/* Påslag og rabatt — kun for søknadshjelp */}
                       {section.category === "søknadshjelp" && (
                         <div className="space-y-1 mt-1">
-                          {section.påslag_kr !== undefined && (
+                          {section.påslag_value !== undefined && (
                             <div className="flex gap-2 items-center rounded-lg bg-yellow-50 border border-yellow-100 px-2 py-1.5">
                               <span className="flex-1 text-xs font-medium text-yellow-700">Påslag (internt)</span>
+                              <div className="flex rounded border border-yellow-200 overflow-hidden text-xs">
+                                <button type="button" onClick={() => updateSectionField(sIdx, "påslag_type", "kr")}
+                                  className={`px-2 py-1 transition-colors ${(section.påslag_type ?? "kr") === "kr" ? "bg-yellow-500 text-white" : "bg-white text-gray-500 hover:bg-yellow-50"}`}>kr</button>
+                                <button type="button" onClick={() => updateSectionField(sIdx, "påslag_type", "pst")}
+                                  className={`px-2 py-1 transition-colors ${section.påslag_type === "pst" ? "bg-yellow-500 text-white" : "bg-white text-gray-500 hover:bg-yellow-50"}`}>%</button>
+                              </div>
                               <input
-                                type="number" min={0} step={1} placeholder="kr"
-                                value={section.påslag_kr || ""}
-                                onChange={(e) => updateSectionField(sIdx, "påslag_kr", parseFloat(e.target.value) || 0)}
-                                className="w-28 rounded border border-yellow-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                                type="number" min={0} step={section.påslag_type === "pst" ? 0.1 : 1}
+                                placeholder={section.påslag_type === "pst" ? "%" : "kr"}
+                                value={section.påslag_value || ""}
+                                onChange={(e) => updateSectionField(sIdx, "påslag_value", parseFloat(e.target.value) || 0)}
+                                className="w-20 rounded border border-yellow-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-yellow-400"
                               />
-                              <button onClick={() => updateSectionField(sIdx, "påslag_kr", undefined)} className="text-yellow-400 hover:text-red-500">
+                              <button onClick={() => { updateSectionField(sIdx, "påslag_value", undefined); updateSectionField(sIdx, "påslag_type", undefined); }} className="text-yellow-400 hover:text-red-500">
                                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                               </button>
                             </div>
                           )}
-                          {section.rabatt_kr !== undefined && (
+                          {section.rabatt_value !== undefined && (
                             <div className="flex gap-2 items-center rounded-lg bg-green-50 border border-green-100 px-2 py-1.5">
                               <span className="flex-1 text-xs font-medium text-green-700">Rabatt til kunde</span>
+                              <div className="flex rounded border border-green-200 overflow-hidden text-xs">
+                                <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_type", "kr")}
+                                  className={`px-2 py-1 transition-colors ${(section.rabatt_type ?? "kr") === "kr" ? "bg-green-500 text-white" : "bg-white text-gray-500 hover:bg-green-50"}`}>kr</button>
+                                <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_type", "pst")}
+                                  className={`px-2 py-1 transition-colors ${section.rabatt_type === "pst" ? "bg-green-500 text-white" : "bg-white text-gray-500 hover:bg-green-50"}`}>%</button>
+                              </div>
                               <input
-                                type="number" min={0} step={1} placeholder="kr"
-                                value={section.rabatt_kr || ""}
-                                onChange={(e) => updateSectionField(sIdx, "rabatt_kr", parseFloat(e.target.value) || 0)}
-                                className="w-28 rounded border border-green-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-green-400"
+                                type="number" min={0} step={section.rabatt_type === "pst" ? 0.1 : 1}
+                                placeholder={section.rabatt_type === "pst" ? "%" : "kr"}
+                                value={section.rabatt_value || ""}
+                                onChange={(e) => updateSectionField(sIdx, "rabatt_value", parseFloat(e.target.value) || 0)}
+                                className="w-20 rounded border border-green-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-green-400"
                               />
-                              <button onClick={() => updateSectionField(sIdx, "rabatt_kr", undefined)} className="text-green-400 hover:text-red-500">
+                              <button onClick={() => { updateSectionField(sIdx, "rabatt_value", undefined); updateSectionField(sIdx, "rabatt_type", undefined); }} className="text-green-400 hover:text-red-500">
                                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                               </button>
                             </div>
@@ -1249,14 +1271,14 @@ export default function QuoteDetailPage() {
                           className="rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
                           + Legg til linje
                         </button>
-                        {section.category === "søknadshjelp" && section.påslag_kr === undefined && (
-                          <button type="button" onClick={() => updateSectionField(sIdx, "påslag_kr", 0)}
+                        {section.category === "søknadshjelp" && section.påslag_value === undefined && (
+                          <button type="button" onClick={() => updateSectionField(sIdx, "påslag_value", 0)}
                             className="rounded-lg border border-dashed border-yellow-300 px-3 py-1.5 text-xs text-yellow-600 hover:border-yellow-500 transition-colors">
                             + Legg til påslag
                           </button>
                         )}
-                        {section.category === "søknadshjelp" && section.rabatt_kr === undefined && (
-                          <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_kr", 0)}
+                        {section.category === "søknadshjelp" && section.rabatt_value === undefined && (
+                          <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_value", 0)}
                             className="rounded-lg border border-dashed border-green-300 px-3 py-1.5 text-xs text-green-600 hover:border-green-500 transition-colors">
                             + Legg til rabatt
                           </button>
@@ -1359,22 +1381,22 @@ export default function QuoteDetailPage() {
 
                       {/* Section subtotal */}
                       <div className="border-t border-gray-100 pt-2 space-y-0.5">
-                        {section.category === "søknadshjelp" && (section.påslag_kr || section.rabatt_kr) ? (
+                        {section.category === "søknadshjelp" && (section.påslag_value || section.rabatt_value) ? (
                           <>
                             <div className="flex justify-between text-xs text-gray-400">
                               <span>Subtotal</span>
                               <span>{formatNOK(sectionSubtotal)}</span>
                             </div>
-                            {!!section.påslag_kr && (
+                            {!!section.påslag_value && (
                               <div className="flex justify-between text-xs text-yellow-600">
-                                <span>Påslag (internt)</span>
-                                <span>+{formatNOK(section.påslag_kr)}</span>
+                                <span>Påslag (internt) {section.påslag_type === "pst" ? `${section.påslag_value}%` : ""}</span>
+                                <span>+{formatNOK(adjNok(section.påslag_value, section.påslag_type, sectionSubtotal))}</span>
                               </div>
                             )}
-                            {!!section.rabatt_kr && (
+                            {!!section.rabatt_value && (
                               <div className="flex justify-between text-xs text-green-600">
-                                <span>Rabatt til kunde</span>
-                                <span>−{formatNOK(section.rabatt_kr)}</span>
+                                <span>Rabatt til kunde {section.rabatt_type === "pst" ? `${section.rabatt_value}%` : ""}</span>
+                                <span>−{formatNOK(adjNok(section.rabatt_value, section.rabatt_type, sectionSubtotal))}</span>
                               </div>
                             )}
                             <div className="flex justify-between text-xs font-medium text-gray-700 border-t border-gray-100 pt-0.5">

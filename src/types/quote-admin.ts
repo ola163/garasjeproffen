@@ -11,8 +11,10 @@ export interface OfferSection {
   category: string;
   line_items: LineItem[];
   notes: string;
-  rabatt_kr?: number;
-  påslag_kr?: number;
+  rabatt_value?: number;
+  rabatt_type?: "kr" | "pst";
+  påslag_value?: number;
+  påslag_type?: "kr" | "pst";
 }
 
 export type QuoteStatus = 'new' | 'in_review' | 'pending_approval' | 'offer_sent' | 'paid' | 'cancelled';
