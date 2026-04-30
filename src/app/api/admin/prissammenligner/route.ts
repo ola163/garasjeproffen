@@ -33,19 +33,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: [] });
   }
 
-  // Fetch all rows for the given suppliers using pagination to avoid response size limits
+  const varenrsParam = searchParams.get("varenrs") ?? "";
+  const varenrs = varenrsParam.split(",").map(v => v.trim()).filter(Boolean);
+
+  // Fetch rows for the given suppliers, optionally filtered by varenr list
   const PAGE = 5000;
   const result: unknown[] = [];
 
   for (const supplier of suppliers) {
     let offset = 0;
     while (true) {
-      const { data, error } = await sb
+      let query = sb
         .from("supplier_prices")
         .select("varenr,varebenevnelse,enhet,nettopris,bruttopris,dimensjon,supplier")
         .eq("supplier", supplier)
-        .order("varenr")
-        .range(offset, offset + PAGE - 1);
+        .order("varenr");
+
+      if (varenrs.length > 0) {
+        query = query.in("varenr", varenrs);
+      }
+
+      const { data, error } = await query.range(offset, offset + PAGE - 1);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       if (!data?.length) break;
       result.push(...data);
