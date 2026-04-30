@@ -4,9 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import type { SupplierPriceRow } from "@/app/api/admin/supplier-prices/route";
 
-// ── Suppliers ──────────────────────────────────────────────────────────────────
-const SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"] as const;
-type Supplier = (typeof SUPPLIERS)[number];
 
 // ── Parse Optimera semicolon file ─────────────────────────────────────────────
 // Format: varegruppenr;ean;varenr;kategori;varebenevnelse;bruttopris(øre);nettopris(øre);
@@ -65,7 +62,10 @@ interface PriceRecord {
 }
 
 export default function PriserPage() {
-  const [supplier, setSupplier]       = useState<Supplier>("Optimera");
+  const [suppliers, setSuppliers]     = useState<string[]>([]);
+  const [supplier, setSupplier]       = useState<string>("");
+  const [newName, setNewName]         = useState("");
+  const [addingSupplier, setAddingSupplier] = useState(false);
   const [rows, setRows]               = useState<PriceRecord[]>([]);
   const [total, setTotal]             = useState(0);
   const [search, setSearch]           = useState("");
@@ -75,14 +75,13 @@ export default function PriserPage() {
   const [counts, setCounts]           = useState<Record<string, number>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => { loadSuppliers(); }, []);
+
   // Load rows whenever supplier or search changes
   useEffect(() => {
-    loadRows();
+    if (supplier) loadRows();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supplier, search]);
-
-  // Load counts for all suppliers on mount
-  useEffect(() => { loadCounts(); }, []);
 
   async function loadRows() {
     setLoading(true);
@@ -95,10 +94,40 @@ export default function PriserPage() {
     setLoading(false);
   }
 
-  async function loadCounts() {
+  async function loadSuppliers() {
+    const res = await fetch("/api/admin/suppliers");
+    const json = await res.json();
+    const list: string[] = json.suppliers ?? [];
+    setSuppliers(list);
+    setSupplier((prev) => prev || list[0] || "");
+    loadCounts(list);
+  }
+
+  async function addSupplier() {
+    const name = newName.trim();
+    if (!name) return;
+    setAddingSupplier(true);
+    const res = await fetch("/api/admin/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      setNewName("");
+      await loadSuppliers();
+      setSupplier(name);
+    } else {
+      const txt = await res.text();
+      setImportMsg({ ok: false, text: `Kunne ikke opprette leverandør: ${txt}` });
+    }
+    setAddingSupplier(false);
+  }
+
+  async function loadCounts(list?: string[]) {
+    const all = list ?? suppliers;
     const results: Record<string, number> = {};
-    await Promise.all(SUPPLIERS.map(async (s) => {
-      const res = await fetch(`/api/admin/supplier-prices?supplier=${s}&limit=1`);
+    await Promise.all(all.map(async (s) => {
+      const res = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(s)}&limit=1`);
       const json = await res.json();
       results[s] = json.count ?? 0;
     }));
@@ -219,8 +248,8 @@ export default function PriserPage() {
         </div>
 
         {/* Supplier tabs + counts */}
-        <div className="mb-6 flex flex-wrap gap-2">
-          {SUPPLIERS.map(s => (
+        <div className="mb-6 flex flex-wrap gap-2 items-center">
+          {suppliers.map(s => (
             <button
               key={s}
               onClick={() => { setSupplier(s); setSearch(""); setImportMsg(null); }}
@@ -240,6 +269,27 @@ export default function PriserPage() {
               )}
             </button>
           ))}
+
+          {/* Ny leverandør */}
+          <form
+            className="flex items-center gap-1"
+            onSubmit={(e) => { e.preventDefault(); addSupplier(); }}
+          >
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Ny leverandør…"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 placeholder:text-gray-300 outline-none focus:border-orange-400 w-40"
+            />
+            <button
+              type="submit"
+              disabled={!newName.trim() || addingSupplier}
+              className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-orange-50 hover:text-orange-600 disabled:opacity-40 transition-colors"
+            >
+              +
+            </button>
+          </form>
         </div>
 
         {/* Import panel */}
