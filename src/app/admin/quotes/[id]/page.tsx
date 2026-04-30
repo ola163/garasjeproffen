@@ -368,7 +368,7 @@ export default function QuoteDetailPage() {
       : s));
   }
 
-  function updateLineItemInSection(sIdx: number, iIdx: number, field: keyof LineItem, value: string | number) {
+  function updateLineItemInSection(sIdx: number, iIdx: number, field: keyof LineItem, value: unknown) {
     setOfferSections((prev) => prev.map((s, i) => i === sIdx
       ? { ...s, line_items: s.line_items.map((item, j) => j === iIdx ? { ...item, [field]: value } : item) }
       : s));
@@ -1305,8 +1305,8 @@ export default function QuoteDetailPage() {
                         )
                       )}
 
-                      {/* Påslag og rabatt — kun for søknadshjelp */}
-                      {section.category === "søknadshjelp" && (
+                      {/* Seksjonsnivå påslag og rabatt */}
+                      {(section.påslag_value !== undefined || section.rabatt_value !== undefined) && (
                         <div className="space-y-1 mt-1">
                           {section.påslag_value !== undefined && (
                             <div className="flex gap-2 items-center rounded-lg bg-yellow-50 border border-yellow-100 px-2 py-1.5">
@@ -1358,16 +1358,16 @@ export default function QuoteDetailPage() {
                           className="rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
                           + Legg til linje
                         </button>
-                        {section.category === "søknadshjelp" && section.påslag_value === undefined && (
+                        {section.påslag_value === undefined && (
                           <button type="button" onClick={() => updateSectionField(sIdx, "påslag_value", 0)}
                             className="rounded-lg border border-dashed border-yellow-300 px-3 py-1.5 text-xs text-yellow-600 hover:border-yellow-500 transition-colors">
-                            + Legg til påslag
+                            + Legg til påslag (seksjon)
                           </button>
                         )}
-                        {section.category === "søknadshjelp" && section.rabatt_value === undefined && (
+                        {section.rabatt_value === undefined && (
                           <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_value", 0)}
                             className="rounded-lg border border-dashed border-green-300 px-3 py-1.5 text-xs text-green-600 hover:border-green-500 transition-colors">
-                            + Legg til rabatt
+                            + Legg til rabatt (seksjon)
                           </button>
                         )}
                         {section.category === "materialpakke" && (
