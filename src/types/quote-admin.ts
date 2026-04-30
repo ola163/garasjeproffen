@@ -5,6 +5,11 @@ export interface LineItem {
   varenr?: string;
   dimensjon?: string;
   enhet?: string;
+  no_rabatt?: boolean;        // exclude this line from section-level rabatt/påslag
+  rabatt_value?: number;      // line-specific override discount
+  rabatt_type?: "kr" | "pst";
+  påslag_value?: number;      // line-specific override markup
+  påslag_type?: "kr" | "pst";
 }
 
 export interface OfferSection {

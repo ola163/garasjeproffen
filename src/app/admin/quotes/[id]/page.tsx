@@ -11,6 +11,82 @@ import { read, utils } from "xlsx";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
+function AdjInput({ value, type, onValue, onType, color }: {
+  value: number; type: "kr" | "pst" | undefined;
+  onValue: (v: number) => void; onType: (t: "kr" | "pst") => void; color: string;
+}) {
+  const isCur = (t: "kr" | "pst") => (type ?? "kr") === t;
+  return (
+    <div className="flex items-center gap-0.5">
+      <div className={`flex rounded border overflow-hidden text-[10px]`} style={{ borderColor: color + "66" }}>
+        <button type="button" onClick={() => onType("kr")}
+          className={`px-1.5 py-0.5 transition-colors ${isCur("kr") ? "text-white" : "text-gray-400 bg-white hover:bg-gray-50"}`}
+          style={isCur("kr") ? { background: color } : {}}>kr</button>
+        <button type="button" onClick={() => onType("pst")}
+          className={`px-1.5 py-0.5 transition-colors ${isCur("pst") ? "text-white" : "text-gray-400 bg-white hover:bg-gray-50"}`}
+          style={isCur("pst") ? { background: color } : {}}>%</button>
+      </div>
+      <input type="number" min={0} step={isCur("pst") ? 0.1 : 1} value={value || ""}
+        onChange={(e) => onValue(parseFloat(e.target.value) || 0)}
+        className="w-14 rounded border px-1 py-0.5 text-[10px] text-right bg-white focus:outline-none"
+        style={{ borderColor: color + "66" }} />
+    </div>
+  );
+}
+
+function LineAdjRow({ item, section, sIdx, iIdx, update }: {
+  item: LineItem; section: OfferSection; sIdx: number; iIdx: number;
+  update: (sIdx: number, iIdx: number, field: keyof LineItem, value: unknown) => void;
+}) {
+  const hasSectionAdj = section.rabatt_value !== undefined || section.påslag_value !== undefined;
+  const hasLineRabatt = item.rabatt_value !== undefined;
+  const hasLinePåslag = item.påslag_value !== undefined;
+  if (!hasSectionAdj && !hasLineRabatt && !hasLinePåslag) {
+    return (
+      <div className="flex gap-2 pl-1 text-[10px]">
+        <button type="button" onClick={() => update(sIdx, iIdx, "rabatt_value", 0)}
+          className="text-green-500 hover:text-green-700">+ Rabatt</button>
+        <button type="button" onClick={() => update(sIdx, iIdx, "påslag_value", 0)}
+          className="text-yellow-500 hover:text-yellow-700">+ Påslag</button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2 pl-1 text-[10px]">
+      {hasSectionAdj && (
+        <label className="flex items-center gap-1 cursor-pointer select-none">
+          <input type="checkbox" checked={!item.no_rabatt}
+            onChange={() => update(sIdx, iIdx, "no_rabatt", !item.no_rabatt)}
+            className="h-3 w-3 accent-orange-500" />
+          <span className="text-gray-400">Gjelder seksjon-rabatt/påslag</span>
+        </label>
+      )}
+      {!item.no_rabatt && (
+        <>
+          {hasLineRabatt ? (
+            <div className="flex items-center gap-1">
+              <span className="text-green-600 font-medium">Rabatt:</span>
+              <AdjInput value={item.rabatt_value!} type={item.rabatt_type} onValue={(v) => update(sIdx, iIdx, "rabatt_value", v)} onType={(t) => update(sIdx, iIdx, "rabatt_type", t)} color="#16a34a" />
+              <button onClick={() => { update(sIdx, iIdx, "rabatt_value", undefined); update(sIdx, iIdx, "rabatt_type", undefined); }} className="text-gray-300 hover:text-red-400">×</button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => update(sIdx, iIdx, "rabatt_value", 0)} className="text-green-500 hover:text-green-700">+ Rabatt</button>
+          )}
+          {hasLinePåslag ? (
+            <div className="flex items-center gap-1">
+              <span className="text-yellow-600 font-medium">Påslag:</span>
+              <AdjInput value={item.påslag_value!} type={item.påslag_type} onValue={(v) => update(sIdx, iIdx, "påslag_value", v)} onType={(t) => update(sIdx, iIdx, "påslag_type", t)} color="#ca8a04" />
+              <button onClick={() => { update(sIdx, iIdx, "påslag_value", undefined); update(sIdx, iIdx, "påslag_type", undefined); }} className="text-gray-300 hover:text-red-400">×</button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => update(sIdx, iIdx, "påslag_value", 0)} className="text-yellow-500 hover:text-yellow-700">+ Påslag</button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 const STATUS_LABELS: Record<QuoteStatus, string> = {
   new: "Ny", in_review: "Under behandling", pending_approval: "Venter godkjenning",
   offer_sent: "Tilbud sendt", paid: "Betalt", cancelled: "Kansellert",
@@ -655,10 +731,18 @@ export default function QuoteDetailPage() {
     return type === "pst" ? base * value / 100 : value;
   }
 
+  function lineAdj(item: LineItem, sec: OfferSection): number {
+    const base = (item.amount || 0) * (item.quantity || 1);
+    const useSec = !item.no_rabatt;
+    const rVal = item.rabatt_value !== undefined ? item.rabatt_value : useSec ? sec.rabatt_value : undefined;
+    const rType = item.rabatt_value !== undefined ? item.rabatt_type : useSec ? sec.rabatt_type : undefined;
+    const pVal = item.påslag_value !== undefined ? item.påslag_value : useSec ? sec.påslag_value : undefined;
+    const pType = item.påslag_value !== undefined ? item.påslag_type : useSec ? sec.påslag_type : undefined;
+    return adjNok(pVal, pType, base) - adjNok(rVal, rType, base);
+  }
+
   const sokSection = offerSections.find((s) => s.category === "søknadshjelp");
-  const sokBase = sokSection?.line_items.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0) ?? 0;
-  const sokAdj = adjNok(sokSection?.påslag_value, sokSection?.påslag_type, sokBase)
-               - adjNok(sokSection?.rabatt_value, sokSection?.rabatt_type, sokBase);
+  const sokAdj = sokSection?.line_items.reduce((s, i) => s + lineAdj(i, sokSection), 0) ?? 0;
 
   const offerTotal = offerSections.reduce((total, sec) => {
     if (hasPrefa && sec.category === "materialpakke") return total;
@@ -667,7 +751,7 @@ export default function QuoteDetailPage() {
     const adj = (sec.category === "materialpakke" || sec.category === "prefabelement")
       ? sokAdj
       : sec.category === "søknadshjelp"
-        ? adjNok(sec.påslag_value, sec.påslag_type, lineTotal) - adjNok(sec.rabatt_value, sec.rabatt_type, lineTotal)
+        ? sec.line_items.reduce((s, i) => s + lineAdj(i, sec), 0)
         : 0;
     return total + lineTotal + adj;
   }, 0);
@@ -1036,8 +1120,7 @@ export default function QuoteDetailPage() {
                 const sectionAdj = (section.category === "materialpakke" || section.category === "prefabelement")
                   ? sokAdj
                   : section.category === "søknadshjelp"
-                    ? adjNok(section.påslag_value, section.påslag_type, sectionSubtotal)
-                      - adjNok(section.rabatt_value, section.rabatt_type, sectionSubtotal)
+                    ? section.line_items.reduce((s, i) => s + lineAdj(i, section), 0)
                     : 0;
                 const sectionTotal = sectionSubtotal + sectionAdj;
                 const catLabel = OFFER_CATEGORIES.find(c => c.id === section.category)?.label ?? section.category;
@@ -1183,7 +1266,8 @@ export default function QuoteDetailPage() {
                                 className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-orange-400"
                               />
                             </div>
-                            {/* Rad 3: Totalsum */}
+                            {/* Rad 3: Totalsum + justering */}
+                            <LineAdjRow item={item} section={section} sIdx={sIdx} iIdx={iIdx} update={updateLineItemInSection} />
                             <div className="flex justify-end border-t border-gray-200 pt-1">
                               <span className="text-xs font-semibold text-gray-700">
                                 {item.amount && item.quantity ? formatNOK(item.amount * item.quantity) : "–"}
@@ -1192,28 +1276,31 @@ export default function QuoteDetailPage() {
                           </div>
                         ) : (
                           /* Enkel form for Søknadshjelp og Prefabelement */
-                          <div key={iIdx} className="flex gap-2 items-start">
-                            <div className="flex-1 min-w-0">
-                              <input type="text" placeholder="Beskrivelse" value={item.description}
-                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "description", e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                          <div key={iIdx} className="space-y-0.5">
+                            <div className="flex gap-2 items-start">
+                              <div className="flex-1 min-w-0">
+                                <input type="text" placeholder="Beskrivelse" value={item.description}
+                                  onChange={(e) => updateLineItemInSection(sIdx, iIdx, "description", e.target.value)}
+                                  className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                              </div>
+                              <div className="w-14 shrink-0">
+                                <input type="number" min={0} step={1} placeholder="Ant." value={item.quantity || ""}
+                                  onChange={(e) => updateLineItemInSection(sIdx, iIdx, "quantity", parseInt(e.target.value) || 1)}
+                                  className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                              </div>
+                              <div className="w-28 shrink-0">
+                                <input type="number" min={0} placeholder="kr" value={item.amount || ""}
+                                  onChange={(e) => updateLineItemInSection(sIdx, iIdx, "amount", parseFloat(e.target.value) || 0)}
+                                  className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                              </div>
+                              <button onClick={() => removeLineItemFromSection(sIdx, iIdx)}
+                                className="shrink-0 mt-1 text-gray-400 hover:text-red-500">
+                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                              </button>
                             </div>
-                            <div className="w-14 shrink-0">
-                              <input type="number" min={0} step={1} placeholder="Ant." value={item.quantity || ""}
-                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "quantity", parseInt(e.target.value) || 1)}
-                                className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400" />
-                            </div>
-                            <div className="w-28 shrink-0">
-                              <input type="number" min={0} placeholder="kr" value={item.amount || ""}
-                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "amount", parseFloat(e.target.value) || 0)}
-                                className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-orange-400" />
-                            </div>
-                            <button onClick={() => removeLineItemFromSection(sIdx, iIdx)}
-                              className="shrink-0 mt-1 text-gray-400 hover:text-red-500">
-                              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                              </svg>
-                            </button>
+                            <LineAdjRow item={item} section={section} sIdx={sIdx} iIdx={iIdx} update={updateLineItemInSection} />
                           </div>
                         )
                       )}
@@ -1381,22 +1468,22 @@ export default function QuoteDetailPage() {
 
                       {/* Section subtotal */}
                       <div className="border-t border-gray-100 pt-2 space-y-0.5">
-                        {section.category === "søknadshjelp" && (section.påslag_value || section.rabatt_value) ? (
+                        {section.category === "søknadshjelp" && sectionAdj !== 0 ? (
                           <>
                             <div className="flex justify-between text-xs text-gray-400">
-                              <span>Subtotal</span>
+                              <span>Subtotal linjer</span>
                               <span>{formatNOK(sectionSubtotal)}</span>
                             </div>
-                            {!!section.påslag_value && (
+                            {sectionAdj > 0 && (
                               <div className="flex justify-between text-xs text-yellow-600">
-                                <span>Påslag (internt) {section.påslag_type === "pst" ? `${section.påslag_value}%` : ""}</span>
-                                <span>+{formatNOK(adjNok(section.påslag_value, section.påslag_type, sectionSubtotal))}</span>
+                                <span>Påslag (internt)</span>
+                                <span>+{formatNOK(sectionAdj)}</span>
                               </div>
                             )}
-                            {!!section.rabatt_value && (
+                            {sectionAdj < 0 && (
                               <div className="flex justify-between text-xs text-green-600">
-                                <span>Rabatt til kunde {section.rabatt_type === "pst" ? `${section.rabatt_value}%` : ""}</span>
-                                <span>−{formatNOK(adjNok(section.rabatt_value, section.rabatt_type, sectionSubtotal))}</span>
+                                <span>Rabatt til kunde</span>
+                                <span>−{formatNOK(Math.abs(sectionAdj))}</span>
                               </div>
                             )}
                             <div className="flex justify-between text-xs font-medium text-gray-700 border-t border-gray-100 pt-0.5">
