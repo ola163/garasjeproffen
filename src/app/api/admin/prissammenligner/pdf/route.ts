@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import Anthropic from "@anthropic-ai/sdk";
+import { createClient } from "@supabase/supabase-js";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
-
-import { createClient } from "@supabase/supabase-js";
 
 function getSupabase() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -27,42 +27,6 @@ interface ParsedRow {
   enhet?: string;
 }
 
-function parseNorwegianNumber(s: string): number {
-  return parseFloat(s.replace(/\s/g, "").replace(/\.(?=\d{3})/g, "").replace(",", "."));
-}
-
-function parsePdfText(text: string): ParsedRow[] {
-  const rows: ParsedRow[] = [];
-  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-
-  // Pattern: starts with 4-15 digit varenr, some description, ends with price
-  const rowPattern = /^(\d{4,15})\s+(.+?)\s+([\d\s]*\d[\d\s]*[,.]\d{1,2})\s*$/;
-  // Secondary: varenr + space + anything + space + price (no comma required)
-  const loosePattern = /^(\d{4,15})\s+(.+?)\s+(\d[\d\s]*[,.]?\d{0,2})\s*$/;
-
-  for (const line of lines) {
-    // Skip header-like lines
-    if (/varenr|beskrivelse|pris|enhet|mengde|totalt/i.test(line) && line.length < 80) continue;
-
-    let match = line.match(rowPattern);
-    if (!match) match = line.match(loosePattern);
-    if (!match) continue;
-
-    const [, varenr, rest, prisStr] = match;
-    const pris = parseNorwegianNumber(prisStr.trim());
-    if (isNaN(pris) || pris <= 0 || pris > 1_000_000) continue;
-
-    // Try to extract unit from the rest (stk, m, m2, m3, lm, pk, ...)
-    const unitMatch = rest.match(/\b(stk|m2|m3|lm|m|pk|l|kg|rll?|ss|boks)\b/i);
-    const enhet = unitMatch?.[1]?.toLowerCase();
-    const beskrivelse = rest.replace(/\s+\d[\d\s]*$/, "").trim();
-
-    rows.push({ varenr, beskrivelse, pris, enhet });
-  }
-
-  return rows;
-}
-
 // POST /api/admin/prissammenligner/pdf
 // body: FormData with "file" (PDF)
 export async function POST(req: NextRequest) {
@@ -79,22 +43,78 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Kun PDF-filer støttes" }, { status: 400 });
   }
 
-  try {
-    // Dynamic import to avoid issues with pdf-parse test file loading
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfParse: any = (await import("pdf-parse") as any).default ?? (await import("pdf-parse") as any);
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const result = await pdfParse(buffer);
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY ikke satt" }, { status: 503 });
+  }
 
-    const rows = parsePdfText(result.text);
-    return NextResponse.json({
-      rows,
-      rawText: result.text,
-      pageCount: result.numpages,
+  try {
+    const buffer = await file.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+
+    const anthropic = new Anthropic({ apiKey });
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: base64,
+              },
+            },
+            {
+              type: "text",
+              text: `Analyser denne leverandørprislisten og ekstraher ALLE produktrader med priser.
+
+For hver rad, returner et JSON-objekt med:
+- varenr: varenummer som string (kun siffer, tom streng hvis mangler)
+- beskrivelse: produktbeskrivelse/varetekst som string
+- pris: nettopris/enhetspris i NOK som number (0 hvis ikke funnet)
+- enhet: enhet som string (f.eks. "stk", "m2", "lm", "m", "pk", "rll" – tom streng hvis mangler)
+
+Returner KUN et JSON-array, ingen forklaringstekst. Eksempel:
+[{"varenr":"12345","beskrivelse":"Gipsplate 13mm 1200x3000","pris":189.50,"enhet":"stk"},{"varenr":"67890","beskrivelse":"Mineralull 150mm","pris":245.00,"enhet":"m2"}]
+
+Viktig:
+- Bruk nettopris (ikke bruttopris) hvis begge finnes
+- Ignorer rader uten pris eller uten beskrivelse
+- Behold originale varenummer nøyaktig som de står
+- Hvis dokumentet ikke inneholder prisliste, returner []`,
+            },
+          ],
+        },
+      ],
     });
+
+    const text = message.content[0].type === "text" ? message.content[0].text.trim() : "[]";
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return NextResponse.json({ rows: [], pageCount: 1 });
+
+    const raw = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(raw)) return NextResponse.json({ rows: [], pageCount: 1 });
+
+    const rows: ParsedRow[] = raw
+      .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
+      .map((item) => ({
+        varenr:      String(item.varenr      ?? "").trim().slice(0, 50),
+        beskrivelse: String(item.beskrivelse ?? "").slice(0, 300),
+        pris:        Math.max(0, Number(item.pris) || 0),
+        enhet:       String(item.enhet ?? "").slice(0, 20) || undefined,
+      }))
+      .filter((item) => item.beskrivelse.length > 0 && item.pris > 0)
+      .slice(0, 2000);
+
+    return NextResponse.json({ rows, pageCount: 1 });
   } catch (err) {
     console.error("PDF parse error:", err);
-    return NextResponse.json({ error: "Kunne ikke lese PDF-filen. Kontroller at den ikke er passordbeskyttet." }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Ukjent feil";
+    return NextResponse.json({ error: `Kunne ikke lese PDF-filen: ${msg}` }, { status: 500 });
   }
 }
