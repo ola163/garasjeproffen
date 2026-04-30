@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 // @ts-ignore
 import * as XLSX from "xlsx";
@@ -182,7 +182,7 @@ function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): Co
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export default function PrissammenlignPage() {
+function PrissammenlignInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -961,5 +961,13 @@ export default function PrissammenlignPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function PrissammenlignPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-gray-400">Laster…</div>}>
+      <PrissammenlignInner />
+    </Suspense>
   );
 }
