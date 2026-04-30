@@ -5,7 +5,7 @@ const BOT_UA = /bot|crawl|spider|slurp|vercel|lighthouse|prerender|headless|chro
 
 export async function POST(req: Request) {
   try {
-    const { path } = await req.json();
+    const { path, referrer } = await req.json();
 
     if (typeof path === "string" && path.startsWith("/admin")) {
       return new Response("ok");
@@ -18,14 +18,32 @@ export async function POST(req: Request) {
     if (userAgent && BOT_UA.test(userAgent)) return new Response("ok");
 
     const cookieStore = await cookies();
+    if (cookieStore.get("gp-admin")?.value === "1") return new Response("ok");
     const userEmail = cookieStore.get("gp-user")?.value ?? null;
+
+    const countryCode = req.headers.get("x-vercel-ip-country") ?? null;
+    const rawCity = req.headers.get("x-vercel-ip-city");
+    const city = rawCity ? decodeURIComponent(rawCity) : null;
+
+    let referrerDomain: string | null = null;
+    if (typeof referrer === "string" && referrer.startsWith("http")) {
+      try { referrerDomain = new URL(referrer).hostname; } catch {}
+    }
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) return new Response("ok");
 
     const db = createClient(url, key);
-    await db.from("visitor_logs").insert({ ip, path: path ?? null, user_agent: userAgent, user_email: userEmail });
+    await db.from("visitor_logs").insert({
+      ip,
+      path: path ?? null,
+      user_agent: userAgent,
+      user_email: userEmail,
+      referrer: referrerDomain,
+      country_code: countryCode,
+      city,
+    });
   } catch {
     // never fail on tracking errors
   }

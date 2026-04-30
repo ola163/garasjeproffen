@@ -28,6 +28,7 @@ interface StatsData {
   uniqueIpMonth: number;
   uniqueIps: IpEntry[];
   topPages: { path: string; count: number }[];
+  topReferrers: { domain: string; count: number }[];
 }
 
 function fmt(iso: string) {
@@ -47,7 +48,7 @@ export default function StatistikkPage() {
   const [data, setData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [tab, setTab] = useState<"iper" | "utland" | "sider">("iper");
+  const [tab, setTab] = useState<"iper" | "utland" | "sider" | "trafikk">("iper");
 
   useEffect(() => {
     fetch("/api/admin/visitor-stats")
@@ -169,7 +170,7 @@ export default function StatistikkPage() {
               return (
                 <>
                   {/* Tabs */}
-                  <div className="mb-4 flex gap-2">
+                  <div className="mb-4 flex gap-2 flex-wrap">
                     <button onClick={() => setTab("iper")}
                       className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === "iper" ? "bg-orange-500 text-white" : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"}`}>
                       Norge ({norske.length})
@@ -181,6 +182,10 @@ export default function StatistikkPage() {
                     <button onClick={() => setTab("sider")}
                       className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === "sider" ? "bg-orange-500 text-white" : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"}`}>
                       Topp sider
+                    </button>
+                    <button onClick={() => setTab("trafikk")}
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === "trafikk" ? "bg-orange-500 text-white" : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"}`}>
+                      Trafikkilder
                     </button>
                   </div>
 
@@ -211,6 +216,31 @@ export default function StatistikkPage() {
                 </table>
                 {data.topPages.length === 0 && (
                   <p className="px-4 py-8 text-center text-sm text-gray-400">Ingen data ennå.</p>
+                )}
+              </div>
+            )}
+
+            {/* Top referrers */}
+            {tab === "trafikk" && (
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kilde</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Besøk</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {data.topReferrers.map((ref) => (
+                      <tr key={ref.domain} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-700">{ref.domain}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-orange-500">{ref.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {data.topReferrers.length === 0 && (
+                  <p className="px-4 py-8 text-center text-sm text-gray-400">Ingen trafikkilder registrert ennå.</p>
                 )}
               </div>
             )}

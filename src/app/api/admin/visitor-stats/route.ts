@@ -15,7 +15,7 @@ export async function GET() {
 
   const { data, error } = await db
     .from("visitor_logs")
-    .select("ip, path, user_agent, user_email, visited_at")
+    .select("ip, path, user_agent, user_email, visited_at, referrer, country_code, city")
     .order("visited_at", { ascending: false })
     .limit(5000);
 
@@ -60,11 +60,25 @@ export async function GET() {
     }
   }
 
-  // Batch geo-lookup via ip-api.com (free, up to 100 IPs per request)
+  // Build geo map from stored Vercel headers (rows are desc, so first hit = most recent)
+  const storedGeoMap = new Map<string, { city: string; region: string; country: string; countryCode: string; hosting: boolean }>();
+  for (const row of rows) {
+    if (row.country_code && !storedGeoMap.has(row.ip)) {
+      storedGeoMap.set(row.ip, {
+        city: row.city ?? "",
+        region: "",
+        country: row.country_code,
+        countryCode: row.country_code,
+        hosting: false,
+      });
+    }
+  }
+
+  // Batch geo-lookup via ip-api.com only for IPs without stored geo
   const allIps = Array.from(ipMap.keys());
   const geoMap = new Map<string, { city: string; region: string; country: string; countryCode: string; hosting: boolean }>();
   const privateRanges = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|unknown)/;
-  const publicIps = allIps.filter((ip) => !privateRanges.test(ip));
+  const publicIps = allIps.filter((ip) => !privateRanges.test(ip) && !storedGeoMap.has(ip));
 
   for (let i = 0; i < publicIps.length; i += 100) {
     const chunk = publicIps.slice(i, i + 100);
@@ -92,17 +106,20 @@ export async function GET() {
   }
 
   const uniqueIps = Array.from(ipMap.entries())
-    .map(([ip, v]) => ({
-      ip,
-      count: v.count,
-      firstSeen: v.firstSeen,
-      lastSeen: v.lastSeen,
-      paths: Array.from(v.paths).slice(0, 10),
-      emails: Array.from(v.emails),
-      geo: geoMap.get(ip) ?? null,
-      countryCode: geoMap.get(ip)?.countryCode ?? null,
-      hosting: geoMap.get(ip)?.hosting ?? false,
-    }))
+    .map(([ip, v]) => {
+      const geo = storedGeoMap.get(ip) ?? geoMap.get(ip) ?? null;
+      return {
+        ip,
+        count: v.count,
+        firstSeen: v.firstSeen,
+        lastSeen: v.lastSeen,
+        paths: Array.from(v.paths).slice(0, 10),
+        emails: Array.from(v.emails),
+        geo,
+        countryCode: geo?.countryCode ?? null,
+        hosting: geo?.hosting ?? false,
+      };
+    })
     .filter((e) => !e.hosting)
     .sort((a, b) => b.count - a.count);
 
@@ -116,6 +133,16 @@ export async function GET() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 20);
 
+  // Top referrers (external domains only)
+  const referrerMap = new Map<string, number>();
+  for (const row of rows) {
+    if (row.referrer) referrerMap.set(row.referrer, (referrerMap.get(row.referrer) ?? 0) + 1);
+  }
+  const topReferrers = Array.from(referrerMap.entries())
+    .map(([domain, count]) => ({ domain, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20);
+
   return Response.json({
     totalVisits: rows.length,
     uniqueIpCount: uniqueIps.length,
@@ -124,5 +151,6 @@ export async function GET() {
     uniqueIpMonth: uniqueMonth.size,
     uniqueIps,
     topPages,
+    topReferrers,
   });
 }
