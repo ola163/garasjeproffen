@@ -54,6 +54,7 @@ interface ComparisonRow {
   cells: Record<string, number | undefined>; // sourceId -> unit price
   ranks: Record<string, number>; // 1 = cheapest
   internalPrice?: number; // from the quote itself
+  fromProject: boolean; // false = only in uploaded source, not in project
 }
 
 interface ColumnMap {
@@ -156,11 +157,33 @@ function formatPrice(n: number | undefined): string {
 }
 
 function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): ComparisonRow[] {
-  return projectItems.map(item => {
-    const varenr = item.varenr.trim();
+  // Build rows in order: project items first, then uploaded-source-only rows
+  const seen = new Set<string>();
+  type RowDef = { key: string; varenr: string; beskrivelse: string; qty: number; enhet?: string; dimensjon?: string; fromProject: boolean; internalPrice?: number };
+  const rowDefs: RowDef[] = [];
+
+  for (const item of projectItems) {
+    const key = item.varenr.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rowDefs.push({ key, varenr: item.varenr.trim(), beskrivelse: item.description, qty: item.quantity ?? 1, enhet: item.enhet, dimensjon: item.dimensjon, fromProject: true, internalPrice: item.amount });
+  }
+
+  // Add rows from uploaded (non-DB) sources not already covered by project
+  for (const src of sources) {
+    if (src.fromDb) continue;
+    for (const row of src.rows) {
+      const key = row.varenr.trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      rowDefs.push({ key, varenr: row.varenr.trim(), beskrivelse: row.beskrivelse, qty: 1, enhet: row.enhet, dimensjon: row.dimensjon, fromProject: false });
+    }
+  }
+
+  return rowDefs.map(({ key, varenr, beskrivelse, qty, enhet, dimensjon, fromProject, internalPrice }) => {
     const cells: Record<string, number | undefined> = {};
     for (const src of sources) {
-      const match = src.rows.find(r => r.varenr.trim().toLowerCase() === varenr.toLowerCase());
+      const match = src.rows.find(r => r.varenr.trim().toLowerCase() === key);
       if (match) cells[src.id] = match.pris;
     }
     const sortedByPrice = sources
@@ -168,16 +191,7 @@ function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): Co
       .sort((a, b) => (cells[a.id] ?? Infinity) - (cells[b.id] ?? Infinity));
     const ranks: Record<string, number> = {};
     sortedByPrice.forEach((s, i) => { ranks[s.id] = i + 1; });
-    return {
-      varenr,
-      beskrivelse: item.description,
-      qty: item.quantity ?? 1,
-      enhet: item.enhet,
-      dimensjon: item.dimensjon,
-      cells,
-      ranks,
-      internalPrice: item.amount,
-    };
+    return { varenr, beskrivelse, qty, enhet, dimensjon, cells, ranks, internalPrice, fromProject };
   });
 }
 
@@ -444,10 +458,11 @@ function PrissammenlignInner() {
     return true;
   }), [comparison, searchQuery, filter, effectiveSources]);
 
-  // Per-supplier totals (unit price × qty)
+  // Per-supplier totals (unit price × qty) — only project items count toward totals
   const totals = useMemo(() => {
     const t: Record<string, number> = {};
     for (const row of comparison) {
+      if (!row.fromProject) continue;
       for (const src of effectiveSources) {
         const p = row.cells[src.id];
         if (p !== undefined) t[src.id] = (t[src.id] ?? 0) + p * row.qty;
@@ -853,14 +868,14 @@ function PrissammenlignInner() {
                         const cheapestTotal = minUnitPrice !== null ? minUnitPrice * row.qty : null;
 
                         return (
-                          <tr key={row.varenr} className="hover:bg-gray-50/50">
+                          <tr key={row.varenr} className={`hover:bg-gray-50/50 ${!row.fromProject ? "bg-blue-50/30 italic" : ""}`}>
                             <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-mono text-xs text-gray-500">
                               {row.varenr}
                             </td>
                             <td className="px-3 py-2.5 text-gray-800">
                               <span className="line-clamp-2 text-xs">{row.beskrivelse}</span>
                             </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{row.qty}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{row.fromProject ? row.qty : <span className="text-gray-300 not-italic">—</span>}</td>
                             <td className="px-3 py-2.5 text-xs text-gray-400">{row.enhet ?? ""}</td>
                             {effectiveSources.map(s => {
                               const pris = row.cells[s.id];

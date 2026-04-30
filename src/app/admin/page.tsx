@@ -253,6 +253,18 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-emerald-500 group-hover:underline">Åpne →</p>
           </Link>
 
+          {/* GP Varekatalog */}
+          <Link href="/admin/katalog" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
+              <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 group-hover:text-blue-600">GP Varekatalog</h2>
+            <p className="mt-1 text-sm text-gray-500">Intern produktkatalog med GPV-varenr for material, festemidler, isolasjon osv.</p>
+            <p className="mt-4 text-xs font-medium text-blue-500 group-hover:underline">Åpne →</p>
+          </Link>
+
           {/* Profilendringer */}
           <Link href="/admin/profil-endringer" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-teal-100">

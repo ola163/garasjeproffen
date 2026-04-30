@@ -11,6 +11,25 @@ import { read, utils } from "xlsx";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
+interface GpProduct {
+  id: string;
+  varenr: string;
+  name: string;
+  category: string;
+  unit?: string;
+  description?: string;
+}
+
+const GP_CATEGORIES: { key: string; label: string }[] = [
+  { key: "material",    label: "Material" },
+  { key: "festemidler", label: "Festemidler" },
+  { key: "isolasjon",   label: "Isolasjon" },
+  { key: "membran",     label: "Membran" },
+  { key: "ventilasjon", label: "Ventilasjon" },
+  { key: "elektro",     label: "Elektro" },
+  { key: "diverse",     label: "Diverse" },
+];
+
 function AdjInput({ value, type, onValue, onType, color }: {
   value: number; type: "kr" | "pst" | undefined;
   onValue: (v: number) => void; onType: (t: "kr" | "pst") => void; color: string;
@@ -154,6 +173,13 @@ export default function QuoteDetailPage() {
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEdit, setCustomerEdit] = useState({ name: "", email: "", phone: "", message: "", category: "", building_type: "" });
   const [savingCustomer, setSavingCustomer] = useState(false);
+
+  // GP Catalog picker
+  const [catalogModal, setCatalogModal] = useState<{ sIdx: number } | null>(null);
+  const [catalogProducts, setCatalogProducts] = useState<GpProduct[]>([]);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogCategory, setCatalogCategory] = useState("");
+  const [catalogLoading, setCatalogLoading] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -367,6 +393,25 @@ export default function QuoteDetailPage() {
       ? { ...s, line_items: [...s.line_items, newItem] }
       : s));
   }
+
+  function addCatalogItem(sIdx: number, product: GpProduct) {
+    const newItem: LineItem = { description: product.name, amount: 0, quantity: 1, varenr: product.varenr, dimensjon: "", enhet: product.unit ?? "" };
+    setOfferSections(prev => prev.map((s, i) => i === sIdx ? { ...s, line_items: [...s.line_items, newItem] } : s));
+    setCatalogModal(null);
+  }
+
+  useEffect(() => {
+    if (!catalogModal) return;
+    setCatalogLoading(true);
+    const params = new URLSearchParams();
+    if (catalogSearch) params.set("q", catalogSearch);
+    if (catalogCategory) params.set("category", catalogCategory);
+    fetch(`/api/admin/katalog?${params}`)
+      .then(r => r.json())
+      .then(d => setCatalogProducts(d.data ?? []))
+      .catch(() => {})
+      .finally(() => setCatalogLoading(false));
+  }, [catalogModal, catalogSearch, catalogCategory]);
 
   function updateLineItemInSection(sIdx: number, iIdx: number, field: keyof LineItem, value: unknown) {
     setOfferSections((prev) => prev.map((s, i) => i === sIdx
@@ -1366,6 +1411,16 @@ export default function QuoteDetailPage() {
                           className="rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
                           + Legg til linje
                         </button>
+                        {section.category === "materialpakke" && (
+                          <button
+                            type="button"
+                            onClick={() => { setCatalogSearch(""); setCatalogCategory(""); setCatalogModal({ sIdx }); }}
+                            className="flex items-center gap-1 rounded-lg border border-dashed border-blue-300 px-3 py-1.5 text-xs text-blue-500 hover:border-blue-500 hover:text-blue-700 transition-colors"
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                            Søk i katalog
+                          </button>
+                        )}
                         {section.påslag_value === undefined && (
                           <button type="button" onClick={() => updateSectionField(sIdx, "påslag_value", 0)}
                             className="rounded-lg border border-dashed border-yellow-300 px-3 py-1.5 text-xs text-yellow-600 hover:border-yellow-500 transition-colors">
@@ -1783,6 +1838,75 @@ export default function QuoteDetailPage() {
           </div>
         </div>
       )}
+      {/* GP Catalog picker modal */}
+      {catalogModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="flex w-full max-w-xl flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "85vh" }}>
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <h2 className="text-base font-semibold text-gray-900">GP Varekatalog</h2>
+              <button onClick={() => setCatalogModal(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+
+            <div className="space-y-2 border-b border-gray-100 px-5 py-3">
+              <input
+                type="text"
+                placeholder="Søk på varenr eller navn…"
+                value={catalogSearch}
+                onChange={e => setCatalogSearch(e.target.value)}
+                autoFocus
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setCatalogCategory("")}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${!catalogCategory ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                >
+                  Alle
+                </button>
+                {GP_CATEGORIES.map(cat => (
+                  <button
+                    key={cat.key}
+                    onClick={() => setCatalogCategory(cat.key === catalogCategory ? "" : cat.key)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${catalogCategory === cat.key ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              {catalogLoading ? (
+                <p className="py-8 text-center text-sm text-gray-400">Laster…</p>
+              ) : catalogProducts.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-400">Ingen varer funnet</p>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {catalogProducts.map(p => (
+                    <div key={p.id} className="flex items-center gap-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-semibold text-blue-600">{p.varenr}</span>
+                          {p.unit && <span className="text-xs text-gray-400">{p.unit}</span>}
+                        </div>
+                        <p className="text-sm text-gray-800">{p.name}</p>
+                        {p.description && <p className="text-xs text-gray-400 truncate">{p.description}</p>}
+                      </div>
+                      <button
+                        onClick={() => addCatalogItem(catalogModal.sIdx, p)}
+                        className="shrink-0 rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-600"
+                      >
+                        + Legg til
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Leave confirmation modal */}
       {leaveConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
