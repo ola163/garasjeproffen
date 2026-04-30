@@ -1,5 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { ADMIN_EMAILS } from "@/lib/session";
+
+type LogRow = {
+  ip: string;
+  path: string | null;
+  user_agent: string | null;
+  user_email: string | null;
+  visited_at: string;
+  referrer?: string | null;
+  country_code?: string | null;
+  city?: string | null;
+};
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -13,15 +25,16 @@ export async function GET() {
 
   const db = createClient(url, key);
 
+  // Use select("*") so it works before and after the column migration
   const { data, error } = await db
     .from("visitor_logs")
-    .select("ip, path, user_agent, user_email, visited_at, referrer, country_code, city")
+    .select("*")
     .order("visited_at", { ascending: false })
     .limit(5000);
 
   if (error) return new Response(error.message, { status: 500 });
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as LogRow[];
 
   // Unique IPs per period
   const now = new Date();
@@ -33,15 +46,17 @@ export async function GET() {
   const uniqueWeek  = new Set<string>();
   const uniqueMonth = new Set<string>();
   for (const row of rows) {
+    if (row.user_email && ADMIN_EMAILS.includes(row.user_email)) continue;
     const t = new Date(row.visited_at);
     if (t >= startOfDay)   uniqueDay.add(row.ip);
     if (t >= startOfWeek)  uniqueWeek.add(row.ip);
     if (t >= startOfMonth) uniqueMonth.add(row.ip);
   }
 
-  // Aggregate unique IPs
+  // Aggregate unique IPs (skip rows from admin emails)
   const ipMap = new Map<string, { count: number; firstSeen: string; lastSeen: string; paths: Set<string>; emails: Set<string> }>();
   for (const row of rows) {
+    if (row.user_email && ADMIN_EMAILS.includes(row.user_email)) continue;
     const entry = ipMap.get(row.ip);
     if (!entry) {
       ipMap.set(row.ip, {
@@ -57,6 +72,33 @@ export async function GET() {
       if (row.visited_at > entry.lastSeen) entry.lastSeen = row.visited_at;
       if (row.path) entry.paths.add(row.path);
       if (row.user_email) entry.emails.add(row.user_email);
+    }
+  }
+
+  // Merge IPs that share the same logged-in email
+  const emailToIps = new Map<string, Set<string>>();
+  for (const [ip, entry] of ipMap.entries()) {
+    for (const email of entry.emails) {
+      if (!emailToIps.has(email)) emailToIps.set(email, new Set());
+      emailToIps.get(email)!.add(ip);
+    }
+  }
+  for (const [, ips] of emailToIps.entries()) {
+    const ipList = Array.from(ips).filter((ip) => ipMap.has(ip));
+    if (ipList.length <= 1) continue;
+    const canonical = ipList.reduce((a, b) =>
+      (ipMap.get(a)?.count ?? 0) >= (ipMap.get(b)?.count ?? 0) ? a : b
+    );
+    for (const ip of ipList) {
+      if (ip === canonical) continue;
+      const entry = ipMap.get(ip)!;
+      const can = ipMap.get(canonical)!;
+      can.count += entry.count;
+      if (entry.firstSeen < can.firstSeen) can.firstSeen = entry.firstSeen;
+      if (entry.lastSeen > can.lastSeen) can.lastSeen = entry.lastSeen;
+      for (const p of entry.paths) can.paths.add(p);
+      for (const e of entry.emails) can.emails.add(e);
+      ipMap.delete(ip);
     }
   }
 
@@ -133,7 +175,7 @@ export async function GET() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 20);
 
-  // Top referrers (external domains only)
+  // Top referrers
   const referrerMap = new Map<string, number>();
   for (const row of rows) {
     if (row.referrer) referrerMap.set(row.referrer, (referrerMap.get(row.referrer) ?? 0) + 1);
