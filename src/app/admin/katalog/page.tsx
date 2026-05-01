@@ -33,6 +33,7 @@ interface SupplierPriceHit {
 
 type LinkState = { varenr: string; name: string };
 type LinkMap = Record<string, LinkState>;
+interface CatNode { cat: GpCategory; children: CatNode[] }
 
 const DB_SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"];
 
@@ -491,11 +492,130 @@ export default function KatalogPage() {
 
         {/* ── Kategorier tab ───────────────────────────────────────────── */}
         {tab === "kategorier" && (() => {
-          const rootCats = categories.filter(c => !c.parent_id).sort((a, b) => a.sort_order - b.sort_order);
-          const subcatMap = categories.reduce<Record<string, GpCategory[]>>((acc, c) => {
-            if (c.parent_id) acc[c.parent_id] = [...(acc[c.parent_id] ?? []), c];
-            return acc;
-          }, {});
+          function buildTree(parentId: string | null): CatNode[] {
+            return categories
+              .filter(c => (c.parent_id ?? null) === parentId)
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map(cat => ({ cat, children: buildTree(cat.id) }));
+          }
+          const tree = buildTree(null);
+
+          function renderNode(node: CatNode, depth: number, siblings: CatNode[]): React.ReactNode {
+            const { cat, children } = node;
+            const idx = siblings.indexOf(node);
+            const pl = depth * 28 + 16;
+            const isEditing = editingCat === cat.id;
+            const isAddingHere = addingSubcatTo === cat.id;
+            const bg = depth === 0 ? "bg-gray-50/70" : depth === 1 ? "bg-white" : "bg-gray-50/30";
+
+            return (
+              <div key={cat.id}>
+                {/* Category row */}
+                <div className={`flex items-center gap-2 border-t border-gray-50 py-2.5 pr-4 ${bg}`} style={{ paddingLeft: pl }}>
+                  {depth > 0 && <span className="text-gray-200 shrink-0 text-xs select-none">{"└"}</span>}
+                  {/* Reorder */}
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <button onClick={() => moveCategory(cat.id, "up")} disabled={idx === 0}
+                      className="rounded p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-20">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7"/></svg>
+                    </button>
+                    <button onClick={() => moveCategory(cat.id, "down")} disabled={idx === siblings.length - 1}
+                      className="rounded p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-20">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                  </div>
+
+                  {/* Edit / display */}
+                  {isEditing ? (
+                    <div className="flex flex-1 flex-wrap items-center gap-2">
+                      <input type="text" value={editCatLabel} autoFocus onChange={e => setEditCatLabel(e.target.value)}
+                        className="flex-1 min-w-28 rounded-lg border border-orange-300 px-2.5 py-1.5 text-sm focus:border-orange-500 focus:outline-none" />
+                      <label className="text-xs text-gray-500">Fra:</label>
+                      <input type="number" value={editCatStart} onChange={e => setEditCatStart(parseInt(e.target.value) || 0)}
+                        className="w-20 rounded-lg border border-orange-300 px-2 py-1.5 text-sm text-right focus:outline-none" />
+                      <label className="text-xs text-gray-500">Til:</label>
+                      <input type="number" value={editCatEnd} onChange={e => setEditCatEnd(parseInt(e.target.value) || "")}
+                        placeholder="—"
+                        className="w-20 rounded-lg border border-orange-300 px-2 py-1.5 text-sm text-right focus:outline-none" />
+                      <button onClick={() => saveCatEdit(cat.id)} disabled={savingCat}
+                        className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50">
+                        {savingCat ? "…" : "Lagre"}
+                      </button>
+                      <button onClick={() => setEditingCat(null)} className="text-xs text-gray-400 hover:text-gray-600">Avbryt</button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-1 items-center gap-3 min-w-0">
+                      <span className={`font-${depth === 0 ? "semibold" : "medium"} text-gray-${depth === 0 ? "800" : "700"} text-${depth >= 2 ? "xs" : "sm"}`}>
+                        {cat.label}
+                      </span>
+                      <span className="font-mono text-xs text-blue-400">
+                        GPV-{cat.varenr_start}{cat.varenr_end ? `–${cat.varenr_end}` : "+"}
+                      </span>
+                      {cat.varenr_end && (
+                        <span className="text-xs text-gray-300">{cat.varenr_end - cat.varenr_start + 1} stk</span>
+                      )}
+                      {children.length > 0 && (
+                        <span className="text-xs text-gray-300">{children.length} under</span>
+                      )}
+                    </div>
+                  )}
+
+                  {!isEditing && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => { setEditingCat(cat.id); setEditCatLabel(cat.label); setEditCatStart(cat.varenr_start); setEditCatEnd(cat.varenr_end ?? ""); setCatError(""); }}
+                        className="text-xs text-gray-400 hover:text-orange-500">Rediger</button>
+                      <button onClick={() => deleteCategory(cat.id)} disabled={deletingCat === cat.id}
+                        className="text-xs text-gray-300 hover:text-red-500 disabled:opacity-50">
+                        {deletingCat === cat.id ? "…" : "Slett"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Recursive children */}
+                {children.map(child => renderNode(child, depth + 1, children))}
+
+                {/* Add sub-subcategory form or button */}
+                {isAddingHere ? (
+                  <div className="flex flex-wrap items-end gap-2 border-t border-blue-100 bg-blue-50 py-3 pr-4"
+                    style={{ paddingLeft: pl + 28 }}>
+                    <div className="flex-1 min-w-28">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Navn</label>
+                      <input type="text" value={newSubcat.label} autoFocus
+                        onChange={e => setNewSubcat(s => ({ ...s, label: e.target.value }))}
+                        placeholder={`f.eks. ${depth === 0 ? "Spiker" : "Dykkspiker"}`}
+                        className="w-full rounded-lg border border-blue-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">GPV fra</label>
+                      <input type="number" value={newSubcat.varenr_start || ""}
+                        onChange={e => setNewSubcat(s => ({ ...s, varenr_start: parseInt(e.target.value) || 0 }))}
+                        className="w-20 rounded-lg border border-blue-300 px-2 py-1.5 text-sm text-right focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">GPV til</label>
+                      <input type="number" value={newSubcat.varenr_end || ""}
+                        onChange={e => setNewSubcat(s => ({ ...s, varenr_end: parseInt(e.target.value) || 0 }))}
+                        className="w-20 rounded-lg border border-blue-300 px-2 py-1.5 text-sm text-right focus:outline-none" />
+                    </div>
+                    <button onClick={() => addSubcategory(cat.id)} disabled={savingCat}
+                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                      {savingCat ? "…" : "Legg til"}
+                    </button>
+                    <button onClick={() => { setAddingSubcatTo(null); setCatError(""); }}
+                      className="text-xs text-gray-400 hover:text-gray-600 self-end pb-1.5">Avbryt</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setAddingSubcatTo(cat.id); setNewSubcat({ label: "", varenr_start: cat.varenr_start, varenr_end: cat.varenr_end ?? cat.varenr_start + 199 }); }}
+                    className="flex w-full items-center gap-1.5 border-t border-gray-50 py-1.5 pr-4 text-xs text-blue-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                    style={{ paddingLeft: pl + 28 }}>
+                    + Legg til underkategori
+                  </button>
+                )}
+              </div>
+            );
+          }
           return (
           <div className="space-y-3">
             {catError && (
@@ -505,153 +625,13 @@ export default function KatalogPage() {
             {catsLoading ? (
               <div className="rounded-xl border border-gray-200 bg-white py-12 text-center text-sm text-gray-400 shadow-sm">Laster…</div>
             ) : (
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
-                {rootCats.length === 0 && !showNewCat && (
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                {tree.length === 0 && !showNewCat && (
                   <div className="py-12 text-center text-sm text-gray-400">
                     Ingen kategorier ennå. Legg til din første kategori.
                   </div>
                 )}
-
-                {rootCats.map((cat, idx) => (
-                  <div key={cat.id}>
-                    {/* ── Root category row ── */}
-                    <div className="flex items-center gap-3 px-4 py-3 bg-gray-50/60">
-                      {/* Reorder */}
-                      <div className="flex flex-col gap-0.5 shrink-0">
-                        <button onClick={() => moveCategory(cat.id, "up")} disabled={idx === 0}
-                          className="rounded p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-20">
-                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
-                        </button>
-                        <button onClick={() => moveCategory(cat.id, "down")} disabled={idx === rootCats.length - 1}
-                          className="rounded p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-20">
-                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                        </button>
-                      </div>
-
-                      {editingCat === cat.id ? (
-                        <div className="flex flex-1 flex-wrap items-center gap-2">
-                          <input type="text" value={editCatLabel} onChange={e => setEditCatLabel(e.target.value)} autoFocus
-                            className="flex-1 min-w-32 rounded-lg border border-orange-300 px-2.5 py-1.5 text-sm focus:border-orange-500 focus:outline-none" placeholder="Kategorinavn" />
-                          <div className="flex items-center gap-1.5">
-                            <label className="text-xs text-gray-500 whitespace-nowrap">GPV start:</label>
-                            <input type="number" value={editCatStart} onChange={e => setEditCatStart(parseInt(e.target.value) || 0)}
-                              className="w-20 rounded-lg border border-orange-300 px-2 py-1.5 text-sm text-right focus:border-orange-500 focus:outline-none" />
-                          </div>
-                          <button onClick={() => saveCatEdit(cat.id)} disabled={savingCat}
-                            className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50">
-                            {savingCat ? "…" : "Lagre"}
-                          </button>
-                          <button onClick={() => setEditingCat(null)} className="text-xs text-gray-400 hover:text-gray-600">Avbryt</button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-1 items-center gap-3 min-w-0">
-                          <span className="font-semibold text-gray-800">{cat.label}</span>
-                          <span className="font-mono text-xs text-gray-400">GPV-{cat.varenr_start}+</span>
-                          <span className="text-xs text-gray-300">{(subcatMap[cat.id] ?? []).length} underkategorier</span>
-                        </div>
-                      )}
-
-                      {editingCat !== cat.id && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button onClick={() => { setEditingCat(cat.id); setEditCatLabel(cat.label); setEditCatStart(cat.varenr_start); setEditCatEnd(""); setCatError(""); }}
-                            className="text-xs text-gray-400 hover:text-orange-500">Rediger</button>
-                          <button onClick={() => deleteCategory(cat.id)} disabled={deletingCat === cat.id}
-                            className="text-xs text-gray-300 hover:text-red-500 disabled:opacity-50">
-                            {deletingCat === cat.id ? "…" : "Slett"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ── Subcategory rows ── */}
-                    {(subcatMap[cat.id] ?? []).map(sub => (
-                      <div key={sub.id} className="flex items-center gap-3 border-t border-gray-50 bg-white pl-12 pr-4 py-2.5">
-                        <div className="text-gray-200 shrink-0 text-sm">└</div>
-
-                        {editingCat === sub.id ? (
-                          <div className="flex flex-1 flex-wrap items-center gap-2">
-                            <input type="text" value={editCatLabel} onChange={e => setEditCatLabel(e.target.value)} autoFocus
-                              className="flex-1 min-w-28 rounded-lg border border-orange-300 px-2.5 py-1.5 text-sm focus:border-orange-500 focus:outline-none" />
-                            <div className="flex items-center gap-1.5">
-                              <label className="text-xs text-gray-500">Fra:</label>
-                              <input type="number" value={editCatStart} onChange={e => setEditCatStart(parseInt(e.target.value) || 0)}
-                                className="w-20 rounded-lg border border-orange-300 px-2 py-1.5 text-sm text-right focus:outline-none" />
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <label className="text-xs text-gray-500">Til:</label>
-                              <input type="number" value={editCatEnd} onChange={e => setEditCatEnd(parseInt(e.target.value) || "")}
-                                className="w-20 rounded-lg border border-orange-300 px-2 py-1.5 text-sm text-right focus:outline-none" placeholder="—" />
-                            </div>
-                            <button onClick={() => saveCatEdit(sub.id)} disabled={savingCat}
-                              className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50">
-                              {savingCat ? "…" : "Lagre"}
-                            </button>
-                            <button onClick={() => setEditingCat(null)} className="text-xs text-gray-400 hover:text-gray-600">Avbryt</button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-1 items-center gap-3 min-w-0">
-                            <span className="text-sm font-medium text-gray-700">{sub.label}</span>
-                            <span className="font-mono text-xs text-blue-400">
-                              GPV-{sub.varenr_start}{sub.varenr_end ? `–GPV-${sub.varenr_end}` : "+"}
-                            </span>
-                            {sub.varenr_end && (
-                              <span className="text-xs text-gray-400">{sub.varenr_end - sub.varenr_start + 1} plasser</span>
-                            )}
-                          </div>
-                        )}
-
-                        {editingCat !== sub.id && (
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button onClick={() => { setEditingCat(sub.id); setEditCatLabel(sub.label); setEditCatStart(sub.varenr_start); setEditCatEnd(sub.varenr_end ?? ""); setCatError(""); }}
-                              className="text-xs text-gray-400 hover:text-orange-500">Rediger</button>
-                            <button onClick={() => deleteCategory(sub.id)} disabled={deletingCat === sub.id}
-                              className="text-xs text-gray-300 hover:text-red-500 disabled:opacity-50">
-                              {deletingCat === sub.id ? "…" : "Slett"}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    {/* ── Add subcategory inline form ── */}
-                    {addingSubcatTo === cat.id ? (
-                      <div className="flex flex-wrap items-end gap-2 border-t border-blue-100 bg-blue-50 pl-12 pr-4 py-3">
-                        <div className="flex-1 min-w-28">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Navn</label>
-                          <input type="text" value={newSubcat.label} autoFocus
-                            onChange={e => setNewSubcat(s => ({ ...s, label: e.target.value }))}
-                            placeholder="f.eks. Spiker"
-                            className="w-full rounded-lg border border-blue-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">GPV fra</label>
-                          <input type="number" value={newSubcat.varenr_start || ""}
-                            onChange={e => setNewSubcat(s => ({ ...s, varenr_start: parseInt(e.target.value) || 0 }))}
-                            placeholder="1000"
-                            className="w-20 rounded-lg border border-blue-300 px-2 py-1.5 text-sm text-right focus:border-blue-500 focus:outline-none" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">GPV til</label>
-                          <input type="number" value={newSubcat.varenr_end || ""}
-                            onChange={e => setNewSubcat(s => ({ ...s, varenr_end: parseInt(e.target.value) || 0 }))}
-                            placeholder="1199"
-                            className="w-20 rounded-lg border border-blue-300 px-2 py-1.5 text-sm text-right focus:border-blue-500 focus:outline-none" />
-                        </div>
-                        <button onClick={() => addSubcategory(cat.id)} disabled={savingCat}
-                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-                          {savingCat ? "…" : "Legg til"}
-                        </button>
-                        <button onClick={() => { setAddingSubcatTo(null); setCatError(""); }}
-                          className="text-xs text-gray-400 hover:text-gray-600 self-end pb-1.5">Avbryt</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => { setAddingSubcatTo(cat.id); setNewSubcat({ label: "", varenr_start: cat.varenr_start, varenr_end: cat.varenr_start + 199 }); }}
-                        className="flex w-full items-center gap-2 border-t border-gray-50 pl-12 pr-4 py-2 text-xs text-blue-500 hover:bg-blue-50 transition-colors">
-                        + Legg til underkategori
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {tree.map(node => renderNode(node, 0, tree))}
 
                 {/* New root category form */}
                 {showNewCat && (

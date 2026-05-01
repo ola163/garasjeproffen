@@ -28,8 +28,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const sb = getSupabase();
 
   if (body.move === "up" || body.move === "down") {
-    // Only move root categories (parent_id IS NULL)
-    const { data: cats } = await sb.from("gp_categories").select("*").is("parent_id", null).order("sort_order");
+    // Move within the same sibling group (same parent_id level)
+    const { data: thisCat } = await sb.from("gp_categories").select("parent_id").eq("id", id).single();
+    let siblingsQuery = sb.from("gp_categories").select("*").order("sort_order");
+    if (thisCat?.parent_id) {
+      siblingsQuery = siblingsQuery.eq("parent_id", thisCat.parent_id);
+    } else {
+      siblingsQuery = siblingsQuery.is("parent_id", null);
+    }
+    const { data: cats } = await siblingsQuery;
     if (!cats) return NextResponse.json({ error: "Feil" }, { status: 500 });
 
     const idx = cats.findIndex(c => c.id === id);
