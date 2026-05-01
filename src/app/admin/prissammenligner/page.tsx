@@ -7,8 +7,6 @@ import * as XLSX from "xlsx";
 import Link from "next/link";
 import CatalogLinkWizard, { WizardResult } from "@/components/admin/CatalogLinkWizard";
 
-const DB_SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"];
-
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface ProjectLineItem {
@@ -245,6 +243,9 @@ function PrissammenlignInner() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
+  // Dynamic supplier list from DB + registry
+  const [dbSuppliers, setDbSuppliers] = useState<string[]>([]);
+
   // Project
   const [projectList, setProjectList] = useState<ProjectSummary[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -260,7 +261,7 @@ function PrissammenlignInner() {
 
   // File upload
   const [showUpload, setShowUpload] = useState(false);
-  const [pendingName, setPendingName] = useState(DB_SUPPLIERS[0]);
+  const [pendingName, setPendingName] = useState("");
   const [pending, setPending] = useState<PendingUpload | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -283,6 +284,18 @@ function PrissammenlignInner() {
       .then(d => setIsAdmin(d.isAdmin ?? false))
       .catch(() => setIsAdmin(false));
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/admin/prissammenligner/suppliers")
+      .then(r => r.json())
+      .then(d => {
+        const list: string[] = d.suppliers ?? [];
+        setDbSuppliers(list);
+        if (list.length > 0) setPendingName(prev => prev || list[0]);
+      })
+      .catch(() => {});
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -427,7 +440,7 @@ function PrissammenlignInner() {
   function closeWizard() {
     setWizardSource(null);
     setPending(null);
-    setPendingName(DB_SUPPLIERS[0]);
+    setPendingName(dbSuppliers[0] ?? "");
     setShowUpload(false);
   }
 
@@ -635,7 +648,10 @@ function PrissammenlignInner() {
                 <p className="text-xs text-gray-400 mb-2">Velg prosjekt først</p>
               )}
               <div className="space-y-2">
-                {DB_SUPPLIERS.map(sup => {
+                {dbSuppliers.length === 0 && (
+                  <p className="text-xs text-gray-400 animate-pulse">Laster leverandører…</p>
+                )}
+                {dbSuppliers.map(sup => {
                   const loaded = sources.some(s => s.id === `db-${sup}`);
                   const loading = dbLoading.includes(sup);
                   const count = sources.find(s => s.id === `db-${sup}`)?.rows.length;
@@ -708,7 +724,7 @@ function PrissammenlignInner() {
                       onChange={e => setPendingName(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-orange-400 focus:outline-none"
                     >
-                      {DB_SUPPLIERS.map(s => <option key={s} value={s}>{s}</option>)}
+                      {dbSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <input
@@ -838,7 +854,7 @@ function PrissammenlignInner() {
                     Legg til i sammenligning
                   </button>
                   <button
-                    onClick={() => { setPending(null); setPendingName(DB_SUPPLIERS[0]); }}
+                    onClick={() => { setPending(null); setPendingName(dbSuppliers[0] ?? ""); }}
                     className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-500 hover:bg-gray-50"
                   >
                     Avbryt
