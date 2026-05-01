@@ -19,15 +19,6 @@ async function isAdmin(req: NextRequest): Promise<boolean> {
   return false;
 }
 
-export const CATEGORY_RANGES: Record<string, [number, number]> = {
-  material:     [1000, 1999],
-  festemidler:  [2000, 2999],
-  isolasjon:    [3000, 3999],
-  membran:      [4000, 4999],
-  ventilasjon:  [5000, 5999],
-  elektro:      [6000, 6999],
-  diverse:      [9000, 9999],
-};
 
 // GET /api/admin/katalog?q=&category=&limit=200&offset=0
 export async function GET(req: NextRequest) {
@@ -66,13 +57,13 @@ export async function POST(req: NextRequest) {
   const sb = getSupabase();
 
   if (!varenr?.trim()) {
-    const [start, end] = CATEGORY_RANGES[category] ?? [9000, 9999];
-    const { data: existing } = await sb
-      .from("gp_products")
-      .select("varenr")
-      .like("varenr", "GPV-%")
-      .order("varenr", { ascending: false });
+    // Look up varenr_start for this category from gp_categories
+    const { data: cat } = await sb.from("gp_categories").select("varenr_start").eq("label", category).single();
+    const start = cat?.varenr_start ?? 9000;
 
+    // Find next available number in this category's range (start to start+999)
+    const end = start + 999;
+    const { data: existing } = await sb.from("gp_products").select("varenr").like("varenr", "GPV-%");
     let maxNum = start - 1;
     for (const row of existing ?? []) {
       const num = parseInt((row.varenr as string).replace("GPV-", ""));

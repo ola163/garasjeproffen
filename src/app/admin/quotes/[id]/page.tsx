@@ -20,15 +20,6 @@ interface GpProduct {
   description?: string;
 }
 
-const GP_CATEGORIES: { key: string; label: string }[] = [
-  { key: "material",    label: "Material" },
-  { key: "festemidler", label: "Festemidler" },
-  { key: "isolasjon",   label: "Isolasjon" },
-  { key: "membran",     label: "Membran" },
-  { key: "ventilasjon", label: "Ventilasjon" },
-  { key: "elektro",     label: "Elektro" },
-  { key: "diverse",     label: "Diverse" },
-];
 
 function AdjInput({ value, type, onValue, onType, color }: {
   value: number; type: "kr" | "pst" | undefined;
@@ -180,6 +171,7 @@ export default function QuoteDetailPage() {
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogCategory, setCatalogCategory] = useState("");
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogCategories, setCatalogCategories] = useState<{ id: string; label: string }[]>([]);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -402,6 +394,10 @@ export default function QuoteDetailPage() {
 
   useEffect(() => {
     if (!catalogModal) return;
+    // Fetch categories once on first open
+    if (catalogCategories.length === 0) {
+      fetch("/api/admin/katalog/kategorier").then(r => r.json()).then(d => setCatalogCategories(d.data ?? [])).catch(() => {});
+    }
     setCatalogLoading(true);
     const params = new URLSearchParams();
     if (catalogSearch) params.set("q", catalogSearch);
@@ -411,6 +407,7 @@ export default function QuoteDetailPage() {
       .then(d => setCatalogProducts(d.data ?? []))
       .catch(() => {})
       .finally(() => setCatalogLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogModal, catalogSearch, catalogCategory]);
 
   function updateLineItemInSection(sIdx: number, iIdx: number, field: keyof LineItem, value: unknown) {
@@ -1863,11 +1860,11 @@ export default function QuoteDetailPage() {
                 >
                   Alle
                 </button>
-                {GP_CATEGORIES.map(cat => (
+                {catalogCategories.map(cat => (
                   <button
-                    key={cat.key}
-                    onClick={() => setCatalogCategory(cat.key === catalogCategory ? "" : cat.key)}
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${catalogCategory === cat.key ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                    key={cat.id}
+                    onClick={() => setCatalogCategory(cat.label === catalogCategory ? "" : cat.label)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${catalogCategory === cat.label ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                   >
                     {cat.label}
                   </button>
