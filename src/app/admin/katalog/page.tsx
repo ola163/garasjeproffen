@@ -605,7 +605,7 @@ export default function KatalogPage() {
                     <button onClick={() => { setAddingSubcatTo(null); setCatError(""); }}
                       className="text-xs text-gray-400 hover:text-gray-600 self-end pb-1.5">Avbryt</button>
                   </div>
-                ) : (
+                ) : depth < 2 && (
                   <button
                     onClick={() => { setAddingSubcatTo(cat.id); setNewSubcat({ label: "", varenr_start: cat.varenr_start, varenr_end: cat.varenr_end ?? cat.varenr_start + 199 }); }}
                     className="flex w-full items-center gap-1.5 border-t border-gray-50 py-1.5 pr-4 text-xs text-blue-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
