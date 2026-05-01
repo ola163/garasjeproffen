@@ -253,6 +253,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
               searchHits={searchHits[currentOriginalIdx] ?? []}
               searchLoading={searchLoading[currentOriginalIdx] ?? false}
               categories={categories}
+              authHeaders={authHeaders}
               setDecision={setReviewDecision}
               onSearchChange={(q) => {
                 setSearchQuery(prev => ({ ...prev, [currentOriginalIdx]: q }));
@@ -385,15 +386,52 @@ interface ItemCardProps {
   searchHits: GpProduct[];
   searchLoading: boolean;
   categories: GpCategory[];
+  authHeaders: Record<string, string>;
   setDecision: (idx: number, action: ItemAction | null) => void;
   onSearchChange: (q: string) => void;
 }
 
-function ItemCard({ idx, item, result, decision, searchQuery, searchHits, searchLoading, categories, setDecision, onSearchChange }: ItemCardProps) {
+const BROWSER_LIMIT = 20;
+
+function ItemCard({ idx, item, result, decision, searchQuery, searchHits, searchLoading, categories, authHeaders, setDecision, onSearchChange }: ItemCardProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState(item.name);
   const [newCategory, setNewCategory] = useState("");
   const [newUnit, setNewUnit] = useState(item.enhet ?? "stk");
+
+  // Catalog browser
+  const [showBrowser, setShowBrowser] = useState(false);
+  const [browserCategory, setBrowserCategory] = useState("");
+  const [browserSearch, setBrowserSearch] = useState("");
+  const [browserProducts, setBrowserProducts] = useState<GpProduct[]>([]);
+  const [browserLoading, setBrowserLoading] = useState(false);
+  const [browserOffset, setBrowserOffset] = useState(0);
+  const [browserHasMore, setBrowserHasMore] = useState(false);
+
+  useEffect(() => {
+    if (!showBrowser) return;
+    let cancelled = false;
+    setBrowserLoading(true);
+    const delay = browserSearch ? 300 : 0;
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ limit: String(BROWSER_LIMIT), offset: String(browserOffset) });
+        if (browserCategory) params.set("category", browserCategory);
+        if (browserSearch.trim()) params.set("q", browserSearch.trim());
+        const res = await fetch(`/api/admin/katalog?${params}`, { headers: authHeaders });
+        const json = await res.json();
+        if (!cancelled) {
+          const data: GpProduct[] = json.data ?? [];
+          setBrowserProducts(prev => browserOffset === 0 ? data : [...prev, ...data]);
+          setBrowserHasMore(data.length === BROWSER_LIMIT);
+        }
+      } finally {
+        if (!cancelled) setBrowserLoading(false);
+      }
+    }, delay);
+    return () => { cancelled = true; clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBrowser, browserCategory, browserSearch, browserOffset]);
 
   useEffect(() => {
     if (!newCategory && categories[0]) setNewCategory(categories[0].label);
@@ -560,6 +598,67 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
               </div>
             )}
           </div>
+
+          {/* Browse full catalog */}
+          {!showBrowser ? (
+            <button
+              onClick={() => { setShowBrowser(true); setBrowserOffset(0); setBrowserProducts([]); }}
+              className="w-full rounded-xl border-2 border-dashed border-gray-200 py-2.5 text-xs font-medium text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+            >
+              Bla gjennom hele katalogen
+            </button>
+          ) : (
+            <div className="rounded-xl border-2 border-gray-200 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Katalog</p>
+                <button onClick={() => setShowBrowser(false)} className="text-xs text-gray-400 hover:text-gray-600">Lukk</button>
+              </div>
+              <select
+                value={browserCategory}
+                onChange={e => { setBrowserCategory(e.target.value); setBrowserOffset(0); setBrowserProducts([]); }}
+                className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:border-blue-400"
+              >
+                <option value="">Alle kategorier</option>
+                {categories.map(c => <option key={c.id} value={c.label}>{c.label}</option>)}
+              </select>
+              <input
+                type="text"
+                placeholder="Søk i katalogen…"
+                value={browserSearch}
+                onChange={e => { setBrowserSearch(e.target.value); setBrowserOffset(0); setBrowserProducts([]); }}
+                className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:border-blue-400"
+              />
+              <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5">
+                {browserProducts.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => setDecision(idx, { type: "link", gpId: p.id, gpVarenr: p.varenr })}
+                    className="flex w-full items-center gap-2 rounded-lg border border-gray-100 px-3 py-2 text-left hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-800 truncate">{p.name}</p>
+                      <p className="font-mono text-[10px] text-gray-400">{p.varenr}</p>
+                    </div>
+                    <span className="shrink-0 text-[10px] font-semibold text-blue-600">Koble →</span>
+                  </button>
+                ))}
+                {!browserLoading && browserProducts.length === 0 && (
+                  <p className="py-3 text-center text-xs text-gray-400">Ingen treff</p>
+                )}
+                {browserLoading && (
+                  <p className="py-3 text-center text-xs text-gray-400 animate-pulse">Laster…</p>
+                )}
+              </div>
+              {browserHasMore && !browserLoading && (
+                <button
+                  onClick={() => setBrowserOffset(o => o + BROWSER_LIMIT)}
+                  className="w-full rounded-lg border border-gray-200 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
+                >
+                  Last inn flere
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Create new GPV item */}
           {!showCreate ? (
