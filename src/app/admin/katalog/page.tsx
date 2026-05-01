@@ -36,6 +36,7 @@ type LinkMap = Record<string, LinkState>;
 interface CatNode { cat: GpCategory; children: CatNode[] }
 
 const DB_SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"];
+const SUPPLIER_ABBR: Record<string, string> = { Optimera: "Opt", XLBygg: "XL", "Coop Obs Bygg": "Coop", Neumann: "Neu" };
 
 const EMPTY_PRODUCT = { varenr: "", name: "", category: "", unit: "", description: "" };
 const EMPTY_CAT = { label: "", varenr_start: 1000 };
@@ -146,6 +147,12 @@ export default function KatalogPage() {
   const [deleting, setDeleting] = useState(false);
   const [supplierLinks, setSupplierLinks] = useState<LinkMap>({ ...EMPTY_LINKS });
 
+  // ── Supplier links map (all products) ──────────────────────────────────
+  const [linksMap, setLinksMap] = useState<Record<string, Record<string, string>>>({});
+  const [linkModalProduct, setLinkModalProduct] = useState<GpProduct | null>(null);
+  const [linkModalLinks, setLinkModalLinks] = useState<LinkMap>({ ...EMPTY_LINKS });
+  const [savingLinkModal, setSavingLinkModal] = useState(false);
+
   // ── Import tab ──────────────────────────────────────────────────────────
   const [importSupplier, setImportSupplier] = useState(DB_SUPPLIERS[0]);
   const [importSearch, setImportSearch] = useState("");
@@ -185,8 +192,21 @@ export default function KatalogPage() {
     setProdsLoading(false);
   }, [searchQ, categoryFilter]);
 
+  // ── Load all supplier links ────────────────────────────────────────────
+  const loadLinks = useCallback(async () => {
+    const res = await fetch("/api/admin/katalog/links");
+    const json = await res.json();
+    const map: Record<string, Record<string, string>> = {};
+    for (const l of json.data ?? []) {
+      if (!map[l.gp_varenr]) map[l.gp_varenr] = {};
+      map[l.gp_varenr][l.supplier] = l.supplier_varenr;
+    }
+    setLinksMap(map);
+  }, []);
+
   useEffect(() => { loadCats(); }, [loadCats]);
   useEffect(() => { loadProducts(); }, [loadProducts]);
+  useEffect(() => { loadLinks(); }, [loadLinks]);
 
   // ── Category actions ───────────────────────────────────────────────────
   async function moveCategory(id: string, dir: "up" | "down") {
@@ -335,6 +355,45 @@ export default function KatalogPage() {
     setDeleting(false);
     setDeleteId(null);
     loadProducts();
+  }
+
+  // ── Supplier link modal ────────────────────────────────────────────────
+  async function openLinkModal(p: GpProduct) {
+    const existing = linksMap[p.varenr] ?? {};
+    const map: LinkMap = { ...EMPTY_LINKS };
+    for (const sup of DB_SUPPLIERS) {
+      if (existing[sup]) map[sup] = { varenr: existing[sup], name: "" };
+    }
+    setLinkModalLinks(map);
+    setLinkModalProduct(p);
+    // Fetch descriptions in background
+    await Promise.all(
+      DB_SUPPLIERS.map(async (sup) => {
+        const sv = existing[sup];
+        if (!sv) return;
+        const r = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(sup)}&q=${encodeURIComponent(sv)}&limit=1`);
+        const j = await r.json();
+        const hit = j.data?.[0];
+        if (hit) setLinkModalLinks(prev => ({
+          ...prev,
+          [sup]: { varenr: sv, name: [hit.varebenevnelse, hit.dimensjon].filter(Boolean).join(" ") },
+        }));
+      })
+    );
+  }
+
+  async function saveLinkModal() {
+    if (!linkModalProduct) return;
+    setSavingLinkModal(true);
+    const links = DB_SUPPLIERS.map(s => ({ supplier: s, supplier_varenr: linkModalLinks[s]?.varenr ?? "" }));
+    await fetch(`/api/admin/katalog/${linkModalProduct.id}/links`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ links }),
+    });
+    setSavingLinkModal(false);
+    setLinkModalProduct(null);
+    loadLinks();
   }
 
   // ── Import tab search ──────────────────────────────────────────────────
@@ -720,27 +779,45 @@ export default function KatalogPage() {
                       <th className="px-4 py-3 text-left font-medium text-gray-500 w-32">Kategori</th>
                       <th className="px-4 py-3 text-left font-medium text-gray-500 w-20">Enhet</th>
                       <th className="px-4 py-3 text-left font-medium text-gray-500 hidden lg:table-cell">Beskrivelse</th>
-                      <th className="px-4 py-3 w-24" />
+                      <th className="px-4 py-3 text-left font-medium text-gray-500 w-36 hidden md:table-cell">Leverandører</th>
+                      <th className="px-4 py-3 w-28" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {products.map(p => (
-                      <tr key={p.id} className="hover:bg-gray-50/50">
-                        <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{p.varenr}</td>
-                        <td className="px-4 py-3 text-gray-800 font-medium">{p.name}</td>
-                        <td className="px-4 py-3">
-                          <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">{p.category}</span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 text-xs">{p.unit ?? "—"}</td>
-                        <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate hidden lg:table-cell">{p.description ?? ""}</td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => openEdit(p)} className="text-xs text-gray-400 hover:text-orange-500">Rediger</button>
-                            <button onClick={() => setDeleteId(p.id)} className="text-xs text-gray-300 hover:text-red-500">Slett</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {products.map(p => {
+                      const pLinks = linksMap[p.varenr] ?? {};
+                      return (
+                        <tr key={p.id} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{p.varenr}</td>
+                          <td className="px-4 py-3 text-gray-800 font-medium">{p.name}</td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">{p.category}</span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 text-xs">{p.unit ?? "—"}</td>
+                          <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate hidden lg:table-cell">{p.description ?? ""}</td>
+                          <td className="px-4 py-3 hidden md:table-cell">
+                            <div className="flex gap-1 flex-wrap">
+                              {DB_SUPPLIERS.map(s => (
+                                <span
+                                  key={s}
+                                  title={pLinks[s] ? `${s}: ${pLinks[s]}` : s}
+                                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${pLinks[s] ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-300"}`}
+                                >
+                                  {SUPPLIER_ABBR[s] ?? s.slice(0, 3)}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={() => openLinkModal(p)} className="text-xs text-blue-400 hover:text-blue-600">Koblinger</button>
+                              <button onClick={() => openEdit(p)} className="text-xs text-gray-400 hover:text-orange-500">Rediger</button>
+                              <button onClick={() => setDeleteId(p.id)} className="text-xs text-gray-300 hover:text-red-500">Slett</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -1092,6 +1169,64 @@ export default function KatalogPage() {
                 {importSaving ? "Lagrer…" : selectedGpId ? "Knytt til valgt GPV-vare" : "Opprett ny GPV-vare"}
               </button>
               <button onClick={() => setImportModal(null)} className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50">
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Supplier link modal ─────────────────────────────────────────── */}
+      {linkModalProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="flex w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
+            <div className="border-b border-gray-100 px-6 py-4">
+              <h2 className="text-base font-semibold text-gray-900">Leverandørkoblinger</h2>
+              <p className="mt-0.5 text-xs text-gray-400">
+                <span className="font-mono font-semibold text-orange-600">{linkModalProduct.varenr}</span>
+                <span className="ml-2">{linkModalProduct.name}</span>
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <p className="mb-3 text-xs text-gray-400">
+                Søk på varenr eller navn fra leverandørens prisdatabase for å knytte dem til dette GPV-nummeret.
+              </p>
+              <div className="rounded-lg border border-gray-200 overflow-visible">
+                {DB_SUPPLIERS.map((sup, i) => (
+                  <div key={sup} className={`flex items-start gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-gray-100" : ""}`}>
+                    <span className="w-28 shrink-0 pt-1.5 text-xs font-medium text-gray-600">{sup}</span>
+                    <SupplierVarenrPicker
+                      supplier={sup}
+                      varenr={linkModalLinks[sup]?.varenr ?? ""}
+                      name={linkModalLinks[sup]?.name ?? ""}
+                      onChange={(v, n) => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: v, name: n } }))}
+                    />
+                    {linkModalLinks[sup]?.varenr && (
+                      <button
+                        type="button"
+                        onClick={() => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: "", name: "" } }))}
+                        className="shrink-0 pt-1.5 text-gray-300 hover:text-red-400"
+                        title="Fjern kobling"
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                onClick={saveLinkModal}
+                disabled={savingLinkModal}
+                className="flex-1 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                {savingLinkModal ? "Lagrer…" : "Lagre koblinger"}
+              </button>
+              <button
+                onClick={() => setLinkModalProduct(null)}
+                className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50"
+              >
                 Avbryt
               </button>
             </div>
