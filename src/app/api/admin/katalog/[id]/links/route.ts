@@ -65,3 +65,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({ success: true, updated: toInsert.length });
 }
+
+// PATCH /api/admin/katalog/[id]/links
+// Body: { supplier: string; supplier_varenr: string }
+// Upserts a single supplier link without touching other suppliers' links.
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isAdmin(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  const { supplier, supplier_varenr } = await req.json() as { supplier: string; supplier_varenr: string };
+
+  const sb = getSupabase();
+  const { data: product } = await sb.from("gp_products").select("varenr").eq("id", id).single();
+  if (!product) return NextResponse.json({ error: "Ikke funnet" }, { status: 404 });
+
+  const trimmed = supplier_varenr.trim();
+  if (!trimmed) {
+    await sb.from("gp_product_supplier_links").delete()
+      .eq("gp_varenr", product.varenr as string).eq("supplier", supplier);
+    return NextResponse.json({ success: true });
+  }
+
+  const { error } = await sb.from("gp_product_supplier_links").upsert(
+    { gp_varenr: product.varenr as string, supplier, supplier_varenr: trimmed },
+    { onConflict: "gp_varenr,supplier" }
+  );
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}

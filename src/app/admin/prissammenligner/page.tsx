@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 // @ts-ignore
 import * as XLSX from "xlsx";
 import Link from "next/link";
+import CatalogLinkWizard from "@/components/admin/CatalogLinkWizard";
 
 const DB_SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"];
 
@@ -156,6 +157,11 @@ function formatPrice(n: number | undefined): string {
   return n.toLocaleString("nb-NO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function rowKey(varenr: string, beskrivelse: string): string {
+  const v = varenr.trim().toLowerCase();
+  return v || `#${beskrivelse.trim().toLowerCase().slice(0, 80)}`;
+}
+
 function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): ComparisonRow[] {
   // Build rows in order: project items first, then uploaded-source-only rows
   const seen = new Set<string>();
@@ -163,7 +169,7 @@ function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): Co
   const rowDefs: RowDef[] = [];
 
   for (const item of projectItems) {
-    const key = item.varenr.trim().toLowerCase();
+    const key = rowKey(item.varenr, item.description);
     if (seen.has(key)) continue;
     seen.add(key);
     rowDefs.push({ key, varenr: item.varenr.trim(), beskrivelse: item.description, qty: item.quantity ?? 1, enhet: item.enhet, dimensjon: item.dimensjon, fromProject: true, internalPrice: item.amount });
@@ -173,7 +179,7 @@ function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): Co
   for (const src of sources) {
     if (src.fromDb) continue;
     for (const row of src.rows) {
-      const key = row.varenr.trim().toLowerCase();
+      const key = rowKey(row.varenr, row.beskrivelse);
       if (!key || seen.has(key)) continue;
       seen.add(key);
       rowDefs.push({ key, varenr: row.varenr.trim(), beskrivelse: row.beskrivelse, qty: 1, enhet: row.enhet, dimensjon: row.dimensjon, fromProject: false });
@@ -183,7 +189,7 @@ function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): Co
   return rowDefs.map(({ key, varenr, beskrivelse, qty, enhet, dimensjon, fromProject, internalPrice }) => {
     const cells: Record<string, number | undefined> = {};
     for (const src of sources) {
-      const match = src.rows.find(r => r.varenr.trim().toLowerCase() === key);
+      const match = src.rows.find(r => rowKey(r.varenr, r.beskrivelse) === key);
       if (match) cells[src.id] = match.pris;
     }
     const sortedByPrice = sources
@@ -262,6 +268,9 @@ function PrissammenlignInner() {
   // Table
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "diff" | "missing">("all");
+
+  // Wizard after upload
+  const [wizardSource, setWizardSource] = useState<{ name: string; rows: PriceRow[] } | null>(null);
 
   // Apply modal
   const [applySource, setApplySource] = useState<Source | null>(null);
@@ -415,6 +424,15 @@ function PrissammenlignInner() {
     }
   }
 
+  function commitRows(name: string, rows: PriceRow[]) {
+    const id = `upload-${Date.now()}`;
+    setSources(prev => [...prev, { id, name, rows }]);
+    setWizardSource(null);
+    setPending(null);
+    setPendingName(DB_SUPPLIERS[0]);
+    setShowUpload(false);
+  }
+
   function commitUpload() {
     if (!pending) return;
     const rows = pending.isPdf
@@ -424,11 +442,18 @@ function PrissammenlignInner() {
       alert("Ingen gyldige rader funnet. Sjekk kolonnetilordning.");
       return;
     }
-    const id = `upload-${Date.now()}`;
-    setSources(prev => [...prev, { id, name: pending.name || "Ukjent", rows }]);
-    setPending(null);
-    setPendingName(DB_SUPPLIERS[0]);
-    setShowUpload(false);
+    // Show wizard to link supplier varenrs → GPV varenrs
+    setWizardSource({ name: pending.name || "Ukjent", rows });
+  }
+
+  function handleWizardDone(links: { supplier_varenr: string; gp_varenr: string }[]) {
+    if (!wizardSource) return;
+    const linkMap = new Map(links.map(l => [l.supplier_varenr, l.gp_varenr]));
+    const translatedRows = wizardSource.rows.map(r => ({
+      ...r,
+      varenr: r.varenr ? (linkMap.get(r.varenr) ?? r.varenr) : r.varenr,
+    }));
+    commitRows(wizardSource.name, translatedRows);
   }
 
   function removeSource(id: string) {
@@ -870,7 +895,7 @@ function PrissammenlignInner() {
                         return (
                           <tr key={row.varenr} className={`hover:bg-gray-50/50 ${!row.fromProject ? "bg-blue-50/30 italic" : ""}`}>
                             <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-mono text-xs text-gray-500">
-                              {row.varenr}
+                              {row.varenr || <span className="text-gray-300 not-italic">—</span>}
                             </td>
                             <td className="px-3 py-2.5 text-gray-800">
                               <span className="line-clamp-2 text-xs">{row.beskrivelse}</span>
@@ -938,6 +963,19 @@ function PrissammenlignInner() {
           </div>
         </div>
       </div>
+
+      {/* Catalog link wizard after upload */}
+      {wizardSource && (
+        <CatalogLinkWizard
+          supplier={wizardSource.name}
+          items={wizardSource.rows
+            .filter(r => r.varenr)
+            .map(r => ({ varenr: r.varenr, name: r.beskrivelse, dimensjon: r.dimensjon, nettopris: r.pris }))}
+          onDone={handleWizardDone}
+          onCancel={() => commitRows(wizardSource.name, wizardSource.rows)}
+          cancelLabel="Hopp over – last opp uten kobling"
+        />
+      )}
 
       {/* Apply modal */}
       {applySource && selectedProject && (
