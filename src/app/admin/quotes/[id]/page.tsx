@@ -386,10 +386,14 @@ export default function QuoteDetailPage() {
       : s));
   }
 
-  function addCatalogItem(sIdx: number, product: GpProduct) {
+  async function addCatalogItem(sIdx: number, product: GpProduct) {
+    const section = offerSections[sIdx];
+    const newItemIdx = section?.line_items.length ?? 0;
     const newItem: LineItem = { description: product.name, amount: 0, quantity: 1, varenr: product.varenr, dimensjon: "", enhet: product.unit ?? "" };
     setOfferSections(prev => prev.map((s, i) => i === sIdx ? { ...s, line_items: [...s.line_items, newItem] } : s));
     setCatalogModal(null);
+    // Auto-fetch price from supplier links
+    await lookupPriceForItem(sIdx, newItemIdx, product.varenr);
   }
 
   useEffect(() => {

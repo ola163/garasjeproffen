@@ -312,18 +312,21 @@ export default function KatalogPage() {
   useEffect(() => {
     if (tab !== "importer") return;
     if (importTimerRef.current) clearTimeout(importTimerRef.current);
-    if (!importSearch.trim()) { setImportResults([]); setImportTotal(0); return; }
+    // Debounce typed queries; load immediately on supplier change or tab open (no query)
+    const delay = importSearch.trim() ? 280 : 0;
     importTimerRef.current = setTimeout(async () => {
       setImportLoading(true);
       try {
-        const res = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(importSupplier)}&q=${encodeURIComponent(importSearch)}&limit=50`);
+        const params = new URLSearchParams({ supplier: importSupplier, limit: "50" });
+        if (importSearch.trim()) params.set("q", importSearch.trim());
+        const res = await fetch(`/api/admin/supplier-prices?${params}`);
         const json = await res.json();
         setImportResults(json.data ?? []);
         setImportTotal(json.count ?? 0);
       } finally {
         setImportLoading(false);
       }
-    }, 280);
+    }, delay);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importSearch, importSupplier, tab]);
 
@@ -702,59 +705,56 @@ export default function KatalogPage() {
               />
             </div>
 
-            {importSearch ? (
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-                {importLoading ? (
-                  <div className="py-12 text-center text-sm text-gray-400">Søker…</div>
-                ) : importResults.length === 0 ? (
-                  <div className="py-12 text-center text-sm text-gray-400">Ingen treff</div>
-                ) : (
-                  <>
-                    {importTotal > 50 && (
-                      <p className="border-b border-gray-50 px-4 py-2 text-xs text-gray-400">Viser 50 av {importTotal} treff — skriv mer for å avgrense</p>
-                    )}
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-gray-50 text-xs">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-medium text-gray-500 w-28">Varenr</th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-500">Navn</th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-500 w-28">Dimensjon</th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-500 w-16">Enhet</th>
-                          <th className="px-4 py-3 text-right font-medium text-gray-500 w-24">Nettopris</th>
-                          <th className="px-4 py-3 w-32" />
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              {importLoading ? (
+                <div className="py-12 text-center text-sm text-gray-400">Laster…</div>
+              ) : importResults.length === 0 ? (
+                <div className="py-12 text-center text-sm text-gray-400">
+                  {importSearch ? "Ingen treff" : `Ingen varer funnet for ${importSupplier}`}
+                </div>
+              ) : (
+                <>
+                  <p className="border-b border-gray-50 px-4 py-2 text-xs text-gray-400">
+                    {importSearch
+                      ? `${importTotal ?? importResults.length} treff${(importTotal ?? 0) > 50 ? " — skriv mer for å avgrense" : ""}`
+                      : `Viser de første 50 varene fra ${importSupplier} — søk for å filtrere`}
+                  </p>
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-xs">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-medium text-gray-500 w-28">Varenr</th>
+                        <th className="px-4 py-3 text-left font-medium text-gray-500">Navn</th>
+                        <th className="px-4 py-3 text-left font-medium text-gray-500 w-28">Dimensjon</th>
+                        <th className="px-4 py-3 text-left font-medium text-gray-500 w-16">Enhet</th>
+                        <th className="px-4 py-3 text-right font-medium text-gray-500 w-24">Nettopris</th>
+                        <th className="px-4 py-3 w-32" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {importResults.map(hit => (
+                        <tr key={hit.varenr} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-3 font-mono text-xs text-gray-600">{hit.varenr}</td>
+                          <td className="px-4 py-3 text-gray-800">{hit.varebenevnelse}</td>
+                          <td className="px-4 py-3 text-xs text-gray-400">{hit.dimensjon ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-gray-400">{hit.enhet ?? "—"}</td>
+                          <td className="px-4 py-3 text-right text-xs text-gray-600">
+                            {hit.nettopris != null ? `${hit.nettopris.toLocaleString("nb-NO")} kr` : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => openImportModal(hit)}
+                              className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600"
+                            >
+                              Importer →
+                            </button>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {importResults.map(hit => (
-                          <tr key={hit.varenr} className="hover:bg-gray-50/50">
-                            <td className="px-4 py-3 font-mono text-xs text-gray-600">{hit.varenr}</td>
-                            <td className="px-4 py-3 text-gray-800">{hit.varebenevnelse}</td>
-                            <td className="px-4 py-3 text-xs text-gray-400">{hit.dimensjon ?? "—"}</td>
-                            <td className="px-4 py-3 text-xs text-gray-400">{hit.enhet ?? "—"}</td>
-                            <td className="px-4 py-3 text-right text-xs text-gray-600">
-                              {hit.nettopris != null ? `${hit.nettopris.toLocaleString("nb-NO")} kr` : "—"}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => openImportModal(hit)}
-                                className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600"
-                              >
-                                Importer →
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-gray-200 bg-white py-16 text-center shadow-sm">
-                <p className="text-sm font-medium text-gray-500">Søk i {importSupplier}s prisdatabase</p>
-                <p className="mt-1 text-xs text-gray-400">Finn varer du vil legge inn i GP-katalogen</p>
-              </div>
-            )}
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -898,7 +898,7 @@ export default function KatalogPage() {
                       className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm focus:border-orange-400 focus:outline-none"
                     >
                       <option value="">Velg kategori</option>
-                      {categories.map(c => <option key={c.id} value={c.label}>{c.label}</option>)}
+                      {categories.map(c => <option key={c.id} value={c.label}>{c.label} (GPV-{c.varenr_start}–{c.varenr_start + 999})</option>)}
                     </select>
                   </div>
                   <div>
