@@ -269,8 +269,8 @@ function PrissammenlignInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "diff" | "missing">("all");
 
-  // Wizard after upload
-  const [wizardSource, setWizardSource] = useState<{ name: string; rows: PriceRow[] } | null>(null);
+  // Wizard after upload — sourceId set when re-linking an existing committed source
+  const [wizardSource, setWizardSource] = useState<{ name: string; rows: PriceRow[]; sourceId?: string } | null>(null);
 
   // Apply modal
   const [applySource, setApplySource] = useState<Source | null>(null);
@@ -424,9 +424,7 @@ function PrissammenlignInner() {
     }
   }
 
-  function commitRows(name: string, rows: PriceRow[]) {
-    const id = `upload-${Date.now()}`;
-    setSources(prev => [...prev, { id, name, rows }]);
+  function closeWizard() {
     setWizardSource(null);
     setPending(null);
     setPendingName(DB_SUPPLIERS[0]);
@@ -442,8 +440,14 @@ function PrissammenlignInner() {
       alert("Ingen gyldige rader funnet. Sjekk kolonnetilordning.");
       return;
     }
-    // Show wizard to link supplier varenrs → GPV varenrs
     setWizardSource({ name: pending.name || "Ukjent", rows });
+  }
+
+  function openWizardForSource(source: Source) {
+    // Only rows that haven't been linked to a GPV varenr yet
+    const unlinked = source.rows.filter(r => !r.varenr.startsWith("GPV-"));
+    if (unlinked.length === 0) return;
+    setWizardSource({ name: source.name, rows: unlinked, sourceId: source.id });
   }
 
   function handleWizardDone(results: WizardResult[]) {
@@ -453,7 +457,24 @@ function PrissammenlignInner() {
       ...r,
       varenr: indexMap.get(idx) ?? r.varenr,
     }));
-    commitRows(wizardSource.name, translatedRows);
+
+    if (wizardSource.sourceId) {
+      // Merge translated rows back into the existing source
+      setSources(prev => prev.map(s => {
+        if (s.id !== wizardSource.sourceId) return s;
+        // Build a lookup of wizard rows by original varenr+description key
+        const wizardKeySet = new Set(
+          wizardSource.rows.map(r => rowKey(r.varenr, r.beskrivelse))
+        );
+        const kept = s.rows.filter(r => !wizardKeySet.has(rowKey(r.varenr, r.beskrivelse)));
+        return { ...s, rows: [...kept, ...translatedRows] };
+      }));
+      closeWizard();
+    } else {
+      // New upload — add as a new source
+      setSources(prev => [...prev, { id: `upload-${Date.now()}`, name: wizardSource.name, rows: translatedRows }]);
+      closeWizard();
+    }
   }
 
   function removeSource(id: string) {
@@ -654,15 +675,28 @@ function PrissammenlignInner() {
                 <p className="text-xs text-gray-400">Ingen tilbud lastet opp.</p>
               )}
               <div className="space-y-2">
-                {sources.filter(s => !s.fromDb).map(s => (
-                  <div key={s.id} className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-700">{s.name}</p>
-                      <p className="text-xs text-gray-400">{s.rows.length} varer</p>
+                {sources.filter(s => !s.fromDb).map(s => {
+                  const unlinkedCount = s.rows.filter(r => !r.varenr.startsWith("GPV-")).length;
+                  return (
+                    <div key={s.id} className="rounded-lg border border-gray-100 bg-gray-50 p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-gray-700">{s.name}</p>
+                          <p className="text-xs text-gray-400">{s.rows.length} varer{unlinkedCount > 0 ? ` · ${unlinkedCount} ukoblet` : ""}</p>
+                        </div>
+                        <button onClick={() => removeSource(s.id)} className="shrink-0 text-gray-300 hover:text-red-500 text-xs">✕</button>
+                      </div>
+                      {unlinkedCount > 0 && (
+                        <button
+                          onClick={() => openWizardForSource(s)}
+                          className="mt-1.5 w-full rounded-md bg-blue-50 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100"
+                        >
+                          Knytt {unlinkedCount} varenr →
+                        </button>
+                      )}
                     </div>
-                    <button onClick={() => removeSource(s.id)} className="shrink-0 text-gray-300 hover:text-red-500">✕</button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {showUpload && (
@@ -970,8 +1004,17 @@ function PrissammenlignInner() {
           supplier={wizardSource.name}
           items={wizardSource.rows.map(r => ({ varenr: r.varenr, name: r.beskrivelse, dimensjon: r.dimensjon, enhet: r.enhet, nettopris: r.pris }))}
           onDone={handleWizardDone}
-          onCancel={() => commitRows(wizardSource.name, wizardSource.rows)}
-          cancelLabel="Hopp over – last opp uten kobling"
+          onCancel={() => {
+            if (wizardSource.sourceId) {
+              // Re-linking existing source — just close, don't touch source rows
+              closeWizard();
+            } else {
+              // New upload — commit as-is without any translations
+              setSources(prev => [...prev, { id: `upload-${Date.now()}`, name: wizardSource.name, rows: wizardSource.rows }]);
+              closeWizard();
+            }
+          }}
+          cancelLabel={wizardSource.sourceId ? "Lukk" : "Hopp over – last opp uten kobling"}
         />
       )}
 
