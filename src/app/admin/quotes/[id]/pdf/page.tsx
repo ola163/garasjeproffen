@@ -263,12 +263,13 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
                       <td className="right">{item.amount ? nok(item.amount * item.quantity) : "–"}</td>
                     </tr>
                   ))}
-                  {/* Rabatt — kun for søknadshjelp, vises i prosent */}
-                  {section.category === "søknadshjelp" && totalRabattNok > 0 && (() => {
+                  {/* Rabatt — vises i prosent for alle seksjoner */}
+                  {totalRabattNok > 0 && (() => {
                     const pst = ownBase > 0 ? Math.round(totalRabattNok / ownBase * 1000) / 10 : 0;
                     return (
                       <tr style={{ background: "#f0fdf4" }}>
-                        <td colSpan={4} style={{ textAlign: "right", paddingRight: 8, color: "#16a34a", fontStyle: "italic", fontSize: "9pt" }}>
+                        {isMat && <td />}
+                        <td colSpan={isMat ? 4 : 3} style={{ textAlign: "right", paddingRight: 8, color: "#16a34a", fontStyle: "italic", fontSize: "9pt" }}>
                           Rabatt {pst % 1 === 0 ? pst : pst.toFixed(1)}%
                         </td>
                         <td className="right" colSpan={2} style={{ color: "#16a34a", fontSize: "9pt" }}>−{nok(totalRabattNok)}</td>
