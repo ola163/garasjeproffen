@@ -57,17 +57,18 @@ export async function POST(req: NextRequest) {
   const sb = getSupabase();
 
   if (!varenr?.trim()) {
-    // Look up varenr_start for this category from gp_categories
-    const { data: cat } = await sb.from("gp_categories").select("varenr_start").eq("label", category).single();
+    const { data: cat } = await sb.from("gp_categories").select("varenr_start, varenr_end").eq("label", category).single();
     const start = cat?.varenr_start ?? 9000;
+    const end = (cat as { varenr_end?: number | null } | null)?.varenr_end ?? (start + 999);
 
-    // Find next available number in this category's range (start to start+999)
-    const end = start + 999;
     const { data: existing } = await sb.from("gp_products").select("varenr").like("varenr", "GPV-%");
     let maxNum = start - 1;
     for (const row of existing ?? []) {
       const num = parseInt((row.varenr as string).replace("GPV-", ""));
       if (!isNaN(num) && num >= start && num <= end) maxNum = Math.max(maxNum, num);
+    }
+    if (maxNum >= end) {
+      return NextResponse.json({ error: `Kategorien er full (GPV-${start} til GPV-${end})` }, { status: 409 });
     }
     varenr = `GPV-${maxNum + 1}`;
   }

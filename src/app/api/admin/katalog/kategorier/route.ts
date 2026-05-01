@@ -31,7 +31,9 @@ export async function GET(req: NextRequest) {
 // POST /api/admin/katalog/kategorier
 export async function POST(req: NextRequest) {
   if (!(await isAdmin(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { label, varenr_start } = await req.json() as { label: string; varenr_start: number };
+  const { label, varenr_start, varenr_end, parent_id } = await req.json() as {
+    label: string; varenr_start: number; varenr_end?: number; parent_id?: string | null;
+  };
   if (!label?.trim()) return NextResponse.json({ error: "label er påkrevd" }, { status: 400 });
 
   const sb = getSupabase();
@@ -40,7 +42,13 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await sb
     .from("gp_categories")
-    .insert({ label: label.trim(), sort_order: nextOrder, varenr_start: varenr_start ?? 9000 })
+    .insert({
+      label: label.trim(),
+      sort_order: nextOrder,
+      varenr_start: varenr_start ?? 9000,
+      varenr_end: varenr_end ?? null,
+      parent_id: parent_id ?? null,
+    })
     .select()
     .single();
 

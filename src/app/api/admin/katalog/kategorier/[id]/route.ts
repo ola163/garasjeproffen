@@ -24,11 +24,12 @@ async function isAdmin(req: NextRequest): Promise<boolean> {
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAdmin(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const body = await req.json() as { label?: string; varenr_start?: number; move?: "up" | "down" };
+  const body = await req.json() as { label?: string; varenr_start?: number; varenr_end?: number | null; move?: "up" | "down" };
   const sb = getSupabase();
 
   if (body.move === "up" || body.move === "down") {
-    const { data: cats } = await sb.from("gp_categories").select("*").order("sort_order");
+    // Only move root categories (parent_id IS NULL)
+    const { data: cats } = await sb.from("gp_categories").select("*").is("parent_id", null).order("sort_order");
     if (!cats) return NextResponse.json({ error: "Feil" }, { status: 500 });
 
     const idx = cats.findIndex(c => c.id === id);
@@ -53,6 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const updates: Record<string, unknown> = {};
   if (body.label !== undefined) updates.label = body.label.trim();
   if (body.varenr_start !== undefined) updates.varenr_start = body.varenr_start;
+  if (body.varenr_end !== undefined) updates.varenr_end = body.varenr_end;
 
   const { data, error } = await sb.from("gp_categories").update(updates).eq("id", id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
