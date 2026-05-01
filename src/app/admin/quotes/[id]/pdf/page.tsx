@@ -61,10 +61,8 @@ function computeTotal(sections: OfferSection[]): number {
     if ((hasPrefa || hasMatpak) && sec.category === "søknadshjelp") return total;
     const lineTotal = getEffectiveItems(sec, sections).reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
     const adj = (sec.category === "materialpakke" || sec.category === "prefabelement")
-      ? sokAdj
-      : sec.category === "søknadshjelp"
-        ? sec.line_items.reduce((s, i) => s + lineAdj(i, sec), 0)
-        : 0;
+      ? sokAdj + sec.line_items.reduce((s, i) => s + lineAdj(i, sec), 0)
+      : sec.line_items.reduce((s, i) => s + lineAdj(i, sec), 0);
     return total + lineTotal + adj;
   }, 0);
 }
@@ -197,17 +195,14 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
           const effective = getEffectiveItems(section, sections);
           const sectionSubtotal = effective.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
           const ownBase = section.line_items.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
-          const secLineAdj = section.category === "søknadshjelp"
-            ? section.line_items.reduce((s, i) => s + lineAdj(i, section), 0) : 0;
-          const totalRabattNok = section.category === "søknadshjelp"
-            ? section.line_items.reduce((s, i) => {
-                const base = (i.amount || 0) * (i.quantity || 1);
-                const useSec = !i.no_rabatt;
-                const rVal = i.rabatt_value !== undefined ? i.rabatt_value : useSec ? section.rabatt_value : undefined;
-                const rType = i.rabatt_value !== undefined ? i.rabatt_type : useSec ? section.rabatt_type : undefined;
-                return s + adjNok(rVal, rType, base);
-              }, 0)
-            : 0;
+          const secLineAdj = section.line_items.reduce((s, i) => s + lineAdj(i, section), 0);
+          const totalRabattNok = section.line_items.reduce((s, i) => {
+            const base = (i.amount || 0) * (i.quantity || 1);
+            const useSec = !i.no_rabatt;
+            const rVal = i.rabatt_value !== undefined ? i.rabatt_value : useSec ? section.rabatt_value : undefined;
+            const rType = i.rabatt_value !== undefined ? i.rabatt_type : useSec ? section.rabatt_type : undefined;
+            return s + adjNok(rVal, rType, base);
+          }, 0);
           const sectionTotal = sectionSubtotal + secLineAdj;
 
           const sokItems  = (section.category === "materialpakke" || section.category === "prefabelement") ? (sections.find((s) => s.category === "søknadshjelp")?.line_items ?? []) : [];

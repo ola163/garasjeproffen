@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 
 export default function AutoPrint({ backHref }: { backHref: string }) {
-  useEffect(() => { window.print(); }, []);
+  // auto-print removed
   return (
     <div className="no-print" style={{ marginBottom: 20 }}>
       <button
