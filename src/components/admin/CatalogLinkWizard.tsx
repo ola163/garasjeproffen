@@ -283,11 +283,15 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
               →
             </button>
 
-            {reviewHandledCount < reviewIndices.length && (
+            {reviewDecidedCount < reviewIndices.length && (
               <button
                 onClick={() => {
-                  const afterPos = reviewIndices.findIndex((origIdx, pos) => pos > reviewPos && reviewDecisions[origIdx] === undefined);
-                  const anyPos = afterPos !== -1 ? afterPos : reviewIndices.findIndex(origIdx => reviewDecisions[origIdx] === undefined);
+                  const isUnhandled = (origIdx: number) => {
+                    const t = reviewDecisions[origIdx]?.type;
+                    return t !== "accept" && t !== "link" && t !== "create";
+                  };
+                  const afterPos = reviewIndices.findIndex((origIdx, pos) => pos > reviewPos && isUnhandled(origIdx));
+                  const anyPos = afterPos !== -1 ? afterPos : reviewIndices.findIndex(origIdx => isUnhandled(origIdx));
                   if (anyPos !== -1) setReviewPos(anyPos);
                 }}
                 className="text-xs text-orange-500 hover:underline flex-1 text-left ml-1"
@@ -295,7 +299,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
                 Neste ubehandlet →
               </button>
             )}
-            {reviewHandledCount >= reviewIndices.length && <span className="flex-1" />}
+            {reviewDecidedCount >= reviewIndices.length && <span className="flex-1" />}
 
             <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 shrink-0">
               {cancelLabel ?? "Avbryt"}
