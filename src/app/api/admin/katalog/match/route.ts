@@ -84,9 +84,6 @@ export async function POST(req: NextRequest) {
     for (const row of gpRows ?? []) gpByVarenr.set(row.varenr, row);
   }
 
-  // 2. Name/dim suggestions for unmatched items
-  const unmatched = items.filter(i => !linkMap.has(i.varenr));
-
   const results: MatchResult[] = await Promise.all(
     items.map(async (item) => {
       const gpVarenr = linkMap.get(item.varenr);
@@ -101,15 +98,15 @@ export async function POST(req: NextRequest) {
         };
       }
 
-      // Name-based suggestion search
+      // Name-based suggestion search — try dimension pattern first, then fallback words
       const q = extractSearchTerm(item.name, item.dimensjon);
       if (!q) return { ...item, matchType: "none" as const };
 
       const { data: suggestions } = await sb
         .from("gp_products")
         .select("id, varenr, name")
-        .or(`name.ilike.%${q}%`)
-        .limit(5);
+        .ilike("name", `%${q}%`)
+        .limit(8);
 
       if (!suggestions?.length) return { ...item, matchType: "none" as const };
 
@@ -120,9 +117,6 @@ export async function POST(req: NextRequest) {
       };
     })
   );
-
-  // Suppress unused var warning — unmatched is used conceptually but filtered above
-  void unmatched;
 
   return NextResponse.json({ results });
 }

@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 // @ts-ignore
 import * as XLSX from "xlsx";
 import Link from "next/link";
-import CatalogLinkWizard from "@/components/admin/CatalogLinkWizard";
+import CatalogLinkWizard, { WizardResult } from "@/components/admin/CatalogLinkWizard";
 
 const DB_SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"];
 
@@ -446,12 +446,12 @@ function PrissammenlignInner() {
     setWizardSource({ name: pending.name || "Ukjent", rows });
   }
 
-  function handleWizardDone(links: { supplier_varenr: string; gp_varenr: string }[]) {
+  function handleWizardDone(results: WizardResult[]) {
     if (!wizardSource) return;
-    const linkMap = new Map(links.map(l => [l.supplier_varenr, l.gp_varenr]));
-    const translatedRows = wizardSource.rows.map(r => ({
+    const indexMap = new Map(results.map(r => [r.itemIndex, r.gp_varenr]));
+    const translatedRows = wizardSource.rows.map((r, idx) => ({
       ...r,
-      varenr: r.varenr ? (linkMap.get(r.varenr) ?? r.varenr) : r.varenr,
+      varenr: indexMap.get(idx) ?? r.varenr,
     }));
     commitRows(wizardSource.name, translatedRows);
   }
@@ -968,9 +968,7 @@ function PrissammenlignInner() {
       {wizardSource && (
         <CatalogLinkWizard
           supplier={wizardSource.name}
-          items={wizardSource.rows
-            .filter(r => r.varenr)
-            .map(r => ({ varenr: r.varenr, name: r.beskrivelse, dimensjon: r.dimensjon, nettopris: r.pris }))}
+          items={wizardSource.rows.map(r => ({ varenr: r.varenr, name: r.beskrivelse, dimensjon: r.dimensjon, enhet: r.enhet, nettopris: r.pris }))}
           onDone={handleWizardDone}
           onCancel={() => commitRows(wizardSource.name, wizardSource.rows)}
           cancelLabel="Hopp over – last opp uten kobling"
