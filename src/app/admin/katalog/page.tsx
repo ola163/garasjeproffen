@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 
 interface GpCategory {
@@ -19,11 +19,94 @@ interface GpProduct {
   description?: string;
 }
 
+interface SupplierPriceHit {
+  varenr: string;
+  varebenevnelse: string;
+  dimensjon?: string;
+  enhet?: string;
+  nettopris?: number;
+}
+
+type LinkState = { varenr: string; name: string };
+type LinkMap = Record<string, LinkState>;
+
 const DB_SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"];
 
 const EMPTY_PRODUCT = { varenr: "", name: "", category: "", unit: "", description: "" };
 const EMPTY_CAT = { label: "", varenr_start: 1000 };
-const EMPTY_LINKS: Record<string, string> = Object.fromEntries(DB_SUPPLIERS.map(s => [s, ""]));
+const EMPTY_LINKS: LinkMap = Object.fromEntries(DB_SUPPLIERS.map(s => [s, { varenr: "", name: "" }]));
+
+// ── Autocomplete picker for supplier varenr ───────────────────────────────────
+function SupplierVarenrPicker({ supplier, varenr, name, onChange }: {
+  supplier: string;
+  varenr: string;
+  name: string;
+  onChange: (varenr: string, name: string) => void;
+}) {
+  const [query, setQuery] = useState(varenr);
+  const [results, setResults] = useState<SupplierPriceHit[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync when external value changes (e.g. when edit modal opens)
+  useEffect(() => { setQuery(varenr); }, [varenr]);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (query.length < 2) { setResults([]); return; }
+    timerRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(supplier)}&q=${encodeURIComponent(query)}&limit=15`);
+        const json = await res.json();
+        setResults(json.data ?? []);
+      } finally {
+        setLoading(false);
+      }
+    }, 280);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, supplier]);
+
+  function hitLabel(hit: SupplierPriceHit) {
+    return [hit.varebenevnelse, hit.dimensjon].filter(Boolean).join(" ");
+  }
+
+  return (
+    <div className="relative min-w-0 flex-1">
+      <input
+        type="text"
+        value={query}
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value, ""); setOpen(true); }}
+        onFocus={() => { if (query.length >= 2) setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 160)}
+        placeholder="Søk varenr eller navn…"
+        className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs font-mono focus:border-orange-400 focus:outline-none"
+      />
+      {name && !open && (
+        <p className="mt-0.5 truncate text-[10px] text-gray-400">{name}</p>
+      )}
+      {open && (results.length > 0 || loading) && (
+        <div className="absolute left-0 top-full z-50 mt-1 max-h-52 w-[420px] max-w-[90vw] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+          {loading && <p className="px-3 py-2 text-xs text-gray-400 animate-pulse">Søker…</p>}
+          {results.map(hit => (
+            <button
+              key={hit.varenr}
+              onMouseDown={() => { onChange(hit.varenr, hitLabel(hit)); setQuery(hit.varenr); setOpen(false); }}
+              className="flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-orange-50"
+            >
+              <span className="shrink-0 font-mono text-xs font-semibold text-gray-800">{hit.varenr}</span>
+              <span className="min-w-0 truncate text-xs text-gray-500">{hitLabel(hit)}</span>
+              {hit.nettopris != null && (
+                <span className="ml-auto shrink-0 text-[10px] text-gray-400">{hit.nettopris.toLocaleString("nb-NO")} kr</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function KatalogPage() {
   const [tab, setTab] = useState<"produkter" | "kategorier">("produkter");
@@ -53,7 +136,7 @@ export default function KatalogPage() {
   const [prodError, setProdError] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [supplierLinks, setSupplierLinks] = useState<Record<string, string>>(EMPTY_LINKS);
+  const [supplierLinks, setSupplierLinks] = useState<LinkMap>({ ...EMPTY_LINKS });
 
   // ── Load categories ────────────────────────────────────────────────────
   const loadCats = useCallback(async () => {
@@ -142,19 +225,33 @@ export default function KatalogPage() {
     setSupplierLinks({ ...EMPTY_LINKS });
     setProdError("");
     setShowModal(true);
-    // Fetch existing links
+
+    // Fetch existing links then look up descriptions in parallel
     fetch(`/api/admin/katalog/${p.id}/links`)
       .then(r => r.json())
-      .then(d => {
-        const map = { ...EMPTY_LINKS };
-        for (const link of d.data ?? []) map[link.supplier] = link.supplier_varenr;
-        setSupplierLinks(map);
+      .then(async d => {
+        const map: LinkMap = { ...EMPTY_LINKS };
+        for (const link of d.data ?? []) map[link.supplier] = { varenr: link.supplier_varenr, name: "" };
+        setSupplierLinks({ ...map });
+
+        // Fetch descriptions for each linked varenr
+        await Promise.all(
+          DB_SUPPLIERS.map(async sup => {
+            const sv = map[sup]?.varenr;
+            if (!sv) return;
+            const r = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(sup)}&q=${encodeURIComponent(sv)}&limit=1`);
+            const j = await r.json();
+            const hit = j.data?.[0];
+            if (hit) map[sup] = { varenr: sv, name: [hit.varebenevnelse, hit.dimensjon].filter(Boolean).join(" ") };
+          })
+        );
+        setSupplierLinks({ ...map });
       })
       .catch(() => {});
   }
 
   async function saveLinks(productId: string) {
-    const links = DB_SUPPLIERS.map(s => ({ supplier: s, supplier_varenr: supplierLinks[s] ?? "" }));
+    const links = DB_SUPPLIERS.map(s => ({ supplier: s, supplier_varenr: supplierLinks[s]?.varenr ?? "" }));
     await fetch(`/api/admin/katalog/${productId}/links`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -456,7 +553,7 @@ export default function KatalogPage() {
       {/* ── Product add/edit modal ───────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="flex w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "90vh" }}><div className="overflow-y-auto p-6">
             <h2 className="mb-4 text-base font-semibold text-gray-900">{editId ? "Rediger vare" : "Ny vare"}</h2>
 
             <div className="space-y-3">
@@ -531,17 +628,25 @@ export default function KatalogPage() {
               {/* Supplier varenr mapping */}
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-2">Leverandørtilknytning</label>
-                <div className="rounded-lg border border-gray-200 overflow-hidden">
+                <p className="mb-2 text-[10px] text-gray-400">Søk på varenr eller navn fra leverandørens prisdatabase for å knytte dem til dette GPV-varenummeret.</p>
+                <div className="rounded-lg border border-gray-200 overflow-visible">
                   {DB_SUPPLIERS.map((sup, i) => (
-                    <div key={sup} className={`flex items-center gap-3 px-3 py-2 ${i > 0 ? "border-t border-gray-100" : ""}`}>
-                      <span className="w-32 shrink-0 text-xs font-medium text-gray-600">{sup}</span>
-                      <input
-                        type="text"
-                        placeholder="Leverandørens varenr"
-                        value={supplierLinks[sup] ?? ""}
-                        onChange={e => setSupplierLinks(l => ({ ...l, [sup]: e.target.value }))}
-                        className="flex-1 rounded border border-gray-200 px-2 py-1 text-xs font-mono focus:border-orange-400 focus:outline-none"
+                    <div key={sup} className={`flex items-start gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-gray-100" : ""}`}>
+                      <span className="w-28 shrink-0 pt-1.5 text-xs font-medium text-gray-600">{sup}</span>
+                      <SupplierVarenrPicker
+                        supplier={sup}
+                        varenr={supplierLinks[sup]?.varenr ?? ""}
+                        name={supplierLinks[sup]?.name ?? ""}
+                        onChange={(v, n) => setSupplierLinks(l => ({ ...l, [sup]: { varenr: v, name: n } }))}
                       />
+                      {supplierLinks[sup]?.varenr && (
+                        <button
+                          type="button"
+                          onClick={() => setSupplierLinks(l => ({ ...l, [sup]: { varenr: "", name: "" } }))}
+                          className="shrink-0 pt-1.5 text-gray-300 hover:text-red-400"
+                          title="Fjern kobling"
+                        >✕</button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -549,18 +654,19 @@ export default function KatalogPage() {
 
               {prodError && <p className="text-xs text-red-500">{prodError}</p>}
             </div>
+          </div>
 
-            <div className="mt-5 flex gap-3">
-              <button onClick={handleSave} disabled={saving} className="flex-1 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
-                {saving ? "Lagrer…" : editId ? "Lagre endringer" : "Legg til vare"}
-              </button>
-              <button onClick={() => setShowModal(false)} className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50">
-                Avbryt
-              </button>
-            </div>
+          <div className="flex gap-3 border-t border-gray-100 px-6 py-4">
+            <button onClick={handleSave} disabled={saving} className="flex-1 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
+              {saving ? "Lagrer…" : editId ? "Lagre endringer" : "Legg til vare"}
+            </button>
+            <button onClick={() => setShowModal(false)} className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50">
+              Avbryt
+            </button>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       {/* ── Delete product confirmation ──────────────────────────────────── */}
       {deleteId && (
