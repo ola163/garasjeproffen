@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import Anthropic from "@anthropic-ai/sdk";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -27,20 +28,33 @@ export interface MatchItem {
   nettopris?: number;
 }
 
+export interface Suggestion {
+  id: string;
+  varenr: string;
+  name: string;
+  confidence: number;  // 0–1, Claude-provided
+  reason: string;      // Short Norwegian explanation
+}
+
 export interface MatchResult {
   varenr: string;
   name: string;
   dimensjon?: string;
   enhet?: string;
   nettopris?: number;
-  // "exact" = found in gp_product_supplier_links
-  // "suggestion" = name/dim similarity from gp_products
-  // "none" = no match found
   matchType: "exact" | "suggestion" | "none";
   gpId?: string;
   gpVarenr?: string;
   gpName?: string;
-  suggestions?: { id: string; varenr: string; name: string }[];
+  suggestions?: Suggestion[];
+  noConfidentMatch?: boolean;
+}
+
+interface GpCandidate {
+  id: string;
+  varenr: string;
+  name: string;
+  category: string;
 }
 
 function extractSearchTerm(name: string, dimensjon?: string): string {
@@ -51,9 +65,97 @@ function extractSearchTerm(name: string, dimensjon?: string): string {
   return words.slice(0, 2).join(" ");
 }
 
-// POST /api/admin/katalog/match
-// Body: { supplier: string; items: MatchItem[] }
-// Returns: { results: MatchResult[] }
+async function fetchCandidates(sb: ReturnType<typeof getSupabase>, item: MatchItem): Promise<GpCandidate[]> {
+  const seen = new Set<string>();
+  const candidates: GpCandidate[] = [];
+
+  async function addResults(data: GpCandidate[] | null) {
+    for (const p of data ?? []) {
+      if (!seen.has(p.id)) { seen.add(p.id); candidates.push(p); }
+    }
+  }
+
+  // Strategy 1: dimension / key-term
+  const q1 = extractSearchTerm(item.name, item.dimensjon);
+  if (q1) {
+    const { data } = await sb.from("gp_products").select("id, varenr, name, category").ilike("name", `%${q1}%`).limit(8);
+    await addResults(data);
+  }
+
+  // Strategy 2: first long word in name (broadens recall)
+  if (candidates.length < 5) {
+    const firstWord = item.name.split(/\s+/).find(w => w.length > 4);
+    if (firstWord && firstWord !== q1) {
+      const { data } = await sb.from("gp_products").select("id, varenr, name, category").ilike("name", `%${firstWord}%`).limit(6);
+      await addResults(data);
+    }
+  }
+
+  return candidates.slice(0, 10);
+}
+
+// ── Claude batch ranking ──────────────────────────────────────────────────────
+
+interface BatchItem {
+  originalIdx: number;
+  item: MatchItem;
+  candidates: GpCandidate[];
+}
+
+interface ClaudeSuggestion { varenr: string; confidence: number; reason: string }
+interface ClaudeItem { index: number; no_confident_match?: boolean; suggestions: ClaudeSuggestion[] }
+
+async function rankWithClaude(batch: BatchItem[]): Promise<Map<number, { suggestions: ClaudeSuggestion[]; noConfidentMatch: boolean }>> {
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  const userContent = batch.map((x, i) => {
+    const meta = [
+      x.item.dimensjon ? `Dim: ${x.item.dimensjon}` : null,
+      x.item.enhet ? `Enhet: ${x.item.enhet}` : null,
+    ].filter(Boolean).join(" | ");
+    const candidateLines = x.candidates.map(c => `  ${c.varenr}: ${c.name} (${c.category})`).join("\n");
+    return `[${i}] "${x.item.name}"${meta ? ` | ${meta}` : ""}\nKandidater:\n${candidateLines}`;
+  }).join("\n\n");
+
+  const message = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1024,
+    system: `Du er et forslagssystem for varematching for et norsk byggvarefirma (GP Varekatalog).
+Ranger kandidatene etter sannsynlighet for at de er samme vare som leverandørvaren.
+
+Regler:
+- Ranger kun kandidater fra listen — opprett aldri nye
+- confidence: 0.0 (ingen likhet) til 1.0 (sikker match)
+- reason: maks 8 norske ord som forklarer matchen
+- Hvis ingen kandidat er ≥0.50: sett "no_confident_match": true
+- Returner KUN gyldig JSON, ingen annen tekst`,
+    messages: [{
+      role: "user",
+      content: `Match leverandørvarene til GPV-katalogkandidatene. Returner kun dette JSON-formatet:
+{"items":[{"index":0,"no_confident_match":false,"suggestions":[{"varenr":"GPV-XXX","confidence":0.9,"reason":"Eksakt dimensjonsmatch og produkttype"}]}]}
+
+Varer:
+${userContent}`,
+    }],
+  });
+
+  const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+  // Strip markdown code fences if present
+  const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+  const parsed = JSON.parse(jsonStr) as { items: ClaudeItem[] };
+
+  const result = new Map<number, { suggestions: ClaudeSuggestion[]; noConfidentMatch: boolean }>();
+  for (const ci of parsed.items) {
+    result.set(batch[ci.index].originalIdx, {
+      suggestions: ci.suggestions ?? [],
+      noConfidentMatch: ci.no_confident_match ?? false,
+    });
+  }
+  return result;
+}
+
+// ── POST handler ──────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
   if (!(await isAdmin(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -61,62 +163,101 @@ export async function POST(req: NextRequest) {
   if (!items?.length) return NextResponse.json({ results: [] });
 
   const sb = getSupabase();
-  const varenrs = items.map(i => i.varenr);
+  const varenrs = items.map(i => i.varenr).filter(Boolean);
 
-  // 1. Exact matches via supplier links
+  // ── 1. Exact matches from saved supplier links ────────────────────────────
   const { data: links } = await sb
     .from("gp_product_supplier_links")
     .select("supplier_varenr, gp_varenr")
     .eq("supplier", supplier)
-    .in("supplier_varenr", varenrs);
+    .in("supplier_varenr", varenrs.length > 0 ? varenrs : ["__none__"]);
 
-  const linkMap = new Map<string, string>(); // supplier_varenr → gp_varenr
+  const linkMap = new Map<string, string>();
   for (const l of links ?? []) linkMap.set(l.supplier_varenr, l.gp_varenr);
 
   const gpVarenrsNeeded = [...new Set([...linkMap.values()])];
-  const gpByVarenr = new Map<string, { id: string; varenr: string; name: string }>();
-
+  const gpByVarenr = new Map<string, GpCandidate>();
   if (gpVarenrsNeeded.length > 0) {
-    const { data: gpRows } = await sb
-      .from("gp_products")
-      .select("id, varenr, name")
-      .in("varenr", gpVarenrsNeeded);
+    const { data: gpRows } = await sb.from("gp_products").select("id, varenr, name, category").in("varenr", gpVarenrsNeeded);
     for (const row of gpRows ?? []) gpByVarenr.set(row.varenr, row);
   }
 
-  const results: MatchResult[] = await Promise.all(
-    items.map(async (item) => {
-      const gpVarenr = linkMap.get(item.varenr);
-      if (gpVarenr) {
-        const gp = gpByVarenr.get(gpVarenr);
-        return {
-          ...item,
-          matchType: "exact" as const,
-          gpId: gp?.id,
-          gpVarenr: gp?.varenr,
-          gpName: gp?.name,
-        };
-      }
+  // ── 2. Fetch DB candidates for non-exact items in parallel ───────────────
+  const exactIndices = new Set<number>();
+  for (let i = 0; i < items.length; i++) {
+    if (linkMap.has(items[i].varenr)) exactIndices.add(i);
+  }
 
-      // Name-based suggestion search — try dimension pattern first, then fallback words
-      const q = extractSearchTerm(item.name, item.dimensjon);
-      if (!q) return { ...item, matchType: "none" as const };
-
-      const { data: suggestions } = await sb
-        .from("gp_products")
-        .select("id, varenr, name")
-        .ilike("name", `%${q}%`)
-        .limit(8);
-
-      if (!suggestions?.length) return { ...item, matchType: "none" as const };
-
-      return {
-        ...item,
-        matchType: "suggestion" as const,
-        suggestions: suggestions.map(s => ({ id: s.id, varenr: s.varenr, name: s.name })),
-      };
+  const batch: BatchItem[] = [];
+  await Promise.all(
+    items.map(async (item, i) => {
+      if (exactIndices.has(i)) return;
+      const candidates = await fetchCandidates(sb, item);
+      if (candidates.length > 0) batch.push({ originalIdx: i, item, candidates });
     })
   );
+
+  // ── 3. Claude ranking (one batch call) ───────────────────────────────────
+  let aiMap = new Map<number, { suggestions: ClaudeSuggestion[]; noConfidentMatch: boolean }>();
+  if (batch.length > 0 && process.env.ANTHROPIC_API_KEY) {
+    try {
+      aiMap = await rankWithClaude(batch);
+    } catch (err) {
+      console.error("Claude matching failed, falling back to raw candidates:", err);
+      // Fallback: assign raw candidates with default confidence 0.5
+      for (const b of batch) {
+        aiMap.set(b.originalIdx, {
+          suggestions: b.candidates.slice(0, 5).map(c => ({ varenr: c.varenr, confidence: 0.5, reason: "Navnelikhet" })),
+          noConfidentMatch: false,
+        });
+      }
+    }
+  }
+
+  // ── 4. Build result array ─────────────────────────────────────────────────
+  // Build varenr→{id,name} lookup for all candidate products
+  const allCandidateVarenrs = batch.flatMap(b => b.candidates.map(c => c.varenr));
+  const gpLookup = new Map<string, GpCandidate>();
+  for (const b of batch) for (const c of b.candidates) gpLookup.set(c.varenr, c);
+
+  const results: MatchResult[] = items.map((item, i) => {
+    // Exact match
+    if (exactIndices.has(i)) {
+      const gpVarenr = linkMap.get(item.varenr);
+      const gp = gpVarenr ? gpByVarenr.get(gpVarenr) : undefined;
+      return { ...item, matchType: "exact" as const, gpId: gp?.id, gpVarenr: gp?.varenr, gpName: gp?.name };
+    }
+
+    // AI suggestions
+    const ai = aiMap.get(i);
+    if (ai && ai.suggestions.length > 0) {
+      const suggestions: Suggestion[] = ai.suggestions
+        .map(s => {
+          const gp = gpLookup.get(s.varenr);
+          if (!gp) return null;
+          return { id: gp.id, varenr: gp.varenr, name: gp.name, confidence: s.confidence, reason: s.reason };
+        })
+        .filter((s): s is Suggestion => s !== null);
+
+      if (suggestions.length > 0) {
+        return { ...item, matchType: "suggestion" as const, suggestions, noConfidentMatch: ai.noConfidentMatch };
+      }
+    }
+
+    // Fallback: no candidates or AI returned nothing
+    const batchItem = batch.find(b => b.originalIdx === i);
+    if (batchItem && batchItem.candidates.length > 0 && !process.env.ANTHROPIC_API_KEY) {
+      const suggestions: Suggestion[] = batchItem.candidates.slice(0, 5).map(c => ({
+        id: c.id, varenr: c.varenr, name: c.name, confidence: 0.5, reason: "Navnelikhet",
+      }));
+      return { ...item, matchType: "suggestion" as const, suggestions, noConfidentMatch: false };
+    }
+
+    return { ...item, matchType: "none" as const };
+  });
+
+  // Suppress unused variable warning
+  void allCandidateVarenrs;
 
   return NextResponse.json({ results });
 }

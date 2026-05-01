@@ -16,6 +16,14 @@ export interface WizardResult {
   gp_varenr: string;
 }
 
+interface Suggestion {
+  id: string;
+  varenr: string;
+  name: string;
+  confidence: number;  // 0–1
+  reason: string;
+}
+
 interface MatchResult {
   varenr: string;
   name: string;
@@ -24,7 +32,8 @@ interface MatchResult {
   gpId?: string;
   gpVarenr?: string;
   gpName?: string;
-  suggestions?: { id: string; varenr: string; name: string }[];
+  suggestions?: Suggestion[];
+  noConfidentMatch?: boolean;
 }
 
 interface GpProduct {
@@ -386,8 +395,10 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
   const isLinked = decision?.type === "accept" || decision?.type === "link";
   const isCreating = decision?.type === "create";
   const isSkipped = decision?.type === "skip";
-  const hasSuggestions = (result.suggestions?.length ?? 0) > 0;
-  const topSuggestion = result.suggestions?.[0];
+  const suggestions = result.suggestions ?? [];
+  const hasSuggestions = suggestions.length > 0;
+  const topSuggestion = suggestions[0];
+  const topIsConfident = (topSuggestion?.confidence ?? 0) >= 0.65;
 
   function clearDecision() {
     setDecision(idx, null);
@@ -446,44 +457,64 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
       {!isLinked && !isCreating && !isSkipped && (
         <div className="space-y-4">
 
-          {/* Top suggestion — prominent confirm button */}
-          {result.matchType === "suggestion" && topSuggestion && (
-            <div className="rounded-xl border-2 border-yellow-300 bg-yellow-50 p-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-yellow-700">
-                Forslag basert på navn / dimensjon
-              </p>
-              <div className="flex items-center gap-3 rounded-lg bg-white px-4 py-3 shadow-sm">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{topSuggestion.name}</p>
-                  <p className="font-mono text-xs text-gray-400">{topSuggestion.varenr}</p>
-                </div>
-                <button
-                  onClick={() => setDecision(idx, { type: "link", gpId: topSuggestion.id, gpVarenr: topSuggestion.varenr })}
-                  className="shrink-0 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-bold text-white hover:bg-yellow-600 transition-colors"
-                >
-                  Bekreft
-                </button>
+          {/* AI suggestions */}
+          {result.matchType === "suggestion" && suggestions.length > 0 && (
+            <div className={`rounded-xl border-2 p-4 ${topIsConfident ? "border-yellow-300 bg-yellow-50" : "border-gray-200 bg-gray-50"}`}>
+              <div className="mb-3 flex items-center justify-between">
+                <p className={`text-xs font-semibold uppercase tracking-wide ${topIsConfident ? "text-yellow-700" : "text-gray-400"}`}>
+                  AI-forslag
+                </p>
+                {result.noConfidentMatch && (
+                  <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                    Ingen trygg match funnet
+                  </span>
+                )}
               </div>
 
-              {/* Other suggestions (collapsible) */}
-              {(result.suggestions?.length ?? 0) > 1 && (
-                <div className="mt-2 space-y-1">
-                  <p className="text-xs text-yellow-600 mb-1">Andre forslag:</p>
-                  {result.suggestions!.slice(1).map(s => (
-                    <button
+              <div className="space-y-2">
+                {suggestions.map((s, si) => {
+                  const pct = Math.round(s.confidence * 100);
+                  const isTop = si === 0 && topIsConfident;
+                  const barColor = s.confidence >= 0.75 ? "bg-green-400" : s.confidence >= 0.5 ? "bg-yellow-400" : "bg-gray-300";
+                  const textColor = s.confidence >= 0.75 ? "text-green-700" : s.confidence >= 0.5 ? "text-yellow-700" : "text-gray-400";
+                  return (
+                    <div
                       key={s.id}
-                      onClick={() => setDecision(idx, { type: "link", gpId: s.id, gpVarenr: s.varenr })}
-                      className="flex w-full items-center gap-3 rounded-lg border border-yellow-200 bg-white px-3 py-2 text-left hover:border-yellow-400 hover:bg-yellow-50 transition-colors"
+                      className={`rounded-lg border bg-white px-4 py-3 shadow-sm ${isTop ? "border-yellow-300" : "border-gray-200"}`}
                     >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-700 truncate">{s.name}</p>
-                        <p className="font-mono text-xs text-gray-400">{s.varenr}</p>
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{s.name}</p>
+                          <p className="font-mono text-xs text-gray-400">{s.varenr}</p>
+                          {s.reason && (
+                            <p className="mt-0.5 text-xs text-gray-500 italic">{s.reason}</p>
+                          )}
+                        </div>
+                        <div className="shrink-0 flex flex-col items-end gap-2">
+                          {/* Confidence */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="h-1.5 w-16 rounded-full bg-gray-100 overflow-hidden">
+                              <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className={`text-[10px] font-bold tabular-nums ${textColor}`}>{pct}%</span>
+                          </div>
+                          {/* Action button */}
+                          <button
+                            onClick={() => setDecision(idx, { type: "link", gpId: s.id, gpVarenr: s.varenr })}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold text-white transition-colors ${
+                              isTop
+                                ? "bg-yellow-500 hover:bg-yellow-600"
+                                : "bg-gray-400 hover:bg-gray-500"
+                            }`}
+                          >
+                            {isTop ? "Bekreft" : "Velg"}
+                          </button>
+                        </div>
                       </div>
-                      <span className="shrink-0 text-xs font-semibold text-yellow-600">Velg →</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
