@@ -8,6 +8,7 @@ import type { QuoteRow, LineItem, OfferSection, QuoteStatus } from "@/types/quot
 import Link from "next/link";
 import { adminName, ADMIN_NAMES } from "@/lib/admin-names";
 import { read, utils } from "xlsx";
+import CatalogLinkWizard, { type WizardItem, type WizardResult } from "@/components/admin/CatalogLinkWizard";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -172,6 +173,15 @@ export default function QuoteDetailPage() {
   const [catalogCategory, setCatalogCategory] = useState("");
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogCategories, setCatalogCategories] = useState<{ id: string; label: string }[]>([]);
+
+  // GPV link wizard
+  const [linkWizardOpen, setLinkWizardOpen] = useState(false);
+  const [linkWizardItems, setLinkWizardItems] = useState<WizardItem[]>([]);
+  const [linkWizardSIdx, setLinkWizardSIdx] = useState<number | null>(null);
+  const [linkWizardLineIndices, setLinkWizardLineIndices] = useState<number[]>([]);
+  const [linkWizardAuthToken, setLinkWizardAuthToken] = useState("");
+  // When set, wizard was triggered by an upload — these are the pending line items to add after linking
+  const [linkWizardPendingItems, setLinkWizardPendingItems] = useState<LineItem[] | null>(null);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -571,6 +581,28 @@ export default function QuoteDetailPage() {
       }
     }
     if (items.length === 0) return;
+    if (isMatpak) {
+      const wizardItems: WizardItem[] = [];
+      const lineIndices: number[] = [];
+      items.forEach((item, i) => {
+        const varenr = item.varenr?.trim();
+        if (varenr?.startsWith("GPV-")) return;
+        const name = item.description?.trim() || varenr || "";
+        if (!name) return;
+        wizardItems.push({ varenr: varenr || "", name, dimensjon: item.dimensjon, enhet: item.enhet, nettopris: item.amount || undefined });
+        lineIndices.push(i);
+      });
+      if (wizardItems.length > 0) {
+        const token = await getAuthToken();
+        setLinkWizardSIdx(sIdx);
+        setLinkWizardItems(wizardItems);
+        setLinkWizardLineIndices(lineIndices);
+        setLinkWizardPendingItems(items);
+        setLinkWizardAuthToken(token);
+        setLinkWizardOpen(true);
+        return;
+      }
+    }
     setOfferSections((prev) => prev.map((s, i) =>
       i === sIdx ? { ...s, line_items: [...s.line_items.filter(l => l.description || l.amount), ...items] } : s
     ));
@@ -591,12 +623,121 @@ export default function QuoteDetailPage() {
           ? { description: item.description, varenr: item.varenr ?? "", dimensjon: "", enhet: item.enhet ?? "", quantity: item.quantity ?? 1, amount: item.amount ?? 0 }
           : { description: [item.varenr, item.description].filter(Boolean).join(" – "), quantity: item.quantity ?? 1, amount: item.amount ?? 0 }
       );
+      if (isMatpak) {
+        const wizardItems: WizardItem[] = [];
+        const lineIndices: number[] = [];
+        lineItems.forEach((item, i) => {
+          const varenr = item.varenr?.trim();
+          if (varenr?.startsWith("GPV-")) return;
+          const name = item.description?.trim() || varenr || "";
+          if (!name) return;
+          wizardItems.push({ varenr: varenr || "", name, dimensjon: item.dimensjon, enhet: item.enhet, nettopris: item.amount || undefined });
+          lineIndices.push(i);
+        });
+        if (wizardItems.length > 0) {
+          const token = await getAuthToken();
+          setLinkWizardSIdx(sIdx);
+          setLinkWizardItems(wizardItems);
+          setLinkWizardLineIndices(lineIndices);
+          setLinkWizardPendingItems(lineItems);
+          setLinkWizardAuthToken(token);
+          setLinkWizardOpen(true);
+          return;
+        }
+      }
       setOfferSections((prev) => prev.map((s, i) =>
         i === sIdx ? { ...s, line_items: [...s.line_items.filter((l) => l.description || l.amount), ...lineItems] } : s
       ));
     } finally {
       setParsingPdf(null);
     }
+  }
+
+  async function openLinkWizard(sIdx: number) {
+    const section = offerSections[sIdx];
+    if (!section) return;
+    const wizardItems: WizardItem[] = [];
+    const lineIndices: number[] = [];
+    section.line_items.forEach((item, iIdx) => {
+      const varenr = item.varenr?.trim();
+      if (varenr?.startsWith("GPV-")) return; // already linked
+      const name = item.description?.trim() || varenr || "";
+      if (!name) return; // nothing to match on
+      wizardItems.push({
+        varenr: varenr || "",
+        name,
+        dimensjon: item.dimensjon,
+        enhet: item.enhet,
+        nettopris: item.amount || undefined,
+      });
+      lineIndices.push(iIdx);
+    });
+    if (wizardItems.length === 0) {
+      alert("Ingen varer å koble. Alle varer har allerede GPV-varenr, eller mangler beskrivelse.");
+      return;
+    }
+    const token = await getAuthToken();
+    setLinkWizardSIdx(sIdx);
+    setLinkWizardItems(wizardItems);
+    setLinkWizardLineIndices(lineIndices);
+    setLinkWizardAuthToken(token);
+    setLinkWizardOpen(true);
+  }
+
+  async function openLinkWizardForItem(sIdx: number, iIdx: number) {
+    const item = offerSections[sIdx]?.line_items[iIdx];
+    if (!item) return;
+    const varenr = item.varenr?.trim();
+    const name = item.description?.trim() || varenr || "";
+    if (!name) return;
+    const token = await getAuthToken();
+    setLinkWizardSIdx(sIdx);
+    setLinkWizardItems([{ varenr: varenr || "", name, dimensjon: item.dimensjon, enhet: item.enhet, nettopris: item.amount || undefined }]);
+    setLinkWizardLineIndices([iIdx]);
+    setLinkWizardAuthToken(token);
+    setLinkWizardPendingItems(null);
+    setLinkWizardOpen(true);
+  }
+
+  async function getAuthToken(): Promise<string> {
+    if (!supabase) return "";
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? "";
+  }
+
+  function commitWizardItems(sIdx: number, lineItems: LineItem[]) {
+    setOfferSections(prev => prev.map((s, si) =>
+      si !== sIdx ? s : { ...s, line_items: [...s.line_items.filter(l => l.description || l.amount), ...lineItems] }
+    ));
+  }
+
+  function handleWizardDone(results: WizardResult[]) {
+    if (linkWizardSIdx === null) return;
+    if (linkWizardPendingItems !== null) {
+      // Upload flow: translate varenrs in pending items then add to section
+      const indexMap = new Map(results.map(r => [r.itemIndex, r.gp_varenr]));
+      const translated = linkWizardPendingItems.map((item, i) => {
+        const wizardIdx = linkWizardLineIndices.indexOf(i);
+        const gpVarenr = wizardIdx >= 0 ? indexMap.get(wizardIdx) : undefined;
+        return gpVarenr ? { ...item, varenr: gpVarenr } : item;
+      });
+      commitWizardItems(linkWizardSIdx, translated);
+      setLinkWizardPendingItems(null);
+    } else {
+      // Manual re-link flow: update varenrs of existing items in section
+      setOfferSections(prev => prev.map((s, si) => {
+        if (si !== linkWizardSIdx) return s;
+        const newItems = [...s.line_items];
+        for (const r of results) {
+          const lineIdx = linkWizardLineIndices[r.itemIndex];
+          if (lineIdx !== undefined && r.gp_varenr) {
+            newItems[lineIdx] = { ...newItems[lineIdx], varenr: r.gp_varenr };
+          }
+        }
+        return { ...s, line_items: newItems };
+      }));
+    }
+    setLinkWizardOpen(false);
   }
 
   async function handleDeleteQuote() {
@@ -1316,6 +1457,25 @@ export default function QuoteDetailPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
                               </button>
+                              {item.varenr?.startsWith("GPV-") ? (
+                                <button
+                                  type="button"
+                                  title="Rediger GPV-kobling"
+                                  onClick={() => openLinkWizardForItem(sIdx, iIdx)}
+                                  className="shrink-0 rounded border border-green-300 bg-green-50 px-1.5 py-1 font-mono text-[10px] text-green-700 hover:bg-green-100 transition-colors"
+                                >
+                                  {item.varenr}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  title="Knytt til GPV-varelager"
+                                  onClick={() => openLinkWizardForItem(sIdx, iIdx)}
+                                  className="shrink-0 rounded border border-dashed border-indigo-300 px-1.5 py-1 text-[10px] text-indigo-400 hover:border-indigo-500 hover:text-indigo-600 transition-colors"
+                                >
+                                  GPV
+                                </button>
+                              )}
                               <input
                                 type="text" placeholder="Varebenevnelse"
                                 value={item.description}
@@ -1455,6 +1615,16 @@ export default function QuoteDetailPage() {
                           >
                             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                             Søk i katalog
+                          </button>
+                        )}
+                        {section.category === "materialpakke" && (
+                          <button
+                            type="button"
+                            onClick={() => openLinkWizard(sIdx)}
+                            className="flex items-center gap-1 rounded-lg border border-dashed border-indigo-300 px-3 py-1.5 text-xs text-indigo-500 hover:border-indigo-500 hover:text-indigo-700 transition-colors whitespace-nowrap"
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                            Knytt til GPV
                           </button>
                         )}
                         {section.påslag_value === undefined && (
@@ -1873,6 +2043,24 @@ export default function QuoteDetailPage() {
             </div>
           </div>
         </div>
+      )}
+      {/* GPV link wizard */}
+      {linkWizardOpen && linkWizardSIdx !== null && (
+        <CatalogLinkWizard
+          supplier={supplierForPrices}
+          items={linkWizardItems}
+          authToken={linkWizardAuthToken}
+          onDone={handleWizardDone}
+          onCancel={() => {
+            if (linkWizardPendingItems !== null) {
+              // Upload cancelled — add items as-is without any GPV translation
+              commitWizardItems(linkWizardSIdx!, linkWizardPendingItems);
+              setLinkWizardPendingItems(null);
+            }
+            setLinkWizardOpen(false);
+          }}
+          cancelLabel={linkWizardPendingItems !== null ? "Hopp over – last opp uten kobling" : "Avbryt"}
+        />
       )}
       {/* GP Catalog picker modal */}
       {catalogModal && (

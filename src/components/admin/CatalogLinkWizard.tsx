@@ -60,9 +60,10 @@ interface Props {
   onDone: (results: WizardResult[]) => void;
   onCancel: () => void;
   cancelLabel?: string;
+  authToken?: string;
 }
 
-export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, cancelLabel }: Props) {
+export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, cancelLabel, authToken }: Props) {
   const [matchedResults, setMatchedResults] = useState<MatchResult[]>([]);
   const [loading, setLoading] = useState(true);
   // decisions keyed by original item index
@@ -78,6 +79,8 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const authHeaders: Record<string, string> = authToken ? { "Authorization": `Bearer ${authToken}` } : {};
+
   useEffect(() => {
     async function run() {
       setLoading(true);
@@ -85,11 +88,15 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
         const [matchRes, catRes] = await Promise.all([
           fetch("/api/admin/katalog/match", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...authHeaders },
             body: JSON.stringify({ supplier, items }),
           }),
-          fetch("/api/admin/katalog/kategorier"),
+          fetch("/api/admin/katalog/kategorier", { headers: authHeaders }),
         ]);
+        if (!matchRes.ok) {
+          const errJson = await matchRes.json().catch(() => ({}));
+          throw new Error(errJson.error ?? `Matching feilet (${matchRes.status})`);
+        }
         const matchJson = await matchRes.json();
         const catJson = await catRes.json();
         const matched: MatchResult[] = matchJson.results ?? [];
@@ -129,7 +136,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     if (!q.trim()) { setSearchHits(prev => ({ ...prev, [originalIdx]: [] })); return; }
     setSearchLoading(prev => ({ ...prev, [originalIdx]: true }));
     try {
-      const res = await fetch(`/api/admin/katalog?q=${encodeURIComponent(q)}&limit=8`);
+      const res = await fetch(`/api/admin/katalog?q=${encodeURIComponent(q)}&limit=8`, { headers: authHeaders });
       const json = await res.json();
       setSearchHits(prev => ({ ...prev, [originalIdx]: json.data ?? [] }));
     } finally {
@@ -157,7 +164,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     setSaving(true);
     setError("");
     try {
-      const results = await commitDecisions(items, allDecisions, matchedResults, supplier);
+      const results = await commitDecisions(items, allDecisions, matchedResults, supplier, authHeaders);
       onDone(results);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Ukjent feil");
@@ -328,7 +335,8 @@ async function commitDecisions(
   items: WizardItem[],
   decisions: Record<number, ItemAction>,
   _results: MatchResult[],
-  supplier: string
+  supplier: string,
+  authHeaders: Record<string, string> = {}
 ): Promise<WizardResult[]> {
   const out: WizardResult[] = [];
   for (const [idxStr, action] of Object.entries(decisions)) {
@@ -337,11 +345,10 @@ async function commitDecisions(
     if (action.type === "skip") continue;
 
     if (action.type === "accept" || action.type === "link") {
-      // For "accept" (already linked) we don't need to re-upsert, but for "link" (new manual choice) we do
       if (action.type === "link" && item.varenr) {
         await fetch(`/api/admin/katalog/${action.gpId}/links`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({ supplier, supplier_varenr: item.varenr }),
         });
       }
@@ -349,7 +356,7 @@ async function commitDecisions(
     } else if (action.type === "create") {
       const createRes = await fetch("/api/admin/katalog", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ name: action.name, category: action.category, unit: action.unit, description: "" }),
       });
       const createJson = await createRes.json();
@@ -357,7 +364,7 @@ async function commitDecisions(
       if (item.varenr) {
         await fetch(`/api/admin/katalog/${createJson.data.id}/links`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({ supplier, supplier_varenr: item.varenr }),
         });
       }
