@@ -433,7 +433,22 @@ export default function QuoteDetailPage() {
   // ── Price lookup from supplier database ──────────────────────────────────────
   async function lookupPriceForItem(sIdx: number, iIdx: number, varenr: string) {
     if (!varenr.trim()) return;
-    const res  = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(supplierForPrices)}&q=${encodeURIComponent(varenr)}&limit=1`);
+
+    // If GPV varenr, resolve to supplier varenr via the links table first
+    let lookupVarenr = varenr.trim();
+    if (lookupVarenr.startsWith("GPV-")) {
+      const prodRes = await fetch(`/api/admin/katalog?q=${encodeURIComponent(lookupVarenr)}&limit=1`);
+      const prodJson = await prodRes.json();
+      const prod = prodJson.data?.[0];
+      if (prod) {
+        const linkRes = await fetch(`/api/admin/katalog/${prod.id}/links`);
+        const linkJson = await linkRes.json();
+        const link = (linkJson.data ?? []).find((l: { supplier: string }) => l.supplier === supplierForPrices);
+        if (link?.supplier_varenr) lookupVarenr = link.supplier_varenr;
+      }
+    }
+
+    const res  = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(supplierForPrices)}&q=${encodeURIComponent(lookupVarenr)}&limit=1`);
     const json = await res.json();
     const hit  = json.data?.[0];
     if (!hit) return;
@@ -489,10 +504,30 @@ export default function QuoteDetailPage() {
     if (!section) return;
     setLookingUpPrices(true);
     const items = [...section.line_items];
+
+    // Pre-fetch supplier links for all GPV varenrs in this section in one pass
+    const gpVarenrs = [...new Set(items.map(i => i.varenr?.trim()).filter((v): v is string => !!v && v.startsWith("GPV-")))];
+    const gpToSupplierVarenr: Record<string, string> = {};
+    if (gpVarenrs.length > 0) {
+      const prodsRes = await fetch(`/api/admin/katalog?q=GPV-&limit=500`);
+      const prodsJson = await prodsRes.json();
+      const prods: { id: string; varenr: string }[] = prodsJson.data ?? [];
+      await Promise.all(prods
+        .filter(p => gpVarenrs.includes(p.varenr))
+        .map(async p => {
+          const lr = await fetch(`/api/admin/katalog/${p.id}/links`);
+          const lj = await lr.json();
+          const link = (lj.data ?? []).find((l: { supplier: string }) => l.supplier === supplierForPrices);
+          if (link?.supplier_varenr) gpToSupplierVarenr[p.varenr] = link.supplier_varenr;
+        })
+      );
+    }
+
     for (let iIdx = 0; iIdx < items.length; iIdx++) {
       const varenr = items[iIdx].varenr?.trim();
       if (!varenr) continue;
-      const res  = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(supplierForPrices)}&q=${encodeURIComponent(varenr)}&limit=1`);
+      const lookupVarenr = varenr.startsWith("GPV-") ? (gpToSupplierVarenr[varenr] ?? varenr) : varenr;
+      const res  = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(supplierForPrices)}&q=${encodeURIComponent(lookupVarenr)}&limit=1`);
       const json = await res.json();
       const hit  = json.data?.[0];
       if (!hit) continue;

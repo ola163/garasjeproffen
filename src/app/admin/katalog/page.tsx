@@ -19,8 +19,11 @@ interface GpProduct {
   description?: string;
 }
 
+const DB_SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"];
+
 const EMPTY_PRODUCT = { varenr: "", name: "", category: "", unit: "", description: "" };
 const EMPTY_CAT = { label: "", varenr_start: 1000 };
+const EMPTY_LINKS: Record<string, string> = Object.fromEntries(DB_SUPPLIERS.map(s => [s, ""]));
 
 export default function KatalogPage() {
   const [tab, setTab] = useState<"produkter" | "kategorier">("produkter");
@@ -50,6 +53,7 @@ export default function KatalogPage() {
   const [prodError, setProdError] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [supplierLinks, setSupplierLinks] = useState<Record<string, string>>(EMPTY_LINKS);
 
   // ── Load categories ────────────────────────────────────────────────────
   const loadCats = useCallback(async () => {
@@ -127,15 +131,35 @@ export default function KatalogPage() {
   function openAdd() {
     setEditId(null);
     setForm({ ...EMPTY_PRODUCT, category: categories[0]?.label ?? "" });
+    setSupplierLinks({ ...EMPTY_LINKS });
     setProdError("");
     setShowModal(true);
   }
 
-  function openEdit(p: GpProduct) {
+  async function openEdit(p: GpProduct) {
     setEditId(p.id);
     setForm({ varenr: p.varenr, name: p.name, category: p.category, unit: p.unit ?? "", description: p.description ?? "" });
+    setSupplierLinks({ ...EMPTY_LINKS });
     setProdError("");
     setShowModal(true);
+    // Fetch existing links
+    fetch(`/api/admin/katalog/${p.id}/links`)
+      .then(r => r.json())
+      .then(d => {
+        const map = { ...EMPTY_LINKS };
+        for (const link of d.data ?? []) map[link.supplier] = link.supplier_varenr;
+        setSupplierLinks(map);
+      })
+      .catch(() => {});
+  }
+
+  async function saveLinks(productId: string) {
+    const links = DB_SUPPLIERS.map(s => ({ supplier: s, supplier_varenr: supplierLinks[s] ?? "" }));
+    await fetch(`/api/admin/katalog/${productId}/links`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ links }),
+    });
   }
 
   async function handleSave() {
@@ -149,6 +173,9 @@ export default function KatalogPage() {
         : await fetch("/api/admin/katalog", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const json = await res.json();
       if (!res.ok) { setProdError(json.error ?? "Feil"); return; }
+      // Save supplier links (use existing editId or newly created product id)
+      const productId = editId ?? json.data?.id;
+      if (productId) await saveLinks(productId);
       setShowModal(false);
       loadProducts();
     } finally {
@@ -499,6 +526,25 @@ export default function KatalogPage() {
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm focus:border-orange-400 focus:outline-none resize-none"
                 />
+              </div>
+
+              {/* Supplier varenr mapping */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">Leverandørtilknytning</label>
+                <div className="rounded-lg border border-gray-200 overflow-hidden">
+                  {DB_SUPPLIERS.map((sup, i) => (
+                    <div key={sup} className={`flex items-center gap-3 px-3 py-2 ${i > 0 ? "border-t border-gray-100" : ""}`}>
+                      <span className="w-32 shrink-0 text-xs font-medium text-gray-600">{sup}</span>
+                      <input
+                        type="text"
+                        placeholder="Leverandørens varenr"
+                        value={supplierLinks[sup] ?? ""}
+                        onChange={e => setSupplierLinks(l => ({ ...l, [sup]: e.target.value }))}
+                        className="flex-1 rounded border border-gray-200 px-2 py-1 text-xs font-mono focus:border-orange-400 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {prodError && <p className="text-xs text-red-500">{prodError}</p>}
