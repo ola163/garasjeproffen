@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import type { VaretellerItem, VaretellerResponse } from "@/app/api/admin/vareteller/route";
+import type { VaretellerResponse } from "@/app/api/admin/vareteller/route";
 
 type Filter = "alle" | "pagaende" | "ferdigstilte";
 type SortKey = "quantity" | "projects" | "alpha";
@@ -46,16 +46,21 @@ export default function VaretellerPage() {
 
   // Auth
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) {
-        setAuthToken(session.access_token);
-        setAuthed(true);
-      } else {
-        // Check admin_session cookie via a protected endpoint
-        fetch("/api/admin/vareteller?filter=alle", { credentials: "include" })
-          .then(r => { if (r.ok) setAuthed(true); else setAuthed(false); });
-      }
-    });
+    const client = supabase;
+    if (client) {
+      client.auth.getSession().then(({ data: { session } }) => {
+        if (session?.access_token) {
+          setAuthToken(session.access_token);
+          setAuthed(true);
+        } else {
+          fetch("/api/admin/vareteller?filter=alle", { credentials: "include" })
+            .then(r => { if (r.ok) setAuthed(true); else setAuthed(false); });
+        }
+      });
+    } else {
+      fetch("/api/admin/vareteller?filter=alle", { credentials: "include" })
+        .then(r => { if (r.ok) setAuthed(true); else setAuthed(false); });
+    }
   }, []);
 
   useEffect(() => {
