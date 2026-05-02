@@ -155,6 +155,15 @@ export default function KatalogPage() {
   const [linkModalSuggestionsLoading, setLinkModalSuggestionsLoading] = useState(false);
   const [savingLinkModal, setSavingLinkModal] = useState(false);
 
+  // ── Merge duplicates ───────────────────────────────────────────────────
+  const [mergeSource, setMergeSource] = useState<GpProduct | null>(null);
+  const [mergeQuery, setMergeQuery] = useState("");
+  const [mergeTargets, setMergeTargets] = useState<GpProduct[]>([]);
+  const [mergeTargetLoading, setMergeTargetLoading] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState<GpProduct | null>(null);
+  const [merging, setMerging] = useState(false);
+  const [mergeError, setMergeError] = useState("");
+
   // ── Import tab ──────────────────────────────────────────────────────────
   const [importSupplier, setImportSupplier] = useState(DB_SUPPLIERS[0]);
   const [importSearch, setImportSearch] = useState("");
@@ -412,6 +421,46 @@ export default function KatalogPage() {
     setSavingLinkModal(false);
     setLinkModalProduct(null);
     loadLinks();
+  }
+
+  // ── Merge: search for target product ──────────────────────────────────
+  useEffect(() => {
+    if (!mergeSource || !mergeQuery.trim()) { setMergeTargets([]); return; }
+    let cancelled = false;
+    setMergeTargetLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/katalog?q=${encodeURIComponent(mergeQuery)}&limit=8`);
+        const json = await res.json();
+        if (!cancelled) setMergeTargets((json.data ?? []).filter((p: GpProduct) => p.id !== mergeSource.id));
+      } finally {
+        if (!cancelled) setMergeTargetLoading(false);
+      }
+    }, 280);
+    return () => { cancelled = true; clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mergeQuery, mergeSource]);
+
+  async function handleMerge() {
+    if (!mergeSource || !mergeTarget) return;
+    setMerging(true);
+    setMergeError("");
+    try {
+      const res = await fetch("/api/admin/katalog/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromId: mergeSource.id, toId: mergeTarget.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setMergeError(json.error ?? "Feil"); return; }
+      setMergeSource(null);
+      setMergeTarget(null);
+      setMergeQuery("");
+      loadProducts();
+      loadLinks();
+    } finally {
+      setMerging(false);
+    }
   }
 
   // ── Import tab search ──────────────────────────────────────────────────
@@ -830,6 +879,7 @@ export default function KatalogPage() {
                             <div className="flex items-center justify-end gap-2">
                               <button onClick={() => openLinkModal(p)} className="text-xs text-blue-400 hover:text-blue-600">Koblinger</button>
                               <button onClick={() => openEdit(p)} className="text-xs text-gray-400 hover:text-orange-500">Rediger</button>
+                              <button onClick={() => { setMergeSource(p); setMergeTarget(null); setMergeQuery(p.name); setMergeError(""); }} className="text-xs text-gray-300 hover:text-purple-500">Slå sammen</button>
                               <button onClick={() => setDeleteId(p.id)} className="text-xs text-gray-300 hover:text-red-500">Slett</button>
                             </div>
                           </td>
@@ -1296,6 +1346,106 @@ export default function KatalogPage() {
               </button>
               <button
                 onClick={() => setLinkModalProduct(null)}
+                className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50"
+              >
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Merge duplicates modal ──────────────────────────────────────── */}
+      {mergeSource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="flex w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
+            <div className="border-b border-gray-100 px-6 py-4">
+              <h2 className="text-base font-semibold text-gray-900">Slå sammen duplikater</h2>
+              <p className="mt-0.5 text-xs text-gray-400">Kilde slettes. Alle unike leverandørkoblinger flyttes til målet.</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {/* Source product */}
+              <div>
+                <p className="mb-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Slettes (kilde)</p>
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                  <span className="font-mono text-xs font-semibold text-red-600">{mergeSource.varenr}</span>
+                  <span className="ml-2 text-sm text-gray-800">{mergeSource.name}</span>
+                  <span className="ml-2 text-xs text-gray-400">({mergeSource.category})</span>
+                  <div className="mt-1.5 flex gap-1 flex-wrap">
+                    {DB_SUPPLIERS.map(s => {
+                      const v = linksMap[mergeSource.varenr]?.[s];
+                      return v ? (
+                        <span key={s} className="rounded bg-red-100 px-1.5 py-0.5 font-mono text-[10px] text-red-700">{SUPPLIER_ABBR[s]}: {v}</span>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Target search */}
+              <div>
+                <p className="mb-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Beholdes (mål)</p>
+                <input
+                  type="text"
+                  placeholder="Søk etter mål-vare…"
+                  value={mergeQuery}
+                  onChange={e => { setMergeQuery(e.target.value); setMergeTarget(null); }}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none"
+                  autoFocus
+                />
+                {mergeTargetLoading && <p className="mt-1 text-xs text-gray-400 animate-pulse">Søker…</p>}
+                {!mergeTargetLoading && mergeTargets.length > 0 && !mergeTarget && (
+                  <div className="mt-1 space-y-1 max-h-40 overflow-y-auto">
+                    {mergeTargets.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => setMergeTarget(p)}
+                        className="flex w-full items-center gap-2 rounded-lg border border-gray-100 px-3 py-2 text-left hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                      >
+                        <span className="font-mono text-xs font-semibold text-purple-600">{p.varenr}</span>
+                        <span className="text-sm text-gray-800 truncate">{p.name}</span>
+                        <span className="ml-auto text-xs text-gray-400">{p.category}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {mergeTarget && (
+                  <div className="mt-2 rounded-lg border border-purple-300 bg-purple-50 px-4 py-3">
+                    <span className="font-mono text-xs font-semibold text-purple-600">{mergeTarget.varenr}</span>
+                    <span className="ml-2 text-sm text-gray-800">{mergeTarget.name}</span>
+                    <button onClick={() => setMergeTarget(null)} className="ml-2 text-xs text-gray-400 hover:text-red-500">✕ Endre</button>
+                    <div className="mt-1.5 flex gap-1 flex-wrap">
+                      {DB_SUPPLIERS.map(s => {
+                        const v = linksMap[mergeTarget.varenr]?.[s];
+                        return v ? (
+                          <span key={s} className="rounded bg-purple-100 px-1.5 py-0.5 font-mono text-[10px] text-purple-700">{SUPPLIER_ABBR[s]}: {v}</span>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {mergeError && <p className="text-xs text-red-500">{mergeError}</p>}
+
+              {mergeTarget && (
+                <p className="text-xs text-gray-400">
+                  Leverandørkoblinger fra <span className="font-mono">{mergeSource.varenr}</span> som ikke finnes hos <span className="font-mono">{mergeTarget.varenr}</span> flyttes over. Konflikter (samme leverandør, ulik varenr) beholdes hos målet.
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                onClick={handleMerge}
+                disabled={!mergeTarget || merging}
+                className="flex-1 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+              >
+                {merging ? "Slår sammen…" : `Slå sammen → behold ${mergeTarget?.varenr ?? "…"}`}
+              </button>
+              <button
+                onClick={() => { setMergeSource(null); setMergeTarget(null); setMergeQuery(""); }}
                 className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50"
               >
                 Avbryt

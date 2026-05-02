@@ -164,18 +164,30 @@ export async function POST(req: NextRequest) {
 
   const sb = getSupabase();
   const varenrs = items.map(i => i.varenr).filter(Boolean);
+  const names = items.filter(i => !i.varenr && i.name).map(i => i.name.trim().toLowerCase()).filter(Boolean);
 
-  // ── 1. Exact matches from saved supplier links ────────────────────────────
-  const { data: links } = await sb
-    .from("gp_product_supplier_links")
-    .select("supplier_varenr, gp_varenr")
-    .eq("supplier", supplier)
-    .in("supplier_varenr", varenrs.length > 0 ? varenrs : ["__none__"]);
+  // ── 1. Exact matches from saved supplier links (by varenr AND by name alias) ─
+  const [linksRes, nameLinksRes] = await Promise.all([
+    sb.from("gp_product_supplier_links")
+      .select("supplier_varenr, gp_varenr")
+      .eq("supplier", supplier)
+      .in("supplier_varenr", varenrs.length > 0 ? varenrs : ["__none__"]),
+    names.length > 0
+      ? sb.from("gp_product_supplier_links")
+          .select("supplier_varenr, gp_varenr")
+          .eq("supplier", `${supplier}:name`)
+          .in("supplier_varenr", names)
+      : Promise.resolve({ data: [] }),
+  ]);
 
-  const linkMap = new Map<string, string>();
-  for (const l of links ?? []) linkMap.set(l.supplier_varenr, l.gp_varenr);
+  const linkMap = new Map<string, string>(); // supplier_varenr → gp_varenr
+  const nameLinkMap = new Map<string, string>(); // lowercased name → gp_varenr
+  for (const l of linksRes.data ?? []) linkMap.set(l.supplier_varenr, l.gp_varenr);
+  for (const l of (nameLinksRes as { data: { supplier_varenr: string; gp_varenr: string }[] | null }).data ?? []) {
+    nameLinkMap.set(l.supplier_varenr, l.gp_varenr);
+  }
 
-  const gpVarenrsNeeded = [...new Set([...linkMap.values()])];
+  const gpVarenrsNeeded = [...new Set([...linkMap.values(), ...nameLinkMap.values()])];
   const gpByVarenr = new Map<string, GpCandidate>();
   if (gpVarenrsNeeded.length > 0) {
     const { data: gpRows } = await sb.from("gp_products").select("id, varenr, name, category").in("varenr", gpVarenrsNeeded);
@@ -185,7 +197,9 @@ export async function POST(req: NextRequest) {
   // ── 2. Fetch DB candidates for non-exact items in parallel ───────────────
   const exactIndices = new Set<number>();
   for (let i = 0; i < items.length; i++) {
-    if (linkMap.has(items[i].varenr)) exactIndices.add(i);
+    const item = items[i];
+    if (linkMap.has(item.varenr)) exactIndices.add(i);
+    else if (!item.varenr && item.name && nameLinkMap.has(item.name.trim().toLowerCase())) exactIndices.add(i);
   }
 
   const batch: BatchItem[] = [];
@@ -221,9 +235,9 @@ export async function POST(req: NextRequest) {
   for (const b of batch) for (const c of b.candidates) gpLookup.set(c.varenr, c);
 
   const results: MatchResult[] = items.map((item, i) => {
-    // Exact match
+    // Exact match (by varenr or name alias)
     if (exactIndices.has(i)) {
-      const gpVarenr = linkMap.get(item.varenr);
+      const gpVarenr = linkMap.get(item.varenr) ?? nameLinkMap.get(item.name.trim().toLowerCase());
       const gp = gpVarenr ? gpByVarenr.get(gpVarenr) : undefined;
       return { ...item, matchType: "exact" as const, gpId: gp?.id, gpVarenr: gp?.varenr, gpName: gp?.name };
     }

@@ -76,6 +76,8 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
   const [categories, setCategories] = useState<GpCategory[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [savedResults, setSavedResults] = useState<WizardResult[]>([]);
+  const [saveFlash, setSaveFlash] = useState(false);
 
   const authHeaders: Record<string, string> = authToken ? { "Authorization": `Bearer ${authToken}` } : {};
 
@@ -157,16 +159,45 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
   const reviewHandledCount = Object.keys(reviewDecisions).length;
   const autoCount = Object.keys(autoDecisions).length;
 
+  // Save to DB but stay in wizard; navigate to next unhandled item
   async function handleSave() {
     setSaving(true);
     setError("");
     try {
       const results = await commitDecisions(items, allDecisions, matchedResults, supplier, authHeaders);
-      onDone(results);
+      setSavedResults(results);
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 2500);
+      // Navigate to next unhandled
+      const isUnhandled = (origIdx: number) => {
+        const t = reviewDecisions[origIdx]?.type;
+        return t !== "accept" && t !== "link" && t !== "create";
+      };
+      const afterCurrent = reviewIndices.findIndex((origIdx, pos) => pos > reviewPos && isUnhandled(origIdx));
+      const fromStart = reviewIndices.findIndex(origIdx => isUnhandled(origIdx));
+      const nextPos = afterCurrent !== -1 ? afterCurrent : fromStart;
+      if (nextPos !== -1) setReviewPos(nextPos);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Ukjent feil");
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Save (if unsaved changes exist) then close
+  async function handleFinish() {
+    if (reviewDecidedCount + autoCount > 0) {
+      setSaving(true);
+      setError("");
+      try {
+        const results = await commitDecisions(items, allDecisions, matchedResults, supplier, authHeaders);
+        onDone(results);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Ukjent feil");
+        setSaving(false);
+      }
+    } else {
+      onDone(savedResults);
     }
   }
 
@@ -263,6 +294,11 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
 
         {/* Footer */}
         <div className="border-t px-6 py-4">
+          {saveFlash && (
+            <p className="mb-2 text-center text-xs font-medium text-green-600">
+              ✓ Koblinger lagret til databasen
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setReviewPos(p => Math.max(0, p - 1))}
@@ -300,12 +336,21 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
             <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 shrink-0">
               {cancelLabel ?? "Avbryt"}
             </button>
+            {/* Save stays in wizard */}
             <button
               onClick={handleSave}
               disabled={saving || (reviewDecidedCount === 0 && autoCount === 0)}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40 shrink-0"
+              className="rounded-lg border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-40 shrink-0"
             >
               {saving ? "Lagrer…" : `Lagre ${reviewDecidedCount + autoCount} kobling${reviewDecidedCount + autoCount === 1 ? "" : "er"}`}
+            </button>
+            {/* Finish saves + closes */}
+            <button
+              onClick={handleFinish}
+              disabled={saving}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40 shrink-0"
+            >
+              Fullfør
             </button>
           </div>
         </div>
@@ -354,17 +399,24 @@ async function commitDecisions(
     if (action.type === "skip") continue;
 
     if (action.type === "accept" || action.type === "link") {
-      // Create/update the primary supplier link
-      if (item.varenr) {
+      // Create/update the primary supplier link (by varenr or by name alias)
+      const linkVarenr = item.varenr || null;
+      const nameAlias = item.name.trim().toLowerCase();
+      const supplierKey = linkVarenr ? supplier : `${supplier}:name`;
+      const supplierVarenrKey = linkVarenr ?? nameAlias;
+
+      if (supplierVarenrKey) {
         const patchRes = await fetch(`/api/admin/katalog/${action.gpId}/links`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({ supplier, supplier_varenr: item.varenr }),
+          body: JSON.stringify({ supplier: supplierKey, supplier_varenr: supplierVarenrKey }),
         });
         if (!patchRes.ok) {
           const err = await patchRes.json().catch(() => ({}));
           throw new Error(err.error ?? `Kobling feilet for ${item.name} (${patchRes.status})`);
         }
+      }
+      if (linkVarenr) {
 
         // Auto-link to other suppliers when exactly 1 match found per supplier
         const searchTerm = extractSearchTerm(item.name, item.dimensjon);
@@ -401,38 +453,44 @@ async function commitDecisions(
       const createJson = await createRes.json();
       if (!createRes.ok) throw new Error(createJson.error ?? `Opprettelse feilet for «${action.name}»`);
 
-      if (item.varenr) {
-        const patchRes = await fetch(`/api/admin/katalog/${createJson.data.id}/links`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({ supplier, supplier_varenr: item.varenr }),
-        });
-        if (!patchRes.ok) {
-          const err = await patchRes.json().catch(() => ({}));
-          throw new Error(err.error ?? `Kobling feilet for ${item.name} (${patchRes.status})`);
+      {
+        const linkVarenr2 = item.varenr || null;
+        const supplierKey2 = linkVarenr2 ? supplier : `${supplier}:name`;
+        const supplierVarenrKey2 = linkVarenr2 ?? item.name.trim().toLowerCase();
+        if (supplierVarenrKey2) {
+          const patchRes = await fetch(`/api/admin/katalog/${createJson.data.id}/links`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({ supplier: supplierKey2, supplier_varenr: supplierVarenrKey2 }),
+          });
+          if (!patchRes.ok) {
+            const err = await patchRes.json().catch(() => ({}));
+            throw new Error(err.error ?? `Kobling feilet for ${item.name} (${patchRes.status})`);
+          }
         }
-
-        // Auto-link to other suppliers
-        const searchTerm = extractSearchTerm(item.name, item.dimensjon);
-        if (searchTerm) {
-          try {
-            const simRes = await fetch(
-              `/api/admin/supplier-prices/similar?q=${encodeURIComponent(searchTerm)}&exclude_supplier=${encodeURIComponent(supplier)}&limit=3`,
-              { headers: authHeaders }
-            );
-            const simJson = await simRes.json();
-            const simData: Record<string, { varenr: string }[]> = simJson.data ?? {};
-            for (const [otherSupplier, hits] of Object.entries(simData)) {
-              if (hits.length === 1) {
-                await fetch(`/api/admin/katalog/${createJson.data.id}/links`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json", ...authHeaders },
-                  body: JSON.stringify({ supplier: otherSupplier, supplier_varenr: hits[0].varenr }),
-                });
+        if (linkVarenr2) {
+          // Auto-link to other suppliers
+          const searchTerm = extractSearchTerm(item.name, item.dimensjon);
+          if (searchTerm) {
+            try {
+              const simRes = await fetch(
+                `/api/admin/supplier-prices/similar?q=${encodeURIComponent(searchTerm)}&exclude_supplier=${encodeURIComponent(supplier)}&limit=3`,
+                { headers: authHeaders }
+              );
+              const simJson = await simRes.json();
+              const simData: Record<string, { varenr: string }[]> = simJson.data ?? {};
+              for (const [otherSupplier, hits] of Object.entries(simData)) {
+                if (hits.length === 1) {
+                  await fetch(`/api/admin/katalog/${createJson.data.id}/links`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json", ...authHeaders },
+                    body: JSON.stringify({ supplier: otherSupplier, supplier_varenr: hits[0].varenr }),
+                  });
+                }
               }
+            } catch {
+              // Best-effort
             }
-          } catch {
-            // Best-effort
           }
         }
       }
