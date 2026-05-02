@@ -78,6 +78,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
   const [error, setError] = useState("");
   const [savedResults, setSavedResults] = useState<WizardResult[]>([]);
   const [saveFlash, setSaveFlash] = useState(false);
+  const [committedIndices, setCommittedIndices] = useState<Set<number>>(new Set());
 
   const authHeaders: Record<string, string> = authToken ? { "Authorization": `Bearer ${authToken}` } : {};
 
@@ -159,13 +160,29 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
   const reviewHandledCount = Object.keys(reviewDecisions).length;
   const autoCount = Object.keys(autoDecisions).length;
 
+  // Unsaved counts — exclude indices already committed via handleSave
+  const unsavedReviewCount = Object.entries(reviewDecisions).filter(
+    ([idxStr, d]) => d.type !== "skip" && !committedIndices.has(Number(idxStr))
+  ).length;
+  const unsavedAutoCount = Object.entries(autoDecisions).filter(
+    ([idxStr]) => !committedIndices.has(Number(idxStr))
+  ).length;
+  const unsavedCount = unsavedReviewCount + unsavedAutoCount;
+
   // Save to DB but stay in wizard; navigate to next unhandled item
   async function handleSave() {
     setSaving(true);
     setError("");
     try {
-      const results = await commitDecisions(items, allDecisions, matchedResults, supplier, authHeaders);
-      setSavedResults(results);
+      // Only commit decisions not yet saved
+      const uncommitted = Object.fromEntries(
+        Object.entries(allDecisions).filter(([idxStr]) => !committedIndices.has(Number(idxStr)))
+      );
+      const results = await commitDecisions(items, uncommitted, matchedResults, supplier, authHeaders);
+      setSavedResults(prev => [...prev, ...results]);
+      // Mark all just-committed indices
+      const newlyCommitted = new Set(Object.keys(uncommitted).map(Number));
+      setCommittedIndices(prev => new Set([...prev, ...newlyCommitted]));
       setSaveFlash(true);
       setTimeout(() => setSaveFlash(false), 2500);
       // Navigate to next unhandled
@@ -186,12 +203,15 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
 
   // Save (if unsaved changes exist) then close
   async function handleFinish() {
-    if (reviewDecidedCount + autoCount > 0) {
+    if (unsavedCount > 0) {
       setSaving(true);
       setError("");
       try {
-        const results = await commitDecisions(items, allDecisions, matchedResults, supplier, authHeaders);
-        onDone(results);
+        const uncommitted = Object.fromEntries(
+          Object.entries(allDecisions).filter(([idxStr]) => !committedIndices.has(Number(idxStr)))
+        );
+        const results = await commitDecisions(items, uncommitted, matchedResults, supplier, authHeaders);
+        onDone([...savedResults, ...results]);
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Ukjent feil");
         setSaving(false);
@@ -339,10 +359,10 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
             {/* Save stays in wizard */}
             <button
               onClick={handleSave}
-              disabled={saving || (reviewDecidedCount === 0 && autoCount === 0)}
+              disabled={saving || unsavedCount === 0}
               className="rounded-lg border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-40 shrink-0"
             >
-              {saving ? "Lagrer…" : `Lagre ${reviewDecidedCount + autoCount} kobling${reviewDecidedCount + autoCount === 1 ? "" : "er"}`}
+              {saving ? "Lagrer…" : `Lagre ${unsavedCount} kobling${unsavedCount === 1 ? "" : "er"}`}
             </button>
             {/* Finish saves + closes */}
             <button

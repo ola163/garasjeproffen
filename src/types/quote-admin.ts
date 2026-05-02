@@ -22,7 +22,7 @@ export interface OfferSection {
   påslag_type?: "kr" | "pst";
 }
 
-export type QuoteStatus = 'new' | 'in_review' | 'pending_approval' | 'offer_sent' | 'paid' | 'cancelled';
+export type QuoteStatus = 'new' | 'in_review' | 'pending_approval' | 'offer_sent' | 'paid' | 'ferdigstilt' | 'cancelled';
 
 export interface QuoteRow {
   id: string;

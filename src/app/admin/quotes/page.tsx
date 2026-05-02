@@ -17,6 +17,7 @@ const STATUS_LABELS: Record<QuoteStatus, string> = {
   pending_approval: "Venter godkjenning",
   offer_sent: "Tilbud sendt",
   paid: "Betalt",
+  ferdigstilt: "Ferdigstilt",
   cancelled: "Kansellert",
 };
 
@@ -26,6 +27,7 @@ const STATUS_COLORS: Record<QuoteStatus, string> = {
   pending_approval: "bg-orange-100 text-orange-700",
   offer_sent: "bg-purple-100 text-purple-700",
   paid: "bg-green-100 text-green-700",
+  ferdigstilt: "bg-teal-100 text-teal-700",
   cancelled: "bg-gray-100 text-gray-500",
 };
 
@@ -36,6 +38,7 @@ const FILTERS: { id: QuoteStatus | "all"; label: string }[] = [
   { id: "pending_approval", label: "Venter godkjenning" },
   { id: "offer_sent", label: "Tilbud sendt" },
   { id: "paid", label: "Betalt" },
+  { id: "ferdigstilt", label: "Ferdigstilt" },
   { id: "cancelled", label: "Kansellert" },
 ];
 
@@ -227,7 +230,7 @@ export default function AdminQuotesPage() {
 
         {/* Stat cards */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-6">
-          {(["new", "in_review", "pending_approval", "offer_sent", "paid", "cancelled"] as QuoteStatus[]).map((s) => (
+          {(["new", "in_review", "pending_approval", "offer_sent", "paid", "ferdigstilt", "cancelled"] as QuoteStatus[]).map((s) => (
             <div key={s} className="rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm">
               <p className="text-2xl font-bold text-gray-900">{counts[s] ?? 0}</p>
               <p className="mt-0.5 text-xs text-gray-500">{STATUS_LABELS[s]}</p>

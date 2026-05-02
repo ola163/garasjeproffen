@@ -100,13 +100,13 @@ function LineAdjRow({ item, section, sIdx, iIdx, update }: {
 
 const STATUS_LABELS: Record<QuoteStatus, string> = {
   new: "Ny", in_review: "Under behandling", pending_approval: "Venter godkjenning",
-  offer_sent: "Tilbud sendt", paid: "Betalt", cancelled: "Kansellert",
+  offer_sent: "Tilbud sendt", paid: "Betalt", ferdigstilt: "Ferdigstilt", cancelled: "Kansellert",
 };
 const STATUS_COLORS: Record<QuoteStatus, string> = {
   new: "bg-blue-100 text-blue-700", in_review: "bg-yellow-100 text-yellow-700",
   pending_approval: "bg-orange-100 text-orange-700",
   offer_sent: "bg-purple-100 text-purple-700", paid: "bg-green-100 text-green-700",
-  cancelled: "bg-gray-100 text-gray-500",
+  ferdigstilt: "bg-teal-100 text-teal-700", cancelled: "bg-gray-100 text-gray-500",
 };
 const CATEGORY_LABELS: Record<string, string> = {
   door: "Dør 90×210", window1: "Vindu 100×50", window2: "Vindu 100×60", window3: "Vindu 100×100",
@@ -1041,7 +1041,7 @@ export default function QuoteDetailPage() {
 
           {/* Status selector */}
           <div className="flex flex-wrap gap-1.5">
-            {(["new","in_review","pending_approval","offer_sent","paid","cancelled"] as QuoteStatus[]).map((s) => (
+            {(["new","in_review","pending_approval","offer_sent","paid","ferdigstilt","cancelled"] as QuoteStatus[]).map((s) => (
               <button key={s} onClick={() => setStatusConfirm(s)} disabled={updatingStatus || s === quote.status}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-all disabled:cursor-default ${
                   s === quote.status
