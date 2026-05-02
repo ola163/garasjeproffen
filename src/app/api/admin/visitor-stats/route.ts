@@ -28,15 +28,26 @@ export async function GET() {
 
   const db = createClient(url, key);
 
-  const [logsResult, profilesResult, quotesResult] = await Promise.all([
+  const [logsResult, profilesResult, quotesResult, authUsersResult] = await Promise.all([
     db.from("visitor_logs").select("*").order("visited_at", { ascending: false }).limit(5000),
     db.from("user_profiles").select("email, consent_ip").not("consent_ip", "is", null),
     db.from("quotes").select("customer_email, customer_name, created_at").not("customer_email", "is", null),
+    db.auth.admin.listUsers({ perPage: 1000 }),
   ]);
 
   if (logsResult.error) return new Response(logsResult.error.message, { status: 500 });
 
   const rows = (logsResult.data ?? []) as LogRow[];
+
+  // ── Source 0: Supabase Auth users (all registered accounts) ─────────────
+  // Build a set of known auth emails and a map from email → display name
+  const authUsers = (authUsersResult.data?.users ?? []) as { email?: string; user_metadata?: { full_name?: string; name?: string } }[];
+  const authEmailToName = new Map<string, string>();
+  for (const u of authUsers) {
+    if (!u.email) continue;
+    const name = u.user_metadata?.full_name ?? u.user_metadata?.name ?? "";
+    authEmailToName.set(u.email.toLowerCase(), name);
+  }
 
   // ── Source 1: user_profiles.consent_ip ─────────────────────────────────────
   const consentIpToEmail = new Map<string, string>();
@@ -96,12 +107,14 @@ export async function GET() {
   }>();
 
   for (const row of rows) {
-    // Resolve identity from all three sources
+    // Resolve identity from all sources: direct log, consent IP, quote match
     const logEmail   = row.user_email ?? null;
     const profEmail  = consentIpToEmail.get(row.ip) ?? null;
     const custInfo   = ipToCustomer.get(row.ip) ?? null;
     const resolvedEmail = logEmail ?? profEmail ?? custInfo?.email ?? null;
-    const resolvedName  = custInfo?.name ?? null;
+    // Name: prefer auth display name, then quote customer name
+    const authName = resolvedEmail ? (authEmailToName.get(resolvedEmail) ?? "") : "";
+    const resolvedName  = authName || custInfo?.name || null;
 
     if (resolvedEmail && ADMIN_EMAILS.includes(resolvedEmail)) continue;
 
@@ -215,6 +228,14 @@ export async function GET() {
     if (row.referrer) referrerMap.set(row.referrer, (referrerMap.get(row.referrer) ?? 0) + 1);
   }
 
+  // ── Registered auth users (all accounts, with or without visits) ─────────
+  const registeredUsers = authUsers
+    .filter((u) => u.email && !ADMIN_EMAILS.includes(u.email.toLowerCase()))
+    .map((u) => ({
+      email: u.email!.toLowerCase(),
+      name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? "",
+    }));
+
   return Response.json({
     totalVisits: rows.length,
     uniqueIpCount: uniqueIps.length,
@@ -222,6 +243,7 @@ export async function GET() {
     uniqueIpWeek:  uniqueWeek.size,
     uniqueIpMonth: uniqueMonth.size,
     uniqueIps,
+    registeredUsers,
     topPages:     Array.from(pageMap.entries()).map(([path, count]) => ({ path, count })).sort((a, b) => b.count - a.count).slice(0, 20),
     topReferrers: Array.from(referrerMap.entries()).map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count).slice(0, 20),
   });

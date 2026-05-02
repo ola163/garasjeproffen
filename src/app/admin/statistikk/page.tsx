@@ -29,6 +29,7 @@ interface StatsData {
   uniqueIpWeek: number;
   uniqueIpMonth: number;
   uniqueIps: IpEntry[];
+  registeredUsers: { email: string; name: string }[];
   topPages: { path: string; count: number }[];
   topReferrers: { domain: string; count: number }[];
 }
@@ -92,10 +93,27 @@ export default function StatistikkPage() {
     }
   }
 
-  // Build user groups from entries that have emails
+  // Build user groups: seed from all registered auth accounts, then enrich with visit data
   const userGroups = useMemo<UserGroup[]>(() => {
     if (!data) return [];
     const emailMap = new Map<string, UserGroup>();
+
+    // Seed every registered user so they appear even with zero visits
+    for (const u of (data.registeredUsers ?? [])) {
+      emailMap.set(u.email, {
+        email: u.email,
+        names: u.name ? [u.name] : [],
+        ips: [],
+        totalCount: 0,
+        firstSeen: "",
+        lastSeen: "",
+        paths: [],
+        geo: null,
+        countryCode: null,
+      });
+    }
+
+    // Enrich with actual visit data
     for (const entry of data.uniqueIps) {
       for (const email of entry.emails) {
         const existing = emailMap.get(email);
@@ -113,8 +131,9 @@ export default function StatistikkPage() {
           });
         } else {
           existing.totalCount += entry.count;
-          if (entry.firstSeen < existing.firstSeen) existing.firstSeen = entry.firstSeen;
-          if (entry.lastSeen > existing.lastSeen) existing.lastSeen = entry.lastSeen;
+          if (!existing.firstSeen || entry.firstSeen < existing.firstSeen) existing.firstSeen = entry.firstSeen;
+          if (!existing.lastSeen || entry.lastSeen > existing.lastSeen) existing.lastSeen = entry.lastSeen;
+          if (!existing.geo && entry.geo) { existing.geo = entry.geo; existing.countryCode = entry.countryCode; }
           for (const p of entry.paths) if (!existing.paths.includes(p)) existing.paths.push(p);
           for (const ip of (entry.allIps ?? [entry.ip])) if (!existing.ips.includes(ip)) existing.ips.push(ip);
           for (const n of (entry.names ?? [])) if (!existing.names.includes(n)) existing.names.push(n);
@@ -245,11 +264,15 @@ export default function StatistikkPage() {
                                 <p className="text-xs text-blue-600 truncate">{user.email}</p>
                                 <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                                   <GeoTag geo={user.geo} />
-                                  <span className="text-xs text-gray-400">Sist sett: {fmt(user.lastSeen)}</span>
+                                  {user.lastSeen
+                                    ? <span className="text-xs text-gray-400">Sist sett: {fmt(user.lastSeen)}</span>
+                                    : <span className="text-xs text-gray-300 italic">Ingen besøk registrert</span>}
                                 </div>
                               </div>
                               <div className="flex items-center gap-3 shrink-0">
-                                <span className="text-lg font-bold text-orange-500">{user.totalCount}</span>
+                                {user.totalCount > 0
+                                  ? <span className="text-lg font-bold text-orange-500">{user.totalCount}</span>
+                                  : <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-400">0</span>}
                                 <span className={`text-gray-300 transition-transform text-xs ${isOpen ? "rotate-180" : ""}`}>▾</span>
                               </div>
                             </div>
@@ -257,17 +280,21 @@ export default function StatistikkPage() {
 
                           {isOpen && (
                             <div className="border-t border-gray-100 bg-blue-50 px-5 py-4 space-y-3">
-                              <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">IP-adresser</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {user.ips.map((ip) => (
-                                    <span key={ip} className="rounded-lg border border-blue-200 bg-white px-3 py-1 font-mono text-xs text-gray-700">
-                                      {ip}
-                                    </span>
-                                  ))}
+                              {user.ips.length > 0 ? (
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">IP-adresser</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {user.ips.map((ip) => (
+                                      <span key={ip} className="rounded-lg border border-blue-200 bg-white px-3 py-1 font-mono text-xs text-gray-700">
+                                        {ip}
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                              <p className="text-xs text-gray-500">Første besøk: {fmt(user.firstSeen)}</p>
+                              ) : (
+                                <p className="text-xs text-gray-400 italic">Ingen IP-adresser koblet ennå. Bruk «Koble IPs til brukere» for å koble historiske besøk.</p>
+                              )}
+                              {user.firstSeen && <p className="text-xs text-gray-500">Første besøk: {fmt(user.firstSeen)}</p>}
                               {user.paths.length > 0 && (
                                 <div>
                                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Besøkte sider</p>
