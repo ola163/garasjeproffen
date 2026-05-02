@@ -151,6 +151,8 @@ export default function KatalogPage() {
   const [linksMap, setLinksMap] = useState<Record<string, Record<string, string>>>({});
   const [linkModalProduct, setLinkModalProduct] = useState<GpProduct | null>(null);
   const [linkModalLinks, setLinkModalLinks] = useState<LinkMap>({ ...EMPTY_LINKS });
+  const [linkModalSuggestions, setLinkModalSuggestions] = useState<Record<string, SupplierPriceHit[]>>({});
+  const [linkModalSuggestionsLoading, setLinkModalSuggestionsLoading] = useState(false);
   const [savingLinkModal, setSavingLinkModal] = useState(false);
 
   // ── Import tab ──────────────────────────────────────────────────────────
@@ -365,9 +367,11 @@ export default function KatalogPage() {
       if (existing[sup]) map[sup] = { varenr: existing[sup], name: "" };
     }
     setLinkModalLinks(map);
+    setLinkModalSuggestions({});
     setLinkModalProduct(p);
-    // Fetch descriptions in background
-    await Promise.all(
+
+    // Fetch descriptions for existing links + auto-suggestions in parallel
+    const descTask = Promise.all(
       DB_SUPPLIERS.map(async (sup) => {
         const sv = existing[sup];
         if (!sv) return;
@@ -380,6 +384,20 @@ export default function KatalogPage() {
         }));
       })
     );
+
+    // Auto-suggest matching items from all suppliers based on product name
+    const searchTerm = extractSearchTerm(p.name);
+    if (searchTerm) {
+      setLinkModalSuggestionsLoading(true);
+      const simTask = fetch(`/api/admin/supplier-prices/similar?q=${encodeURIComponent(searchTerm)}&limit=5`)
+        .then(r => r.json())
+        .then(j => setLinkModalSuggestions(j.data ?? {}))
+        .catch(() => {})
+        .finally(() => setLinkModalSuggestionsLoading(false));
+      await Promise.all([descTask, simTask]);
+    } else {
+      await descTask;
+    }
   }
 
   async function saveLinkModal() {
@@ -1188,30 +1206,83 @@ export default function KatalogPage() {
               </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              <p className="mb-3 text-xs text-gray-400">
-                Søk på varenr eller navn fra leverandørens prisdatabase for å knytte dem til dette GPV-nummeret.
-              </p>
-              <div className="rounded-lg border border-gray-200 overflow-visible">
-                {DB_SUPPLIERS.map((sup, i) => (
-                  <div key={sup} className={`flex items-start gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-gray-100" : ""}`}>
-                    <span className="w-28 shrink-0 pt-1.5 text-xs font-medium text-gray-600">{sup}</span>
-                    <SupplierVarenrPicker
-                      supplier={sup}
-                      varenr={linkModalLinks[sup]?.varenr ?? ""}
-                      name={linkModalLinks[sup]?.name ?? ""}
-                      onChange={(v, n) => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: v, name: n } }))}
-                    />
-                    {linkModalLinks[sup]?.varenr && (
-                      <button
-                        type="button"
-                        onClick={() => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: "", name: "" } }))}
-                        className="shrink-0 pt-1.5 text-gray-300 hover:text-red-400"
-                        title="Fjern kobling"
-                      >✕</button>
-                    )}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+
+              {/* Auto-suggestions */}
+              {(linkModalSuggestionsLoading || DB_SUPPLIERS.some(s => (linkModalSuggestions[s]?.length ?? 0) > 0)) && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold text-gray-700">
+                    Automatiske forslag
+                    {linkModalSuggestionsLoading && <span className="ml-2 text-gray-400 font-normal animate-pulse">Søker…</span>}
+                  </p>
+                  <p className="mb-2 text-[10px] text-gray-400">Kryss av varer som er det samme produktet. De kobles automatisk til GPV-nummeret.</p>
+                  <div className="space-y-3">
+                    {DB_SUPPLIERS.map(sup => {
+                      const hits = linkModalSuggestions[sup] ?? [];
+                      if (!hits.length) return null;
+                      const already = linkModalLinks[sup]?.varenr;
+                      return (
+                        <div key={sup}>
+                          <p className="mb-1 text-xs font-medium text-gray-500">{sup}</p>
+                          <div className="space-y-1">
+                            {hits.map(hit => {
+                              const label = [hit.varebenevnelse, hit.dimensjon].filter(Boolean).join(" ");
+                              const isSelected = already === hit.varenr;
+                              return (
+                                <label
+                                  key={hit.varenr}
+                                  className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors ${isSelected ? "border-orange-300 bg-orange-50" : "border-gray-100 hover:bg-gray-50"}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => setLinkModalLinks(l => ({
+                                      ...l,
+                                      [sup]: isSelected ? { varenr: "", name: "" } : { varenr: hit.varenr, name: label },
+                                    }))}
+                                    className="h-3.5 w-3.5 accent-orange-500"
+                                  />
+                                  <span className="font-mono text-xs text-gray-600 shrink-0">{hit.varenr}</span>
+                                  <span className="min-w-0 truncate text-xs text-gray-800">{label}</span>
+                                  {hit.nettopris != null && (
+                                    <span className="ml-auto shrink-0 text-[10px] text-gray-400">{hit.nettopris.toLocaleString("nb-NO")} kr</span>
+                                  )}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
+              )}
+
+              {/* Manual pickers */}
+              <div>
+                <p className="mb-2 text-xs font-semibold text-gray-700">Manuell tilknytning</p>
+                <p className="mb-2 text-[10px] text-gray-400">Søk på varenr eller navn fra leverandørens prisdatabase.</p>
+                <div className="rounded-lg border border-gray-200 overflow-visible">
+                  {DB_SUPPLIERS.map((sup, i) => (
+                    <div key={sup} className={`flex items-start gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-gray-100" : ""}`}>
+                      <span className="w-28 shrink-0 pt-1.5 text-xs font-medium text-gray-600">{sup}</span>
+                      <SupplierVarenrPicker
+                        supplier={sup}
+                        varenr={linkModalLinks[sup]?.varenr ?? ""}
+                        name={linkModalLinks[sup]?.name ?? ""}
+                        onChange={(v, n) => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: v, name: n } }))}
+                      />
+                      {linkModalLinks[sup]?.varenr && (
+                        <button
+                          type="button"
+                          onClick={() => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: "", name: "" } }))}
+                          className="shrink-0 pt-1.5 text-gray-300 hover:text-red-400"
+                          title="Fjern kobling"
+                        >✕</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

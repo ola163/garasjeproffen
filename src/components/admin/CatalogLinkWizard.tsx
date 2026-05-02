@@ -66,10 +66,8 @@ interface Props {
 export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, cancelLabel, authToken }: Props) {
   const [matchedResults, setMatchedResults] = useState<MatchResult[]>([]);
   const [loading, setLoading] = useState(true);
-  // decisions keyed by original item index
   const [autoDecisions, setAutoDecisions] = useState<Record<number, ItemAction>>({});
   const [reviewDecisions, setReviewDecisions] = useState<Record<number, ItemAction>>({});
-  // indices into `items` that need manual review
   const [reviewIndices, setReviewIndices] = useState<number[]>([]);
   const [reviewPos, setReviewPos] = useState(0);
   const [searchQuery, setSearchQuery] = useState<Record<number, string>>({});
@@ -109,7 +107,6 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
         for (let i = 0; i < matched.length; i++) {
           const r = matched[i];
           if (r.matchType === "exact" && r.gpId && r.gpVarenr) {
-            // Auto-accept — no user interaction needed
             auto[i] = { type: "accept", gpId: r.gpId, gpVarenr: r.gpVarenr };
           } else {
             needsReview.push(i);
@@ -119,7 +116,6 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
         setAutoDecisions(auto);
         setReviewIndices(needsReview);
 
-        // Nothing to review — finish immediately
         if (needsReview.length === 0) {
           const results = buildResults(items, { ...auto }, matched);
           onDone(results);
@@ -136,13 +132,14 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     if (!q.trim()) { setSearchHits(prev => ({ ...prev, [originalIdx]: [] })); return; }
     setSearchLoading(prev => ({ ...prev, [originalIdx]: true }));
     try {
-      const res = await fetch(`/api/admin/katalog?q=${encodeURIComponent(q)}&limit=8`, { headers: authHeaders });
+      const headers: Record<string, string> = authToken ? { "Authorization": `Bearer ${authToken}` } : {};
+      const res = await fetch(`/api/admin/katalog?q=${encodeURIComponent(q)}&limit=8`, { headers });
       const json = await res.json();
       setSearchHits(prev => ({ ...prev, [originalIdx]: json.data ?? [] }));
     } finally {
       setSearchLoading(prev => ({ ...prev, [originalIdx]: false }));
     }
-  }, []);
+  }, [authToken]);
 
   function setReviewDecision(originalIdx: number, action: ItemAction | null) {
     setReviewDecisions(prev => {
@@ -184,7 +181,6 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     );
   }
 
-  // Nothing to review after load — onDone was already called
   if (reviewIndices.length === 0) return null;
 
   const currentOriginalIdx = reviewIndices[reviewPos];
@@ -218,7 +214,6 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
             </div>
           </div>
 
-          {/* Progress dots — one per review item */}
           <div className="mt-3 flex gap-1 flex-wrap">
             {dotItems.map((origIdx, pos) => {
               const dec = reviewDecisions[origIdx];
@@ -241,10 +236,11 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
           </div>
         </div>
 
-        {/* Item card */}
+        {/* Item card — key resets local state (browser, create form) when navigating */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {currentItem && currentResult && (
             <ItemCard
+              key={currentOriginalIdx}
               idx={currentOriginalIdx}
               item={currentItem}
               result={currentResult}
@@ -253,7 +249,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
               searchHits={searchHits[currentOriginalIdx] ?? []}
               searchLoading={searchLoading[currentOriginalIdx] ?? false}
               categories={categories}
-              authHeaders={authHeaders}
+              authToken={authToken ?? ""}
               setDecision={setReviewDecision}
               onSearchChange={(q) => {
                 setSearchQuery(prev => ({ ...prev, [currentOriginalIdx]: q }));
@@ -336,6 +332,14 @@ function buildResults(
   return out;
 }
 
+function extractSearchTerm(name: string, dimensjon?: string): string {
+  const combined = [name, dimensjon].filter(Boolean).join(" ");
+  const dimMatch = combined.match(/\d+[x×X]\d+(?:[x×X]\d+)?/i);
+  if (dimMatch) return dimMatch[0];
+  const words = name.split(/\s+/).filter(w => w.length > 3);
+  return words.slice(0, 2).join(" ");
+}
+
 async function commitDecisions(
   items: WizardItem[],
   decisions: Record<number, ItemAction>,
@@ -350,14 +354,44 @@ async function commitDecisions(
     if (action.type === "skip") continue;
 
     if (action.type === "accept" || action.type === "link") {
-      if (action.type === "link" && item.varenr) {
-        await fetch(`/api/admin/katalog/${action.gpId}/links`, {
+      // Create/update the primary supplier link
+      if (item.varenr) {
+        const patchRes = await fetch(`/api/admin/katalog/${action.gpId}/links`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({ supplier, supplier_varenr: item.varenr }),
         });
+        if (!patchRes.ok) {
+          const err = await patchRes.json().catch(() => ({}));
+          throw new Error(err.error ?? `Kobling feilet for ${item.name} (${patchRes.status})`);
+        }
+
+        // Auto-link to other suppliers when exactly 1 match found per supplier
+        const searchTerm = extractSearchTerm(item.name, item.dimensjon);
+        if (searchTerm) {
+          try {
+            const simRes = await fetch(
+              `/api/admin/supplier-prices/similar?q=${encodeURIComponent(searchTerm)}&exclude_supplier=${encodeURIComponent(supplier)}&limit=3`,
+              { headers: authHeaders }
+            );
+            const simJson = await simRes.json();
+            const simData: Record<string, { varenr: string }[]> = simJson.data ?? {};
+            for (const [otherSupplier, hits] of Object.entries(simData)) {
+              if (hits.length === 1) {
+                await fetch(`/api/admin/katalog/${action.gpId}/links`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json", ...authHeaders },
+                  body: JSON.stringify({ supplier: otherSupplier, supplier_varenr: hits[0].varenr }),
+                });
+              }
+            }
+          } catch {
+            // Cross-supplier linking is best-effort; don't fail the whole save
+          }
+        }
       }
       out.push({ itemIndex: idx, supplier_varenr: item.varenr || undefined, gp_varenr: action.gpVarenr });
+
     } else if (action.type === "create") {
       const createRes = await fetch("/api/admin/katalog", {
         method: "POST",
@@ -365,13 +399,42 @@ async function commitDecisions(
         body: JSON.stringify({ name: action.name, category: action.category, unit: action.unit, description: "" }),
       });
       const createJson = await createRes.json();
-      if (createJson.error) throw new Error(createJson.error);
+      if (!createRes.ok) throw new Error(createJson.error ?? `Opprettelse feilet for «${action.name}»`);
+
       if (item.varenr) {
-        await fetch(`/api/admin/katalog/${createJson.data.id}/links`, {
+        const patchRes = await fetch(`/api/admin/katalog/${createJson.data.id}/links`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({ supplier, supplier_varenr: item.varenr }),
         });
+        if (!patchRes.ok) {
+          const err = await patchRes.json().catch(() => ({}));
+          throw new Error(err.error ?? `Kobling feilet for ${item.name} (${patchRes.status})`);
+        }
+
+        // Auto-link to other suppliers
+        const searchTerm = extractSearchTerm(item.name, item.dimensjon);
+        if (searchTerm) {
+          try {
+            const simRes = await fetch(
+              `/api/admin/supplier-prices/similar?q=${encodeURIComponent(searchTerm)}&exclude_supplier=${encodeURIComponent(supplier)}&limit=3`,
+              { headers: authHeaders }
+            );
+            const simJson = await simRes.json();
+            const simData: Record<string, { varenr: string }[]> = simJson.data ?? {};
+            for (const [otherSupplier, hits] of Object.entries(simData)) {
+              if (hits.length === 1) {
+                await fetch(`/api/admin/katalog/${createJson.data.id}/links`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json", ...authHeaders },
+                  body: JSON.stringify({ supplier: otherSupplier, supplier_varenr: hits[0].varenr }),
+                });
+              }
+            }
+          } catch {
+            // Best-effort
+          }
+        }
       }
       out.push({ itemIndex: idx, supplier_varenr: item.varenr || undefined, gp_varenr: createJson.data.varenr });
     }
@@ -390,14 +453,14 @@ interface ItemCardProps {
   searchHits: GpProduct[];
   searchLoading: boolean;
   categories: GpCategory[];
-  authHeaders: Record<string, string>;
+  authToken: string;
   setDecision: (idx: number, action: ItemAction | null) => void;
   onSearchChange: (q: string) => void;
 }
 
 const BROWSER_LIMIT = 20;
 
-function ItemCard({ idx, item, result, decision, searchQuery, searchHits, searchLoading, categories, authHeaders, setDecision, onSearchChange }: ItemCardProps) {
+function ItemCard({ idx, item, result, decision, searchQuery, searchHits, searchLoading, categories, authToken, setDecision, onSearchChange }: ItemCardProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState(item.name);
   const [newCategory, setNewCategory] = useState("");
@@ -411,31 +474,39 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
   const [browserLoading, setBrowserLoading] = useState(false);
   const [browserOffset, setBrowserOffset] = useState(0);
   const [browserHasMore, setBrowserHasMore] = useState(false);
+  const [browserError, setBrowserError] = useState("");
 
   useEffect(() => {
     if (!showBrowser) return;
     let cancelled = false;
     setBrowserLoading(true);
+    setBrowserError("");
     const delay = browserSearch ? 300 : 0;
     const timer = setTimeout(async () => {
       try {
         const params = new URLSearchParams({ limit: String(BROWSER_LIMIT), offset: String(browserOffset) });
         if (browserCategory) params.set("category", browserCategory);
         if (browserSearch.trim()) params.set("q", browserSearch.trim());
-        const res = await fetch(`/api/admin/katalog?${params}`, { headers: authHeaders });
+        const headers: Record<string, string> = authToken ? { "Authorization": `Bearer ${authToken}` } : {};
+        const res = await fetch(`/api/admin/katalog?${params}`, { headers });
+        if (!res.ok) {
+          if (!cancelled) setBrowserError(`Feil ${res.status}`);
+          return;
+        }
         const json = await res.json();
         if (!cancelled) {
           const data: GpProduct[] = json.data ?? [];
           setBrowserProducts(prev => browserOffset === 0 ? data : [...prev, ...data]);
           setBrowserHasMore(data.length === BROWSER_LIMIT);
         }
+      } catch {
+        if (!cancelled) setBrowserError("Nettverksfeil");
       } finally {
         if (!cancelled) setBrowserLoading(false);
       }
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showBrowser, browserCategory, browserSearch, browserOffset]);
+  }, [showBrowser, browserCategory, browserSearch, browserOffset, authToken]);
 
   useEffect(() => {
     if (!newCategory && categories[0]) setNewCategory(categories[0].label);
@@ -478,7 +549,6 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
           <StatusBadge decision={decision} matchType={result.matchType} />
         </div>
 
-        {/* Current decision summary */}
         {isLinked && (
           <div className="mt-3 flex items-center justify-between rounded-lg bg-white/80 px-3 py-2 text-sm">
             <span className="text-gray-500">Koblet til </span>
@@ -540,14 +610,12 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
                           )}
                         </div>
                         <div className="shrink-0 flex flex-col items-end gap-2">
-                          {/* Confidence */}
                           <div className="flex items-center gap-1.5">
                             <div className="h-1.5 w-16 rounded-full bg-gray-100 overflow-hidden">
                               <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                             </div>
                             <span className={`text-[10px] font-bold tabular-nums ${textColor}`}>{pct}%</span>
                           </div>
-                          {/* Action button */}
                           <button
                             onClick={() => setDecision(idx, { type: "link", gpId: s.id, gpVarenr: s.varenr })}
                             className={`rounded-lg px-3 py-1.5 text-xs font-bold text-white transition-colors ${
@@ -606,7 +674,7 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
           {/* Browse full catalog */}
           {!showBrowser ? (
             <button
-              onClick={() => { setShowBrowser(true); setBrowserOffset(0); setBrowserProducts([]); }}
+              onClick={() => { setShowBrowser(true); setBrowserOffset(0); setBrowserProducts([]); setBrowserError(""); }}
               className="w-full rounded-xl border-2 border-dashed border-gray-200 py-2.5 text-xs font-medium text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
             >
               Bla gjennom hele katalogen
@@ -632,6 +700,9 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
                 onChange={e => { setBrowserSearch(e.target.value); setBrowserOffset(0); setBrowserProducts([]); }}
                 className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:border-blue-400"
               />
+              {browserError && (
+                <p className="text-xs text-red-500 text-center">{browserError}</p>
+              )}
               <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5">
                 {browserProducts.map(p => (
                   <button
@@ -646,7 +717,7 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
                     <span className="shrink-0 text-[10px] font-semibold text-blue-600">Koble →</span>
                   </button>
                 ))}
-                {!browserLoading && browserProducts.length === 0 && (
+                {!browserLoading && browserProducts.length === 0 && !browserError && (
                   <p className="py-3 text-center text-xs text-gray-400">Ingen treff</p>
                 )}
                 {browserLoading && (
@@ -729,7 +800,6 @@ function ItemCard({ idx, item, result, decision, searchQuery, searchHits, search
             </div>
           )}
 
-          {/* Only show skip if no suggestions — for suggestion items the user can just move on */}
           {!hasSuggestions && (
             <button
               onClick={() => setDecision(idx, { type: "skip" })}
