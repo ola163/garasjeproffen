@@ -54,7 +54,7 @@ export async function GET() {
   }
 
   // Aggregate unique IPs (skip rows from admin emails)
-  const ipMap = new Map<string, { count: number; firstSeen: string; lastSeen: string; paths: Set<string>; emails: Set<string> }>();
+  const ipMap = new Map<string, { count: number; firstSeen: string; lastSeen: string; paths: Set<string>; emails: Set<string>; allIps: Set<string> }>();
   for (const row of rows) {
     if (row.user_email && ADMIN_EMAILS.includes(row.user_email)) continue;
     const entry = ipMap.get(row.ip);
@@ -65,6 +65,7 @@ export async function GET() {
         lastSeen: row.visited_at,
         paths: new Set(row.path ? [row.path] : []),
         emails: new Set(row.user_email ? [row.user_email] : []),
+        allIps: new Set([row.ip]),
       });
     } else {
       entry.count++;
@@ -75,7 +76,7 @@ export async function GET() {
     }
   }
 
-  // Merge IPs that share the same logged-in email
+  // Merge IPs that share the same logged-in email — keep all IPs listed on the canonical entry
   const emailToIps = new Map<string, Set<string>>();
   for (const [ip, entry] of ipMap.entries()) {
     for (const email of entry.emails) {
@@ -98,6 +99,7 @@ export async function GET() {
       if (entry.lastSeen > can.lastSeen) can.lastSeen = entry.lastSeen;
       for (const p of entry.paths) can.paths.add(p);
       for (const e of entry.emails) can.emails.add(e);
+      for (const i of entry.allIps) can.allIps.add(i);
       ipMap.delete(ip);
     }
   }
@@ -157,6 +159,7 @@ export async function GET() {
         lastSeen: v.lastSeen,
         paths: Array.from(v.paths).slice(0, 10),
         emails: Array.from(v.emails),
+        allIps: Array.from(v.allIps),
         geo,
         countryCode: geo?.countryCode ?? null,
         hosting: geo?.hosting ?? false,
