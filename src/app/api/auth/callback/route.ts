@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
+import { createClient } from "@supabase/supabase-js";
 import { exchangeCode, decodeIdToken, getRedirectUri } from "@/lib/oidc";
 import { sessionOptions, type CustomerSession } from "@/lib/session";
 
@@ -43,6 +44,36 @@ export async function GET(request: Request) {
     session.email = claims.email as string | undefined;
     session.isLoggedIn = true;
     await session.save();
+
+    // Set gp-user cookie so the track API can read the email on subsequent page views
+    const email = claims.email as string | undefined;
+    if (email) {
+      const maxAge = 60 * 60 * 8;
+      response.cookies.set("gp-user", email, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge,
+        path: "/",
+      });
+
+      // Retroactively link this IP's anonymous visitor_log entries to the email
+      const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim()
+        ?? request.headers.get("x-real-ip")
+        ?? null;
+      if (ip) {
+        try {
+          const sb = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+          );
+          await sb.from("visitor_logs")
+            .update({ user_email: email })
+            .eq("ip", ip)
+            .is("user_email", null);
+        } catch { /* non-fatal */ }
+      }
+    }
 
     response.cookies.delete("oidc_state");
     response.cookies.delete("oidc_nonce");

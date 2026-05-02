@@ -72,6 +72,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // Retroactively link this IP's anonymous visitor_log entries to the email
+    const ip = getIp(request);
+    if (ip) {
+      try {
+        await sb.from("visitor_logs")
+          .update({ user_email: email })
+          .eq("ip", ip)
+          .is("user_email", null);
+      } catch { /* non-fatal */ }
+    }
+
     const res = NextResponse.json({ success: true });
     const maxAge = 60 * 60 * 8;
     res.cookies.set("gp-user", email, {

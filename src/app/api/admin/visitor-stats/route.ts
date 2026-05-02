@@ -26,15 +26,20 @@ export async function GET() {
   const db = createClient(url, key);
 
   // Use select("*") so it works before and after the column migration
-  const { data, error } = await db
-    .from("visitor_logs")
-    .select("*")
-    .order("visited_at", { ascending: false })
-    .limit(5000);
+  const [logsResult, profilesResult] = await Promise.all([
+    db.from("visitor_logs").select("*").order("visited_at", { ascending: false }).limit(5000),
+    db.from("user_profiles").select("email, consent_ip").not("consent_ip", "is", null),
+  ]);
 
-  if (error) return new Response(error.message, { status: 500 });
+  if (logsResult.error) return new Response(logsResult.error.message, { status: 500 });
 
-  const rows = (data ?? []) as LogRow[];
+  const rows = (logsResult.data ?? []) as LogRow[];
+
+  // Map consent_ip → email for cross-referencing anonymous visits
+  const consentIpToEmail = new Map<string, string>();
+  for (const p of (profilesResult.data ?? []) as { email: string; consent_ip: string }[]) {
+    if (p.consent_ip && p.email) consentIpToEmail.set(p.consent_ip, p.email);
+  }
 
   // Unique IPs per period
   const now = new Date();
@@ -57,6 +62,9 @@ export async function GET() {
   const ipMap = new Map<string, { count: number; firstSeen: string; lastSeen: string; paths: Set<string>; emails: Set<string>; allIps: Set<string> }>();
   for (const row of rows) {
     if (row.user_email && ADMIN_EMAILS.includes(row.user_email)) continue;
+    // Resolve email: from the log row, or from consent_ip cross-reference
+    const resolvedEmail = row.user_email ?? consentIpToEmail.get(row.ip) ?? null;
+    if (resolvedEmail && ADMIN_EMAILS.includes(resolvedEmail)) continue;
     const entry = ipMap.get(row.ip);
     if (!entry) {
       ipMap.set(row.ip, {
@@ -64,7 +72,7 @@ export async function GET() {
         firstSeen: row.visited_at,
         lastSeen: row.visited_at,
         paths: new Set(row.path ? [row.path] : []),
-        emails: new Set(row.user_email ? [row.user_email] : []),
+        emails: new Set(resolvedEmail ? [resolvedEmail] : []),
         allIps: new Set([row.ip]),
       });
     } else {
@@ -72,7 +80,7 @@ export async function GET() {
       if (row.visited_at < entry.firstSeen) entry.firstSeen = row.visited_at;
       if (row.visited_at > entry.lastSeen) entry.lastSeen = row.visited_at;
       if (row.path) entry.paths.add(row.path);
-      if (row.user_email) entry.emails.add(row.user_email);
+      if (resolvedEmail) entry.emails.add(resolvedEmail);
     }
   }
 
