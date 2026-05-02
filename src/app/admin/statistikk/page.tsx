@@ -16,6 +16,7 @@ interface IpEntry {
   lastSeen: string;
   paths: string[];
   emails: string[];
+  names: string[];
   allIps: string[];
   geo: GeoInfo | null;
   countryCode: string | null;
@@ -34,6 +35,7 @@ interface StatsData {
 
 interface UserGroup {
   email: string;
+  names: string[];
   ips: string[];
   totalCount: number;
   firstSeen: string;
@@ -100,6 +102,7 @@ export default function StatistikkPage() {
         if (!existing) {
           emailMap.set(email, {
             email,
+            names: [...(entry.names ?? [])],
             ips: entry.allIps?.length ? entry.allIps : [entry.ip],
             totalCount: entry.count,
             firstSeen: entry.firstSeen,
@@ -109,12 +112,12 @@ export default function StatistikkPage() {
             countryCode: entry.countryCode,
           });
         } else {
-          // Shouldn't happen since API already merges, but handle gracefully
           existing.totalCount += entry.count;
           if (entry.firstSeen < existing.firstSeen) existing.firstSeen = entry.firstSeen;
           if (entry.lastSeen > existing.lastSeen) existing.lastSeen = entry.lastSeen;
           for (const p of entry.paths) if (!existing.paths.includes(p)) existing.paths.push(p);
           for (const ip of (entry.allIps ?? [entry.ip])) if (!existing.ips.includes(ip)) existing.ips.push(ip);
+          for (const n of (entry.names ?? [])) if (!existing.names.includes(n)) existing.names.push(n);
         }
       }
     }
@@ -230,14 +233,17 @@ export default function StatistikkPage() {
                             <div className="flex items-center justify-between gap-4">
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold text-blue-700 truncate">{user.email}</span>
+                                  {user.names.length > 0 && (
+                                    <span className="text-sm font-bold text-gray-900 truncate">{user.names[0]}</span>
+                                  )}
                                   {user.ips.length > 1 && (
                                     <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-600">
                                       {user.ips.length} IPs
                                     </span>
                                   )}
                                 </div>
-                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                                <p className="text-xs text-blue-600 truncate">{user.email}</p>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                                   <GeoTag geo={user.geo} />
                                   <span className="text-xs text-gray-400">Sist sett: {fmt(user.lastSeen)}</span>
                                 </div>
@@ -312,7 +318,10 @@ export default function StatistikkPage() {
                               <div className="flex items-center gap-2">
                                 <span className="text-gray-300 text-xs">{expanded === entry.ip ? "▾" : "▸"}</span>
                                 <div>
-                                  <p className="font-mono text-gray-800 text-sm">{entry.ip}</p>
+                                  {entry.names && entry.names.length > 0 && (
+                                    <p className="font-semibold text-gray-900 text-sm">{entry.names[0]}</p>
+                                  )}
+                                  <p className="font-mono text-gray-500 text-xs">{entry.ip}</p>
                                   {entry.emails.length > 0 && (
                                     <p className="mt-0.5 text-xs font-medium text-blue-600">{entry.emails.join(", ")}</p>
                                   )}
@@ -331,10 +340,11 @@ export default function StatistikkPage() {
                           {expanded === entry.ip && (
                             <tr key={`${entry.ip}-expanded`} className="bg-orange-50">
                               <td colSpan={4} className="px-6 py-4 space-y-3">
-                                {entry.emails.length > 0 && (
+                                {(entry.names?.length > 0 || entry.emails.length > 0) && (
                                   <div>
                                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Bruker</p>
-                                    <p className="text-sm font-medium text-blue-700">{entry.emails.join(", ")}</p>
+                                    {entry.names?.length > 0 && <p className="text-sm font-bold text-gray-900">{entry.names.join(", ")}</p>}
+                                    {entry.emails.length > 0 && <p className="text-xs font-medium text-blue-700">{entry.emails.join(", ")}</p>}
                                   </div>
                                 )}
                                 {(entry.allIps?.length ?? 0) > 1 && (
