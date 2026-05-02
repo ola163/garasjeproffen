@@ -21,12 +21,16 @@ const FILTER_COLORS: Record<Filter, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
+  in_review: "Under behandling",
+  pending_approval: "Venter godkjenning",
   offer_sent: "Tilbud sendt",
   paid: "Betalt",
   ferdigstilt: "Ferdigstilt",
 };
 
 const STATUS_DOT: Record<string, string> = {
+  in_review: "bg-yellow-400",
+  pending_approval: "bg-orange-400",
   offer_sent: "bg-purple-400",
   paid: "bg-green-400",
   ferdigstilt: "bg-teal-400",

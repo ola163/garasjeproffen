@@ -21,9 +21,9 @@ async function isAdmin(req: NextRequest): Promise<boolean> {
 }
 
 const FILTER_STATUSES: Record<string, string[]> = {
-  pagaende: ["paid"],
+  pagaende: ["in_review", "pending_approval", "offer_sent", "paid"],
   ferdigstilte: ["ferdigstilt"],
-  alle: ["offer_sent", "paid", "ferdigstilt"],
+  alle: ["in_review", "pending_approval", "offer_sent", "paid", "ferdigstilt"],
 };
 
 export interface VaretellerProject {
