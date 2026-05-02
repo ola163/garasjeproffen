@@ -61,13 +61,34 @@ export default function StatistikkPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [tab, setTab] = useState<"brukere" | "iper" | "utland" | "sider" | "trafikk">("brukere");
+  const [relinking, setRelinking] = useState(false);
+  const [relinkResult, setRelinkResult] = useState<string | null>(null);
 
-  useEffect(() => {
+  function loadStats() {
+    setLoading(true);
     fetch("/api/admin/visitor-stats")
       .then((r) => r.json())
       .then((d) => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadStats(); }, []);
+
+  async function handleRelink() {
+    setRelinking(true);
+    setRelinkResult(null);
+    try {
+      const res = await fetch("/api/admin/visitor-stats/relink", { method: "POST" });
+      const json = await res.json();
+      if (json.error) { setRelinkResult(`Feil: ${json.error}`); return; }
+      setRelinkResult(`✓ ${json.linked} rader koblet`);
+      loadStats(); // refresh data
+    } catch {
+      setRelinkResult("Nettverksfeil");
+    } finally {
+      setRelinking(false);
+    }
+  }
 
   // Build user groups from entries that have emails
   const userGroups = useMemo<UserGroup[]>(() => {
@@ -104,10 +125,24 @@ export default function StatistikkPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-4xl px-4 py-6 sm:py-12 sm:px-6">
 
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between gap-4">
           <div>
             <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-600">← Admin</Link>
             <h1 className="mt-1 text-xl font-bold text-gray-900">Statistikk</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            {relinkResult && (
+              <span className={`text-xs font-medium ${relinkResult.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>
+                {relinkResult}
+              </span>
+            )}
+            <button
+              onClick={handleRelink}
+              disabled={relinking}
+              className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            >
+              {relinking ? "Kobler…" : "Koble IPs til brukere"}
+            </button>
           </div>
         </div>
 
