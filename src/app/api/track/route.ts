@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { getIronSession } from "iron-session";
+import { sessionOptions, type CustomerSession } from "@/lib/session";
 
 const BOT_UA = /bot|crawl|spider|slurp|vercel|lighthouse|prerender|headless|chrome-lighthouse|dataforseo|semrush|ahrefs|mj12|googlebot|bingbot|facebookexternalhit/i;
 
@@ -19,7 +21,19 @@ export async function POST(req: Request) {
 
     const cookieStore = await cookies();
     if (cookieStore.get("gp-admin")?.value === "1") return new Response("ok");
-    const userEmail = cookieStore.get("gp-user")?.value ?? null;
+
+    // Try gp-user cookie first (Supabase email-login users)
+    let userEmail: string | null = cookieStore.get("gp-user")?.value ?? null;
+
+    // Fallback: read iron-session for OIDC-logged-in users (Signicat)
+    if (!userEmail) {
+      try {
+        const session = await getIronSession<CustomerSession>(cookieStore, sessionOptions);
+        if (session.isLoggedIn && session.email) userEmail = session.email;
+      } catch {
+        // iron-session read failure is non-fatal
+      }
+    }
 
     const countryCode = req.headers.get("x-vercel-ip-country") ?? null;
     const rawCity = req.headers.get("x-vercel-ip-city");
