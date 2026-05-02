@@ -137,6 +137,18 @@ export async function POST(request: Request) {
         phone_verified: body.customer.phoneVerified ?? false,
       });
       if (dbErr) console.error("Supabase quote insert error:", dbErr.message);
+
+      // Link this IP to the customer email in visitor_logs (retroactive + ongoing)
+      const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim()
+        ?? request.headers.get("x-real-ip")
+        ?? null;
+      if (clientIp) {
+        await sb.from("visitor_logs")
+          .update({ user_email: body.customer.email.toLowerCase() })
+          .eq("ip", clientIp)
+          .is("user_email", null)
+          .then(() => {}); // fire-and-forget, non-fatal
+      }
     }
 
     // Expand "both" placement into two rows (left + right)
