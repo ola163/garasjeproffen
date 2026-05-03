@@ -65,3 +65,52 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ data: projects });
 }
+
+// PATCH /api/admin/prissammenligner/projects
+// body: { quoteId, oldVarenr, newVarenr }
+// Finds the first line item with oldVarenr in offer_sections and updates it.
+export async function PATCH(req: NextRequest) {
+  if (!(await isAdmin(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const { quoteId, oldVarenr, newVarenr } = (await req.json()) as { quoteId: string; oldVarenr: string; newVarenr: string };
+  if (!quoteId || !oldVarenr || newVarenr === undefined) {
+    return NextResponse.json({ error: "quoteId, oldVarenr, newVarenr required" }, { status: 400 });
+  }
+
+  const sb = getSupabase();
+  const { data: quote, error: fetchErr } = await sb
+    .from("quotes")
+    .select("offer_sections")
+    .eq("id", quoteId)
+    .single();
+
+  if (fetchErr || !quote) {
+    return NextResponse.json({ error: fetchErr?.message ?? "Quote not found" }, { status: 404 });
+  }
+
+  const sections: OfferSection[] = Array.isArray(quote.offer_sections) ? quote.offer_sections : [];
+  let updated = false;
+  const newSections = sections.map(s => ({
+    ...s,
+    line_items: (s.line_items ?? []).map((item: LineItem) => {
+      if (!updated && item.varenr?.trim() === oldVarenr.trim()) {
+        updated = true;
+        return { ...item, varenr: newVarenr.trim() };
+      }
+      return item;
+    }),
+  }));
+
+  if (!updated) {
+    return NextResponse.json({ error: "Line item not found" }, { status: 404 });
+  }
+
+  const { error: updateErr } = await sb
+    .from("quotes")
+    .update({ offer_sections: newSections })
+    .eq("id", quoteId);
+
+  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}

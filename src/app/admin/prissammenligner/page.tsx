@@ -305,6 +305,10 @@ function PrissammenlignInner() {
   const [saveToDbSupplier, setSaveToDbSupplier] = useState("");
   const [saveToDbResult, setSaveToDbResult] = useState<{ ok: boolean; count: number } | null>(null);
 
+  // Inline varenr editing in comparison table
+  const [editingVarenrKey, setEditingVarenrKey] = useState<string | null>(null);
+  const [editingVarenrValue, setEditingVarenrValue] = useState("");
+
   // Reserve assignment
   const [manualAssignments, setManualAssignments] = useState<ManualAssignment[]>([]);
   const [assignPicker, setAssignPicker] = useState<{ projectRowKey: string; sourceId: string } | null>(null);
@@ -619,6 +623,31 @@ function PrissammenlignInner() {
 
   function removeAssignment(projectRowKey: string, sourceId: string) {
     setManualAssignments(prev => prev.filter(a => !(a.projectRowKey === projectRowKey && a.sourceId === sourceId)));
+  }
+
+  async function saveVarenrEdit(oldVarenr: string, newVarenr: string) {
+    setEditingVarenrKey(null);
+    if (!selectedProject || newVarenr.trim() === oldVarenr) return;
+    try {
+      const res = await fetch("/api/admin/prissammenligner/projects", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteId: selectedProject.id, oldVarenr, newVarenr: newVarenr.trim() }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Feil");
+      // Update local project state so the comparison re-derives correctly
+      setSelectedProject(prev => prev ? {
+        ...prev,
+        line_items: prev.line_items.map(i => i.varenr === oldVarenr ? { ...i, varenr: newVarenr.trim() } : i),
+      } : null);
+      // Re-fetch DB supplier prices for the updated varenr list
+      const newVarenrs = selectedProject.line_items.map(i => i.varenr === oldVarenr ? newVarenr.trim() : i.varenr);
+      for (const [sup, checked] of Object.entries(dbSelected)) {
+        if (checked) fetchDbSupplier(sup, newVarenrs);
+      }
+    } catch (err) {
+      alert(`Kunne ikke lagre varenr: ${err instanceof Error ? err.message : "Ukjent feil"}`);
+    }
   }
 
   const filtered = useMemo(() => comparison.filter(row => {
@@ -1136,7 +1165,27 @@ function PrissammenlignInner() {
                         return (
                           <tr key={key} className="hover:bg-gray-50/50">
                             <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-mono text-xs text-gray-500">
-                              {row.varenr || <span className="text-gray-300">—</span>}
+                              {editingVarenrKey === key ? (
+                                <input
+                                  autoFocus
+                                  className="w-24 rounded border border-orange-400 px-1 py-0.5 text-xs font-mono focus:outline-none"
+                                  value={editingVarenrValue}
+                                  onChange={e => setEditingVarenrValue(e.target.value)}
+                                  onBlur={() => saveVarenrEdit(row.varenr, editingVarenrValue)}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                    if (e.key === "Escape") setEditingVarenrKey(null);
+                                  }}
+                                />
+                              ) : (
+                                <button
+                                  className="font-mono text-xs text-gray-500 hover:text-orange-500 text-left"
+                                  title="Klikk for å endre varenr"
+                                  onClick={() => { setEditingVarenrKey(key); setEditingVarenrValue(row.varenr); }}
+                                >
+                                  {row.varenr || <span className="text-gray-300">—</span>}
+                                </button>
+                              )}
                             </td>
                             <td className="px-3 py-2.5 text-gray-800">
                               <span className="line-clamp-2 text-xs">{row.beskrivelse}</span>

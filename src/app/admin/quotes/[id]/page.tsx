@@ -1527,6 +1527,12 @@ export default function QuoteDetailPage() {
                           /* Enkel form for Søknadshjelp og Prefabelement */
                           <div key={iIdx} className="space-y-0.5">
                             <div className="flex gap-2 items-start">
+                              <input
+                                type="text" placeholder="Varenr"
+                                value={item.varenr ?? ""}
+                                onChange={(e) => updateLineItemInSection(sIdx, iIdx, "varenr", e.target.value)}
+                                className="w-20 shrink-0 rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-400"
+                              />
                               <div className="flex-1 min-w-0">
                                 <input type="text" placeholder="Beskrivelse" value={item.description}
                                   onChange={(e) => updateLineItemInSection(sIdx, iIdx, "description", e.target.value)}
