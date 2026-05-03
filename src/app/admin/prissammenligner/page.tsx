@@ -1253,7 +1253,7 @@ function PrissammenlignInner() {
       {wizardSource && (
         <CatalogLinkWizard
           supplier={wizardSource.name}
-          items={wizardSource.rows.map(r => ({ varenr: r.varenr, name: r.beskrivelse, dimensjon: r.dimensjon, enhet: r.enhet, nettopris: r.pris }))}
+          items={wizardSource.rows.map(r => ({ varenr: r.varenr, name: r.beskrivelse, dimensjon: r.dimensjon, enhet: r.enhet, nettopris: r.pris, antall: r.antall }))}
           onDone={handleWizardDone}
           onCancel={() => {
             if (wizardSource.sourceId) {

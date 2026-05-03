@@ -8,6 +8,7 @@ export interface WizardItem {
   dimensjon?: string;
   enhet?: string;
   nettopris?: number;
+  antall?: number; // supplier's quoted quantity from the offer
 }
 
 export interface WizardResult {
@@ -436,6 +437,27 @@ async function commitDecisions(
           throw new Error(err.error ?? `Kobling feilet for ${item.name} (${patchRes.status})`);
         }
       }
+      // Save price data to supplier_prices so DB lookups work immediately (best-effort)
+      if (linkVarenr && item.nettopris && item.nettopris > 0) {
+        fetch("/api/admin/supplier-prices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({
+            supplier,
+            rows: [{
+              varenr: linkVarenr,
+              varebenevnelse: item.name.trim(),
+              dimensjon: item.dimensjon ?? null,
+              enhet: item.enhet ?? null,
+              nettopris: item.nettopris,
+              bruttopris: item.nettopris,
+              antall: item.antall ?? 1,
+              mva_pst: 25,
+            }],
+          }),
+        }).catch(() => {}); // non-blocking, best-effort
+      }
+
       if (linkVarenr) {
 
         // Auto-link to other suppliers when exactly 1 match found per supplier
@@ -488,6 +510,27 @@ async function commitDecisions(
             throw new Error(err.error ?? `Kobling feilet for ${item.name} (${patchRes.status})`);
           }
         }
+        // Save price data to supplier_prices (best-effort)
+        if (linkVarenr2 && item.nettopris && item.nettopris > 0) {
+          fetch("/api/admin/supplier-prices", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({
+              supplier,
+              rows: [{
+                varenr: linkVarenr2,
+                varebenevnelse: item.name.trim(),
+                dimensjon: item.dimensjon ?? null,
+                enhet: item.enhet ?? null,
+                nettopris: item.nettopris,
+                bruttopris: item.nettopris,
+                antall: item.antall ?? 1,
+                mva_pst: 25,
+              }],
+            }),
+          }).catch(() => {});
+        }
+
         if (linkVarenr2) {
           // Auto-link to other suppliers
           const searchTerm = extractSearchTerm(item.name, item.dimensjon);
