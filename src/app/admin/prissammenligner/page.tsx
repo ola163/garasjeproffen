@@ -299,6 +299,12 @@ function PrissammenlignInner() {
   const [applying, setApplying] = useState(false);
   const [applyResult, setApplyResult] = useState<{ updatedCount: number; missedCount: number } | null>(null);
 
+  // Save quote items to price DB
+  const [saveToDb, setSaveToDb] = useState(false);
+  const [savingToDb, setSavingToDb] = useState(false);
+  const [saveToDbSupplier, setSaveToDbSupplier] = useState("");
+  const [saveToDbResult, setSaveToDbResult] = useState<{ ok: boolean; count: number } | null>(null);
+
   // Reserve assignment
   const [manualAssignments, setManualAssignments] = useState<ManualAssignment[]>([]);
   const [assignPicker, setAssignPicker] = useState<{ projectRowKey: string; sourceId: string } | null>(null);
@@ -548,6 +554,39 @@ function PrissammenlignInner() {
     if (sup) setDbSelected(prev => ({ ...prev, [sup]: false }));
   }
 
+  async function saveQuoteItemsToDb() {
+    if (!selectedProject) return;
+    const supplier = saveToDbSupplier || dbSuppliers[0];
+    if (!supplier) return;
+    setSavingToDb(true);
+    setSaveToDbResult(null);
+    try {
+      const eligible = selectedProject.line_items.filter(i => i.varenr?.trim() && i.amount && i.amount > 0);
+      const rows = eligible.map(i => ({
+        varenr: i.varenr.trim(),
+        varebenevnelse: i.description || "",
+        dimensjon: i.dimensjon ?? "",
+        enhet: i.enhet ?? "",
+        bruttopris: i.amount!,
+        nettopris: i.amount!,
+        antall: 1,
+        mva_pst: 25,
+      }));
+      const res = await fetch("/api/admin/supplier-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplier, rows }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Feil");
+      setSaveToDbResult({ ok: true, count: json.inserted });
+    } catch {
+      setSaveToDbResult({ ok: false, count: 0 });
+    } finally {
+      setSavingToDb(false);
+    }
+  }
+
   const projectItems = selectedProject?.line_items ?? [];
   const effectiveSources = useMemo(() => mergeEffectiveSources(sources), [sources]);
   const comparison = useMemo(() => buildComparison(projectItems, effectiveSources, manualAssignments), [projectItems, effectiveSources, manualAssignments]);
@@ -724,6 +763,57 @@ function PrissammenlignInner() {
                 </div>
               )}
             </div>
+
+            {/* Save quote items to price DB */}
+            {selectedProject && (() => {
+              const eligible = selectedProject.line_items.filter(i => i.varenr?.trim() && i.amount && i.amount > 0);
+              if (eligible.length === 0) return null;
+              const sup = saveToDbSupplier || dbSuppliers[0] || "";
+              return (
+                <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <h2 className="mb-1 text-sm font-semibold text-gray-700">Lagre tilbudspriser til database</h2>
+                  <p className="mb-3 text-xs text-gray-400">{eligible.length} varer med varenr og pris</p>
+                  {saveToDb ? (
+                    <div className="space-y-2">
+                      <select
+                        value={sup}
+                        onChange={e => setSaveToDbSupplier(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-orange-400 focus:outline-none"
+                      >
+                        {dbSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={saveQuoteItemsToDb}
+                          disabled={savingToDb || !sup}
+                          className="flex-1 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                        >
+                          {savingToDb ? "Lagrer…" : `Lagre ${eligible.length} varer`}
+                        </button>
+                        <button
+                          onClick={() => { setSaveToDb(false); setSaveToDbResult(null); }}
+                          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
+                        >
+                          Avbryt
+                        </button>
+                      </div>
+                      {saveToDbResult && (
+                        <p className={`text-xs font-medium ${saveToDbResult.ok ? "text-green-600" : "text-red-500"}`}>
+                          {saveToDbResult.ok ? `✓ ${saveToDbResult.count} varer lagret til ${sup}` : "Feil ved lagring"}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setSaveToDb(true); setSaveToDbResult(null); }}
+                      className="w-full rounded-lg border border-dashed border-orange-300 py-2 text-xs text-orange-600 hover:border-orange-500 hover:bg-orange-50 transition-colors"
+                    >
+                      Lagre varenr + priser til database →
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* DB suppliers */}
             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
