@@ -82,6 +82,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
   const [committedIndices, setCommittedIndices] = useState<Set<number>>(new Set());
   const [savingPrices, setSavingPrices] = useState(false);
   const [pricesSaved, setPricesSaved] = useState(false);
+  const [pendingAutoResults, setPendingAutoResults] = useState<WizardResult[] | null>(null);
 
   const authHeaders: Record<string, string> = authToken ? { "Authorization": `Bearer ${authToken}` } : {};
 
@@ -124,7 +125,12 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
 
         if (needsReview.length === 0) {
           const results = buildResults(items, { ...auto }, matched);
-          onDone(results);
+          const hasPriceableItems = items.some(item => item.varenr && item.nettopris && item.nettopris > 0);
+          if (hasPriceableItems) {
+            setPendingAutoResults(results); // show compact panel so user can save prices
+          } else {
+            onDone(results);
+          }
         }
       } finally {
         setLoading(false);
@@ -274,7 +280,41 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     );
   }
 
-  if (reviewIndices.length === 0) return null;
+  if (reviewIndices.length === 0) {
+    if (!pendingAutoResults) return null;
+    // All items auto-matched — show compact panel so user can save prices before closing
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="flex flex-col rounded-2xl bg-white shadow-2xl p-6 w-full max-w-sm gap-4">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">✓ Alle varer ble automatisk koblet</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              {supplier} · {priceRows.length} varer med pris kan lagres til prisdatabasen
+            </p>
+          </div>
+          {pricesSaved && (
+            <p className="text-xs font-medium text-emerald-600">✓ {priceRows.length} priser lagret til databasen</p>
+          )}
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={savePricesToDb}
+              disabled={savingPrices || priceRows.length === 0}
+              className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+            >
+              {savingPrices ? "Lagrer…" : `Lagre ${priceRows.length} priser til database`}
+            </button>
+            <button
+              onClick={() => onDone(pendingAutoResults)}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Fullfør
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const currentOriginalIdx = reviewIndices[reviewPos];
   const currentItem = items[currentOriginalIdx];
