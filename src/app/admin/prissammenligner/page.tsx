@@ -598,14 +598,17 @@ function PrissammenlignInner() {
     return true;
   }), [comparison, searchQuery, filter, effectiveSources]);
 
-  // Per-supplier totals (unit price × qty) — only project items count toward totals
+  // Per-supplier totals — uses supplier's quoted antall × pris when available,
+  // otherwise falls back to project qty × pris
   const totals = useMemo(() => {
     const t: Record<string, number> = {};
     for (const row of comparison) {
       if (!row.fromProject) continue;
       for (const src of effectiveSources) {
         const p = row.cells[src.id];
-        if (p !== undefined) t[src.id] = (t[src.id] ?? 0) + p * row.qty;
+        if (p === undefined) continue;
+        const supQty = row.supplierQty?.[src.id];
+        t[src.id] = (t[src.id] ?? 0) + (supQty !== undefined ? supQty * p : p * row.qty);
       }
     }
     return t;
@@ -1021,7 +1024,19 @@ function PrissammenlignInner() {
                           .map(s => row.cells[s.id])
                           .filter((p): p is number => p !== undefined);
                         const minUnitPrice = presentPrices.length ? Math.min(...presentPrices) : null;
-                        const cheapestTotal = minUnitPrice !== null ? minUnitPrice * row.qty : null;
+                        // Cheapest line total uses supplier antall if available, else project qty
+                        const cheapestTotal = (() => {
+                          if (minUnitPrice === null) return null;
+                          const lineTotals = effectiveSources
+                            .map(s => {
+                              const p = row.cells[s.id];
+                              if (p === undefined) return Infinity;
+                              const supQty = row.supplierQty?.[s.id];
+                              return supQty !== undefined ? supQty * p : p * row.qty;
+                            })
+                            .filter(v => v < Infinity);
+                          return lineTotals.length ? Math.min(...lineTotals) : null;
+                        })();
                         const key = rowKey(row.varenr, row.beskrivelse);
 
                         return (
@@ -1099,14 +1114,23 @@ function PrissammenlignInner() {
                                       {isReserve && (
                                         <span className="text-[9px] text-yellow-600 italic">reserve</span>
                                       )}
-                                      {row.qty > 1 && (
-                                        <span className="text-[10px] tabular-nums text-gray-400">= {formatPrice(pris * row.qty)}</span>
-                                      )}
-                                      {row.supplierQty?.[s.id] != null && row.supplierQty[s.id] !== row.qty && (
-                                        <span className="text-[9px] tabular-nums text-purple-500" title="Leverandørens oppgitte antall">
-                                          Lev: {row.supplierQty[s.id]}
-                                        </span>
-                                      )}
+                                      {(() => {
+                                        const supQty = row.supplierQty?.[s.id];
+                                        if (supQty !== undefined && supQty !== row.qty) {
+                                          return (
+                                            <>
+                                              <span className="text-[10px] tabular-nums font-semibold text-purple-600">= {formatPrice(supQty * pris)}</span>
+                                              <span
+                                                className="text-[9px] tabular-nums text-purple-400"
+                                                title={`Leverandøren tilbyr ${supQty} ${row.enhet ?? ""} — prosjektet trenger ${row.qty}`}
+                                              >Lev: {supQty} / Proj: {row.qty}</span>
+                                            </>
+                                          );
+                                        }
+                                        return row.qty > 1 ? (
+                                          <span className="text-[10px] tabular-nums text-gray-400">= {formatPrice(pris * row.qty)}</span>
+                                        ) : null;
+                                      })()}
                                     </div>
                                   )}
                                 </td>

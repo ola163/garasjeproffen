@@ -25,6 +25,7 @@ interface ParsedRow {
   beskrivelse: string;
   pris: number;
   enhet?: string;
+  antall?: number;
 }
 
 // POST /api/admin/prissammenligner/pdf
@@ -71,21 +72,23 @@ export async function POST(req: NextRequest) {
             },
             {
               type: "text",
-              text: `Analyser denne leverandørprislisten og ekstraher ALLE produktrader med priser.
+              text: `Analyser dette leverandørtilbudet og ekstraher ALLE produktrader med priser.
 
 For hver rad, returner et JSON-objekt med:
-- varenr: varenummer som string (kun siffer, tom streng hvis mangler)
+- varenr: varenummer som string (behold nøyaktig slik det står, tom streng hvis mangler)
 - beskrivelse: produktbeskrivelse/varetekst som string
-- pris: nettopris/enhetspris i NOK som number (0 hvis ikke funnet)
-- enhet: enhet som string (f.eks. "stk", "m2", "lm", "m", "pk", "rll" – tom streng hvis mangler)
+- pris: nettopris/ENHETSPRIS i NOK som number (IKKE linjesum/totalpris)
+- enhet: enhet som string (f.eks. "stk", "m", "lm", "pk", "rull", "esk" – tom streng hvis mangler)
+- antall: leverandørens oppgitte antall/mengde for denne raden som number (null hvis mangler)
 
 Returner KUN et JSON-array, ingen forklaringstekst. Eksempel:
-[{"varenr":"12345","beskrivelse":"Gipsplate 13mm 1200x3000","pris":189.50,"enhet":"stk"},{"varenr":"67890","beskrivelse":"Mineralull 150mm","pris":245.00,"enhet":"m2"}]
+[{"varenr":"40918336","beskrivelse":"FIRKANTSPIKER 2,2X55 FZV","pris":152.27,"enhet":"PAK","antall":1},{"varenr":"44496635","beskrivelse":"MASKINSP VF 3,1X65 17GR RINGET","pris":194.52,"enhet":"ESK","antall":2}]
 
 Viktig:
-- Bruk nettopris (ikke bruttopris) hvis begge finnes
-- Ignorer rader uten pris eller uten beskrivelse
-- Behold originale varenummer nøyaktig som de står
+- "pris" skal alltid være ENHETSPRISEN (nettopris per enhet), IKKE linjens totalsum
+- "antall" er leverandørens oppgitte mengde i tilbudet (f.eks. 4 pakker, 110 meter, 16 stk)
+- Ignorer rader for klimaavtrykk/EPD, frakt, mva-beregninger og andre metadatarader
+- Behold originale varenummer nøyaktig som de står (inkl. ledende nuller)
 - Hvis dokumentet ikke inneholder prisliste, returner []`,
             },
           ],
@@ -102,12 +105,16 @@ Viktig:
 
     const rows: ParsedRow[] = raw
       .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
-      .map((item) => ({
-        varenr:      String(item.varenr      ?? "").trim().slice(0, 50),
-        beskrivelse: String(item.beskrivelse ?? "").slice(0, 300),
-        pris:        Math.max(0, Number(item.pris) || 0),
-        enhet:       String(item.enhet ?? "").slice(0, 20) || undefined,
-      }))
+      .map((item) => {
+        const antallRaw = item.antall != null ? Number(item.antall) : NaN;
+        return {
+          varenr:      String(item.varenr      ?? "").trim().slice(0, 50),
+          beskrivelse: String(item.beskrivelse ?? "").slice(0, 300),
+          pris:        Math.max(0, Number(item.pris) || 0),
+          enhet:       String(item.enhet ?? "").slice(0, 20) || undefined,
+          antall:      !isNaN(antallRaw) && antallRaw > 0 ? antallRaw : undefined,
+        };
+      })
       .filter((item) => item.beskrivelse.length > 0 && item.pris > 0)
       .slice(0, 2000);
 
