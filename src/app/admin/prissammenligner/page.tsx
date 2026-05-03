@@ -561,7 +561,7 @@ function PrissammenlignInner() {
     setSavingToDb(true);
     setSaveToDbResult(null);
     try {
-      const eligible = selectedProject.line_items.filter(i => i.varenr?.trim() && i.amount && i.amount > 0);
+      const eligible = selectedProject.line_items.filter(i => i.varenr?.trim() && i.amount !== undefined && i.amount > 0);
       const rows = eligible.map(i => ({
         varenr: i.varenr.trim(),
         varebenevnelse: i.description || "",
@@ -766,13 +766,17 @@ function PrissammenlignInner() {
 
             {/* Save quote items to price DB */}
             {selectedProject && (() => {
-              const eligible = selectedProject.line_items.filter(i => i.varenr?.trim() && i.amount && i.amount > 0);
-              if (eligible.length === 0) return null;
+              const withVarenr = selectedProject.line_items.filter(i => i.varenr?.trim());
+              if (withVarenr.length === 0) return null;
+              const withPrice = withVarenr.filter(i => i.amount !== undefined && i.amount > 0);
               const sup = saveToDbSupplier || dbSuppliers[0] || "";
               return (
                 <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                   <h2 className="mb-1 text-sm font-semibold text-gray-700">Lagre tilbudspriser til database</h2>
-                  <p className="mb-3 text-xs text-gray-400">{eligible.length} varer med varenr og pris</p>
+                  <p className="mb-3 text-xs text-gray-400">
+                    {withVarenr.length} varer med varenr
+                    {withPrice.length < withVarenr.length && ` · ${withPrice.length} har pris satt`}
+                  </p>
                   {saveToDb ? (
                     <div className="space-y-2">
                       <select
@@ -785,10 +789,10 @@ function PrissammenlignInner() {
                       <div className="flex gap-2">
                         <button
                           onClick={saveQuoteItemsToDb}
-                          disabled={savingToDb || !sup}
+                          disabled={savingToDb || !sup || withPrice.length === 0}
                           className="flex-1 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50"
                         >
-                          {savingToDb ? "Lagrer…" : `Lagre ${eligible.length} varer`}
+                          {savingToDb ? "Lagrer…" : withPrice.length === 0 ? "Ingen priser satt" : `Lagre ${withPrice.length} varer`}
                         </button>
                         <button
                           onClick={() => { setSaveToDb(false); setSaveToDbResult(null); }}

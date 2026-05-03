@@ -230,11 +230,15 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     }
   }
 
-  // All offer items with varenr + price — independent of linking decisions
-  const priceRows = items.flatMap(item => {
-    if (!item.varenr || !item.nettopris || item.nettopris <= 0) return [];
+  // All offer items with price — use supplier varenr if present, else GP varenr from decision
+  const priceRows = items.flatMap((item, idx) => {
+    if (!item.nettopris || item.nettopris <= 0) return [];
+    const decision = reviewDecisions[idx] ?? autoDecisions[idx];
+    const gpVarenr = decision && (decision.type === "accept" || decision.type === "link") ? decision.gpVarenr : null;
+    const varenr = item.varenr?.trim() || gpVarenr;
+    if (!varenr) return [];
     return [{
-      varenr: item.varenr,
+      varenr,
       varebenevnelse: item.name.trim(),
       dimensjon: item.dimensjon ?? null,
       enhet: item.enhet ?? null,
