@@ -52,8 +52,9 @@ interface ComparisonRow {
   dimensjon?: string;
   cells: Record<string, number | undefined>; // sourceId -> unit price
   ranks: Record<string, number>; // 1 = cheapest
-  internalPrice?: number; // from the quote itself
-  fromProject: boolean; // false = only in uploaded source, not in project
+  internalPrice?: number;
+  fromProject: boolean;
+  fromReserve?: Record<string, boolean>; // sourceId -> true if filled from reserve assignment
 }
 
 interface ColumnMap {
@@ -160,42 +161,51 @@ function rowKey(varenr: string, beskrivelse: string): string {
   return v || `#${beskrivelse.trim().toLowerCase().slice(0, 80)}`;
 }
 
-function buildComparison(projectItems: ProjectLineItem[], sources: Source[]): ComparisonRow[] {
-  // Build rows in order: project items first, then uploaded-source-only rows
+interface ManualAssignment {
+  projectRowKey: string;  // key of the project row this reserve item is assigned to
+  sourceId: string;       // which source (supplier) it comes from
+  reserveVarenr: string;  // the supplier varenr from reserve
+  reservePris: number;
+  reserveBeskrivelse: string;
+  reserveDimensjon?: string;
+}
+
+// Project items are always the anchor — their order is fixed.
+// Supplier items not matching any project item go to reserve (handled separately).
+function buildComparison(
+  projectItems: ProjectLineItem[],
+  sources: Source[],
+  manualAssignments: ManualAssignment[],
+): ComparisonRow[] {
   const seen = new Set<string>();
-  type RowDef = { key: string; varenr: string; beskrivelse: string; qty: number; enhet?: string; dimensjon?: string; fromProject: boolean; internalPrice?: number };
-  const rowDefs: RowDef[] = [];
+  const rowDefs: { key: string; varenr: string; beskrivelse: string; qty: number; enhet?: string; dimensjon?: string; internalPrice?: number }[] = [];
 
   for (const item of projectItems) {
     const key = rowKey(item.varenr, item.description);
     if (seen.has(key)) continue;
     seen.add(key);
-    rowDefs.push({ key, varenr: item.varenr.trim(), beskrivelse: item.description, qty: item.quantity ?? 1, enhet: item.enhet, dimensjon: item.dimensjon, fromProject: true, internalPrice: item.amount });
+    rowDefs.push({ key, varenr: item.varenr.trim(), beskrivelse: item.description, qty: item.quantity ?? 1, enhet: item.enhet, dimensjon: item.dimensjon, internalPrice: item.amount });
   }
 
-  // Add rows from uploaded (non-DB) sources not already covered by project
-  for (const src of sources) {
-    if (src.fromDb) continue;
-    for (const row of src.rows) {
-      const key = rowKey(row.varenr, row.beskrivelse);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      rowDefs.push({ key, varenr: row.varenr.trim(), beskrivelse: row.beskrivelse, qty: 1, enhet: row.enhet, dimensjon: row.dimensjon, fromProject: false });
-    }
-  }
-
-  return rowDefs.map(({ key, varenr, beskrivelse, qty, enhet, dimensjon, fromProject, internalPrice }) => {
+  return rowDefs.map(({ key, varenr, beskrivelse, qty, enhet, dimensjon, internalPrice }) => {
     const cells: Record<string, number | undefined> = {};
+    // Track which cells come from manual reserve assignments (for visual indicator)
+    const fromReserve: Record<string, boolean> = {};
+
     for (const src of sources) {
+      // 1. Exact match by varenr key
       const match = src.rows.find(r => rowKey(r.varenr, r.beskrivelse) === key);
-      if (match) cells[src.id] = match.pris;
+      if (match) { cells[src.id] = match.pris; continue; }
+      // 2. Manual reserve assignment
+      const manual = manualAssignments.find(a => a.projectRowKey === key && a.sourceId === src.id);
+      if (manual) { cells[src.id] = manual.reservePris; fromReserve[src.id] = true; }
     }
     const sortedByPrice = sources
       .filter(s => cells[s.id] !== undefined)
       .sort((a, b) => (cells[a.id] ?? Infinity) - (cells[b.id] ?? Infinity));
     const ranks: Record<string, number> = {};
     sortedByPrice.forEach((s, i) => { ranks[s.id] = i + 1; });
-    return { varenr, beskrivelse, qty, enhet, dimensjon, cells, ranks, internalPrice, fromProject };
+    return { varenr, beskrivelse, qty, enhet, dimensjon, cells, ranks, internalPrice, fromProject: true, fromReserve };
   });
 }
 
@@ -278,9 +288,10 @@ function PrissammenlignInner() {
   const [applying, setApplying] = useState(false);
   const [applyResult, setApplyResult] = useState<{ updatedCount: number; missedCount: number } | null>(null);
 
-  // Manual row ordering
-  const [manualMode, setManualMode] = useState(false);
-  const [rowOrder, setRowOrder] = useState<string[]>([]);
+  // Reserve assignment
+  const [manualAssignments, setManualAssignments] = useState<ManualAssignment[]>([]);
+  const [assignPicker, setAssignPicker] = useState<{ projectRowKey: string; sourceId: string } | null>(null);
+  const [showReserve, setShowReserve] = useState(true);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -501,9 +512,38 @@ function PrissammenlignInner() {
   }
 
   const projectItems = selectedProject?.line_items ?? [];
-  // Merge sources by name so uploaded quotes override DB prices
   const effectiveSources = useMemo(() => mergeEffectiveSources(sources), [sources]);
-  const comparison = useMemo(() => buildComparison(projectItems, effectiveSources), [projectItems, effectiveSources]);
+  const comparison = useMemo(() => buildComparison(projectItems, effectiveSources, manualAssignments), [projectItems, effectiveSources, manualAssignments]);
+
+  // Reserve: supplier rows that don't match any project item
+  const reserveBySource = useMemo(() => {
+    const projectKeys = new Set(projectItems.map(i => rowKey(i.varenr, i.description)));
+    const result: Record<string, Array<PriceRow & { assignedTo?: string }>> = {};
+    for (const src of effectiveSources) {
+      const rows = src.rows
+        .filter(r => !projectKeys.has(rowKey(r.varenr, r.beskrivelse)))
+        .map(r => ({
+          ...r,
+          assignedTo: manualAssignments.find(a => a.sourceId === src.id && a.reserveVarenr === r.varenr)?.projectRowKey,
+        }));
+      if (rows.length > 0) result[src.id] = rows;
+    }
+    return result;
+  }, [effectiveSources, projectItems, manualAssignments]);
+
+  const totalReserveCount = Object.values(reserveBySource).reduce((s, arr) => s + arr.length, 0);
+
+  function assignReserve(projectRowKey: string, sourceId: string, row: PriceRow) {
+    setManualAssignments(prev => {
+      const filtered = prev.filter(a => !(a.projectRowKey === projectRowKey && a.sourceId === sourceId));
+      return [...filtered, { projectRowKey, sourceId, reserveVarenr: row.varenr, reservePris: row.pris, reserveBeskrivelse: row.beskrivelse, reserveDimensjon: row.dimensjon }];
+    });
+    setAssignPicker(null);
+  }
+
+  function removeAssignment(projectRowKey: string, sourceId: string) {
+    setManualAssignments(prev => prev.filter(a => !(a.projectRowKey === projectRowKey && a.sourceId === sourceId)));
+  }
 
   const filtered = useMemo(() => comparison.filter(row => {
     if (searchQuery) {
@@ -533,67 +573,6 @@ function PrissammenlignInner() {
     }
     return t;
   }, [comparison, effectiveSources]);
-
-  // Fast lookup for manual mode
-  const comparisonMap = useMemo(() => {
-    const m = new Map<string, ComparisonRow>();
-    for (const row of comparison) m.set(rowKey(row.varenr, row.beskrivelse), row);
-    return m;
-  }, [comparison]);
-
-  // Sync manual order when comparison changes (add new keys at end, drop removed)
-  useEffect(() => {
-    if (!manualMode) return;
-    const existingKeys = new Set(rowOrder);
-    const allKeys = comparison.map(r => rowKey(r.varenr, r.beskrivelse));
-    const newKeys = allKeys.filter(k => !existingKeys.has(k));
-    const validKeys = rowOrder.filter(k => comparisonMap.has(k));
-    if (newKeys.length > 0 || validKeys.length !== rowOrder.length) {
-      setRowOrder([...validKeys, ...newKeys]);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comparison, manualMode]);
-
-  function enterManualMode() {
-    setRowOrder(comparison.map(r => rowKey(r.varenr, r.beskrivelse)));
-    setManualMode(true);
-  }
-
-  function moveRow(key: string, dir: "up" | "down") {
-    setRowOrder(prev => {
-      const idx = prev.indexOf(key);
-      if (idx < 0) return prev;
-      const newIdx = dir === "up" ? idx - 1 : idx + 1;
-      if (newIdx < 0 || newIdx >= prev.length) return prev;
-      const next = [...prev];
-      [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
-      return next;
-    });
-  }
-
-  // A row is "confident" if it carries a GPV-catalog varenr (wizard-linked or DB-matched)
-  function isConfident(row: ComparisonRow): boolean {
-    return row.varenr.startsWith("GPV-");
-  }
-
-  // Rows to render: manual order (with filter applied) or default filtered
-  const displayRows = useMemo(() => {
-    if (!manualMode) return filtered;
-    const applyFilter = (r: ComparisonRow) => {
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        if (!r.varenr.toLowerCase().includes(q) && !r.beskrivelse.toLowerCase().includes(q)) return false;
-      }
-      if (filter === "diff") {
-        const prices = effectiveSources.map(s => r.cells[s.id]).filter((p): p is number => p !== undefined);
-        if (prices.length < 2) return false;
-        return Math.max(...prices) - Math.min(...prices) > 0.01;
-      }
-      if (filter === "missing") return effectiveSources.some(s => r.cells[s.id] === undefined);
-      return true;
-    };
-    return rowOrder.map(k => comparisonMap.get(k)).filter((r): r is ComparisonRow => !!r && applyFilter(r));
-  }, [manualMode, rowOrder, comparisonMap, filtered, searchQuery, filter, effectiveSources]);
 
   const filteredProjects = useMemo(() => {
     const q = projectSearch.toLowerCase();
@@ -962,33 +941,12 @@ function PrissammenlignInner() {
                     ))}
                   </div>
                   <span className="text-xs text-gray-400">{filtered.length} / {comparison.length} varer</span>
-                  {effectiveSources.length > 0 && comparison.length > 0 && (
-                    <button
-                      onClick={() => manualMode ? setManualMode(false) : enterManualMode()}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                        manualMode
-                          ? "bg-blue-600 text-white hover:bg-blue-700"
-                          : "border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600"
-                      }`}
-                    >
-                      {manualMode ? "✓ Avslutt sortering" : "Sorter manuelt"}
-                    </button>
-                  )}
                 </div>
-                {manualMode && (
-                  <div className="flex items-center gap-3 border-b border-blue-100 bg-blue-50 px-4 py-2 text-xs text-blue-700">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-400" />
-                    <span>GPV-varenr match — låst</span>
-                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400 ml-3" />
-                    <span>Usikker match — kan flyttes</span>
-                  </div>
-                )}
 
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 text-xs">
                       <tr>
-                        {manualMode && <th className="w-10 px-1 py-3" />}
                         <th className="sticky left-0 z-10 bg-gray-50 px-3 py-3 text-left font-medium text-gray-500 min-w-[90px]">Varenr</th>
                         <th className="px-3 py-3 text-left font-medium text-gray-500 min-w-[200px]">Beskrivelse</th>
                         <th className="px-3 py-3 text-right font-medium text-gray-500 min-w-[50px]">Mengde</th>
@@ -1014,56 +972,25 @@ function PrissammenlignInner() {
                           </td>
                         </tr>
                       )}
-                      {displayRows.length === 0 && effectiveSources.length > 0 && (
+                      {filtered.length === 0 && effectiveSources.length > 0 && (
                         <tr>
-                          <td colSpan={5 + effectiveSources.length + (manualMode ? 1 : 0)} className="py-8 text-center text-sm text-gray-400">
+                          <td colSpan={5 + effectiveSources.length} className="py-8 text-center text-sm text-gray-400">
                             Ingen varer funnet
                           </td>
                         </tr>
                       )}
-                      {displayRows.map((row, rowIdx) => {
+                      {filtered.map(row => {
                         const presentPrices = effectiveSources
                           .map(s => row.cells[s.id])
                           .filter((p): p is number => p !== undefined);
                         const minUnitPrice = presentPrices.length ? Math.min(...presentPrices) : null;
                         const cheapestTotal = minUnitPrice !== null ? minUnitPrice * row.qty : null;
                         const key = rowKey(row.varenr, row.beskrivelse);
-                        const confident = isConfident(row);
 
                         return (
-                          <tr key={key} className={`hover:bg-gray-50/50 ${!row.fromProject ? "bg-blue-50/30 italic" : ""} ${manualMode && !confident ? "bg-yellow-50/30" : ""}`}>
-                            {manualMode && (
-                              <td className="px-1 py-2 text-center">
-                                {confident ? (
-                                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-400" title="GPV-varenr match — låst" />
-                                ) : (
-                                  <div className="flex flex-col items-center gap-0.5">
-                                    <button
-                                      onClick={() => moveRow(key, "up")}
-                                      disabled={rowIdx === 0}
-                                      className="leading-none text-gray-400 hover:text-blue-600 disabled:opacity-20"
-                                      title="Flytt opp"
-                                    >▲</button>
-                                    <button
-                                      onClick={() => moveRow(key, "down")}
-                                      disabled={rowIdx === displayRows.length - 1}
-                                      className="leading-none text-gray-400 hover:text-blue-600 disabled:opacity-20"
-                                      title="Flytt ned"
-                                    >▼</button>
-                                  </div>
-                                )}
-                              </td>
-                            )}
+                          <tr key={key} className="hover:bg-gray-50/50">
                             <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-mono text-xs text-gray-500">
-                              <div className="flex items-center gap-1.5">
-                                {row.varenr || <span className="text-gray-300 not-italic">—</span>}
-                                {manualMode && (
-                                  <span
-                                    className={`inline-block h-2 w-2 rounded-full shrink-0 ${confident ? "bg-green-400" : "bg-yellow-400"}`}
-                                    title={confident ? "100% GPV-match" : "Usikker match"}
-                                  />
-                                )}
-                              </div>
+                              {row.varenr || <span className="text-gray-300">—</span>}
                             </td>
                             <td className="px-3 py-2.5 text-gray-800">
                               <span className="line-clamp-2 text-xs">{row.beskrivelse}</span>
@@ -1074,10 +1001,47 @@ function PrissammenlignInner() {
                               const pris = row.cells[s.id];
                               const rank = row.ranks[s.id];
                               const isCheapest = rank === 1 && presentPrices.length > 1;
+                              const isReserve = row.fromReserve?.[s.id] ?? false;
+                              const hasReserveRows = (reserveBySource[s.id]?.length ?? 0) > 0;
+                              const pickingThis = assignPicker?.projectRowKey === key && assignPicker?.sourceId === s.id;
+
                               return (
-                                <td key={s.id} className="px-3 py-2.5 text-right">
+                                <td key={s.id} className="px-3 py-2.5 text-right relative">
                                   {pris === undefined ? (
-                                    <span className="text-gray-200">—</span>
+                                    hasReserveRows ? (
+                                      <div className="relative inline-block">
+                                        <button
+                                          onClick={() => setAssignPicker(pickingThis ? null : { projectRowKey: key, sourceId: s.id })}
+                                          className="rounded border border-dashed border-blue-300 px-2 py-0.5 text-[11px] text-blue-500 hover:bg-blue-50"
+                                        >
+                                          + reserve
+                                        </button>
+                                        {pickingThis && (
+                                          <div className="absolute right-0 top-7 z-30 w-72 rounded-xl border border-blue-200 bg-white shadow-xl">
+                                            <p className="border-b border-gray-100 px-3 py-2 text-xs font-semibold text-gray-700">Velg reservevare fra {s.name}</p>
+                                            <div className="max-h-52 overflow-y-auto">
+                                              {(reserveBySource[s.id] ?? []).map(r => (
+                                                <button
+                                                  key={r.varenr}
+                                                  onClick={() => assignReserve(key, s.id, r)}
+                                                  className="flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-blue-50 border-b border-gray-50 last:border-0"
+                                                >
+                                                  <div className="flex items-center justify-between gap-2">
+                                                    <span className="font-mono text-[10px] text-gray-500">{r.varenr}</span>
+                                                    <span className="text-xs font-semibold text-gray-800">{formatPrice(r.pris)}</span>
+                                                  </div>
+                                                  <span className="truncate text-[11px] text-gray-600">{[r.beskrivelse, r.dimensjon].filter(Boolean).join(" ")}</span>
+                                                  {r.assignedTo && <span className="text-[10px] text-orange-500">↳ allerede tilknyttet annen rad</span>}
+                                                </button>
+                                              ))}
+                                            </div>
+                                            <button onClick={() => setAssignPicker(null)} className="w-full border-t border-gray-100 py-1.5 text-xs text-gray-400 hover:bg-gray-50">Avbryt</button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-200">—</span>
+                                    )
                                   ) : (
                                     <div className={`inline-flex flex-col items-end ${isCheapest ? "text-green-700" : "text-gray-700"}`}>
                                       <span className="inline-flex items-center gap-1">
@@ -1087,7 +1051,17 @@ function PrissammenlignInner() {
                                           </span>
                                         )}
                                         <span className={`text-xs tabular-nums ${isCheapest ? "font-semibold" : ""}`}>{formatPrice(pris)}</span>
+                                        {isReserve && (
+                                          <button
+                                            onClick={() => removeAssignment(key, s.id)}
+                                            title="Fjern reservetilknytning"
+                                            className="ml-0.5 text-[10px] text-yellow-500 hover:text-red-500"
+                                          >~</button>
+                                        )}
                                       </span>
+                                      {isReserve && (
+                                        <span className="text-[9px] text-yellow-600 italic">reserve</span>
+                                      )}
                                       {row.qty > 1 && (
                                         <span className="text-[10px] tabular-nums text-gray-400">= {formatPrice(pris * row.qty)}</span>
                                       )}
@@ -1107,7 +1081,6 @@ function PrissammenlignInner() {
                       {/* Totals row */}
                       {effectiveSources.length > 0 && comparison.length > 0 && (
                         <tr className="bg-gray-50 font-semibold text-sm border-t-2 border-gray-200">
-                          {manualMode && <td />}
                           <td className="sticky left-0 bg-gray-50 px-3 py-3 text-gray-700" colSpan={3}>Totalt</td>
                           <td />
                           {effectiveSources.map(s => {
@@ -1129,9 +1102,86 @@ function PrissammenlignInner() {
                 </div>
               </div>
             )}
+
+            {/* ── Reserve section ─────────────────────────────────────── */}
+            {totalReserveCount > 0 && (
+              <div className="rounded-xl border border-yellow-200 bg-yellow-50 shadow-sm">
+                <button
+                  onClick={() => setShowReserve(v => !v)}
+                  className="flex w-full items-center justify-between px-4 py-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-yellow-800">Reserve — varer uten prosjektmatch</span>
+                    <span className="rounded-full bg-yellow-200 px-2 py-0.5 text-xs font-bold text-yellow-800">{totalReserveCount}</span>
+                  </div>
+                  <span className={`text-yellow-600 text-xs transition-transform ${showReserve ? "rotate-180" : ""}`}>▾</span>
+                </button>
+
+                {showReserve && (
+                  <div className="border-t border-yellow-200 px-4 pb-4 pt-2 space-y-4">
+                    <p className="text-xs text-yellow-700">
+                      Disse varene fra leverandøren matcher ikke noe prosjektvarenr. Trykk <strong>+ reserve</strong> på en tom celle i tabellen over for å tilknytte en reservevare til en prosjektrad for sammenligning.
+                    </p>
+                    {effectiveSources.map(src => {
+                      const rows = reserveBySource[src.id];
+                      if (!rows?.length) return null;
+                      return (
+                        <div key={src.id}>
+                          <p className="mb-2 text-xs font-semibold text-yellow-800">{src.name} ({rows.length})</p>
+                          <div className="overflow-x-auto rounded-lg border border-yellow-200 bg-white">
+                            <table className="min-w-full text-xs">
+                              <thead className="bg-yellow-50 text-[10px] text-yellow-700">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-medium">Varenr</th>
+                                  <th className="px-3 py-2 text-left font-medium">Beskrivelse</th>
+                                  <th className="px-3 py-2 text-left font-medium">Dimensjon</th>
+                                  <th className="px-3 py-2 text-right font-medium">Nettopris</th>
+                                  <th className="px-3 py-2 text-left font-medium">Tilknyttet rad</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-yellow-50">
+                                {rows.map(r => (
+                                  <tr key={r.varenr} className={r.assignedTo ? "bg-orange-50" : "hover:bg-yellow-50/50"}>
+                                    <td className="px-3 py-2 font-mono text-gray-600">{r.varenr}</td>
+                                    <td className="px-3 py-2 text-gray-700 max-w-[180px] truncate">{r.beskrivelse}</td>
+                                    <td className="px-3 py-2 text-gray-400">{r.dimensjon ?? "—"}</td>
+                                    <td className="px-3 py-2 text-right font-semibold text-gray-800">{formatPrice(r.pris)}</td>
+                                    <td className="px-3 py-2">
+                                      {r.assignedTo ? (
+                                        <div className="flex items-center gap-2">
+                                          <span className="rounded bg-orange-100 px-1.5 py-0.5 font-mono text-[10px] text-orange-700">{r.assignedTo}</span>
+                                          <button
+                                            onClick={() => {
+                                              const a = manualAssignments.find(a => a.sourceId === src.id && a.reserveVarenr === r.varenr);
+                                              if (a) removeAssignment(a.projectRowKey, src.id);
+                                            }}
+                                            className="text-[10px] text-red-400 hover:text-red-600"
+                                          >Fjern</button>
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-300 italic text-[10px]">Ikke tilknyttet</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Close picker on outside click */}
+      {assignPicker && (
+        <div className="fixed inset-0 z-20" onClick={() => setAssignPicker(null)} />
+      )}
 
       {/* Catalog link wizard after upload */}
       {wizardSource && (
