@@ -65,14 +65,14 @@ export async function POST(req: NextRequest) {
     const blocked = subcatBlocked.get(cat.id);
     if (!blocked || blocked.length === 0) continue; // no subcategories → nothing to fix
 
-    const start = cat.varenr_start;
-    const end   = cat.varenr_end ?? (start + 999);
+    const start      = cat.varenr_start;
+    const naturalEnd = start + 999; // search up to natural limit regardless of varenr_end
 
     // Find products in THIS main category whose varenr is inside a subcategory range
     const conflicts = prods.filter(p => {
       if (p.category !== cat.label) return false;
       const n = parseInt(p.varenr.replace("GPV-", ""));
-      if (isNaN(n) || n < start || n > end) return false;
+      if (isNaN(n) || n < start || n > naturalEnd) return false;
       return blocked.some(b => n >= b.s && n <= b.e);
     });
 
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     for (const p of conflicts) {
       // Find first free slot outside all blocked ranges
       let newNum: number | null = null;
-      for (let n = start; n <= end; n++) {
+      for (let n = start; n <= naturalEnd; n++) {
         if (blocked.some(b => n >= b.s && n <= b.e)) continue;
         if (usedNums.has(n)) continue;
         newNum = n;

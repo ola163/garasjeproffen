@@ -81,24 +81,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Build set of already-used GPV numbers within this range (across all categories)
+    // Build set of already-used GPV numbers in the natural range (start … start+999)
+    // so we can safely extend beyond varenr_end if subcategories have eaten all configured slots.
+    const naturalEnd = start + 999;
     const { data: existing } = await sb.from("gp_products").select("varenr").like("varenr", "GPV-%");
     const usedNums = new Set<number>();
     for (const row of existing ?? []) {
       const num = parseInt((row.varenr as string).replace("GPV-", ""));
-      if (!isNaN(num) && num >= start && num <= end) usedNums.add(num);
+      if (!isNaN(num) && num >= start && num <= naturalEnd) usedNums.add(num);
     }
 
-    // First-fit: find the lowest free number that is not inside any subcategory range
+    // First-fit over the configured range first, then fall back to the natural range
+    // so a too-narrow varenr_end never blocks a save when there is still room.
     let assigned: number | null = null;
-    for (let n = start; n <= end; n++) {
+    for (let n = start; n <= naturalEnd; n++) {
       if (blocked.some(b => n >= b.s && n <= b.e)) continue;
       if (usedNums.has(n)) continue;
       assigned = n;
       break;
     }
     if (assigned === null) {
-      return NextResponse.json({ error: `Kategorien er full (GPV-${start} til GPV-${end})` }, { status: 409 });
+      return NextResponse.json({ error: `Kategorien er full (GPV-${start} til GPV-${naturalEnd})` }, { status: 409 });
     }
     varenr = `GPV-${assigned}`;
   }
