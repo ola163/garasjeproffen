@@ -35,12 +35,15 @@ type LinkState = { varenr: string; name: string };
 type LinkMap = Record<string, LinkState>;
 interface CatNode { cat: GpCategory; children: CatNode[] }
 
-const DB_SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"];
+const FALLBACK_SUPPLIERS = ["Optimera", "XLBygg", "Coop Obs Bygg", "Neumann"];
 const SUPPLIER_ABBR: Record<string, string> = { Optimera: "Opt", XLBygg: "XL", "Coop Obs Bygg": "Coop", Neumann: "Neu" };
 
 const EMPTY_PRODUCT = { varenr: "", name: "", category: "", unit: "", description: "" };
 const EMPTY_CAT = { label: "", varenr_start: 1000 };
-const EMPTY_LINKS: LinkMap = Object.fromEntries(DB_SUPPLIERS.map(s => [s, { varenr: "", name: "" }]));
+
+function makeEmptyLinks(suppliers: string[]): LinkMap {
+  return Object.fromEntries(suppliers.map(s => [s, { varenr: "", name: "" }]));
+}
 
 // ── Autocomplete picker for supplier varenr ───────────────────────────────────
 function SupplierVarenrPicker({ supplier, varenr, name, onChange }: {
@@ -117,6 +120,15 @@ function SupplierVarenrPicker({ supplier, varenr, name, onChange }: {
 export default function KatalogPage() {
   const [tab, setTab] = useState<"produkter" | "kategorier" | "importer">("produkter");
 
+  // ── Dynamic supplier list (fetched from DB, falls back to hardcoded) ───────
+  const [allSuppliers, setAllSuppliers] = useState<string[]>(FALLBACK_SUPPLIERS);
+  useEffect(() => {
+    fetch("/api/admin/prissammenligner/suppliers")
+      .then(r => r.json())
+      .then(j => { if (Array.isArray(j.suppliers) && j.suppliers.length > 0) setAllSuppliers(j.suppliers); })
+      .catch(() => {});
+  }, []);
+
   // ── Categories ─────────────────────────────────────────────────────────
   const [categories, setCategories] = useState<GpCategory[]>([]);
   const [catsLoading, setCatsLoading] = useState(true);
@@ -147,12 +159,12 @@ export default function KatalogPage() {
   const [prodError, setProdError] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [supplierLinks, setSupplierLinks] = useState<LinkMap>({ ...EMPTY_LINKS });
+  const [supplierLinks, setSupplierLinks] = useState<LinkMap>(() => makeEmptyLinks(FALLBACK_SUPPLIERS));
 
   // ── Supplier links map (all products) ──────────────────────────────────
   const [linksMap, setLinksMap] = useState<Record<string, Record<string, string>>>({});
   const [linkModalProduct, setLinkModalProduct] = useState<GpProduct | null>(null);
-  const [linkModalLinks, setLinkModalLinks] = useState<LinkMap>({ ...EMPTY_LINKS });
+  const [linkModalLinks, setLinkModalLinks] = useState<LinkMap>(() => makeEmptyLinks(FALLBACK_SUPPLIERS));
   const [linkModalSuggestions, setLinkModalSuggestions] = useState<Record<string, SupplierPriceHit[]>>({});
   const [linkModalSuggestionsLoading, setLinkModalSuggestionsLoading] = useState(false);
   const [savingLinkModal, setSavingLinkModal] = useState(false);
@@ -176,14 +188,14 @@ export default function KatalogPage() {
   const [mergeError, setMergeError] = useState("");
 
   // ── Import tab ──────────────────────────────────────────────────────────
-  const [importSupplier, setImportSupplier] = useState(DB_SUPPLIERS[0]);
+  const [importSupplier, setImportSupplier] = useState(FALLBACK_SUPPLIERS[0]);
   const [importSearch, setImportSearch] = useState("");
   const [importResults, setImportResults] = useState<SupplierPriceHit[]>([]);
   const [importTotal, setImportTotal] = useState(0);
   const [importLoading, setImportLoading] = useState(false);
   const [importModal, setImportModal] = useState<SupplierPriceHit | null>(null);
   const [importForm, setImportForm] = useState({ name: "", category: "", unit: "", description: "" });
-  const [importLinks, setImportLinks] = useState<LinkMap>({ ...EMPTY_LINKS });
+  const [importLinks, setImportLinks] = useState<LinkMap>(() => makeEmptyLinks(FALLBACK_SUPPLIERS));
   const [gpMatches, setGpMatches] = useState<GpProduct[]>([]);
   const [supplierMatches, setSupplierMatches] = useState<Record<string, SupplierPriceHit[]>>({});
   const [selectedGpId, setSelectedGpId] = useState<string | null>(null);
@@ -319,7 +331,7 @@ export default function KatalogPage() {
   function openAdd() {
     setEditId(null);
     setForm({ ...EMPTY_PRODUCT, category: categories[0]?.label ?? "" });
-    setSupplierLinks({ ...EMPTY_LINKS });
+    setSupplierLinks(makeEmptyLinks(allSuppliers));
     setProdError("");
     setShowModal(true);
   }
@@ -330,7 +342,7 @@ export default function KatalogPage() {
     setProdError("");
 
     // Load existing links BEFORE opening modal so handleSave never overwrites them with empty values
-    const map: LinkMap = { ...EMPTY_LINKS };
+    const map: LinkMap = makeEmptyLinks(allSuppliers);
     try {
       const d = await fetch(`/api/admin/katalog/${p.id}/links`).then(r => r.json());
       for (const link of d.data ?? []) map[link.supplier] = { varenr: link.supplier_varenr, name: "" };
@@ -340,7 +352,7 @@ export default function KatalogPage() {
 
     // Fetch descriptions in the background (non-blocking)
     Promise.all(
-      DB_SUPPLIERS.map(async sup => {
+      allSuppliers.map(async sup => {
         const sv = map[sup]?.varenr;
         if (!sv) return;
         const r = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(sup)}&q=${encodeURIComponent(sv)}&limit=1`);
@@ -352,7 +364,7 @@ export default function KatalogPage() {
   }
 
   async function saveLinks(productId: string) {
-    const links = DB_SUPPLIERS.map(s => ({ supplier: s, supplier_varenr: supplierLinks[s]?.varenr ?? "" }));
+    const links = allSuppliers.map(s => ({ supplier: s, supplier_varenr: supplierLinks[s]?.varenr ?? "" }));
     await fetch(`/api/admin/katalog/${productId}/links`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -393,8 +405,8 @@ export default function KatalogPage() {
   // ── Supplier link modal ────────────────────────────────────────────────
   async function openLinkModal(p: GpProduct) {
     const existing = linksMap[p.varenr] ?? {};
-    const map: LinkMap = { ...EMPTY_LINKS };
-    for (const sup of DB_SUPPLIERS) {
+    const map: LinkMap = makeEmptyLinks(allSuppliers);
+    for (const sup of allSuppliers) {
       if (existing[sup]) map[sup] = { varenr: existing[sup], name: "" };
     }
     setLinkModalLinks(map);
@@ -403,7 +415,7 @@ export default function KatalogPage() {
 
     // Fetch descriptions for existing links + auto-suggestions in parallel
     const descTask = Promise.all(
-      DB_SUPPLIERS.map(async (sup) => {
+      allSuppliers.map(async (sup) => {
         const sv = existing[sup];
         if (!sv) return;
         const r = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(sup)}&q=${encodeURIComponent(sv)}&limit=1`);
@@ -435,7 +447,7 @@ export default function KatalogPage() {
     if (!linkModalProduct) return;
     setSavingLinkModal(true);
     try {
-      const links = DB_SUPPLIERS.map(s => ({ supplier: s, supplier_varenr: linkModalLinks[s]?.varenr ?? "" }));
+      const links = allSuppliers.map(s => ({ supplier: s, supplier_varenr: linkModalLinks[s]?.varenr ?? "" }));
       const res = await fetch(`/api/admin/katalog/${linkModalProduct.id}/links`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -554,7 +566,7 @@ export default function KatalogPage() {
     const name = [hit.varebenevnelse, hit.dimensjon].filter(Boolean).join(" ");
     setImportModal(hit);
     setImportForm({ name, category: categories[0]?.label ?? "", unit: hit.enhet ?? "", description: "" });
-    setImportLinks({ ...EMPTY_LINKS, [importSupplier]: { varenr: hit.varenr, name } });
+    setImportLinks({ ...makeEmptyLinks(allSuppliers), [importSupplier]: { varenr: hit.varenr, name } });
     setSelectedGpId(null);
     setGpMatches([]);
     setSupplierMatches({});
@@ -609,16 +621,16 @@ export default function KatalogPage() {
 
       if (productId) {
         // If linking to existing GPV, merge with its current links
-        const merged: LinkMap = { ...EMPTY_LINKS };
+        const merged: LinkMap = makeEmptyLinks(allSuppliers);
         if (selectedGpId) {
           const lr = await fetch(`/api/admin/katalog/${productId}/links`);
           const lj = await lr.json();
           for (const link of lj.data ?? []) merged[link.supplier as string] = { varenr: link.supplier_varenr, name: "" };
         }
-        for (const sup of DB_SUPPLIERS) {
+        for (const sup of allSuppliers) {
           if (importLinks[sup]?.varenr) merged[sup] = importLinks[sup];
         }
-        const links = DB_SUPPLIERS.map(s => ({ supplier: s, supplier_varenr: merged[s]?.varenr ?? "" }));
+        const links = allSuppliers.map(s => ({ supplier: s, supplier_varenr: merged[s]?.varenr ?? "" }));
         await fetch(`/api/admin/katalog/${productId}/links`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -949,7 +961,7 @@ export default function KatalogPage() {
                           <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate hidden lg:table-cell">{p.description ?? ""}</td>
                           <td className="px-4 py-3 hidden md:table-cell">
                             <div className="flex gap-1 flex-wrap">
-                              {DB_SUPPLIERS.map(s => (
+                              {allSuppliers.map(s => (
                                 <span
                                   key={s}
                                   title={pLinks[s] ? `${s}: ${pLinks[s]}` : s}
@@ -987,7 +999,7 @@ export default function KatalogPage() {
                 onChange={e => { setImportSupplier(e.target.value); setImportSearch(""); setImportResults([]); }}
                 className="rounded-lg border border-gray-300 px-2.5 py-2 text-sm focus:border-orange-400 focus:outline-none"
               >
-                {DB_SUPPLIERS.map(s => <option key={s} value={s}>{s}</option>)}
+                {allSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <input
                 type="text"
@@ -1132,7 +1144,7 @@ export default function KatalogPage() {
                 <label className="block text-xs font-semibold text-gray-600 mb-2">Leverandørtilknytning</label>
                 <p className="mb-2 text-[10px] text-gray-400">Søk på varenr eller navn fra leverandørens prisdatabase for å knytte dem til dette GPV-varenummeret.</p>
                 <div className="rounded-lg border border-gray-200 overflow-visible">
-                  {DB_SUPPLIERS.map((sup, i) => (
+                  {allSuppliers.map((sup, i) => (
                     <div key={sup} className={`flex items-start gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-gray-100" : ""}`}>
                       <span className="w-28 shrink-0 pt-1.5 text-xs font-medium text-gray-600">{sup}</span>
                       <SupplierVarenrPicker
@@ -1239,7 +1251,7 @@ export default function KatalogPage() {
               )}
 
               {/* Other supplier name matches */}
-              {(DB_SUPPLIERS.some(s => s !== importSupplier && (supplierMatches[s]?.length ?? 0) > 0) || importMatchLoading) && (
+              {(allSuppliers.some(s => s !== importSupplier && (supplierMatches[s]?.length ?? 0) > 0) || importMatchLoading) && (
                 <div>
                   <p className="text-xs font-semibold text-gray-700 mb-1">Tilsvarende hos andre leverandører?</p>
                   <p className="mb-2 text-[10px] text-gray-400">Kryss av for varer som er det samme produktet — de kobles automatisk til GPV-varenummeret.</p>
@@ -1247,7 +1259,7 @@ export default function KatalogPage() {
                     <p className="text-xs text-gray-400 animate-pulse">Søker…</p>
                   ) : (
                     <div className="space-y-3">
-                      {DB_SUPPLIERS.filter(s => s !== importSupplier).map(sup => {
+                      {allSuppliers.filter(s => s !== importSupplier).map(sup => {
                         const hits = supplierMatches[sup] ?? [];
                         if (!hits.length) return null;
                         return (
@@ -1288,7 +1300,7 @@ export default function KatalogPage() {
               <div>
                 <p className="text-xs font-semibold text-gray-700 mb-2">Leverandørtilknytning som opprettes</p>
                 <div className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-                  {DB_SUPPLIERS.map(sup => (
+                  {allSuppliers.map(sup => (
                     <div key={sup} className="flex items-center gap-3 px-3 py-2">
                       <span className="w-28 shrink-0 text-xs font-medium text-gray-600">{sup}</span>
                       {importLinks[sup]?.varenr ? (
@@ -1344,7 +1356,7 @@ export default function KatalogPage() {
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
 
               {/* Auto-suggestions */}
-              {(linkModalSuggestionsLoading || DB_SUPPLIERS.some(s => (linkModalSuggestions[s]?.length ?? 0) > 0)) && (
+              {(linkModalSuggestionsLoading || allSuppliers.some(s => (linkModalSuggestions[s]?.length ?? 0) > 0)) && (
                 <div>
                   <p className="mb-2 text-xs font-semibold text-gray-700">
                     Automatiske forslag
@@ -1352,7 +1364,7 @@ export default function KatalogPage() {
                   </p>
                   <p className="mb-2 text-[10px] text-gray-400">Kryss av varer som er det samme produktet. De kobles automatisk til GPV-nummeret.</p>
                   <div className="space-y-3">
-                    {DB_SUPPLIERS.map(sup => {
+                    {allSuppliers.map(sup => {
                       const hits = linkModalSuggestions[sup] ?? [];
                       if (!hits.length) return null;
                       const already = linkModalLinks[sup]?.varenr;
@@ -1398,7 +1410,7 @@ export default function KatalogPage() {
                 <p className="mb-2 text-xs font-semibold text-gray-700">Manuell tilknytning</p>
                 <p className="mb-2 text-[10px] text-gray-400">Søk på varenr/navn, eller trykk «Bla» for å bla gjennom leverandørens hele prisdatabase.</p>
                 <div className="rounded-lg border border-gray-200 overflow-visible">
-                  {DB_SUPPLIERS.map((sup, i) => {
+                  {allSuppliers.map((sup, i) => {
                     const isBrowsing = browseSupplier === sup;
                     return (
                       <div key={sup} className={i > 0 ? "border-t border-gray-100" : ""}>
@@ -1541,7 +1553,7 @@ export default function KatalogPage() {
                   <span className="ml-2 text-sm text-gray-800">{mergeSource.name}</span>
                   <span className="ml-2 text-xs text-gray-400">({mergeSource.category})</span>
                   <div className="mt-1.5 flex gap-1 flex-wrap">
-                    {DB_SUPPLIERS.map(s => {
+                    {allSuppliers.map(s => {
                       const v = linksMap[mergeSource.varenr]?.[s];
                       return v ? (
                         <span key={s} className="rounded bg-red-100 px-1.5 py-0.5 font-mono text-[10px] text-red-700">{SUPPLIER_ABBR[s]}: {v}</span>
@@ -1584,7 +1596,7 @@ export default function KatalogPage() {
                     <span className="ml-2 text-sm text-gray-800">{mergeTarget.name}</span>
                     <button onClick={() => setMergeTarget(null)} className="ml-2 text-xs text-gray-400 hover:text-red-500">✕ Endre</button>
                     <div className="mt-1.5 flex gap-1 flex-wrap">
-                      {DB_SUPPLIERS.map(s => {
+                      {allSuppliers.map(s => {
                         const v = linksMap[mergeTarget.varenr]?.[s];
                         return v ? (
                           <span key={s} className="rounded bg-purple-100 px-1.5 py-0.5 font-mono text-[10px] text-purple-700">{SUPPLIER_ABBR[s]}: {v}</span>
