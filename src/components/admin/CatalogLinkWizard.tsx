@@ -80,6 +80,8 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
   const [savedResults, setSavedResults] = useState<WizardResult[]>([]);
   const [saveFlash, setSaveFlash] = useState(false);
   const [committedIndices, setCommittedIndices] = useState<Set<number>>(new Set());
+  const [savingPrices, setSavingPrices] = useState(false);
+  const [pricesSaved, setPricesSaved] = useState(false);
 
   const authHeaders: Record<string, string> = authToken ? { "Authorization": `Bearer ${authToken}` } : {};
 
@@ -222,6 +224,48 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     }
   }
 
+  // Collect all linked items that have a varenr + price (from both committed and pending decisions)
+  const priceRows = Object.entries(allDecisions).flatMap(([idxStr, action]) => {
+    if (action.type === "skip") return [];
+    const item = items[Number(idxStr)];
+    const varenr = item.varenr;
+    if (!varenr || !item.nettopris || item.nettopris <= 0) return [];
+    return [{
+      varenr,
+      varebenevnelse: item.name.trim(),
+      dimensjon: item.dimensjon ?? null,
+      enhet: item.enhet ?? null,
+      nettopris: item.nettopris,
+      bruttopris: item.nettopris,
+      antall: item.antall ?? 1,
+      mva_pst: 25,
+    }];
+  });
+
+  async function savePricesToDb() {
+    if (priceRows.length === 0) return;
+    setSavingPrices(true);
+    setPricesSaved(false);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/supplier-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ supplier, rows: priceRows }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `Feil ${res.status}`);
+      }
+      setPricesSaved(true);
+      setTimeout(() => setPricesSaved(false), 3000);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Ukjent feil ved lagring av priser");
+    } finally {
+      setSavingPrices(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -315,6 +359,11 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
 
         {/* Footer */}
         <div className="border-t px-6 py-4">
+          {pricesSaved && (
+            <p className="mb-2 text-center text-xs font-medium text-emerald-600">
+              ✓ {priceRows.length} priser lagret til databasen
+            </p>
+          )}
           {saveFlash && (
             <p className="mb-2 text-center text-xs font-medium text-green-600">
               ✓ Koblinger lagret til databasen
@@ -357,6 +406,15 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
             <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 shrink-0">
               {cancelLabel ?? "Avbryt"}
             </button>
+            {priceRows.length > 0 && (
+              <button
+                onClick={savePricesToDb}
+                disabled={savingPrices}
+                className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 shrink-0"
+              >
+                {savingPrices ? "Lagrer…" : `Lagre ${priceRows.length} pris${priceRows.length === 1 ? "" : "er"} til database`}
+              </button>
+            )}
             {/* Save stays in wizard */}
             <button
               onClick={handleSave}
@@ -437,27 +495,6 @@ async function commitDecisions(
           throw new Error(err.error ?? `Kobling feilet for ${item.name} (${patchRes.status})`);
         }
       }
-      // Save price data to supplier_prices so DB lookups work immediately (best-effort)
-      if (linkVarenr && item.nettopris && item.nettopris > 0) {
-        fetch("/api/admin/supplier-prices", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({
-            supplier,
-            rows: [{
-              varenr: linkVarenr,
-              varebenevnelse: item.name.trim(),
-              dimensjon: item.dimensjon ?? null,
-              enhet: item.enhet ?? null,
-              nettopris: item.nettopris,
-              bruttopris: item.nettopris,
-              antall: item.antall ?? 1,
-              mva_pst: 25,
-            }],
-          }),
-        }).catch(() => {}); // non-blocking, best-effort
-      }
-
       if (linkVarenr) {
 
         // Auto-link to other suppliers when exactly 1 match found per supplier
@@ -510,27 +547,6 @@ async function commitDecisions(
             throw new Error(err.error ?? `Kobling feilet for ${item.name} (${patchRes.status})`);
           }
         }
-        // Save price data to supplier_prices (best-effort)
-        if (linkVarenr2 && item.nettopris && item.nettopris > 0) {
-          fetch("/api/admin/supplier-prices", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders },
-            body: JSON.stringify({
-              supplier,
-              rows: [{
-                varenr: linkVarenr2,
-                varebenevnelse: item.name.trim(),
-                dimensjon: item.dimensjon ?? null,
-                enhet: item.enhet ?? null,
-                nettopris: item.nettopris,
-                bruttopris: item.nettopris,
-                antall: item.antall ?? 1,
-                mva_pst: 25,
-              }],
-            }),
-          }).catch(() => {});
-        }
-
         if (linkVarenr2) {
           // Auto-link to other suppliers
           const searchTerm = extractSearchTerm(item.name, item.dimensjon);
