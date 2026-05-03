@@ -92,18 +92,21 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
       setLoading(true);
       try {
         const supplierVarenrs = items.map(i => i.varenr?.trim()).filter(Boolean) as string[];
-        const existingUrl = supplierVarenrs.length > 0
-          ? `/api/admin/prissammenligner?suppliers=${encodeURIComponent(supplier)}&varenrs=${supplierVarenrs.map(encodeURIComponent).join(",")}`
-          : null;
 
-        const [matchRes, catRes, existingRes] = await Promise.all([
+        const [matchRes, catRes, checkRes] = await Promise.all([
           fetch("/api/admin/katalog/match", {
             method: "POST",
             headers: { "Content-Type": "application/json", ...authHeaders },
             body: JSON.stringify({ supplier, items }),
           }),
           fetch("/api/admin/katalog/kategorier", { headers: authHeaders }),
-          existingUrl ? fetch(existingUrl, { headers: authHeaders }) : Promise.resolve(null),
+          supplierVarenrs.length > 0
+            ? fetch("/api/admin/supplier-prices/check", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders },
+                body: JSON.stringify({ supplier, varenrs: supplierVarenrs }),
+              })
+            : Promise.resolve(null),
         ]);
         if (!matchRes.ok) {
           const errJson = await matchRes.json().catch(() => ({}));
@@ -115,11 +118,9 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
         setMatchedResults(matched);
         setCategories(catJson.data ?? []);
 
-        if (existingRes?.ok) {
-          const existingJson = await existingRes.json();
-          const existing = new Set<string>(
-            ((existingJson.data ?? []) as { varenr: string }[]).map(r => r.varenr)
-          );
+        if (checkRes?.ok) {
+          const checkJson = await checkRes.json();
+          const existing = new Set<string>(checkJson.existingVarenrs ?? []);
           if (existing.size > 0) setSavedVarenrs(existing);
         }
 
@@ -345,7 +346,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex w-full max-w-xl flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "92vh" }}>
+      <div className="flex w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "92vh" }}>
 
         {/* Header */}
         <div className="border-b px-6 pt-5 pb-4">
