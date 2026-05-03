@@ -91,13 +91,19 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     async function run() {
       setLoading(true);
       try {
-        const [matchRes, catRes] = await Promise.all([
+        const supplierVarenrs = items.map(i => i.varenr?.trim()).filter(Boolean) as string[];
+        const existingUrl = supplierVarenrs.length > 0
+          ? `/api/admin/prissammenligner?suppliers=${encodeURIComponent(supplier)}&varenrs=${supplierVarenrs.map(encodeURIComponent).join(",")}`
+          : null;
+
+        const [matchRes, catRes, existingRes] = await Promise.all([
           fetch("/api/admin/katalog/match", {
             method: "POST",
             headers: { "Content-Type": "application/json", ...authHeaders },
             body: JSON.stringify({ supplier, items }),
           }),
           fetch("/api/admin/katalog/kategorier", { headers: authHeaders }),
+          existingUrl ? fetch(existingUrl, { headers: authHeaders }) : Promise.resolve(null),
         ]);
         if (!matchRes.ok) {
           const errJson = await matchRes.json().catch(() => ({}));
@@ -108,6 +114,14 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
         const matched: MatchResult[] = matchJson.results ?? [];
         setMatchedResults(matched);
         setCategories(catJson.data ?? []);
+
+        if (existingRes?.ok) {
+          const existingJson = await existingRes.json();
+          const existing = new Set<string>(
+            ((existingJson.data ?? []) as { varenr: string }[]).map(r => r.varenr)
+          );
+          if (existing.size > 0) setSavedVarenrs(existing);
+        }
 
         const auto: Record<number, ItemAction> = {};
         const needsReview: number[] = [];
