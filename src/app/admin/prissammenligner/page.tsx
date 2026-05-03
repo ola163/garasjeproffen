@@ -34,6 +34,7 @@ interface PriceRow {
   dimensjon?: string;
   enhet?: string;
   pris: number;
+  antall?: number;
 }
 
 interface Source {
@@ -55,6 +56,7 @@ interface ComparisonRow {
   internalPrice?: number;
   fromProject: boolean;
   fromReserve?: Record<string, boolean>; // sourceId -> true if filled from reserve assignment
+  supplierQty?: Record<string, number | undefined>; // sourceId -> quantity from supplier's uploaded offer
 }
 
 interface ColumnMap {
@@ -63,6 +65,7 @@ interface ColumnMap {
   pris: string;
   enhet?: string;
   dimensjon?: string;
+  antall?: string;
 }
 
 interface PendingUpload {
@@ -98,6 +101,7 @@ function autoDetectColumns(headers: string[]): Partial<ColumnMap> {
     pris: find("nettopris", "netto", "pris", "price", "beløp", "enhetspris"),
     enhet: find("enhet", "unit"),
     dimensjon: find("dimensjon", "dim", "size"),
+    antall: find("antall", "qty", "quantity", "mengde", "antal"),
   };
 }
 
@@ -107,11 +111,13 @@ function applyColumnMap(rows: Record<string, string>[], colMap: ColumnMap): Pric
     const varenr = (row[colMap.varenr] ?? "").trim();
     const pris = parseNumber(row[colMap.pris] ?? "");
     if (!varenr || isNaN(pris) || pris <= 0) continue;
+    const antallRaw = colMap.antall ? parseNumber(row[colMap.antall] ?? "") : NaN;
     result.push({
       varenr,
       beskrivelse: (row[colMap.beskrivelse] ?? "").trim(),
       enhet: colMap.enhet ? (row[colMap.enhet] ?? "").trim() || undefined : undefined,
       dimensjon: colMap.dimensjon ? (row[colMap.dimensjon] ?? "").trim() || undefined : undefined,
+      antall: !isNaN(antallRaw) && antallRaw > 0 ? antallRaw : undefined,
       pris,
     });
   }
@@ -191,11 +197,16 @@ function buildComparison(
     const cells: Record<string, number | undefined> = {};
     // Track which cells come from manual reserve assignments (for visual indicator)
     const fromReserve: Record<string, boolean> = {};
+    const supplierQty: Record<string, number | undefined> = {};
 
     for (const src of sources) {
       // 1. Exact match by varenr key
       const match = src.rows.find(r => rowKey(r.varenr, r.beskrivelse) === key);
-      if (match) { cells[src.id] = match.pris; continue; }
+      if (match) {
+        cells[src.id] = match.pris;
+        if (match.antall != null) supplierQty[src.id] = match.antall;
+        continue;
+      }
       // 2. Manual reserve assignment
       const manual = manualAssignments.find(a => a.projectRowKey === key && a.sourceId === src.id);
       if (manual) { cells[src.id] = manual.reservePris; fromReserve[src.id] = true; }
@@ -205,7 +216,7 @@ function buildComparison(
       .sort((a, b) => (cells[a.id] ?? Infinity) - (cells[b.id] ?? Infinity));
     const ranks: Record<string, number> = {};
     sortedByPrice.forEach((s, i) => { ranks[s.id] = i + 1; });
-    return { varenr, beskrivelse, qty, enhet, dimensjon, cells, ranks, internalPrice, fromProject: true, fromReserve };
+    return { varenr, beskrivelse, qty, enhet, dimensjon, cells, ranks, internalPrice, fromProject: true, fromReserve, supplierQty };
   });
 }
 
@@ -331,12 +342,38 @@ function PrissammenlignInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingProjectId, projectList]);
 
+  // Persist comparison state (selected suppliers + manual assignments) per project
+  useEffect(() => {
+    if (!selectedProject) return;
+    try {
+      localStorage.setItem(`pris_state_${selectedProject.id}`, JSON.stringify({ dbSelected, manualAssignments }));
+    } catch { /* non-fatal */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject?.id, dbSelected, manualAssignments]);
+
   function selectProject(project: ProjectSummary) {
     setSelectedProject(project);
     setShowProjectPicker(false);
     setProjectSearch("");
     setSources([]);
-    const selected = Object.entries(dbSelected).filter(([, v]) => v).map(([k]) => k);
+    setManualAssignments([]);
+
+    let effectiveDbSelected = dbSelected;
+    try {
+      const raw = localStorage.getItem(`pris_state_${project.id}`);
+      if (raw) {
+        const saved = JSON.parse(raw) as { dbSelected?: Record<string, boolean>; manualAssignments?: ManualAssignment[] };
+        if (saved.dbSelected && typeof saved.dbSelected === "object") {
+          effectiveDbSelected = saved.dbSelected;
+          setDbSelected(saved.dbSelected);
+        }
+        if (Array.isArray(saved.manualAssignments)) {
+          setManualAssignments(saved.manualAssignments);
+        }
+      }
+    } catch { /* non-fatal */ }
+
+    const selected = Object.entries(effectiveDbSelected).filter(([, v]) => v).map(([k]) => k);
     for (const sup of selected) {
       fetchDbSupplier(sup, project.line_items.map(i => i.varenr));
     }
@@ -850,10 +887,10 @@ function PrissammenlignInner() {
                   </p>
                 ) : (
                   <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {(["varenr", "beskrivelse", "pris", "enhet", "dimensjon"] as const).map(field => (
+                    {(["varenr", "beskrivelse", "pris", "enhet", "dimensjon", "antall"] as const).map(field => (
                       <div key={field}>
                         <label className="block text-xs font-medium text-orange-700 mb-1">
-                          {field === "pris" ? "Nettopris *" : field === "varenr" ? "Varenr *" : field === "beskrivelse" ? "Beskrivelse *" : field}
+                          {field === "pris" ? "Nettopris *" : field === "varenr" ? "Varenr *" : field === "beskrivelse" ? "Beskrivelse *" : field === "antall" ? "Antall" : field}
                         </label>
                         <select
                           value={pending.colMap[field] ?? ""}
@@ -1064,6 +1101,11 @@ function PrissammenlignInner() {
                                       )}
                                       {row.qty > 1 && (
                                         <span className="text-[10px] tabular-nums text-gray-400">= {formatPrice(pris * row.qty)}</span>
+                                      )}
+                                      {row.supplierQty?.[s.id] != null && row.supplierQty[s.id] !== row.qty && (
+                                        <span className="text-[9px] tabular-nums text-purple-500" title="Leverandørens oppgitte antall">
+                                          Lev: {row.supplierQty[s.id]}
+                                        </span>
                                       )}
                                     </div>
                                   )}
