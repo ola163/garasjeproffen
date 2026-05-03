@@ -52,7 +52,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const gp_varenr = product.varenr as string;
 
   // Delete all existing links for this product
-  await sb.from("gp_product_supplier_links").delete().eq("gp_varenr", gp_varenr);
+  const { error: delError } = await sb.from("gp_product_supplier_links").delete().eq("gp_varenr", gp_varenr);
+  if (delError) return NextResponse.json({ error: delError.message }, { status: 500 });
 
   // Insert non-empty links
   const toInsert = links.filter(l => l.supplier_varenr.trim());

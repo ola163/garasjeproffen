@@ -310,32 +310,28 @@ export default function KatalogPage() {
   async function openEdit(p: GpProduct) {
     setEditId(p.id);
     setForm({ varenr: p.varenr, name: p.name, category: p.category, unit: p.unit ?? "", description: p.description ?? "" });
-    setSupplierLinks({ ...EMPTY_LINKS });
     setProdError("");
+
+    // Load existing links BEFORE opening modal so handleSave never overwrites them with empty values
+    const map: LinkMap = { ...EMPTY_LINKS };
+    try {
+      const d = await fetch(`/api/admin/katalog/${p.id}/links`).then(r => r.json());
+      for (const link of d.data ?? []) map[link.supplier] = { varenr: link.supplier_varenr, name: "" };
+    } catch { /* non-fatal — modal still opens with whatever we have */ }
+    setSupplierLinks({ ...map });
     setShowModal(true);
 
-    // Fetch existing links then look up descriptions in parallel
-    fetch(`/api/admin/katalog/${p.id}/links`)
-      .then(r => r.json())
-      .then(async d => {
-        const map: LinkMap = { ...EMPTY_LINKS };
-        for (const link of d.data ?? []) map[link.supplier] = { varenr: link.supplier_varenr, name: "" };
-        setSupplierLinks({ ...map });
-
-        // Fetch descriptions for each linked varenr
-        await Promise.all(
-          DB_SUPPLIERS.map(async sup => {
-            const sv = map[sup]?.varenr;
-            if (!sv) return;
-            const r = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(sup)}&q=${encodeURIComponent(sv)}&limit=1`);
-            const j = await r.json();
-            const hit = j.data?.[0];
-            if (hit) map[sup] = { varenr: sv, name: [hit.varebenevnelse, hit.dimensjon].filter(Boolean).join(" ") };
-          })
-        );
-        setSupplierLinks({ ...map });
+    // Fetch descriptions in the background (non-blocking)
+    Promise.all(
+      DB_SUPPLIERS.map(async sup => {
+        const sv = map[sup]?.varenr;
+        if (!sv) return;
+        const r = await fetch(`/api/admin/supplier-prices?supplier=${encodeURIComponent(sup)}&q=${encodeURIComponent(sv)}&limit=1`);
+        const j = await r.json();
+        const hit = j.data?.[0];
+        if (hit) map[sup] = { varenr: sv, name: [hit.varebenevnelse, hit.dimensjon].filter(Boolean).join(" ") };
       })
-      .catch(() => {});
+    ).then(() => setSupplierLinks({ ...map })).catch(() => {});
   }
 
   async function saveLinks(productId: string) {
@@ -421,16 +417,24 @@ export default function KatalogPage() {
   async function saveLinkModal() {
     if (!linkModalProduct) return;
     setSavingLinkModal(true);
-    const links = DB_SUPPLIERS.map(s => ({ supplier: s, supplier_varenr: linkModalLinks[s]?.varenr ?? "" }));
-    await fetch(`/api/admin/katalog/${linkModalProduct.id}/links`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ links }),
-    });
-    setSavingLinkModal(false);
-    setLinkModalProduct(null);
-    setBrowseSupplier(null);
-    loadLinks();
+    try {
+      const links = DB_SUPPLIERS.map(s => ({ supplier: s, supplier_varenr: linkModalLinks[s]?.varenr ?? "" }));
+      const res = await fetch(`/api/admin/katalog/${linkModalProduct.id}/links`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ links }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        alert(`Lagring feilet: ${json.error ?? res.status}`);
+        return;
+      }
+      setLinkModalProduct(null);
+      setBrowseSupplier(null);
+      loadLinks();
+    } finally {
+      setSavingLinkModal(false);
+    }
   }
 
   // ── Merge: search for target product ──────────────────────────────────
