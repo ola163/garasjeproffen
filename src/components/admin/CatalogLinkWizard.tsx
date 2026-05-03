@@ -83,6 +83,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
   const [savingPrices, setSavingPrices] = useState(false);
   const [pricesSaved, setPricesSaved] = useState(false);
   const [pendingAutoResults, setPendingAutoResults] = useState<WizardResult[] | null>(null);
+  const [savedVarenrs, setSavedVarenrs] = useState<Set<string>>(new Set());
 
   const authHeaders: Record<string, string> = authToken ? { "Authorization": `Bearer ${authToken}` } : {};
 
@@ -236,7 +237,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     const decision = reviewDecisions[idx] ?? autoDecisions[idx];
     const gpVarenr = decision && (decision.type === "accept" || decision.type === "link") ? decision.gpVarenr : null;
     const varenr = item.varenr?.trim() || gpVarenr;
-    if (!varenr) return [];
+    if (!varenr || savedVarenrs.has(varenr)) return [];
     return [{
       varenr,
       varebenevnelse: item.name.trim(),
@@ -264,6 +265,7 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? `Feil ${res.status}`);
       }
+      setSavedVarenrs(prev => new Set([...prev, ...priceRows.map(r => r.varenr)]));
       setPricesSaved(true);
       setTimeout(() => setPricesSaved(false), 3000);
     } catch (e: unknown) {
