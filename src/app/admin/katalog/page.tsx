@@ -131,6 +131,8 @@ export default function KatalogPage() {
   const [savingCat, setSavingCat] = useState(false);
   const [catError, setCatError] = useState("");
   const [deletingCat, setDeletingCat] = useState<string | null>(null);
+  const [reassigning, setReassigning] = useState(false);
+  const [reassignResult, setReassignResult] = useState<{ oldVarenr: string; newVarenr: string }[] | null>(null);
 
   // ── Products ───────────────────────────────────────────────────────────
   const [products, setProducts] = useState<GpProduct[]>([]);
@@ -296,6 +298,21 @@ export default function KatalogPage() {
     setDeletingCat(null);
     if (!res.ok) { setCatError(json.error ?? "Feil"); return; }
     loadCats();
+  }
+
+  async function runReassign() {
+    if (!confirm("Dette vil endre GPV-varenumre på varer i hovedkategorier som kolliderer med underkategorier. Fortsett?")) return;
+    setReassigning(true);
+    setReassignResult(null);
+    try {
+      const res = await fetch("/api/admin/katalog/reassign", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) { setCatError(json.error ?? "Feil"); return; }
+      setReassignResult(json.reassigned ?? []);
+      loadProducts();
+    } finally {
+      setReassigning(false);
+    }
   }
 
   // ── Product actions ────────────────────────────────────────────────────
@@ -632,9 +649,18 @@ export default function KatalogPage() {
               </button>
             )}
             {tab === "kategorier" && (
-              <button onClick={() => { setShowNewCat(true); setCatError(""); }} className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600">
-                + Ny kategori
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={runReassign}
+                  disabled={reassigning}
+                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {reassigning ? "Rydder…" : "Fiks varenr-konflikter"}
+                </button>
+                <button onClick={() => { setShowNewCat(true); setCatError(""); }} className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600">
+                  + Ny kategori
+                </button>
+              </div>
             )}
             {tab === "importer" && (
               <span className="text-xs text-gray-400 self-center">Importer varer fra leverandørenes prisdatabase</span>
@@ -785,6 +811,26 @@ export default function KatalogPage() {
           <div className="space-y-3">
             {catError && (
               <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-600">{catError}</div>
+            )}
+
+            {reassignResult !== null && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+                {reassignResult.length === 0 ? (
+                  <span className="text-blue-700">Ingen konflikter funnet — alle varenumre er korrekte.</span>
+                ) : (
+                  <>
+                    <p className="font-medium text-blue-800 mb-2">{reassignResult.length} vare{reassignResult.length !== 1 ? "r" : ""} fikk nytt varenummer:</p>
+                    <ul className="space-y-0.5">
+                      {reassignResult.map(r => (
+                        <li key={r.oldVarenr} className="font-mono text-xs text-blue-700">
+                          {r.oldVarenr} → {r.newVarenr}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                <button onClick={() => setReassignResult(null)} className="mt-2 text-xs text-blue-500 hover:text-blue-700">Lukk</button>
+              </div>
             )}
 
             {catsLoading ? (

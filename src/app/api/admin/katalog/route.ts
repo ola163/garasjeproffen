@@ -57,20 +57,50 @@ export async function POST(req: NextRequest) {
   const sb = getSupabase();
 
   if (!varenr?.trim()) {
-    const { data: cat } = await sb.from("gp_categories").select("varenr_start, varenr_end").eq("label", category).single();
-    const start = cat?.varenr_start ?? 9000;
-    const end = (cat as { varenr_end?: number | null } | null)?.varenr_end ?? (start + 999);
+    // Fetch category (need id + range)
+    const { data: cat } = await sb
+      .from("gp_categories")
+      .select("id, varenr_start, varenr_end")
+      .eq("label", category)
+      .single();
+    const start = (cat as { varenr_start?: number } | null)?.varenr_start ?? 9000;
+    const end   = (cat as { varenr_end?: number | null } | null)?.varenr_end ?? (start + 999);
+    const catId = (cat as { id?: string } | null)?.id ?? null;
 
+    // Collect subcategory ranges that must be reserved and left empty for this category
+    const blocked: Array<{ s: number; e: number }> = [];
+    if (catId) {
+      const { data: subcats } = await sb
+        .from("gp_categories")
+        .select("varenr_start, varenr_end")
+        .eq("parent_id", catId);
+      for (const sub of subcats ?? []) {
+        const ss = (sub as { varenr_start?: number }).varenr_start;
+        const se = (sub as { varenr_end?: number | null }).varenr_end;
+        if (ss != null && se != null) blocked.push({ s: ss, e: se });
+      }
+    }
+
+    // Build set of already-used GPV numbers within this range (across all categories)
     const { data: existing } = await sb.from("gp_products").select("varenr").like("varenr", "GPV-%");
-    let maxNum = start - 1;
+    const usedNums = new Set<number>();
     for (const row of existing ?? []) {
       const num = parseInt((row.varenr as string).replace("GPV-", ""));
-      if (!isNaN(num) && num >= start && num <= end) maxNum = Math.max(maxNum, num);
+      if (!isNaN(num) && num >= start && num <= end) usedNums.add(num);
     }
-    if (maxNum >= end) {
+
+    // First-fit: find the lowest free number that is not inside any subcategory range
+    let assigned: number | null = null;
+    for (let n = start; n <= end; n++) {
+      if (blocked.some(b => n >= b.s && n <= b.e)) continue;
+      if (usedNums.has(n)) continue;
+      assigned = n;
+      break;
+    }
+    if (assigned === null) {
       return NextResponse.json({ error: `Kategorien er full (GPV-${start} til GPV-${end})` }, { status: 409 });
     }
-    varenr = `GPV-${maxNum + 1}`;
+    varenr = `GPV-${assigned}`;
   }
 
   const { data, error } = await sb
