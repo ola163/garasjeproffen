@@ -224,14 +224,11 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
     }
   }
 
-  // Collect all linked items that have a varenr + price (from both committed and pending decisions)
-  const priceRows = Object.entries(allDecisions).flatMap(([idxStr, action]) => {
-    if (action.type === "skip") return [];
-    const item = items[Number(idxStr)];
-    const varenr = item.varenr;
-    if (!varenr || !item.nettopris || item.nettopris <= 0) return [];
+  // All offer items with varenr + price — independent of linking decisions
+  const priceRows = items.flatMap(item => {
+    if (!item.varenr || !item.nettopris || item.nettopris <= 0) return [];
     return [{
-      varenr,
+      varenr: item.varenr,
       varebenevnelse: item.name.trim(),
       dimensjon: item.dimensjon ?? null,
       enhet: item.enhet ?? null,
