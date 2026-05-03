@@ -66,6 +66,7 @@ export default function StatistikkPage() {
   const [tab, setTab] = useState<"brukere" | "iper" | "utland" | "sider" | "trafikk">("brukere");
   const [relinking, setRelinking] = useState(false);
   const [relinkResult, setRelinkResult] = useState<string | null>(null);
+  const [assigningIp, setAssigningIp] = useState<string | null>(null);
 
   function loadStats() {
     setLoading(true);
@@ -76,6 +77,21 @@ export default function StatistikkPage() {
   }
 
   useEffect(() => { loadStats(); }, []);
+
+  async function handleAssignToMe(ip: string) {
+    setAssigningIp(ip);
+    try {
+      const res = await fetch("/api/admin/visitor-stats/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip }),
+      });
+      const json = await res.json();
+      if (!json.error) loadStats();
+    } finally {
+      setAssigningIp(null);
+    }
+  }
 
   async function handleRelink() {
     setRelinking(true);
@@ -362,7 +378,20 @@ export default function StatistikkPage() {
                               <GeoTag geo={entry.geo} />
                             </td>
                             <td className="px-4 py-3 text-right font-semibold text-orange-500">{entry.count}</td>
-                            <td className="hidden sm:table-cell px-4 py-3 text-gray-500">{fmt(entry.lastSeen)}</td>
+                            <td className="hidden sm:table-cell px-4 py-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-gray-500 text-sm">{fmt(entry.lastSeen)}</span>
+                                {entry.emails.length === 0 && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleAssignToMe(entry.ip); }}
+                                    disabled={assigningIp === entry.ip}
+                                    className="shrink-0 rounded border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-400 hover:border-blue-300 hover:text-blue-600 disabled:opacity-40"
+                                  >
+                                    {assigningIp === entry.ip ? "…" : "Dette er meg"}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                           {expanded === entry.ip && (
                             <tr key={`${entry.ip}-expanded`} className="bg-orange-50">
