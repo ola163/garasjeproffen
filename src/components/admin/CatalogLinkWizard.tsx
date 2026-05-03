@@ -399,33 +399,24 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
         {error && <p className="px-6 py-2 text-sm text-red-600 border-t">{error}</p>}
 
         {/* Footer */}
-        <div className="border-t px-6 py-4">
-          {pricesSaved && (
-            <p className="mb-2 text-center text-xs font-medium text-emerald-600">
-              ✓ {priceRows.length} priser lagret til databasen
+        <div className="border-t px-6 py-4 space-y-3">
+          {(pricesSaved || saveFlash) && (
+            <p className="text-center text-xs font-medium text-emerald-600">
+              {pricesSaved ? `✓ ${priceRows.length} priser lagret til databasen` : "✓ Koblinger lagret til databasen"}
             </p>
           )}
-          {saveFlash && (
-            <p className="mb-2 text-center text-xs font-medium text-green-600">
-              ✓ Koblinger lagret til databasen
-            </p>
-          )}
+          {/* Nav row */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setReviewPos(p => Math.max(0, p - 1))}
               disabled={reviewPos === 0}
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-30"
-            >
-              ←
-            </button>
+            >←</button>
             <button
               onClick={() => setReviewPos(p => Math.min(reviewIndices.length - 1, p + 1))}
               disabled={reviewPos >= reviewIndices.length - 1}
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-30"
-            >
-              →
-            </button>
-
+            >→</button>
             {reviewDecidedCount < reviewIndices.length && (
               <button
                 onClick={() => {
@@ -437,38 +428,37 @@ export default function CatalogLinkWizard({ supplier, items, onDone, onCancel, c
                   const anyPos = afterPos !== -1 ? afterPos : reviewIndices.findIndex(origIdx => isUnhandled(origIdx));
                   if (anyPos !== -1) setReviewPos(anyPos);
                 }}
-                className="text-xs text-orange-500 hover:underline flex-1 text-left ml-1"
+                className="text-xs text-orange-500 hover:underline"
               >
                 Neste ubehandlet →
               </button>
             )}
-            {reviewDecidedCount >= reviewIndices.length && <span className="flex-1" />}
-
-            <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 shrink-0">
+          </div>
+          {/* Action buttons row */}
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600">
               {cancelLabel ?? "Avbryt"}
             </button>
             {priceRows.length > 0 && (
               <button
                 onClick={savePricesToDb}
                 disabled={savingPrices}
-                className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 shrink-0"
+                className="rounded-lg border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
               >
-                {savingPrices ? "Lagrer…" : `Lagre ${priceRows.length} pris${priceRows.length === 1 ? "" : "er"} til database`}
+                {savingPrices ? "Lagrer…" : `Lagre ${priceRows.length} priser`}
               </button>
             )}
-            {/* Save stays in wizard */}
             <button
               onClick={handleSave}
               disabled={saving || unsavedCount === 0}
-              className="rounded-lg border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-40 shrink-0"
+              className="rounded-lg border border-blue-300 px-3 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-40"
             >
               {saving ? "Lagrer…" : `Lagre ${unsavedCount} kobling${unsavedCount === 1 ? "" : "er"}`}
             </button>
-            {/* Finish saves + closes */}
             <button
               onClick={handleFinish}
               disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40 shrink-0"
+              className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40"
             >
               Fullfør
             </button>
