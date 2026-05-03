@@ -155,6 +155,15 @@ export default function KatalogPage() {
   const [linkModalSuggestionsLoading, setLinkModalSuggestionsLoading] = useState(false);
   const [savingLinkModal, setSavingLinkModal] = useState(false);
 
+  // ── Supplier price browser (inside link modal) ──────────────────────────
+  const [browseSupplier, setBrowseSupplier] = useState<string | null>(null);
+  const [browseQuery, setBrowseQuery] = useState("");
+  const [browseResults, setBrowseResults] = useState<SupplierPriceHit[]>([]);
+  const [browseTotal, setBrowseTotal] = useState(0);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseOffset, setBrowseOffset] = useState(0);
+  const browseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Merge duplicates ───────────────────────────────────────────────────
   const [mergeSource, setMergeSource] = useState<GpProduct | null>(null);
   const [mergeQuery, setMergeQuery] = useState("");
@@ -420,6 +429,7 @@ export default function KatalogPage() {
     });
     setSavingLinkModal(false);
     setLinkModalProduct(null);
+    setBrowseSupplier(null);
     loadLinks();
   }
 
@@ -462,6 +472,31 @@ export default function KatalogPage() {
       setMerging(false);
     }
   }
+
+  // ── Supplier price browser fetch ───────────────────────────────────────
+  useEffect(() => {
+    if (!browseSupplier) return;
+    if (browseTimerRef.current) clearTimeout(browseTimerRef.current);
+    const delay = browseQuery ? 280 : 0;
+    browseTimerRef.current = setTimeout(async () => {
+      setBrowseLoading(true);
+      try {
+        const params = new URLSearchParams({ supplier: browseSupplier, limit: "40", offset: String(browseOffset) });
+        if (browseQuery.trim()) params.set("q", browseQuery.trim());
+        const res = await fetch(`/api/admin/supplier-prices?${params}`);
+        const json = await res.json();
+        if (browseOffset === 0) {
+          setBrowseResults(json.data ?? []);
+        } else {
+          setBrowseResults(prev => [...prev, ...(json.data ?? [])]);
+        }
+        setBrowseTotal(json.count ?? 0);
+      } finally {
+        setBrowseLoading(false);
+      }
+    }, delay);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [browseSupplier, browseQuery, browseOffset]);
 
   // ── Import tab search ──────────────────────────────────────────────────
   useEffect(() => {
@@ -1308,30 +1343,113 @@ export default function KatalogPage() {
                 </div>
               )}
 
-              {/* Manual pickers */}
+              {/* Manual pickers + price browser */}
               <div>
                 <p className="mb-2 text-xs font-semibold text-gray-700">Manuell tilknytning</p>
-                <p className="mb-2 text-[10px] text-gray-400">Søk på varenr eller navn fra leverandørens prisdatabase.</p>
+                <p className="mb-2 text-[10px] text-gray-400">Søk på varenr/navn, eller trykk «Bla» for å bla gjennom leverandørens hele prisdatabase.</p>
                 <div className="rounded-lg border border-gray-200 overflow-visible">
-                  {DB_SUPPLIERS.map((sup, i) => (
-                    <div key={sup} className={`flex items-start gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-gray-100" : ""}`}>
-                      <span className="w-28 shrink-0 pt-1.5 text-xs font-medium text-gray-600">{sup}</span>
-                      <SupplierVarenrPicker
-                        supplier={sup}
-                        varenr={linkModalLinks[sup]?.varenr ?? ""}
-                        name={linkModalLinks[sup]?.name ?? ""}
-                        onChange={(v, n) => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: v, name: n } }))}
-                      />
-                      {linkModalLinks[sup]?.varenr && (
-                        <button
-                          type="button"
-                          onClick={() => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: "", name: "" } }))}
-                          className="shrink-0 pt-1.5 text-gray-300 hover:text-red-400"
-                          title="Fjern kobling"
-                        >✕</button>
-                      )}
-                    </div>
-                  ))}
+                  {DB_SUPPLIERS.map((sup, i) => {
+                    const isBrowsing = browseSupplier === sup;
+                    return (
+                      <div key={sup} className={i > 0 ? "border-t border-gray-100" : ""}>
+                        {/* Picker row */}
+                        <div className="flex items-start gap-2 px-3 py-2.5">
+                          <span className="w-24 shrink-0 pt-1.5 text-xs font-medium text-gray-600">{sup}</span>
+                          <SupplierVarenrPicker
+                            supplier={sup}
+                            varenr={linkModalLinks[sup]?.varenr ?? ""}
+                            name={linkModalLinks[sup]?.name ?? ""}
+                            onChange={(v, n) => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: v, name: n } }))}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isBrowsing) {
+                                setBrowseSupplier(null);
+                              } else {
+                                setBrowseSupplier(sup);
+                                setBrowseQuery("");
+                                setBrowseOffset(0);
+                                setBrowseResults([]);
+                              }
+                            }}
+                            className={`shrink-0 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${isBrowsing ? "border-blue-300 bg-blue-100 text-blue-700" : "border-gray-200 text-gray-400 hover:border-blue-200 hover:text-blue-600"}`}
+                          >
+                            {isBrowsing ? "✕ Lukk" : "Bla"}
+                          </button>
+                          {linkModalLinks[sup]?.varenr && (
+                            <button
+                              type="button"
+                              onClick={() => setLinkModalLinks(l => ({ ...l, [sup]: { varenr: "", name: "" } }))}
+                              className="shrink-0 pt-1.5 text-gray-300 hover:text-red-400"
+                              title="Fjern kobling"
+                            >✕</button>
+                          )}
+                        </div>
+
+                        {/* Price browser panel */}
+                        {isBrowsing && (
+                          <div className="border-t border-blue-100 bg-blue-50 px-3 pb-3 pt-2">
+                            <input
+                              type="text"
+                              value={browseQuery}
+                              onChange={e => { setBrowseQuery(e.target.value); setBrowseOffset(0); setBrowseResults([]); }}
+                              placeholder={`Søk i ${sup}s prisdatabase…`}
+                              className="mb-2 w-full rounded border border-blue-200 bg-white px-2.5 py-1.5 text-xs focus:border-blue-400 focus:outline-none"
+                              autoFocus
+                            />
+                            {browseLoading && browseResults.length === 0 ? (
+                              <p className="py-4 text-center text-xs text-gray-400 animate-pulse">Laster…</p>
+                            ) : browseResults.length === 0 ? (
+                              <p className="py-4 text-center text-xs text-gray-400">Ingen treff</p>
+                            ) : (
+                              <div className="max-h-56 overflow-y-auto rounded border border-blue-200 bg-white">
+                                {browseResults.map(hit => {
+                                  const label = [hit.varebenevnelse, hit.dimensjon].filter(Boolean).join(" ");
+                                  const isLinked = linkModalLinks[sup]?.varenr === hit.varenr;
+                                  return (
+                                    <div
+                                      key={hit.varenr}
+                                      className={`flex items-center gap-2 border-b border-gray-50 px-2.5 py-2 last:border-0 ${isLinked ? "bg-orange-50" : "hover:bg-gray-50"}`}
+                                    >
+                                      <span className="shrink-0 font-mono text-[10px] font-semibold text-gray-500 w-20 truncate">{hit.varenr}</span>
+                                      <span className="min-w-0 flex-1 truncate text-xs text-gray-700">{label}</span>
+                                      {hit.nettopris != null && (
+                                        <span className="shrink-0 text-[10px] text-gray-400">{hit.nettopris.toLocaleString("nb-NO")} kr</span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (isLinked) {
+                                            setLinkModalLinks(l => ({ ...l, [sup]: { varenr: "", name: "" } }));
+                                          } else {
+                                            setLinkModalLinks(l => ({ ...l, [sup]: { varenr: hit.varenr, name: label } }));
+                                            setBrowseSupplier(null);
+                                          }
+                                        }}
+                                        className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-medium ${isLinked ? "bg-orange-100 text-orange-700 hover:bg-orange-200" : "bg-orange-500 text-white hover:bg-orange-600"}`}
+                                      >
+                                        {isLinked ? "✓ Koblet" : "Koble"}
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {browseTotal > browseResults.length && (
+                              <button
+                                onClick={() => setBrowseOffset(browseResults.length)}
+                                disabled={browseLoading}
+                                className="mt-2 w-full rounded border border-blue-200 bg-white py-1.5 text-xs text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                              >
+                                {browseLoading ? "Laster…" : `Last inn flere (${browseResults.length} av ${browseTotal})`}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
