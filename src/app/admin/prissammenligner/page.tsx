@@ -305,9 +305,13 @@ function PrissammenlignInner() {
   const [saveToDbSupplier, setSaveToDbSupplier] = useState("");
   const [saveToDbResult, setSaveToDbResult] = useState<{ ok: boolean; count: number } | null>(null);
 
-  // Inline varenr editing in comparison table
-  const [editingVarenrKey, setEditingVarenrKey] = useState<string | null>(null);
-  const [editingVarenrValue, setEditingVarenrValue] = useState("");
+  // Catalog picker for varenr editing
+  const [varenrPicker, setVarenrPicker] = useState<{ rowKey: string; currentVarenr: string; beskrivelse: string } | null>(null);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogCategory, setCatalogCategory] = useState("");
+  const [catalogProducts, setCatalogProducts] = useState<Array<{ id: string; varenr: string; name: string; unit?: string }>>([]);
+  const [catalogCategories, setCatalogCategories] = useState<Array<{ id: string; label: string }>>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
 
   // Reserve assignment
   const [manualAssignments, setManualAssignments] = useState<ManualAssignment[]>([]);
@@ -360,6 +364,29 @@ function PrissammenlignInner() {
     } catch { /* non-fatal */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject?.id, dbSelected, manualAssignments]);
+
+  useEffect(() => {
+    if (!varenrPicker) return;
+    if (catalogCategories.length === 0) {
+      fetch("/api/admin/katalog/kategorier")
+        .then(r => r.json())
+        .then(d => setCatalogCategories(d.data ?? []))
+        .catch(() => {});
+    }
+    setCatalogLoading(true);
+    const params = new URLSearchParams({ limit: "50" });
+    if (catalogSearch.trim()) params.set("q", catalogSearch.trim());
+    if (catalogCategory) params.set("category", catalogCategory);
+    const timer = setTimeout(() => {
+      fetch(`/api/admin/katalog?${params}`)
+        .then(r => r.json())
+        .then(d => setCatalogProducts(d.data ?? []))
+        .catch(() => {})
+        .finally(() => setCatalogLoading(false));
+    }, catalogSearch ? 250 : 0);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [varenrPicker, catalogSearch, catalogCategory]);
 
   function selectProject(project: ProjectSummary) {
     setSelectedProject(project);
@@ -625,23 +652,24 @@ function PrissammenlignInner() {
     setManualAssignments(prev => prev.filter(a => !(a.projectRowKey === projectRowKey && a.sourceId === sourceId)));
   }
 
-  async function saveVarenrEdit(oldVarenr: string, newVarenr: string) {
-    setEditingVarenrKey(null);
-    if (!selectedProject || newVarenr.trim() === oldVarenr) return;
+  async function selectVarenrFromCatalog(product: { varenr: string }) {
+    if (!varenrPicker || !selectedProject) return;
+    const oldVarenr = varenrPicker.currentVarenr;
+    const newVarenr = product.varenr;
+    setVarenrPicker(null);
+    if (newVarenr === oldVarenr) return;
     try {
       const res = await fetch("/api/admin/prissammenligner/projects", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quoteId: selectedProject.id, oldVarenr, newVarenr: newVarenr.trim() }),
+        body: JSON.stringify({ quoteId: selectedProject.id, oldVarenr, newVarenr }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Feil");
-      // Update local project state so the comparison re-derives correctly
-      setSelectedProject(prev => prev ? {
+      const newVarenrs = selectedProject.line_items.map((i: ProjectLineItem) => i.varenr === oldVarenr ? newVarenr : i.varenr);
+      setSelectedProject((prev: ProjectSummary | null) => prev ? {
         ...prev,
-        line_items: prev.line_items.map(i => i.varenr === oldVarenr ? { ...i, varenr: newVarenr.trim() } : i),
+        line_items: prev.line_items.map((i: ProjectLineItem) => i.varenr === oldVarenr ? { ...i, varenr: newVarenr } : i),
       } : null);
-      // Re-fetch DB supplier prices for the updated varenr list
-      const newVarenrs = selectedProject.line_items.map(i => i.varenr === oldVarenr ? newVarenr.trim() : i.varenr);
       for (const [sup, checked] of Object.entries(dbSelected)) {
         if (checked) fetchDbSupplier(sup, newVarenrs);
       }
@@ -1165,27 +1193,14 @@ function PrissammenlignInner() {
                         return (
                           <tr key={key} className="hover:bg-gray-50/50">
                             <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-mono text-xs text-gray-500">
-                              {editingVarenrKey === key ? (
-                                <input
-                                  autoFocus
-                                  className="w-24 rounded border border-orange-400 px-1 py-0.5 text-xs font-mono focus:outline-none"
-                                  value={editingVarenrValue}
-                                  onChange={e => setEditingVarenrValue(e.target.value)}
-                                  onBlur={() => saveVarenrEdit(row.varenr, editingVarenrValue)}
-                                  onKeyDown={e => {
-                                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                    if (e.key === "Escape") setEditingVarenrKey(null);
-                                  }}
-                                />
-                              ) : (
-                                <button
-                                  className="font-mono text-xs text-gray-500 hover:text-orange-500 text-left"
-                                  title="Klikk for å endre varenr"
-                                  onClick={() => { setEditingVarenrKey(key); setEditingVarenrValue(row.varenr); }}
-                                >
-                                  {row.varenr || <span className="text-gray-300">—</span>}
-                                </button>
-                              )}
+                              <button
+                                className="group flex items-center gap-1 text-left font-mono text-xs text-gray-500 hover:text-orange-500"
+                                title="Klikk for å endre varenr fra katalogen"
+                                onClick={() => { setVarenrPicker({ rowKey: key, currentVarenr: row.varenr, beskrivelse: row.beskrivelse }); setCatalogSearch(""); setCatalogCategory(""); setCatalogProducts([]); }}
+                              >
+                                <span>{row.varenr || <span className="text-gray-300 italic">legg til</span>}</span>
+                                <span className="hidden group-hover:inline text-[10px] text-orange-400">✎</span>
+                              </button>
                             </td>
                             <td className="px-3 py-2.5 text-gray-800">
                               <span className="line-clamp-2 text-xs">{row.beskrivelse}</span>
@@ -1490,6 +1505,82 @@ function PrissammenlignInner() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Catalog picker modal for varenr editing */}
+      {varenrPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="flex w-full max-w-xl flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "85vh" }}>
+
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-gray-100 px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Endre varenr fra katalogen</h2>
+                <p className="mt-0.5 text-xs text-gray-400 truncate max-w-xs">
+                  {varenrPicker.beskrivelse}
+                  {varenrPicker.currentVarenr && (
+                    <span className="ml-2 font-mono text-orange-500">{varenrPicker.currentVarenr}</span>
+                  )}
+                </p>
+              </div>
+              <button onClick={() => setVarenrPicker(null)} className="shrink-0 text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+            </div>
+
+            {/* Search + category filter */}
+            <div className="space-y-2 border-b border-gray-100 px-5 py-3">
+              <input
+                type="text"
+                placeholder="Søk på varenr eller navn…"
+                value={catalogSearch}
+                onChange={e => setCatalogSearch(e.target.value)}
+                autoFocus
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setCatalogCategory("")}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${!catalogCategory ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                >Alle</button>
+                {catalogCategories.map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setCatalogCategory(cat.label === catalogCategory ? "" : cat.label)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${catalogCategory === cat.label ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  >{cat.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Product list */}
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              {catalogLoading ? (
+                <p className="py-8 text-center text-sm text-gray-400 animate-pulse">Laster…</p>
+              ) : catalogProducts.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-400">Ingen varer funnet</p>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {catalogProducts.map(p => (
+                    <div key={p.id} className="flex items-center gap-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-semibold text-orange-600">{p.varenr}</span>
+                          {p.unit && <span className="text-xs text-gray-400">{p.unit}</span>}
+                        </div>
+                        <p className="text-sm text-gray-800">{p.name}</p>
+                      </div>
+                      <button
+                        onClick={() => selectVarenrFromCatalog(p)}
+                        className="shrink-0 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600"
+                      >
+                        Velg →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
