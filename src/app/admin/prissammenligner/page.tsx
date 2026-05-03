@@ -278,6 +278,10 @@ function PrissammenlignInner() {
   const [applying, setApplying] = useState(false);
   const [applyResult, setApplyResult] = useState<{ updatedCount: number; missedCount: number } | null>(null);
 
+  // Manual row ordering
+  const [manualMode, setManualMode] = useState(false);
+  const [rowOrder, setRowOrder] = useState<string[]>([]);
+
   useEffect(() => {
     fetch("/api/auth/me")
       .then(r => r.json())
@@ -529,6 +533,67 @@ function PrissammenlignInner() {
     }
     return t;
   }, [comparison, effectiveSources]);
+
+  // Fast lookup for manual mode
+  const comparisonMap = useMemo(() => {
+    const m = new Map<string, ComparisonRow>();
+    for (const row of comparison) m.set(rowKey(row.varenr, row.beskrivelse), row);
+    return m;
+  }, [comparison]);
+
+  // Sync manual order when comparison changes (add new keys at end, drop removed)
+  useEffect(() => {
+    if (!manualMode) return;
+    const existingKeys = new Set(rowOrder);
+    const allKeys = comparison.map(r => rowKey(r.varenr, r.beskrivelse));
+    const newKeys = allKeys.filter(k => !existingKeys.has(k));
+    const validKeys = rowOrder.filter(k => comparisonMap.has(k));
+    if (newKeys.length > 0 || validKeys.length !== rowOrder.length) {
+      setRowOrder([...validKeys, ...newKeys]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparison, manualMode]);
+
+  function enterManualMode() {
+    setRowOrder(comparison.map(r => rowKey(r.varenr, r.beskrivelse)));
+    setManualMode(true);
+  }
+
+  function moveRow(key: string, dir: "up" | "down") {
+    setRowOrder(prev => {
+      const idx = prev.indexOf(key);
+      if (idx < 0) return prev;
+      const newIdx = dir === "up" ? idx - 1 : idx + 1;
+      if (newIdx < 0 || newIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+      return next;
+    });
+  }
+
+  // A row is "confident" if it carries a GPV-catalog varenr (wizard-linked or DB-matched)
+  function isConfident(row: ComparisonRow): boolean {
+    return row.varenr.startsWith("GPV-");
+  }
+
+  // Rows to render: manual order (with filter applied) or default filtered
+  const displayRows = useMemo(() => {
+    if (!manualMode) return filtered;
+    const applyFilter = (r: ComparisonRow) => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!r.varenr.toLowerCase().includes(q) && !r.beskrivelse.toLowerCase().includes(q)) return false;
+      }
+      if (filter === "diff") {
+        const prices = effectiveSources.map(s => r.cells[s.id]).filter((p): p is number => p !== undefined);
+        if (prices.length < 2) return false;
+        return Math.max(...prices) - Math.min(...prices) > 0.01;
+      }
+      if (filter === "missing") return effectiveSources.some(s => r.cells[s.id] === undefined);
+      return true;
+    };
+    return rowOrder.map(k => comparisonMap.get(k)).filter((r): r is ComparisonRow => !!r && applyFilter(r));
+  }, [manualMode, rowOrder, comparisonMap, filtered, searchQuery, filter, effectiveSources]);
 
   const filteredProjects = useMemo(() => {
     const q = projectSearch.toLowerCase();
@@ -897,12 +962,33 @@ function PrissammenlignInner() {
                     ))}
                   </div>
                   <span className="text-xs text-gray-400">{filtered.length} / {comparison.length} varer</span>
+                  {effectiveSources.length > 0 && comparison.length > 0 && (
+                    <button
+                      onClick={() => manualMode ? setManualMode(false) : enterManualMode()}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        manualMode
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : "border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600"
+                      }`}
+                    >
+                      {manualMode ? "✓ Avslutt sortering" : "Sorter manuelt"}
+                    </button>
+                  )}
                 </div>
+                {manualMode && (
+                  <div className="flex items-center gap-3 border-b border-blue-100 bg-blue-50 px-4 py-2 text-xs text-blue-700">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-400" />
+                    <span>GPV-varenr match — låst</span>
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400 ml-3" />
+                    <span>Usikker match — kan flyttes</span>
+                  </div>
+                )}
 
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 text-xs">
                       <tr>
+                        {manualMode && <th className="w-10 px-1 py-3" />}
                         <th className="sticky left-0 z-10 bg-gray-50 px-3 py-3 text-left font-medium text-gray-500 min-w-[90px]">Varenr</th>
                         <th className="px-3 py-3 text-left font-medium text-gray-500 min-w-[200px]">Beskrivelse</th>
                         <th className="px-3 py-3 text-right font-medium text-gray-500 min-w-[50px]">Mengde</th>
@@ -928,24 +1014,56 @@ function PrissammenlignInner() {
                           </td>
                         </tr>
                       )}
-                      {filtered.length === 0 && effectiveSources.length > 0 && (
+                      {displayRows.length === 0 && effectiveSources.length > 0 && (
                         <tr>
-                          <td colSpan={5 + effectiveSources.length} className="py-8 text-center text-sm text-gray-400">
+                          <td colSpan={5 + effectiveSources.length + (manualMode ? 1 : 0)} className="py-8 text-center text-sm text-gray-400">
                             Ingen varer funnet
                           </td>
                         </tr>
                       )}
-                      {filtered.map(row => {
+                      {displayRows.map((row, rowIdx) => {
                         const presentPrices = effectiveSources
                           .map(s => row.cells[s.id])
                           .filter((p): p is number => p !== undefined);
                         const minUnitPrice = presentPrices.length ? Math.min(...presentPrices) : null;
                         const cheapestTotal = minUnitPrice !== null ? minUnitPrice * row.qty : null;
+                        const key = rowKey(row.varenr, row.beskrivelse);
+                        const confident = isConfident(row);
 
                         return (
-                          <tr key={row.varenr} className={`hover:bg-gray-50/50 ${!row.fromProject ? "bg-blue-50/30 italic" : ""}`}>
+                          <tr key={key} className={`hover:bg-gray-50/50 ${!row.fromProject ? "bg-blue-50/30 italic" : ""} ${manualMode && !confident ? "bg-yellow-50/30" : ""}`}>
+                            {manualMode && (
+                              <td className="px-1 py-2 text-center">
+                                {confident ? (
+                                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-400" title="GPV-varenr match — låst" />
+                                ) : (
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <button
+                                      onClick={() => moveRow(key, "up")}
+                                      disabled={rowIdx === 0}
+                                      className="leading-none text-gray-400 hover:text-blue-600 disabled:opacity-20"
+                                      title="Flytt opp"
+                                    >▲</button>
+                                    <button
+                                      onClick={() => moveRow(key, "down")}
+                                      disabled={rowIdx === displayRows.length - 1}
+                                      className="leading-none text-gray-400 hover:text-blue-600 disabled:opacity-20"
+                                      title="Flytt ned"
+                                    >▼</button>
+                                  </div>
+                                )}
+                              </td>
+                            )}
                             <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-mono text-xs text-gray-500">
-                              {row.varenr || <span className="text-gray-300 not-italic">—</span>}
+                              <div className="flex items-center gap-1.5">
+                                {row.varenr || <span className="text-gray-300 not-italic">—</span>}
+                                {manualMode && (
+                                  <span
+                                    className={`inline-block h-2 w-2 rounded-full shrink-0 ${confident ? "bg-green-400" : "bg-yellow-400"}`}
+                                    title={confident ? "100% GPV-match" : "Usikker match"}
+                                  />
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-2.5 text-gray-800">
                               <span className="line-clamp-2 text-xs">{row.beskrivelse}</span>
@@ -989,6 +1107,7 @@ function PrissammenlignInner() {
                       {/* Totals row */}
                       {effectiveSources.length > 0 && comparison.length > 0 && (
                         <tr className="bg-gray-50 font-semibold text-sm border-t-2 border-gray-200">
+                          {manualMode && <td />}
                           <td className="sticky left-0 bg-gray-50 px-3 py-3 text-gray-700" colSpan={3}>Totalt</td>
                           <td />
                           {effectiveSources.map(s => {
