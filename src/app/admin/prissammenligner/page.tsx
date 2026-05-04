@@ -45,6 +45,14 @@ interface Source {
   hasUpload?: boolean; // merged source where an uploaded quote overrides DB
 }
 
+interface ExtraRow {
+  id: string;
+  varenr: string;
+  beskrivelse: string;
+  qty: number;
+  enhet?: string;
+}
+
 interface ComparisonRow {
   varenr: string;
   beskrivelse: string;
@@ -55,6 +63,8 @@ interface ComparisonRow {
   ranks: Record<string, number>; // 1 = cheapest
   internalPrice?: number;
   fromProject: boolean;
+  isExtra?: boolean;
+  extraRowId?: string;
   fromReserve?: Record<string, boolean>; // sourceId -> true if filled from reserve assignment
   supplierQty?: Record<string, number | undefined>; // sourceId -> quantity from supplier's uploaded offer
 }
@@ -180,11 +190,12 @@ interface ManualAssignment {
 // Supplier items not matching any project item go to reserve (handled separately).
 function buildComparison(
   projectItems: ProjectLineItem[],
+  extraItems: ExtraRow[],
   sources: Source[],
   manualAssignments: ManualAssignment[],
 ): ComparisonRow[] {
   const seen = new Set<string>();
-  const rowDefs: { key: string; varenr: string; beskrivelse: string; qty: number; enhet?: string; dimensjon?: string; internalPrice?: number }[] = [];
+  const rowDefs: { key: string; varenr: string; beskrivelse: string; qty: number; enhet?: string; dimensjon?: string; internalPrice?: number; isExtra?: boolean; extraRowId?: string }[] = [];
 
   for (const item of projectItems) {
     const key = rowKey(item.varenr, item.description);
@@ -192,8 +203,14 @@ function buildComparison(
     seen.add(key);
     rowDefs.push({ key, varenr: item.varenr.trim(), beskrivelse: item.description, qty: item.quantity ?? 1, enhet: item.enhet, dimensjon: item.dimensjon, internalPrice: item.amount });
   }
+  for (const item of extraItems) {
+    const key = rowKey(item.varenr, item.beskrivelse);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rowDefs.push({ key, varenr: item.varenr.trim(), beskrivelse: item.beskrivelse, qty: item.qty, enhet: item.enhet, isExtra: true, extraRowId: item.id });
+  }
 
-  return rowDefs.map(({ key, varenr, beskrivelse, qty, enhet, dimensjon, internalPrice }) => {
+  return rowDefs.map(({ key, varenr, beskrivelse, qty, enhet, dimensjon, internalPrice, isExtra, extraRowId }) => {
     const cells: Record<string, number | undefined> = {};
     // Track which cells come from manual reserve assignments (for visual indicator)
     const fromReserve: Record<string, boolean> = {};
@@ -216,7 +233,7 @@ function buildComparison(
       .sort((a, b) => (cells[a.id] ?? Infinity) - (cells[b.id] ?? Infinity));
     const ranks: Record<string, number> = {};
     sortedByPrice.forEach((s, i) => { ranks[s.id] = i + 1; });
-    return { varenr, beskrivelse, qty, enhet, dimensjon, cells, ranks, internalPrice, fromProject: true, fromReserve, supplierQty };
+    return { varenr, beskrivelse, qty, enhet, dimensjon, cells, ranks, internalPrice, fromProject: true, isExtra, extraRowId, fromReserve, supplierQty };
   });
 }
 
@@ -324,6 +341,10 @@ function PrissammenlignInner() {
   const [assignPicker, setAssignPicker] = useState<{ projectRowKey: string; sourceId: string } | null>(null);
   const [showReserve, setShowReserve] = useState(true);
 
+  // Manually added rows
+  const [extraRows, setExtraRows] = useState<ExtraRow[]>([]);
+  const [editingExtraCell, setEditingExtraCell] = useState<{ id: string; field: "varenr" | "beskrivelse" | "qty" | "enhet" } | null>(null);
+
   useEffect(() => {
     fetch("/api/auth/me")
       .then(r => r.json())
@@ -362,14 +383,14 @@ function PrissammenlignInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingProjectId, projectList]);
 
-  // Persist comparison state (selected suppliers + manual assignments) per project
+  // Persist comparison state per project
   useEffect(() => {
     if (!selectedProject) return;
     try {
-      localStorage.setItem(`pris_state_${selectedProject.id}`, JSON.stringify({ dbSelected, manualAssignments }));
+      localStorage.setItem(`pris_state_${selectedProject.id}`, JSON.stringify({ dbSelected, manualAssignments, priceOverrides, extraRows }));
     } catch { /* non-fatal */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject?.id, dbSelected, manualAssignments]);
+  }, [selectedProject?.id, dbSelected, manualAssignments, priceOverrides, extraRows]);
 
   useEffect(() => {
     if (!varenrPicker) return;
@@ -401,11 +422,14 @@ function PrissammenlignInner() {
     setSources([]);
     setManualAssignments([]);
 
+    setExtraRows([]);
+    setPriceOverrides({});
     let effectiveDbSelected = dbSelected;
+    let effectiveExtraRows: ExtraRow[] = [];
     try {
       const raw = localStorage.getItem(`pris_state_${project.id}`);
       if (raw) {
-        const saved = JSON.parse(raw) as { dbSelected?: Record<string, boolean>; manualAssignments?: ManualAssignment[] };
+        const saved = JSON.parse(raw) as { dbSelected?: Record<string, boolean>; manualAssignments?: ManualAssignment[]; priceOverrides?: Record<string, number>; extraRows?: ExtraRow[] };
         if (saved.dbSelected && typeof saved.dbSelected === "object") {
           effectiveDbSelected = saved.dbSelected;
           setDbSelected(saved.dbSelected);
@@ -413,12 +437,23 @@ function PrissammenlignInner() {
         if (Array.isArray(saved.manualAssignments)) {
           setManualAssignments(saved.manualAssignments);
         }
+        if (saved.priceOverrides && typeof saved.priceOverrides === "object") {
+          setPriceOverrides(saved.priceOverrides);
+        }
+        if (Array.isArray(saved.extraRows)) {
+          effectiveExtraRows = saved.extraRows;
+          setExtraRows(saved.extraRows);
+        }
       }
     } catch { /* non-fatal */ }
 
+    const allVarenrs = [
+      ...project.line_items.map(i => i.varenr),
+      ...effectiveExtraRows.map(r => r.varenr).filter(Boolean),
+    ];
     const selected = Object.entries(effectiveDbSelected).filter(([, v]) => v).map(([k]) => k);
     for (const sup of selected) {
-      fetchDbSupplier(sup, project.line_items.map(i => i.varenr));
+      fetchDbSupplier(sup, allVarenrs);
     }
   }
 
@@ -626,7 +661,7 @@ function PrissammenlignInner() {
 
   const projectItems = selectedProject?.line_items ?? [];
   const effectiveSources = useMemo(() => mergeEffectiveSources(sources), [sources]);
-  const comparison = useMemo(() => buildComparison(projectItems, effectiveSources, manualAssignments), [projectItems, effectiveSources, manualAssignments]);
+  const comparison = useMemo(() => buildComparison(projectItems, extraRows, effectiveSources, manualAssignments), [projectItems, extraRows, effectiveSources, manualAssignments]);
 
   // Apply manual price overrides on top of DB/upload prices, then re-rank
   const effectiveComparison = useMemo(() => {
@@ -649,7 +684,10 @@ function PrissammenlignInner() {
 
   // Reserve: supplier rows that don't match any project item
   const reserveBySource = useMemo(() => {
-    const projectKeys = new Set(projectItems.map(i => rowKey(i.varenr, i.description)));
+    const projectKeys = new Set([
+      ...projectItems.map((i: ProjectLineItem) => rowKey(i.varenr, i.description)),
+      ...extraRows.map((r: ExtraRow) => rowKey(r.varenr, r.beskrivelse)),
+    ]);
     const result: Record<string, Array<PriceRow & { assignedTo?: string }>> = {};
     for (const src of effectiveSources) {
       const rows = src.rows
@@ -661,7 +699,7 @@ function PrissammenlignInner() {
       if (rows.length > 0) result[src.id] = rows;
     }
     return result;
-  }, [effectiveSources, projectItems, manualAssignments]);
+  }, [effectiveSources, projectItems, extraRows, manualAssignments]);
 
   const totalReserveCount = Object.values(reserveBySource).reduce((s, arr) => s + arr.length, 0);
 
@@ -1237,21 +1275,50 @@ function PrissammenlignInner() {
                         const key = rowKey(row.varenr, row.beskrivelse);
 
                         return (
-                          <tr key={key} className="hover:bg-gray-50/50">
+                          <tr key={key} className={`hover:bg-gray-50/50 ${row.isExtra ? "bg-blue-50/30" : ""}`}>
                             <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-mono text-xs text-gray-500">
-                              <button
-                                className="group flex items-center gap-1 text-left font-mono text-xs text-gray-500 hover:text-orange-500"
-                                title="Klikk for å endre varenr fra katalogen"
-                                onClick={() => { setVarenrPicker({ rowKey: key, currentVarenr: row.varenr, beskrivelse: row.beskrivelse }); setCatalogSearch(""); setCatalogCategory(""); setCatalogProducts([]); }}
-                              >
-                                <span>{row.varenr || <span className="text-gray-300 italic">legg til</span>}</span>
-                                <span className="hidden group-hover:inline text-[10px] text-orange-400">✎</span>
-                              </button>
+                              {row.isExtra ? (
+                                <input
+                                  type="text"
+                                  value={row.varenr}
+                                  placeholder="Varenr"
+                                  onChange={(e: { target: { value: string } }) => setExtraRows((prev: ExtraRow[]) => prev.map((r: ExtraRow) => r.id === row.extraRowId ? { ...r, varenr: e.target.value } : r))}
+                                  className="w-20 rounded border border-blue-200 bg-white px-1.5 py-0.5 font-mono text-xs focus:border-blue-400 focus:outline-none"
+                                />
+                              ) : (
+                                <button
+                                  className="group flex items-center gap-1 text-left font-mono text-xs text-gray-500 hover:text-orange-500"
+                                  title="Klikk for å endre varenr fra katalogen"
+                                  onClick={() => { setVarenrPicker({ rowKey: key, currentVarenr: row.varenr, beskrivelse: row.beskrivelse }); setCatalogSearch(""); setCatalogCategory(""); setCatalogProducts([]); }}
+                                >
+                                  <span>{row.varenr || <span className="text-gray-300 italic">legg til</span>}</span>
+                                  <span className="hidden group-hover:inline text-[10px] text-orange-400">✎</span>
+                                </button>
+                              )}
                             </td>
                             <td className="px-3 py-2.5 text-gray-800">
-                              <span className="line-clamp-2 text-xs">{row.beskrivelse}</span>
+                              {row.isExtra ? (
+                                <input
+                                  type="text"
+                                  value={row.beskrivelse}
+                                  placeholder="Beskrivelse"
+                                  onChange={(e: { target: { value: string } }) => setExtraRows((prev: ExtraRow[]) => prev.map((r: ExtraRow) => r.id === row.extraRowId ? { ...r, beskrivelse: e.target.value } : r))}
+                                  className="w-full rounded border border-blue-200 bg-white px-1.5 py-0.5 text-xs focus:border-blue-400 focus:outline-none"
+                                />
+                              ) : (
+                                <span className="line-clamp-2 text-xs">{row.beskrivelse}</span>
+                              )}
                             </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{row.fromProject ? row.qty : <span className="text-gray-300 not-italic">—</span>}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">
+                              {row.isExtra ? (
+                                <input
+                                  type="number" min={1} step={1}
+                                  value={row.qty}
+                                  onChange={(e: { target: { value: string } }) => setExtraRows((prev: ExtraRow[]) => prev.map((r: ExtraRow) => r.id === row.extraRowId ? { ...r, qty: parseFloat(e.target.value) || 1 } : r))}
+                                  className="w-14 rounded border border-blue-200 bg-white px-1 py-0.5 text-right text-xs focus:border-blue-400 focus:outline-none"
+                                />
+                              ) : row.fromProject ? row.qty : <span className="text-gray-300 not-italic">—</span>}
+                            </td>
                             <td className="px-3 py-2.5 text-xs text-gray-400">{row.enhet ?? ""}</td>
                             {effectiveSources.map(s => {
                               const pris = row.cells[s.id];
@@ -1400,9 +1467,29 @@ function PrissammenlignInner() {
                                 {cheapestTotal !== null ? formatPrice(cheapestTotal) : <span className="text-gray-200">—</span>}
                               </td>
                             )}
+                            {row.isExtra && (
+                              <td className="px-2 py-2.5">
+                                <button
+                                  onClick={() => setExtraRows((prev: ExtraRow[]) => prev.filter((r: ExtraRow) => r.id !== row.extraRowId))}
+                                  className="text-gray-300 hover:text-red-500 text-xs transition-colors"
+                                  title="Fjern linje"
+                                >✕</button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
+                      {/* Add row button */}
+                      <tr>
+                        <td colSpan={4 + effectiveSources.length + (effectiveSources.length > 0 ? 1 : 0)} className="px-3 py-2">
+                          <button
+                            onClick={() => setExtraRows((prev: ExtraRow[]) => [...prev, { id: `extra-${Date.now()}`, varenr: "", beskrivelse: "", qty: 1 }])}
+                            className="text-xs text-blue-500 hover:text-blue-700 hover:underline"
+                          >
+                            + Legg til linje
+                          </button>
+                        </td>
+                      </tr>
                       {/* Totals row */}
                       {effectiveSources.length > 0 && effectiveComparison.length > 0 && (
                         <tr className="bg-gray-50 font-semibold text-sm border-t-2 border-gray-200">
