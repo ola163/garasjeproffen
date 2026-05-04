@@ -343,6 +343,7 @@ export default function QuoteDetailPage() {
     { id: "søknadshjelp", label: "Søknadshjelp" },
     { id: "materialpakke", label: "Materialpakke" },
     { id: "prefabelement", label: "Prefabelement" },
+    { id: "grunnarbeid", label: "Grunnarbeid og støping" },
   ];
 
   const SOKNADSHJELP_TEMPLATE: LineItem[] = [
