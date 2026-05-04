@@ -345,6 +345,9 @@ function PrissammenlignInner() {
   const [extraRows, setExtraRows] = useState<ExtraRow[]>([]);
   const [editingExtraCell, setEditingExtraCell] = useState<{ id: string; field: "varenr" | "beskrivelse" | "qty" | "enhet" } | null>(null);
 
+  // Reserve section: link-to-row picker
+  const [reserveLinkPicker, setReserveLinkPicker] = useState<{ sourceId: string; row: PriceRow } | null>(null);
+
   useEffect(() => {
     fetch("/api/auth/me")
       .then(r => r.json())
@@ -1552,30 +1555,72 @@ function PrissammenlignInner() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-yellow-50">
-                                {rows.map(r => (
-                                  <tr key={r.varenr} className={r.assignedTo ? "bg-orange-50" : "hover:bg-yellow-50/50"}>
-                                    <td className="px-3 py-2 font-mono text-gray-600">{r.varenr}</td>
-                                    <td className="px-3 py-2 text-gray-700 max-w-[180px] truncate">{r.beskrivelse}</td>
-                                    <td className="px-3 py-2 text-gray-400">{r.dimensjon ?? "—"}</td>
-                                    <td className="px-3 py-2 text-right font-semibold text-gray-800">{formatPrice(r.pris)}</td>
-                                    <td className="px-3 py-2">
-                                      {r.assignedTo ? (
-                                        <div className="flex items-center gap-2">
-                                          <span className="rounded bg-orange-100 px-1.5 py-0.5 font-mono text-[10px] text-orange-700">{r.assignedTo}</span>
-                                          <button
-                                            onClick={() => {
-                                              const a = manualAssignments.find(a => a.sourceId === src.id && a.reserveVarenr === r.varenr);
-                                              if (a) removeAssignment(a.projectRowKey, src.id);
-                                            }}
-                                            className="text-[10px] text-red-400 hover:text-red-600"
-                                          >Fjern</button>
-                                        </div>
-                                      ) : (
-                                        <span className="text-gray-300 italic text-[10px]">Ikke tilknyttet</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {rows.map(r => {
+                                  const isLinking = reserveLinkPicker?.sourceId === src.id && reserveLinkPicker?.row.varenr === r.varenr;
+                                  return (
+                                    <tr key={r.varenr} className={r.assignedTo ? "bg-orange-50" : "hover:bg-yellow-50/50"}>
+                                      <td className="px-3 py-2 font-mono text-gray-600">{r.varenr}</td>
+                                      <td className="px-3 py-2 text-gray-700 max-w-[180px] truncate">{r.beskrivelse}</td>
+                                      <td className="px-3 py-2 text-gray-400">{r.dimensjon ?? "—"}</td>
+                                      <td className="px-3 py-2 text-right font-semibold text-gray-800">{formatPrice(r.pris)}</td>
+                                      <td className="px-3 py-2 min-w-[220px]">
+                                        {r.assignedTo ? (
+                                          <div className="flex items-center gap-2">
+                                            <span className="rounded bg-orange-100 px-1.5 py-0.5 font-mono text-[10px] text-orange-700">{r.assignedTo}</span>
+                                            <button
+                                              onClick={() => {
+                                                const a = manualAssignments.find(a => a.sourceId === src.id && a.reserveVarenr === r.varenr);
+                                                if (a) removeAssignment(a.projectRowKey, src.id);
+                                              }}
+                                              className="text-[10px] text-red-400 hover:text-red-600"
+                                            >Fjern</button>
+                                          </div>
+                                        ) : isLinking ? (
+                                          <div className="space-y-1">
+                                            <p className="text-[10px] font-medium text-gray-600">Velg rad å knytte til:</p>
+                                            <div className="max-h-40 overflow-y-auto rounded border border-yellow-200 bg-white">
+                                              {effectiveComparison.map(compRow => (
+                                                <button
+                                                  key={rowKey(compRow.varenr, compRow.beskrivelse)}
+                                                  onClick={() => {
+                                                    assignReserve(rowKey(compRow.varenr, compRow.beskrivelse), src.id, r);
+                                                    setReserveLinkPicker(null);
+                                                  }}
+                                                  className="flex w-full items-center justify-between gap-2 border-b border-gray-50 px-2 py-1.5 text-left last:border-0 hover:bg-orange-50"
+                                                >
+                                                  <span className="font-mono text-[10px] text-gray-500 shrink-0">{compRow.varenr || "—"}</span>
+                                                  <span className="truncate text-[11px] text-gray-700">{compRow.beskrivelse}</span>
+                                                </button>
+                                              ))}
+                                            </div>
+                                            <button onClick={() => setReserveLinkPicker(null)} className="text-[10px] text-gray-400 hover:text-gray-600">Avbryt</button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex flex-wrap gap-1.5">
+                                            <button
+                                              onClick={() => setReserveLinkPicker({ sourceId: src.id, row: r })}
+                                              className="rounded border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] text-orange-600 hover:bg-orange-100"
+                                            >
+                                              Knytt til rad →
+                                            </button>
+                                            <button
+                                              onClick={() => setExtraRows((prev: ExtraRow[]) => [...prev, {
+                                                id: `extra-${Date.now()}`,
+                                                varenr: r.varenr,
+                                                beskrivelse: r.beskrivelse,
+                                                qty: r.antall ?? 1,
+                                                enhet: r.enhet,
+                                              }])}
+                                              className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 hover:bg-blue-100"
+                                            >
+                                              + Ny rad
+                                            </button>
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
