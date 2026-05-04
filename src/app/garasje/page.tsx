@@ -14,9 +14,47 @@ export const metadata = {
   },
 };
 
+const GARASJE_FAQ = [
+  {
+    q: "Hva koster en garasje fra GarasjeProffen?",
+    a: "Prisen avhenger av størrelse, type og løsning. Bruk konfiguratoren vår for å designe garasjen din og få et prisestimat med én gang – helt uten forpliktelser.",
+  },
+  {
+    q: "Hva er leveringstiden for garasje?",
+    a: "Leveringstiden varierer med løsning og kapasitet. Med base på Bryne er vi tett på Jæren og Rogaland og kan levere raskt. Kontakt oss for oppdatert leveringstid.",
+  },
+  {
+    q: "Trenger jeg byggesøknad for garasje i Rogaland?",
+    a: "Garasjer over 50 m² krever byggesøknad. For mindre bygg varierer kravene mellom kommuner. Vi hjelper deg med å avklare hva som gjelder for din tomt og kan bistå med hele søknadsprosessen.",
+  },
+  {
+    q: "Kan jeg få garasjen levert ferdigmontert?",
+    a: "Ja, med prefabrikkert garasje produseres modulene på fabrikk og heises på plass av oss. Det gir raskere ferdigstillelse og redusert materialsvinn sammenlignet med tradisjonell bygning.",
+  },
+];
+
+function GarasjeFaqSchema() {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: GARASJE_FAQ.map(({ q, a }) => ({
+      "@type": "Question",
+      name: q,
+      acceptedAnswer: { "@type": "Answer", text: a },
+    })),
+  };
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  );
+}
+
 export default function GarasjePage() {
   return (
     <>
+      <GarasjeFaqSchema />
       <div className="sr-only">
         <h1>Garasje på Jæren og i Rogaland</h1>
         <p>

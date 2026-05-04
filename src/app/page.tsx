@@ -12,6 +12,8 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
+    <>
+    <HomeFaqSchema />
     <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center px-6 py-12 gap-12">
       <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center lg:items-start gap-12 lg:gap-16">
 
@@ -87,5 +89,43 @@ export default function Home() {
       </div>
 
     </div>
+    </>
+  );
+}
+
+const HOME_FAQ = [
+  {
+    q: "Hva er forskjellen på materialpakke og prefabrikkert garasje?",
+    a: "Med materialpakke får du alle materialer levert og monterer selv – eller bruker egne håndverkere. Prefabrikkert garasje er ferdigproduserte moduler som heises på plass av GarasjeProffen, noe som gir en raskere og mer effektiv byggeprosess.",
+  },
+  {
+    q: "Trenger jeg byggesøknad for å bygge garasje?",
+    a: "Garasjer over 50 m² krever byggesøknad. Mindre garasjer og carporter kan i mange tilfeller bygges uten søknad, men reglene varierer mellom kommuner. GarasjeProffen AS hjelper deg med å avklare dette og kan bistå med hele søknadsprosessen.",
+  },
+  {
+    q: "Leverer dere garasjer over hele Norge?",
+    a: "Ja, vi leverer materialpakker til hele Norge. For prefabrikkerte løsninger med montering fokuserer vi på Jæren og Rogaland. Ta kontakt for å avklare levering til din adresse.",
+  },
+  {
+    q: "Kan jeg tilpasse størrelsen og utformingen av garasjen?",
+    a: "Ja, alle løsninger fra GarasjeProffen AS er skreddersydd etter din tomt og dine behov. Bruk vår konfigurator for å designe garasjen og få et prisestimat med én gang.",
+  },
+];
+
+export function HomeFaqSchema() {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: HOME_FAQ.map(({ q, a }) => ({
+      "@type": "Question",
+      name: q,
+      acceptedAnswer: { "@type": "Answer", text: a },
+    })),
+  };
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
   );
 }

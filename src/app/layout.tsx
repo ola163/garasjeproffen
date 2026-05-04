@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     type: "website",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Garasje og carport på Jæren | GarasjeProffen AS",
     description: "GarasjeProffen leverer skreddersydde garasjer, carporter, materialpakker og prefabrikkerte løsninger. Vi hjelper også med byggesøknad.",
     images: ["/logo.jpg"],
