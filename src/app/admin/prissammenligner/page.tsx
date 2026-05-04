@@ -18,6 +18,13 @@ interface ProjectLineItem {
   amount?: number; // internal price from the quote
 }
 
+interface SavedComparisonState {
+  dbSelected?: Record<string, boolean>;
+  manualAssignments?: ManualAssignment[];
+  priceOverrides?: Record<string, number>;
+  extraRows?: ExtraRow[];
+}
+
 interface ProjectSummary {
   id: string;
   ticket_number: string;
@@ -26,6 +33,7 @@ interface ProjectSummary {
   created_at: string;
   varenr_count: number;
   line_items: ProjectLineItem[];
+  comparison_state?: SavedComparisonState | null;
 }
 
 interface PriceRow {
@@ -316,6 +324,15 @@ function PrissammenlignInner() {
   const [applying, setApplying] = useState(false);
   const [applyResult, setApplyResult] = useState<{ updatedCount: number; missedCount: number } | null>(null);
 
+  // Save comparison state to Supabase
+  const [savingState, setSavingState] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [saveStateError, setSaveStateError] = useState(false);
+
+  // Save uploaded source rows to price DB
+  const [savingSource, setSavingSource] = useState<string | null>(null);
+  const [savedSourceResult, setSavedSourceResult] = useState<Record<string, { ok: boolean; count: number }>>({});
+
   // Save quote items to price DB
   const [saveToDb, setSaveToDb] = useState(false);
   const [savingToDb, setSavingToDb] = useState(false);
@@ -424,31 +441,38 @@ function PrissammenlignInner() {
     setProjectSearch("");
     setSources([]);
     setManualAssignments([]);
+    setLastSaved(null);
+    setSaveStateError(false);
 
     setExtraRows([]);
     setPriceOverrides({});
     let effectiveDbSelected = dbSelected;
     let effectiveExtraRows: ExtraRow[] = [];
-    try {
-      const raw = localStorage.getItem(`pris_state_${project.id}`);
-      if (raw) {
-        const saved = JSON.parse(raw) as { dbSelected?: Record<string, boolean>; manualAssignments?: ManualAssignment[]; priceOverrides?: Record<string, number>; extraRows?: ExtraRow[] };
-        if (saved.dbSelected && typeof saved.dbSelected === "object") {
-          effectiveDbSelected = saved.dbSelected;
-          setDbSelected(saved.dbSelected);
-        }
-        if (Array.isArray(saved.manualAssignments)) {
-          setManualAssignments(saved.manualAssignments);
-        }
-        if (saved.priceOverrides && typeof saved.priceOverrides === "object") {
-          setPriceOverrides(saved.priceOverrides);
-        }
-        if (Array.isArray(saved.extraRows)) {
-          effectiveExtraRows = saved.extraRows;
-          setExtraRows(saved.extraRows);
-        }
+
+    // Prefer Supabase-persisted state; fall back to localStorage
+    const saved: SavedComparisonState | null = project.comparison_state ?? (() => {
+      try {
+        const raw = localStorage.getItem(`pris_state_${project.id}`);
+        return raw ? JSON.parse(raw) as SavedComparisonState : null;
+      } catch { return null; }
+    })();
+
+    if (saved) {
+      if (saved.dbSelected && typeof saved.dbSelected === "object") {
+        effectiveDbSelected = saved.dbSelected;
+        setDbSelected(saved.dbSelected);
       }
-    } catch { /* non-fatal */ }
+      if (Array.isArray(saved.manualAssignments)) {
+        setManualAssignments(saved.manualAssignments);
+      }
+      if (saved.priceOverrides && typeof saved.priceOverrides === "object") {
+        setPriceOverrides(saved.priceOverrides);
+      }
+      if (Array.isArray(saved.extraRows)) {
+        effectiveExtraRows = saved.extraRows;
+        setExtraRows(saved.extraRows);
+      }
+    }
 
     const allVarenrs = [
       ...project.line_items.map(i => i.varenr),
@@ -659,6 +683,56 @@ function PrissammenlignInner() {
       setSaveToDbResult({ ok: false, count: 0 });
     } finally {
       setSavingToDb(false);
+    }
+  }
+
+  async function saveComparisonState() {
+    if (!selectedProject) return;
+    setSavingState(true);
+    setSaveStateError(false);
+    try {
+      const state: SavedComparisonState = { dbSelected, manualAssignments, priceOverrides, extraRows };
+      const res = await fetch("/api/admin/prissammenligner/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteId: selectedProject.id, state }),
+      });
+      if (!res.ok) throw new Error();
+      setLastSaved(new Date());
+    } catch {
+      setSaveStateError(true);
+    } finally {
+      setSavingState(false);
+    }
+  }
+
+  async function saveSourceToDb(source: Source) {
+    const supplier = source.name;
+    setSavingSource(source.id);
+    setSavedSourceResult(prev => { const next = { ...prev }; delete next[source.id]; return next; });
+    try {
+      const rows = source.rows.map(r => ({
+        varenr: r.varenr.trim(),
+        varebenevnelse: r.beskrivelse || "",
+        dimensjon: r.dimensjon ?? "",
+        enhet: r.enhet ?? "",
+        bruttopris: r.pris,
+        nettopris: r.pris,
+        antall: r.antall ?? 1,
+        mva_pst: 25,
+      }));
+      const res = await fetch("/api/admin/supplier-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplier, rows }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Feil");
+      setSavedSourceResult((prev: Record<string, { ok: boolean; count: number }>) => ({ ...prev, [source.id]: { ok: true, count: json.inserted } }));
+    } catch {
+      setSavedSourceResult((prev: Record<string, { ok: boolean; count: number }>) => ({ ...prev, [source.id]: { ok: false, count: 0 } }));
+    } finally {
+      setSavingSource(null);
     }
   }
 
@@ -908,6 +982,25 @@ function PrissammenlignInner() {
               )}
             </div>
 
+            {/* Save comparison state */}
+            {selectedProject && (
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  onClick={saveComparisonState}
+                  disabled={savingState}
+                  className="flex-1 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors"
+                >
+                  {savingState ? "Lagrer…" : "Lagre sammenligning"}
+                </button>
+                {lastSaved && !saveStateError && (
+                  <span className="text-[10px] text-green-600 whitespace-nowrap">✓ {lastSaved.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}</span>
+                )}
+                {saveStateError && (
+                  <span className="text-[10px] text-red-500 whitespace-nowrap">Feil!</span>
+                )}
+              </div>
+            )}
+
             {/* Save quote items to price DB */}
             {selectedProject && (() => {
               const withVarenr = selectedProject.line_items.filter(i => i.varenr?.trim());
@@ -1031,6 +1124,18 @@ function PrissammenlignInner() {
                         >
                           Knytt {unlinkedCount} varenr →
                         </button>
+                      )}
+                      <button
+                        onClick={() => saveSourceToDb(s)}
+                        disabled={savingSource === s.id}
+                        className="mt-1.5 w-full rounded-md bg-green-50 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                      >
+                        {savingSource === s.id ? "Lagrer…" : "Lagre til prisdatabase"}
+                      </button>
+                      {savedSourceResult[s.id] && (
+                        <p className={`mt-1 text-[10px] font-medium text-center ${savedSourceResult[s.id].ok ? "text-green-600" : "text-red-500"}`}>
+                          {savedSourceResult[s.id].ok ? `✓ ${savedSourceResult[s.id].count} varer lagret` : "Feil ved lagring"}
+                        </p>
                       )}
                     </div>
                   );
