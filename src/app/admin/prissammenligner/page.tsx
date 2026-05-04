@@ -363,6 +363,7 @@ function PrissammenlignInner() {
 
   // Reserve section: link-to-row picker
   const [reserveLinkPicker, setReserveLinkPicker] = useState<{ sourceId: string; row: PriceRow } | null>(null);
+  const [reserveLinkSearch, setReserveLinkSearch] = useState("");
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -1682,14 +1683,25 @@ function PrissammenlignInner() {
                                           </div>
                                         ) : isLinking ? (
                                           <div className="space-y-1">
-                                            <p className="text-[10px] font-medium text-gray-600">Velg rad å knytte til:</p>
+                                            <input
+                                              autoFocus
+                                              type="text"
+                                              placeholder="Søk varenr eller beskrivelse…"
+                                              value={reserveLinkSearch}
+                                              onChange={(e: { target: { value: string } }) => setReserveLinkSearch(e.target.value)}
+                                              className="w-full rounded border border-yellow-300 px-2 py-1 text-xs focus:border-orange-400 focus:outline-none"
+                                            />
                                             <div className="max-h-40 overflow-y-auto rounded border border-yellow-200 bg-white">
-                                              {effectiveComparison.map(compRow => (
+                                              {effectiveComparison.filter((compRow: ComparisonRow) => {
+                                                const q = reserveLinkSearch.toLowerCase();
+                                                return !q || compRow.varenr.toLowerCase().includes(q) || compRow.beskrivelse.toLowerCase().includes(q);
+                                              }).map((compRow: ComparisonRow) => (
                                                 <button
                                                   key={rowKey(compRow.varenr, compRow.beskrivelse)}
                                                   onClick={() => {
                                                     assignReserve(rowKey(compRow.varenr, compRow.beskrivelse), src.id, r);
                                                     setReserveLinkPicker(null);
+                                                    setReserveLinkSearch("");
                                                   }}
                                                   className="flex w-full items-center justify-between gap-2 border-b border-gray-50 px-2 py-1.5 text-left last:border-0 hover:bg-orange-50"
                                                 >
@@ -1698,7 +1710,7 @@ function PrissammenlignInner() {
                                                 </button>
                                               ))}
                                             </div>
-                                            <button onClick={() => setReserveLinkPicker(null)} className="text-[10px] text-gray-400 hover:text-gray-600">Avbryt</button>
+                                            <button onClick={() => { setReserveLinkPicker(null); setReserveLinkSearch(""); }} className="text-[10px] text-gray-400 hover:text-gray-600">Avbryt</button>
                                           </div>
                                         ) : (
                                           <div className="flex flex-wrap gap-1.5">
