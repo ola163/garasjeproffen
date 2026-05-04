@@ -305,6 +305,12 @@ function PrissammenlignInner() {
   const [saveToDbSupplier, setSaveToDbSupplier] = useState("");
   const [saveToDbResult, setSaveToDbResult] = useState<{ ok: boolean; count: number } | null>(null);
 
+  // Manual price overrides: key = `${rowKey}|${sourceId}`, value = unit price
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
+  const [editingCell, setEditingCell] = useState<{ rowKey: string; sourceId: string } | null>(null);
+  const [cellEditUnit, setCellEditUnit] = useState("");
+  const [cellEditTotal, setCellEditTotal] = useState("");
+
   // Catalog picker for varenr editing
   const [varenrPicker, setVarenrPicker] = useState<{ rowKey: string; currentVarenr: string; beskrivelse: string } | null>(null);
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -622,6 +628,25 @@ function PrissammenlignInner() {
   const effectiveSources = useMemo(() => mergeEffectiveSources(sources), [sources]);
   const comparison = useMemo(() => buildComparison(projectItems, effectiveSources, manualAssignments), [projectItems, effectiveSources, manualAssignments]);
 
+  // Apply manual price overrides on top of DB/upload prices, then re-rank
+  const effectiveComparison = useMemo(() => {
+    if (Object.keys(priceOverrides).length === 0) return comparison;
+    return comparison.map((row: ComparisonRow) => {
+      const rKey = rowKey(row.varenr, row.beskrivelse);
+      const cells: Record<string, number | undefined> = { ...row.cells };
+      for (const src of effectiveSources) {
+        const ov = priceOverrides[`${rKey}|${src.id}`];
+        if (ov !== undefined) cells[src.id] = ov;
+      }
+      const sorted = effectiveSources
+        .filter((s: Source) => cells[s.id] !== undefined)
+        .sort((a: Source, b: Source) => (cells[a.id] ?? Infinity) - (cells[b.id] ?? Infinity));
+      const ranks: Record<string, number> = {};
+      sorted.forEach((s: Source, i: number) => { ranks[s.id] = i + 1; });
+      return { ...row, cells, ranks };
+    });
+  }, [comparison, priceOverrides, effectiveSources]);
+
   // Reserve: supplier rows that don't match any project item
   const reserveBySource = useMemo(() => {
     const projectKeys = new Set(projectItems.map(i => rowKey(i.varenr, i.description)));
@@ -652,6 +677,27 @@ function PrissammenlignInner() {
     setManualAssignments(prev => prev.filter(a => !(a.projectRowKey === projectRowKey && a.sourceId === sourceId)));
   }
 
+  function openCellEdit(rKey: string, sourceId: string, currentPris: number | undefined, qty: number) {
+    const u = currentPris ?? 0;
+    setCellEditUnit(u > 0 ? u.toFixed(2) : "");
+    setCellEditTotal(u > 0 && qty > 0 ? (u * qty).toFixed(2) : "");
+    setEditingCell({ rowKey: rKey, sourceId });
+  }
+
+  function saveCellEdit(rKey: string, sourceId: string) {
+    const u = parseFloat(cellEditUnit);
+    if (!isNaN(u) && u > 0) {
+      setPriceOverrides((prev: Record<string, number>) => ({ ...prev, [`${rKey}|${sourceId}`]: u }));
+    } else {
+      setPriceOverrides((prev: Record<string, number>) => {
+        const next = { ...prev };
+        delete next[`${rKey}|${sourceId}`];
+        return next;
+      });
+    }
+    setEditingCell(null);
+  }
+
   async function selectVarenrFromCatalog(product: { varenr: string }) {
     if (!varenrPicker || !selectedProject) return;
     const oldVarenr = varenrPicker.currentVarenr;
@@ -678,7 +724,7 @@ function PrissammenlignInner() {
     }
   }
 
-  const filtered = useMemo(() => comparison.filter(row => {
+  const filtered = useMemo(() => effectiveComparison.filter((row: ComparisonRow) => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       if (!row.varenr.toLowerCase().includes(q) && !row.beskrivelse.toLowerCase().includes(q)) return false;
@@ -692,23 +738,23 @@ function PrissammenlignInner() {
       return effectiveSources.some(s => row.cells[s.id] === undefined);
     }
     return true;
-  }), [comparison, searchQuery, filter, effectiveSources]);
+  }), [effectiveComparison, searchQuery, filter, effectiveSources]);
 
   // Per-supplier totals — uses supplier's quoted antall × pris when available,
   // otherwise falls back to project qty × pris
   const totals = useMemo(() => {
     const t: Record<string, number> = {};
-    for (const row of comparison) {
+    for (const row of effectiveComparison) {
       if (!row.fromProject) continue;
       for (const src of effectiveSources) {
         const p = row.cells[src.id];
         if (p === undefined) continue;
-        const supQty = row.supplierQty?.[src.id];
+        const supQty = (row.supplierQty as Record<string, number | undefined> | undefined)?.[src.id];
         t[src.id] = (t[src.id] ?? 0) + (supQty !== undefined ? supQty * p : p * row.qty);
       }
     }
     return t;
-  }, [comparison, effectiveSources]);
+  }, [effectiveComparison, effectiveSources]);
 
   const filteredProjects = useMemo(() => {
     const q = projectSearch.toLowerCase();
@@ -1215,45 +1261,103 @@ function PrissammenlignInner() {
                               const hasReserveRows = (reserveBySource[s.id]?.length ?? 0) > 0;
                               const pickingThis = assignPicker?.projectRowKey === key && assignPicker?.sourceId === s.id;
 
+                              const isEditing = editingCell?.rowKey === key && editingCell?.sourceId === s.id;
+                              const isOverridden = priceOverrides[`${key}|${s.id}`] !== undefined;
+
                               return (
                                 <td key={s.id} className="px-3 py-2.5 text-right relative">
-                                  {pris === undefined ? (
-                                    hasReserveRows ? (
-                                      <div className="relative inline-block">
-                                        <button
-                                          onClick={() => setAssignPicker(pickingThis ? null : { projectRowKey: key, sourceId: s.id })}
-                                          className="rounded border border-dashed border-blue-300 px-2 py-0.5 text-[11px] text-blue-500 hover:bg-blue-50"
-                                        >
-                                          + reserve
-                                        </button>
-                                        {pickingThis && (
-                                          <div className="absolute right-0 top-7 z-30 w-72 rounded-xl border border-blue-200 bg-white shadow-xl">
-                                            <p className="border-b border-gray-100 px-3 py-2 text-xs font-semibold text-gray-700">Velg reservevare fra {s.name}</p>
-                                            <div className="max-h-52 overflow-y-auto">
-                                              {(reserveBySource[s.id] ?? []).map(r => (
-                                                <button
-                                                  key={r.varenr}
-                                                  onClick={() => assignReserve(key, s.id, r)}
-                                                  className="flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-blue-50 border-b border-gray-50 last:border-0"
-                                                >
-                                                  <div className="flex items-center justify-between gap-2">
-                                                    <span className="font-mono text-[10px] text-gray-500">{r.varenr}</span>
-                                                    <span className="text-xs font-semibold text-gray-800">{formatPrice(r.pris)}</span>
-                                                  </div>
-                                                  <span className="truncate text-[11px] text-gray-600">{[r.beskrivelse, r.dimensjon].filter(Boolean).join(" ")}</span>
-                                                  {r.assignedTo && <span className="text-[10px] text-orange-500">↳ allerede tilknyttet annen rad</span>}
-                                                </button>
-                                              ))}
-                                            </div>
-                                            <button onClick={() => setAssignPicker(null)} className="w-full border-t border-gray-100 py-1.5 text-xs text-gray-400 hover:bg-gray-50">Avbryt</button>
-                                          </div>
-                                        )}
+                                  {isEditing ? (
+                                    /* ── Edit mode ── */
+                                    <div className="space-y-1 py-0.5 min-w-[96px]">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span className="text-[9px] text-gray-400">kr/enhet</span>
+                                        <input
+                                          autoFocus
+                                          type="number" min={0} step={0.01}
+                                          value={cellEditUnit}
+                                          onChange={e => {
+                                            setCellEditUnit(e.target.value);
+                                            const u = parseFloat(e.target.value);
+                                            if (!isNaN(u)) setCellEditTotal((u * row.qty).toFixed(2));
+                                          }}
+                                          onKeyDown={e => {
+                                            if (e.key === "Enter") saveCellEdit(key, s.id);
+                                            if (e.key === "Escape") setEditingCell(null);
+                                          }}
+                                          className="w-20 rounded border border-orange-400 px-1 py-0.5 text-xs text-right focus:outline-none"
+                                        />
                                       </div>
-                                    ) : (
-                                      <span className="text-gray-200">—</span>
-                                    )
+                                      {row.qty > 1 && (
+                                        <div className="flex items-center justify-end gap-1">
+                                          <span className="text-[9px] text-gray-400">total×{row.qty}</span>
+                                          <input
+                                            type="number" min={0} step={0.01}
+                                            value={cellEditTotal}
+                                            onChange={e => {
+                                              setCellEditTotal(e.target.value);
+                                              const t = parseFloat(e.target.value);
+                                              if (!isNaN(t) && row.qty > 0) setCellEditUnit((t / row.qty).toFixed(2));
+                                            }}
+                                            onKeyDown={e => {
+                                              if (e.key === "Enter") saveCellEdit(key, s.id);
+                                              if (e.key === "Escape") setEditingCell(null);
+                                            }}
+                                            className="w-20 rounded border border-orange-300 px-1 py-0.5 text-xs text-right focus:outline-none"
+                                          />
+                                        </div>
+                                      )}
+                                      <div className="flex justify-end gap-2">
+                                        <button onClick={() => saveCellEdit(key, s.id)} className="text-[10px] font-semibold text-orange-500 hover:text-orange-700">✓ Lagre</button>
+                                        <button onClick={() => setEditingCell(null)} className="text-[10px] text-gray-400 hover:text-gray-600">Avbryt</button>
+                                      </div>
+                                    </div>
+                                  ) : pris === undefined ? (
+                                    /* ── No price: reserve picker + manual entry ── */
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      {hasReserveRows && (
+                                        <div className="relative inline-block">
+                                          <button
+                                            onClick={() => setAssignPicker(pickingThis ? null : { projectRowKey: key, sourceId: s.id })}
+                                            className="rounded border border-dashed border-blue-300 px-2 py-0.5 text-[11px] text-blue-500 hover:bg-blue-50"
+                                          >
+                                            + reserve
+                                          </button>
+                                          {pickingThis && (
+                                            <div className="absolute right-0 top-7 z-30 w-72 rounded-xl border border-blue-200 bg-white shadow-xl">
+                                              <p className="border-b border-gray-100 px-3 py-2 text-xs font-semibold text-gray-700">Velg reservevare fra {s.name}</p>
+                                              <div className="max-h-52 overflow-y-auto">
+                                                {(reserveBySource[s.id] ?? []).map(r => (
+                                                  <button
+                                                    key={r.varenr}
+                                                    onClick={() => assignReserve(key, s.id, r)}
+                                                    className="flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-blue-50 border-b border-gray-50 last:border-0"
+                                                  >
+                                                    <div className="flex items-center justify-between gap-2">
+                                                      <span className="font-mono text-[10px] text-gray-500">{r.varenr}</span>
+                                                      <span className="text-xs font-semibold text-gray-800">{formatPrice(r.pris)}</span>
+                                                    </div>
+                                                    <span className="truncate text-[11px] text-gray-600">{[r.beskrivelse, r.dimensjon].filter(Boolean).join(" ")}</span>
+                                                    {r.assignedTo && <span className="text-[10px] text-orange-500">↳ allerede tilknyttet annen rad</span>}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                              <button onClick={() => setAssignPicker(null)} className="w-full border-t border-gray-100 py-1.5 text-xs text-gray-400 hover:bg-gray-50">Avbryt</button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                      <button
+                                        onClick={() => openCellEdit(key, s.id, undefined, row.qty)}
+                                        className="text-[10px] text-orange-400 hover:text-orange-600 hover:underline"
+                                      >+ pris</button>
+                                    </div>
                                   ) : (
-                                    <div className={`inline-flex flex-col items-end ${isCheapest ? "text-green-700" : "text-gray-700"}`}>
+                                    /* ── Has price: display + click to edit ── */
+                                    <div
+                                      className={`group/pris inline-flex flex-col items-end cursor-pointer rounded px-1 -mx-1 hover:bg-orange-50 transition-colors ${isCheapest ? "text-green-700" : "text-gray-700"}`}
+                                      onClick={() => openCellEdit(key, s.id, pris, row.qty)}
+                                      title="Klikk for å endre pris"
+                                    >
                                       <span className="inline-flex items-center gap-1">
                                         {presentPrices.length > 1 && rank !== undefined && (
                                           <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] font-bold ${RANK_COLORS[rank] ?? "bg-gray-100 text-gray-500 border-gray-300"}`}>
@@ -1263,25 +1367,22 @@ function PrissammenlignInner() {
                                         <span className={`text-xs tabular-nums ${isCheapest ? "font-semibold" : ""}`}>{formatPrice(pris)}</span>
                                         {isReserve && (
                                           <button
-                                            onClick={() => removeAssignment(key, s.id)}
+                                            onClick={e => { e.stopPropagation(); removeAssignment(key, s.id); }}
                                             title="Fjern reservetilknytning"
                                             className="ml-0.5 text-[10px] text-yellow-500 hover:text-red-500"
                                           >~</button>
                                         )}
+                                        <span className="hidden group-hover/pris:inline text-[9px] text-orange-400">✎</span>
                                       </span>
-                                      {isReserve && (
-                                        <span className="text-[9px] text-yellow-600 italic">reserve</span>
-                                      )}
+                                      {isReserve && <span className="text-[9px] text-yellow-600 italic">reserve</span>}
+                                      {isOverridden && <span className="text-[9px] text-orange-500 italic">manuell</span>}
                                       {(() => {
-                                        const supQty = row.supplierQty?.[s.id];
+                                        const supQty = (row.supplierQty as Record<string, number | undefined> | undefined)?.[s.id];
                                         if (supQty !== undefined && supQty !== row.qty) {
                                           return (
                                             <>
                                               <span className="text-[10px] tabular-nums font-semibold text-purple-600">= {formatPrice(supQty * pris)}</span>
-                                              <span
-                                                className="text-[9px] tabular-nums text-purple-400"
-                                                title={`Leverandøren tilbyr ${supQty} ${row.enhet ?? ""} — prosjektet trenger ${row.qty}`}
-                                              >Lev: {supQty} / Proj: {row.qty}</span>
+                                              <span className="text-[9px] tabular-nums text-purple-400" title={`Leverandøren tilbyr ${supQty} ${row.enhet ?? ""} — prosjektet trenger ${row.qty}`}>Lev: {supQty} / Proj: {row.qty}</span>
                                             </>
                                           );
                                         }
@@ -1303,7 +1404,7 @@ function PrissammenlignInner() {
                         );
                       })}
                       {/* Totals row */}
-                      {effectiveSources.length > 0 && comparison.length > 0 && (
+                      {effectiveSources.length > 0 && effectiveComparison.length > 0 && (
                         <tr className="bg-gray-50 font-semibold text-sm border-t-2 border-gray-200">
                           <td className="sticky left-0 bg-gray-50 px-3 py-3 text-gray-700" colSpan={3}>Totalt</td>
                           <td />
