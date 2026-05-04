@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const sb = getSupabase();
   const { data, error } = await sb
     .from("quotes")
-    .select("id, ticket_number, customer_name, status, created_at, offer_sections, offer_line_items, comparison_state")
+    .select("id, ticket_number, customer_name, status, created_at, offer_sections, offer_line_items")
     .order("created_at", { ascending: false })
     .limit(200);
 
@@ -60,7 +60,6 @@ export async function GET(req: NextRequest) {
         dimensjon: i.dimensjon ?? undefined,
         amount: i.amount ?? undefined,
       })),
-      comparison_state: q.comparison_state ?? null,
     };
   });
 

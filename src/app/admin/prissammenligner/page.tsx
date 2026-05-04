@@ -33,7 +33,6 @@ interface ProjectSummary {
   created_at: string;
   varenr_count: number;
   line_items: ProjectLineItem[];
-  comparison_state?: SavedComparisonState | null;
 }
 
 interface PriceRow {
@@ -435,7 +434,7 @@ function PrissammenlignInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [varenrPicker, catalogSearch, catalogCategory]);
 
-  function selectProject(project: ProjectSummary) {
+  async function selectProject(project: ProjectSummary) {
     setSelectedProject(project);
     setShowProjectPicker(false);
     setProjectSearch("");
@@ -443,31 +442,32 @@ function PrissammenlignInner() {
     setManualAssignments([]);
     setLastSaved(null);
     setSaveStateError(false);
-
     setExtraRows([]);
     setPriceOverrides({});
-    let effectiveDbSelected = dbSelected;
-    let effectiveExtraRows: ExtraRow[] = [];
 
-    // Prefer Supabase-persisted state; fall back to localStorage
-    const saved: SavedComparisonState | null = project.comparison_state ?? (() => {
+    // Try Supabase first; fall back to localStorage
+    let saved: SavedComparisonState | null = null;
+    try {
+      const res = await fetch(`/api/admin/prissammenligner/state?quoteId=${project.id}`);
+      const d = await res.json() as { state: SavedComparisonState | null };
+      saved = d.state;
+    } catch { /* ignore */ }
+    if (!saved) {
       try {
         const raw = localStorage.getItem(`pris_state_${project.id}`);
-        return raw ? JSON.parse(raw) as SavedComparisonState : null;
-      } catch { return null; }
-    })();
+        if (raw) saved = JSON.parse(raw) as SavedComparisonState;
+      } catch { /* ignore */ }
+    }
 
+    let effectiveDbSelected = dbSelected;
+    let effectiveExtraRows: ExtraRow[] = [];
     if (saved) {
       if (saved.dbSelected && typeof saved.dbSelected === "object") {
         effectiveDbSelected = saved.dbSelected;
         setDbSelected(saved.dbSelected);
       }
-      if (Array.isArray(saved.manualAssignments)) {
-        setManualAssignments(saved.manualAssignments);
-      }
-      if (saved.priceOverrides && typeof saved.priceOverrides === "object") {
-        setPriceOverrides(saved.priceOverrides);
-      }
+      if (Array.isArray(saved.manualAssignments)) setManualAssignments(saved.manualAssignments);
+      if (saved.priceOverrides && typeof saved.priceOverrides === "object") setPriceOverrides(saved.priceOverrides);
       if (Array.isArray(saved.extraRows)) {
         effectiveExtraRows = saved.extraRows;
         setExtraRows(saved.extraRows);
