@@ -8,8 +8,10 @@ export interface LineItem {
   no_rabatt?: boolean;        // exclude this line from section-level rabatt/påslag
   rabatt_value?: number;      // line-specific override discount
   rabatt_type?: "kr" | "pst";
+  rabatt_description?: string;
   påslag_value?: number;      // line-specific override markup
   påslag_type?: "kr" | "pst";
+  påslag_description?: string;
 }
 
 export interface OfferSection {
@@ -18,8 +20,10 @@ export interface OfferSection {
   notes: string;
   rabatt_value?: number;
   rabatt_type?: "kr" | "pst";
+  rabatt_description?: string;
   påslag_value?: number;
   påslag_type?: "kr" | "pst";
+  påslag_description?: string;
 }
 
 export type QuoteStatus = 'new' | 'in_review' | 'pending_approval' | 'offer_sent' | 'paid' | 'ferdigstilt' | 'cancelled';
@@ -49,6 +53,7 @@ export interface QuoteRow {
   offer_total: number | null;
   offer_notes: string | null;
   klarna_order_id: string | null;
+  offer_valid_until: string | null;
   offer_sent_at: string | null;
   paid_at: string | null;
   created_at: string;

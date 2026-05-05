@@ -75,19 +75,37 @@ function LineAdjRow({ item, section, sIdx, iIdx, update }: {
       {!item.no_rabatt && (
         <>
           {hasLineRabatt ? (
-            <div className="flex items-center gap-1">
-              <span className="text-green-600 font-medium">Rabatt:</span>
-              <AdjInput value={item.rabatt_value!} type={item.rabatt_type} onValue={(v) => update(sIdx, iIdx, "rabatt_value", v)} onType={(t) => update(sIdx, iIdx, "rabatt_type", t)} color="#16a34a" />
-              <button onClick={() => { update(sIdx, iIdx, "rabatt_value", undefined); update(sIdx, iIdx, "rabatt_type", undefined); }} className="text-gray-300 hover:text-red-400">×</button>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1">
+                <span className="text-green-600 font-medium">Rabatt:</span>
+                <AdjInput value={item.rabatt_value!} type={item.rabatt_type} onValue={(v) => update(sIdx, iIdx, "rabatt_value", v)} onType={(t) => update(sIdx, iIdx, "rabatt_type", t)} color="#16a34a" />
+                <button onClick={() => { update(sIdx, iIdx, "rabatt_value", undefined); update(sIdx, iIdx, "rabatt_type", undefined); update(sIdx, iIdx, "rabatt_description", undefined); }} className="text-gray-300 hover:text-red-400">×</button>
+              </div>
+              <input
+                type="text"
+                placeholder="Beskrivelse (vises på tilbud)"
+                value={item.rabatt_description ?? ""}
+                onChange={(e) => update(sIdx, iIdx, "rabatt_description", e.target.value || undefined)}
+                className="rounded border border-green-200 px-1.5 py-0.5 text-[10px] text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-green-300"
+              />
             </div>
           ) : (
             <button type="button" onClick={() => update(sIdx, iIdx, "rabatt_value", 0)} className="text-green-500 hover:text-green-700">+ Rabatt</button>
           )}
           {hasLinePåslag ? (
-            <div className="flex items-center gap-1">
-              <span className="text-yellow-600 font-medium">Påslag:</span>
-              <AdjInput value={item.påslag_value!} type={item.påslag_type} onValue={(v) => update(sIdx, iIdx, "påslag_value", v)} onType={(t) => update(sIdx, iIdx, "påslag_type", t)} color="#ca8a04" />
-              <button onClick={() => { update(sIdx, iIdx, "påslag_value", undefined); update(sIdx, iIdx, "påslag_type", undefined); }} className="text-gray-300 hover:text-red-400">×</button>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1">
+                <span className="text-yellow-600 font-medium">Påslag:</span>
+                <AdjInput value={item.påslag_value!} type={item.påslag_type} onValue={(v) => update(sIdx, iIdx, "påslag_value", v)} onType={(t) => update(sIdx, iIdx, "påslag_type", t)} color="#ca8a04" />
+                <button onClick={() => { update(sIdx, iIdx, "påslag_value", undefined); update(sIdx, iIdx, "påslag_type", undefined); update(sIdx, iIdx, "påslag_description", undefined); }} className="text-gray-300 hover:text-red-400">×</button>
+              </div>
+              <input
+                type="text"
+                placeholder="Intern beskrivelse"
+                value={item.påslag_description ?? ""}
+                onChange={(e) => update(sIdx, iIdx, "påslag_description", e.target.value || undefined)}
+                className="rounded border border-yellow-200 px-1.5 py-0.5 text-[10px] text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-yellow-300"
+              />
             </div>
           ) : (
             <button type="button" onClick={() => update(sIdx, iIdx, "påslag_value", 0)} className="text-yellow-500 hover:text-yellow-700">+ Påslag</button>
@@ -139,6 +157,9 @@ export default function QuoteDetailPage() {
   // Offer builder state
   const [offerSections, setOfferSections] = useState<OfferSection[]>([]);
   const [savedSections, setSavedSections] = useState<OfferSection[]>([]);
+  const [offerValidUntil, setOfferValidUntil] = useState<string>(() => {
+    const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().slice(0, 10);
+  });
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
@@ -1595,45 +1616,63 @@ export default function QuoteDetailPage() {
                       {(section.påslag_value !== undefined || section.rabatt_value !== undefined) && (
                         <div className="space-y-1 mt-1">
                           {section.påslag_value !== undefined && (
-                            <div className="flex gap-2 items-center rounded-lg bg-yellow-50 border border-yellow-100 px-2 py-1.5">
-                              <span className="flex-1 text-xs font-medium text-yellow-700">Påslag (internt)</span>
-                              <div className="flex rounded border border-yellow-200 overflow-hidden text-xs">
-                                <button type="button" onClick={() => updateSectionField(sIdx, "påslag_type", "kr")}
-                                  className={`px-2 py-1 transition-colors ${(section.påslag_type ?? "kr") === "kr" ? "bg-yellow-500 text-white" : "bg-white text-gray-500 hover:bg-yellow-50"}`}>kr</button>
-                                <button type="button" onClick={() => updateSectionField(sIdx, "påslag_type", "pst")}
-                                  className={`px-2 py-1 transition-colors ${section.påslag_type === "pst" ? "bg-yellow-500 text-white" : "bg-white text-gray-500 hover:bg-yellow-50"}`}>%</button>
+                            <div className="rounded-lg bg-yellow-50 border border-yellow-100 px-2 py-1.5 space-y-1">
+                              <div className="flex gap-2 items-center">
+                                <span className="flex-1 text-xs font-medium text-yellow-700">Påslag (internt)</span>
+                                <div className="flex rounded border border-yellow-200 overflow-hidden text-xs">
+                                  <button type="button" onClick={() => updateSectionField(sIdx, "påslag_type", "kr")}
+                                    className={`px-2 py-1 transition-colors ${(section.påslag_type ?? "kr") === "kr" ? "bg-yellow-500 text-white" : "bg-white text-gray-500 hover:bg-yellow-50"}`}>kr</button>
+                                  <button type="button" onClick={() => updateSectionField(sIdx, "påslag_type", "pst")}
+                                    className={`px-2 py-1 transition-colors ${section.påslag_type === "pst" ? "bg-yellow-500 text-white" : "bg-white text-gray-500 hover:bg-yellow-50"}`}>%</button>
+                                </div>
+                                <input
+                                  type="number" min={0} step={section.påslag_type === "pst" ? 0.1 : 1}
+                                  placeholder={section.påslag_type === "pst" ? "%" : "kr"}
+                                  value={section.påslag_value || ""}
+                                  onChange={(e) => updateSectionField(sIdx, "påslag_value", parseFloat(e.target.value) || 0)}
+                                  className="w-20 rounded border border-yellow-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                                />
+                                <button onClick={() => { updateSectionField(sIdx, "påslag_value", undefined); updateSectionField(sIdx, "påslag_type", undefined); updateSectionField(sIdx, "påslag_description", undefined); }} className="text-yellow-400 hover:text-red-500">
+                                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                </button>
                               </div>
                               <input
-                                type="number" min={0} step={section.påslag_type === "pst" ? 0.1 : 1}
-                                placeholder={section.påslag_type === "pst" ? "%" : "kr"}
-                                value={section.påslag_value || ""}
-                                onChange={(e) => updateSectionField(sIdx, "påslag_value", parseFloat(e.target.value) || 0)}
-                                className="w-20 rounded border border-yellow-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                                type="text"
+                                placeholder="Intern beskrivelse"
+                                value={(section.påslag_description as string | undefined) ?? ""}
+                                onChange={(e) => updateSectionField(sIdx, "påslag_description", e.target.value || undefined)}
+                                className="w-full rounded border border-yellow-200 bg-white px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-yellow-300"
                               />
-                              <button onClick={() => { updateSectionField(sIdx, "påslag_value", undefined); updateSectionField(sIdx, "påslag_type", undefined); }} className="text-yellow-400 hover:text-red-500">
-                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                              </button>
                             </div>
                           )}
                           {section.rabatt_value !== undefined && (
-                            <div className="flex gap-2 items-center rounded-lg bg-green-50 border border-green-100 px-2 py-1.5">
-                              <span className="flex-1 text-xs font-medium text-green-700">Rabatt til kunde</span>
-                              <div className="flex rounded border border-green-200 overflow-hidden text-xs">
-                                <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_type", "kr")}
-                                  className={`px-2 py-1 transition-colors ${(section.rabatt_type ?? "kr") === "kr" ? "bg-green-500 text-white" : "bg-white text-gray-500 hover:bg-green-50"}`}>kr</button>
-                                <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_type", "pst")}
-                                  className={`px-2 py-1 transition-colors ${section.rabatt_type === "pst" ? "bg-green-500 text-white" : "bg-white text-gray-500 hover:bg-green-50"}`}>%</button>
+                            <div className="rounded-lg bg-green-50 border border-green-100 px-2 py-1.5 space-y-1">
+                              <div className="flex gap-2 items-center">
+                                <span className="flex-1 text-xs font-medium text-green-700">Rabatt til kunde</span>
+                                <div className="flex rounded border border-green-200 overflow-hidden text-xs">
+                                  <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_type", "kr")}
+                                    className={`px-2 py-1 transition-colors ${(section.rabatt_type ?? "kr") === "kr" ? "bg-green-500 text-white" : "bg-white text-gray-500 hover:bg-green-50"}`}>kr</button>
+                                  <button type="button" onClick={() => updateSectionField(sIdx, "rabatt_type", "pst")}
+                                    className={`px-2 py-1 transition-colors ${section.rabatt_type === "pst" ? "bg-green-500 text-white" : "bg-white text-gray-500 hover:bg-green-50"}`}>%</button>
+                                </div>
+                                <input
+                                  type="number" min={0} step={section.rabatt_type === "pst" ? 0.1 : 1}
+                                  placeholder={section.rabatt_type === "pst" ? "%" : "kr"}
+                                  value={section.rabatt_value || ""}
+                                  onChange={(e) => updateSectionField(sIdx, "rabatt_value", parseFloat(e.target.value) || 0)}
+                                  className="w-20 rounded border border-green-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-green-400"
+                                />
+                                <button onClick={() => { updateSectionField(sIdx, "rabatt_value", undefined); updateSectionField(sIdx, "rabatt_type", undefined); updateSectionField(sIdx, "rabatt_description", undefined); }} className="text-green-400 hover:text-red-500">
+                                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                </button>
                               </div>
                               <input
-                                type="number" min={0} step={section.rabatt_type === "pst" ? 0.1 : 1}
-                                placeholder={section.rabatt_type === "pst" ? "%" : "kr"}
-                                value={section.rabatt_value || ""}
-                                onChange={(e) => updateSectionField(sIdx, "rabatt_value", parseFloat(e.target.value) || 0)}
-                                className="w-20 rounded border border-green-200 bg-white px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-green-400"
+                                type="text"
+                                placeholder="Beskrivelse (vises på tilbud)"
+                                value={(section.rabatt_description as string | undefined) ?? ""}
+                                onChange={(e) => updateSectionField(sIdx, "rabatt_description", e.target.value || undefined)}
+                                className="w-full rounded border border-green-200 bg-white px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-green-300"
                               />
-                              <button onClick={() => { updateSectionField(sIdx, "rabatt_value", undefined); updateSectionField(sIdx, "rabatt_type", undefined); }} className="text-green-400 hover:text-red-500">
-                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                              </button>
                             </div>
                           )}
                         </div>

@@ -244,8 +244,13 @@ export async function POST(request: Request) {
           const base = item.amount * item.quantity;
           const adj = ownerSection ? lineAdj(item, ownerSection) : 0;
           const net = base + adj;
+          const rabattDesc = item.rabatt_description
+            ?? (!item.no_rabatt ? ownerSection?.rabatt_description : undefined);
+          const descHtml = rabattDesc
+            ? `${item.description}<br><span style="font-size:12px;color:#16a34a;font-style:italic">Rabatt: ${rabattDesc}</span>`
+            : item.description;
           return `<tr>
-            <td style="padding:7px 12px;border:1px solid #e5e7eb">${item.description}</td>
+            <td style="padding:7px 12px;border:1px solid #e5e7eb">${descHtml}</td>
             <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(net / 1.25)}</td>
             <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(net)}</td>
           </tr>`;

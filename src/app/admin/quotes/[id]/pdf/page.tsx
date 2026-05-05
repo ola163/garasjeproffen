@@ -298,9 +298,18 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
                     const base = (item.amount || 0) * (item.quantity || 1);
                     const adj = ownerSection ? lineAdj(item, ownerSection) : 0;
                     const net = base + adj;
+                    const rabattDesc = item.rabatt_description
+                      ?? (!item.no_rabatt ? ownerSection?.rabatt_description : undefined);
                     return (
                       <tr key={idx}>
-                        <td>{item.description}</td>
+                        <td>
+                          {item.description}
+                          {rabattDesc && (
+                            <div style={{ fontSize: "8pt", color: "#16a34a", fontStyle: "italic", marginTop: 2 }}>
+                              Rabatt: {rabattDesc}
+                            </div>
+                          )}
+                        </td>
                         <td className="right">{nok(exclMva(net))}</td>
                         <td className="right">{nok(net)}</td>
                       </tr>
