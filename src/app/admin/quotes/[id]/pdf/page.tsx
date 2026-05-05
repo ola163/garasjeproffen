@@ -17,10 +17,11 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("nb-NO", { day: "2-digit", month: "long", year: "numeric" });
 }
 
-const CAT_LABELS: Record<string, string> = {
+const SECTION_LABELS: Record<string, string> = {
   søknadshjelp: "Søknadshjelp",
   materialpakke: "Materialpakke",
   prefabelement: "Prefabelement",
+  grunnarbeid: "Grunnarbeid og støping",
 };
 
 function getEffectiveItems(section: OfferSection, all: OfferSection[]): LineItem[] {
@@ -77,6 +78,46 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
   const sections: OfferSection[] = quote.offer_sections ?? [];
   const grandTotal = computeTotal(sections);
   const today = formatDate(new Date().toISOString());
+
+  // Fetch GP product catalog categories for varenr lookup
+  const allVarenrs = [...new Set(sections.flatMap(s => s.line_items.map(i => i.varenr).filter((v): v is string => !!v)))];
+  const gpCatMap = new Map<string, string>();
+  if (allVarenrs.length > 0) {
+    const { data: prods } = await sb.from("gp_products").select("varenr, category").in("varenr", allVarenrs);
+    for (const p of (prods ?? []) as { varenr: string; category: string }[]) gpCatMap.set(p.varenr, p.category);
+  }
+  const { data: rawCats } = await sb.from("gp_categories").select("label, sort_order").order("sort_order");
+  const catSortOrder = new Map((rawCats ?? []).map((c: { label: string; sort_order: number }) => [c.label, c.sort_order]));
+
+  // Build category totals from all effective items
+  const hasPrefa  = sections.some(s => s.category === "prefabelement");
+  const hasMatpak = sections.some(s => s.category === "materialpakke");
+  const itemSectionCat = new Map<LineItem, string>();
+  for (const s of sections) for (const i of s.line_items) itemSectionCat.set(i, s.category);
+
+  const seenItems = new Set<LineItem>();
+  const catTotals = new Map<string, number>();
+  const catOrderMap = new Map<string, number>();
+  const allNotes: string[] = [];
+
+  for (const sec of sections) {
+    if (hasPrefa  && sec.category === "materialpakke") continue;
+    if ((hasPrefa || hasMatpak) && sec.category === "søknadshjelp") continue;
+    if (sec.notes?.trim()) allNotes.push(sec.notes.trim());
+    for (const item of getEffectiveItems(sec, sections)) {
+      if (seenItems.has(item)) continue;
+      seenItems.add(item);
+      const raw = (item.amount || 0) * (item.quantity || 1);
+      const sectionCat = itemSectionCat.get(item) ?? sec.category;
+      const cat = (item.varenr && gpCatMap.get(item.varenr)) || SECTION_LABELS[sectionCat] || sectionCat;
+      catTotals.set(cat, (catTotals.get(cat) ?? 0) + raw);
+      if (!catOrderMap.has(cat)) catOrderMap.set(cat, catSortOrder.get(cat) ?? 900);
+    }
+  }
+
+  const rawTotal = Array.from(catTotals.values()).reduce((a, b) => a + b, 0);
+  const discount = grandTotal - rawTotal;
+  const sortedCats = Array.from(catTotals.entries()).sort(([a], [b]) => (catOrderMap.get(a) ?? 900) - (catOrderMap.get(b) ?? 900));
 
   return (
     <>
@@ -181,115 +222,45 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* Offer sections */}
+        {/* Category summary */}
         {sections.length === 0 && (
           <p style={{ color: "#888", fontStyle: "italic" }}>Ingen tilbudslinjer er lagt til ennå.</p>
         )}
 
-        {sections.map((section, sIdx) => {
-          const hasPrefa  = sections.some((s) => s.category === "prefabelement");
-          const hasMatpak = sections.some((s) => s.category === "materialpakke");
-          const isHidden  = (hasPrefa && section.category === "materialpakke") || ((hasPrefa || hasMatpak) && section.category === "søknadshjelp");
-          if (isHidden) return null;
-
-          const effective = getEffectiveItems(section, sections);
-          const sectionSubtotal = effective.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
-          const ownBase = section.line_items.reduce((s, i) => s + (i.amount || 0) * (i.quantity || 1), 0);
-          const secLineAdj = section.line_items.reduce((s, i) => s + lineAdj(i, section), 0);
-          const totalRabattNok = section.line_items.reduce((s, i) => {
-            const base = (i.amount || 0) * (i.quantity || 1);
-            const useSec = !i.no_rabatt;
-            const rVal = i.rabatt_value !== undefined ? i.rabatt_value : useSec ? section.rabatt_value : undefined;
-            const rType = i.rabatt_value !== undefined ? i.rabatt_type : useSec ? section.rabatt_type : undefined;
-            return s + adjNok(rVal, rType, base);
-          }, 0);
-          const sectionTotal = sectionSubtotal + secLineAdj;
-
-          const sokItems  = (section.category === "materialpakke" || section.category === "prefabelement") ? (sections.find((s) => s.category === "søknadshjelp")?.line_items ?? []) : [];
-          const matItems  = section.category === "prefabelement" ? (sections.find((s) => s.category === "materialpakke")?.line_items ?? []) : [];
-          const ownItems  = section.line_items;
-
-          const isMat = section.category === "materialpakke";
-
-          return (
-            <div key={sIdx} className="section">
-              <div className="section-header">{CAT_LABELS[section.category] ?? section.category}</div>
-              <table>
-                <thead>
-                  <tr>
-                    {isMat && <th style={{ width: 72 }}>Varenr</th>}
-                    <th>Beskrivelse</th>
-                    {isMat && <th style={{ width: 80 }}>Dimensjon</th>}
-                    <th className="right" style={{ width: 50 }}>Enhet</th>
-                    <th className="right" style={{ width: 52 }}>Ant.</th>
-                    <th className="right" style={{ width: 90 }}>Pris/enhet</th>
-                    <th className="right" style={{ width: 90 }}>Sum</th>
+        {sortedCats.length > 0 && (
+          <div className="section">
+            <div className="section-header">Tilbudsoversikt</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Kategori</th>
+                  <th className="right" style={{ width: 130 }}>Beløp inkl. MVA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedCats.map(([cat, total]) => (
+                  <tr key={cat}>
+                    <td>{cat}</td>
+                    <td className="right">{nok(total)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {/* Inherited søknadshjelp rows */}
-                  {sokItems.map((item, i) => (
-                    <tr key={`sok-${i}`} className="inherited">
-                      {isMat && <td className="muted">–</td>}
-                      <td>{item.description || "–"}</td>
-                      {isMat && <td className="muted">{item.dimensjon ?? ""}</td>}
-                      <td className="right muted">{item.enhet ?? ""}</td>
-                      <td className="right muted">{item.quantity}</td>
-                      <td className="right muted">{item.amount ? nok(item.amount) : "–"}</td>
-                      <td className="right muted">{item.amount ? nok(item.amount * item.quantity) : "–"}</td>
-                    </tr>
-                  ))}
-                  {/* Inherited materialpakke rows (prefabelement) */}
-                  {matItems.map((item, i) => (
-                    <tr key={`mat-${i}`} className="inherited">
-                      {isMat && <td className="muted">–</td>}
-                      <td>{item.description || "–"}</td>
-                      {isMat && <td className="muted">{item.dimensjon ?? ""}</td>}
-                      <td className="right muted">{item.enhet ?? ""}</td>
-                      <td className="right muted">{item.quantity}</td>
-                      <td className="right muted">{item.amount ? nok(item.amount) : "–"}</td>
-                      <td className="right muted">{item.amount ? nok(item.amount * item.quantity) : "–"}</td>
-                    </tr>
-                  ))}
-                  {/* Own line items */}
-                  {ownItems.map((item, i) => (
-                    <tr key={`own-${i}`}>
-                      {isMat && <td className="muted">{item.varenr ?? ""}</td>}
-                      <td>{item.description || "–"}</td>
-                      {isMat && <td className="muted">{item.dimensjon ?? ""}</td>}
-                      <td className="right">{item.enhet ?? ""}</td>
-                      <td className="right">{item.quantity}</td>
-                      <td className="right">{item.amount ? nok(item.amount) : "–"}</td>
-                      <td className="right">{item.amount ? nok(item.amount * item.quantity) : "–"}</td>
-                    </tr>
-                  ))}
-                  {/* Rabatt — vises i prosent for alle seksjoner */}
-                  {totalRabattNok > 0 && (() => {
-                    const pst = ownBase > 0 ? Math.round(totalRabattNok / ownBase * 1000) / 10 : 0;
-                    return (
-                      <tr style={{ background: "#f0fdf4" }}>
-                        {isMat && <td />}
-                        <td colSpan={isMat ? 4 : 3} style={{ textAlign: "right", paddingRight: 8, color: "#16a34a", fontStyle: "italic", fontSize: "9pt" }}>
-                          Rabatt {pst % 1 === 0 ? pst : pst.toFixed(1)}%
-                        </td>
-                        <td className="right" colSpan={2} style={{ color: "#16a34a", fontSize: "9pt" }}>−{nok(totalRabattNok)}</td>
-                      </tr>
-                    );
-                  })()}
-                  {/* Subtotal */}
-                  <tr className="subtotal-row">
-                    {isMat && <td />}
-                    <td colSpan={isMat ? 4 : 4} style={{ textAlign: "right", paddingRight: 8 }}>
-                      Sum {CAT_LABELS[section.category] ?? section.category}
+                ))}
+                {Math.abs(discount) >= 1 && (
+                  <tr style={{ background: "#f0fdf4" }}>
+                    <td style={{ color: "#16a34a", fontStyle: "italic" }}>
+                      {discount < 0 ? "Rabatt" : "Påslag"}
                     </td>
-                    <td className="right" colSpan={2}>{nok(sectionTotal)}</td>
+                    <td className="right" style={{ color: "#16a34a" }}>
+                      {discount < 0 ? "−" : "+"}{nok(Math.abs(discount))}
+                    </td>
                   </tr>
-                </tbody>
-              </table>
-              {section.notes && <div className="notes">{section.notes}</div>}
-            </div>
-          );
-        })}
+                )}
+              </tbody>
+            </table>
+            {allNotes.map((note, i) => (
+              <div key={i} className="notes">{note}</div>
+            ))}
+          </div>
+        )}
 
         {/* Grand total */}
         {sections.length > 0 && (
