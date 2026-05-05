@@ -20,12 +20,10 @@ export default function Home() {
         {/* Left: description — server-rendered, crawlable */}
         <div className="flex-1 text-left order-last lg:order-first">
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 leading-snug">
-            Garasje og carport tilpasset din tomt
+            Fra idé til ferdig garasje — vi tar oss av alt
           </h2>
           <p className="mt-4 text-base text-gray-600 leading-relaxed">
-            GarasjeProffen AS leverer garasjer og carporter tilpasset mål, behov og tomt.
-            Velg mellom komplette materialpakker for egen montering, eller prefabrikkerte
-            løsninger som gir en raskere og mer effektiv byggeprosess.
+            Design garasjen din i 3D, få pris på sekunder, og la oss håndtere byggesøknaden.
           </p>
           <ul className="mt-6 space-y-3">
             {[
@@ -85,10 +83,29 @@ export default function Home() {
 
           {/* Interactive buttons — client component */}
           <HeroButtons />
+
+          {/* 3-stegs prosess */}
+          <p className="mt-6 mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400 text-center">Din garasje – steg for steg</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { step: "1", title: "Konfigurer", desc: "Design i 3D og få pris med én gang" },
+              { step: "2", title: "Vi søker", desc: "Vi tar all papirarbeid og kommunal godkjenning" },
+              { step: "3", title: "Nøkkelferdig", desc: "Monteres på 1–2 dager på din tomt" },
+            ].map(({ step, title, desc }) => (
+              <div key={step} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-sm font-bold text-white">
+                  {step}
+                </div>
+                <p className="text-xs font-semibold text-gray-900">{title}</p>
+                <p className="mt-1 text-xs text-gray-500 leading-snug">{desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
     </div>
+
     </>
   );
 }
