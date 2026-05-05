@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     }
 
     const res = NextResponse.json({ success: true });
-    const maxAge = 60 * 60 * 8;
+    const maxAge = 60 * 60 * 24 * 30; // 30 days
     res.cookies.set("gp-user", email, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
