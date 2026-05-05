@@ -46,12 +46,14 @@ const SILL_H       = 0.035;
 const SILL_EXTRA   = 0.05;
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
+const WINDOW_SILL = 0.9; // sill height from floor — keeps windows below the eave
+
 function getElDims(cat: ElementCategory) {
   const w  = cat === "door" ? 0.9 : 1.0;
   const h  = cat === "door" ? 2.1
            : cat === "window1" ? 0.5
            : cat === "window2" ? 0.6 : 1.0;
-  const cy = cat === "door" ? h / 2 : WALL_H * 0.55;
+  const cy = cat === "door" ? h / 2 : WINDOW_SILL + h / 2;
   return { w, h, cy };
 }
 
