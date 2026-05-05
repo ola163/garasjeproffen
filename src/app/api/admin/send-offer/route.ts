@@ -213,13 +213,15 @@ export async function POST(request: Request) {
           <thead>
             <tr style="background:#f3f4f6">
               <th style="text-align:left;padding:7px 12px;border:1px solid #e5e7eb">Kategori</th>
-              <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Beløp inkl. MVA</th>
+              <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Ekskl. MVA</th>
+              <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Inkl. MVA</th>
             </tr>
           </thead>
           <tbody>
             ${gpSortedCats.map(([cat, total]) => `
               <tr>
                 <td style="padding:7px 12px;border:1px solid #e5e7eb">${cat}</td>
+                <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(total / 1.25)}</td>
                 <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(total)}</td>
               </tr>`).join("")}
           </tbody>
@@ -244,6 +246,7 @@ export async function POST(request: Request) {
           const net = base + adj;
           return `<tr>
             <td style="padding:7px 12px;border:1px solid #e5e7eb">${item.description}</td>
+            <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(net / 1.25)}</td>
             <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(net)}</td>
           </tr>`;
         }).join("");
@@ -254,7 +257,8 @@ export async function POST(request: Request) {
             <thead>
               <tr style="background:#f3f4f6">
                 <th style="text-align:left;padding:7px 12px;border:1px solid #e5e7eb">Beskrivelse</th>
-                <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Beløp inkl. MVA</th>
+                <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Ekskl. MVA</th>
+                <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Inkl. MVA</th>
               </tr>
             </thead>
             <tbody>${rowsHtml}</tbody>
@@ -291,7 +295,15 @@ export async function POST(request: Request) {
         ${gpSortedCats.length > 0 || serviceSectionTotals.size > 0 ? `
         <div style="margin-top:4px;border:2px solid #e2520a;border-radius:8px;overflow:hidden">
           ${discountRowHtml}
-          <div style="background:#fff7ed;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+          <div style="background:#f8f7f5;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;font-size:14px;color:#374151">
+            <span>Totalt ekskl. MVA</span>
+            <span>${formatNOK(grandTotal / 1.25)}</span>
+          </div>
+          <div style="background:#f8f7f5;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;font-size:14px;color:#6b7280;border-top:1px solid #e5e7eb">
+            <span>MVA 25 %</span>
+            <span>${formatNOK(grandTotal * 0.2)}</span>
+          </div>
+          <div style="background:#fff7ed;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #fed7aa">
             <span style="font-weight:600;font-size:15px;color:#374151">Totalt inkl. MVA</span>
             <span style="font-weight:700;font-size:18px;color:#ea580c">${formatNOK(grandTotal)}</span>
           </div>

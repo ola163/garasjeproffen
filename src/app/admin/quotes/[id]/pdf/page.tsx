@@ -13,6 +13,8 @@ function nok(n: number) {
   return new Intl.NumberFormat("nb-NO", { style: "currency", currency: "NOK", maximumFractionDigits: 0 }).format(n);
 }
 
+function exclMva(n: number) { return n / 1.25; }
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("nb-NO", { day: "2-digit", month: "long", year: "numeric" });
 }
@@ -256,13 +258,15 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
               <thead>
                 <tr>
                   <th>Kategori</th>
-                  <th className="right" style={{ width: 130 }}>Beløp inkl. MVA</th>
+                  <th className="right" style={{ width: 110 }}>Ekskl. MVA</th>
+                  <th className="right" style={{ width: 110 }}>Inkl. MVA</th>
                 </tr>
               </thead>
               <tbody>
                 {gpSortedCats.map(([cat, total]) => (
                   <tr key={cat}>
                     <td>{cat}</td>
+                    <td className="right">{nok(exclMva(total))}</td>
                     <td className="right">{nok(total)}</td>
                   </tr>
                 ))}
@@ -285,7 +289,8 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
                 <thead>
                   <tr>
                     <th>Beskrivelse</th>
-                    <th className="right" style={{ width: 130 }}>Beløp inkl. MVA</th>
+                    <th className="right" style={{ width: 110 }}>Ekskl. MVA</th>
+                    <th className="right" style={{ width: 110 }}>Inkl. MVA</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -296,6 +301,7 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
                     return (
                       <tr key={idx}>
                         <td>{item.description}</td>
+                        <td className="right">{nok(exclMva(net))}</td>
                         <td className="right">{nok(net)}</td>
                       </tr>
                     );
@@ -318,6 +324,14 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
                 <span>{discount < 0 ? "−" : "+"}{nok(Math.abs(discount))}</span>
               </div>
             )}
+            <div className="total-row" style={{ background: "#f8f7f5" }}>
+              <span>Totalt ekskl. MVA</span>
+              <span>{nok(exclMva(grandTotal))}</span>
+            </div>
+            <div className="total-row" style={{ background: "#f8f7f5", color: "#666" }}>
+              <span>MVA 25 %</span>
+              <span>{nok(grandTotal * 0.2)}</span>
+            </div>
             <div className="total-row grand">
               <span>Totalt inkl. MVA</span>
               <span>{nok(grandTotal)}</span>
