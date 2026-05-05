@@ -46,6 +46,7 @@ export default function Header() {
       : "/soknadshjelp";
 
   const navLinks = [
+    ...(isAdmin ? [{ href: "/priser", label: "Priser" }] : []),
     { href: "/referanseprosjekter", label: "Referanseprosjekter" },
     { href: "/om-oss", label: "Om oss" },
     { href: "/kontakt", label: "Kontakt oss" },
