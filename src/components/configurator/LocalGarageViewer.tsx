@@ -46,14 +46,12 @@ const SILL_H       = 0.035;
 const SILL_EXTRA   = 0.05;
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
-const WINDOW_SILL = 0.9; // sill height from floor — keeps windows below the eave
-
 function getElDims(cat: ElementCategory) {
   const w  = cat === "door" ? 0.9 : 1.0;
   const h  = cat === "door" ? 2.1
            : cat === "window1" ? 0.5
            : cat === "window2" ? 0.6 : 1.0;
-  const cy = cat === "door" ? h / 2 : WINDOW_SILL + h / 2;
+  const cy = cat === "door" ? h / 2 : WALL_H * 0.55;
   return { w, h, cy };
 }
 
@@ -244,7 +242,7 @@ function WindowGLBInner({ position, rotY }: { position: [number, number, number]
     if (size.x > 0.001 && size.y > 0.001) {
       const sx = 1.0 / size.x;
       const sy = 0.5 / size.y;
-      const sz = size.z > 0.001 ? (WALL_T * 3) / size.z : 1;
+      const sz = size.z > 0.001 ? WALL_T / size.z : 1;
       clone.scale.set(sx, sy, sz);
     }
 
@@ -315,19 +313,19 @@ function GarageElements({ elements, lengthM, widthM }: {
           meshes.push(<WindowGLB key={key} position={[x, cy, wallCz]} rotY={rotY} />);
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-fr`} position={[x, cy, wallFace + dir * FRAME_DEPTH / 2]} material={matFrame} castShadow receiveShadow>
+            <mesh key={`${key}-fr`} position={[x, cy, wallFace - dir * FRAME_DEPTH / 2]} material={matFrame} castShadow receiveShadow>
               <boxGeometry args={[w + FRAME_BORDER * 2, h + FRAME_BORDER * 2, FRAME_DEPTH]} />
             </mesh>,
-            <mesh key={`${key}-gl`} position={[x, cy, wallFace + dir * (FRAME_DEPTH - GLASS_INSET)]} material={matWindow}>
+            <mesh key={`${key}-gl`} position={[x, cy, wallFace - dir * GLASS_INSET]} material={matWindow}>
               <boxGeometry args={[w, h, 0.015]} />
             </mesh>,
-            <mesh key={`${key}-si`} position={[x, cy - h / 2 - SILL_H / 2, wallFace + dir * (FRAME_DEPTH / 2 + SILL_EXTRA / 2)]} material={matSill} castShadow>
+            <mesh key={`${key}-si`} position={[x, cy - h / 2 - SILL_H / 2, wallFace + dir * (SILL_EXTRA / 2 - FRAME_DEPTH / 2)]} material={matSill} castShadow>
               <boxGeometry args={[w + FRAME_BORDER * 2 + 0.06, SILL_H, FRAME_DEPTH + SILL_EXTRA]} />
             </mesh>,
           );
         } else {
           meshes.push(
-            <mesh key={key} position={[x, cy, wallFace + dir * 0.05]} material={matDoorEl} castShadow>
+            <mesh key={key} position={[x, cy, wallFace - dir * 0.05]} material={matDoorEl} castShadow>
               <boxGeometry args={[w, h, 0.05]} />
             </mesh>,
           );
@@ -343,19 +341,19 @@ function GarageElements({ elements, lengthM, widthM }: {
           meshes.push(<WindowGLB key={key} position={[wallCx, cy, z]} rotY={rotY} />);
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-fr`} position={[wallFace + dir * FRAME_DEPTH / 2, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matFrame} castShadow receiveShadow>
+            <mesh key={`${key}-fr`} position={[wallFace - dir * FRAME_DEPTH / 2, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matFrame} castShadow receiveShadow>
               <boxGeometry args={[w + FRAME_BORDER * 2, h + FRAME_BORDER * 2, FRAME_DEPTH]} />
             </mesh>,
-            <mesh key={`${key}-gl`} position={[wallFace + dir * (FRAME_DEPTH - GLASS_INSET), cy, z]} rotation={[0, Math.PI / 2, 0]} material={matWindow}>
+            <mesh key={`${key}-gl`} position={[wallFace - dir * GLASS_INSET, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matWindow}>
               <boxGeometry args={[w, h, 0.015]} />
             </mesh>,
-            <mesh key={`${key}-si`} position={[wallFace + dir * (FRAME_DEPTH / 2 + SILL_EXTRA / 2), cy - h / 2 - SILL_H / 2, z]} rotation={[0, Math.PI / 2, 0]} material={matSill} castShadow>
+            <mesh key={`${key}-si`} position={[wallFace + dir * (SILL_EXTRA / 2 - FRAME_DEPTH / 2), cy - h / 2 - SILL_H / 2, z]} rotation={[0, Math.PI / 2, 0]} material={matSill} castShadow>
               <boxGeometry args={[w + FRAME_BORDER * 2 + 0.06, SILL_H, FRAME_DEPTH + SILL_EXTRA]} />
             </mesh>,
           );
         } else {
           meshes.push(
-            <mesh key={key} position={[wallFace + dir * 0.05, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matDoorEl} castShadow>
+            <mesh key={key} position={[wallFace - dir * 0.05, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matDoorEl} castShadow>
               <boxGeometry args={[w, h, 0.05]} />
             </mesh>,
           );
