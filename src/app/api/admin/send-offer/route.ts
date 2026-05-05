@@ -142,61 +142,96 @@ export async function POST(request: Request) {
     const { data: rawCats } = await sb.from("gp_categories").select("label, sort_order").order("sort_order");
     const catSortOrder = new Map((rawCats ?? []).map((c: { label: string; sort_order: number }) => [c.label, c.sort_order]));
 
-    // Build category totals
+    // Split items: materialpakke → GP catalog categories, services → own section totals
     const itemSectionCat = new Map<LineItem, string>();
     for (const s of offerSections) for (const i of s.line_items) itemSectionCat.set(i, s.category);
 
+    const sectionNotes = new Map<string, string>();
+    for (const sec of offerSections) {
+      if (sec.notes?.trim()) sectionNotes.set(sec.category, sec.notes.trim());
+    }
+
     const seenItems = new Set<LineItem>();
-    const catTotals = new Map<string, number>();
-    const catOrderMap = new Map<string, number>();
-    const allNotes: string[] = [];
+    const gpCatTotals = new Map<string, number>();
+    const gpCatOrderMap = new Map<string, number>();
+    const serviceSectionTotals = new Map<string, number>();
 
     for (const sec of offerSections) {
       if (hasPrefa  && sec.category === "materialpakke") continue;
       if ((hasPrefa || hasMatpak) && sec.category === "søknadshjelp") continue;
-      if (sec.notes?.trim()) allNotes.push(sec.notes.trim());
       for (const item of getEffectiveItems(sec, offerSections)) {
         if (seenItems.has(item)) continue;
         seenItems.add(item);
         const raw = item.amount * item.quantity;
-        const sectionCat = itemSectionCat.get(item) ?? sec.category;
-        const cat = (item.varenr && gpCatMap.get(item.varenr)) || SECTION_LABELS[sectionCat] || sectionCat;
-        catTotals.set(cat, (catTotals.get(cat) ?? 0) + raw);
-        if (!catOrderMap.has(cat)) catOrderMap.set(cat, catSortOrder.get(cat) ?? 900);
+        const ownerCat = itemSectionCat.get(item) ?? sec.category;
+        if (ownerCat === "materialpakke") {
+          const gpCat = (item.varenr && gpCatMap.get(item.varenr)) || "Materialer";
+          gpCatTotals.set(gpCat, (gpCatTotals.get(gpCat) ?? 0) + raw);
+          if (!gpCatOrderMap.has(gpCat)) gpCatOrderMap.set(gpCat, catSortOrder.get(gpCat) ?? 900);
+        } else {
+          serviceSectionTotals.set(ownerCat, (serviceSectionTotals.get(ownerCat) ?? 0) + raw);
+        }
       }
     }
 
-    const rawTotal = Array.from(catTotals.values()).reduce((a, b) => a + b, 0);
+    const gpSortedCats = Array.from(gpCatTotals.entries()).sort(([a], [b]) => (gpCatOrderMap.get(a) ?? 900) - (gpCatOrderMap.get(b) ?? 900));
+    const SERVICE_ORDER = ["søknadshjelp", "prefabelement", "grunnarbeid"] as const;
+    const rawTotal =
+      Array.from(gpCatTotals.values()).reduce((a, b) => a + b, 0) +
+      Array.from(serviceSectionTotals.values()).reduce((a, b) => a + b, 0);
     const discount = grandTotal - rawTotal;
-    const sortedCats = Array.from(catTotals.entries()).sort(([a], [b]) => (catOrderMap.get(a) ?? 900) - (catOrderMap.get(b) ?? 900));
 
     // ── Build email HTML ──
-    const catRowsHtml = sortedCats.map(([cat, total]) => `
-      <tr>
-        <td style="padding:7px 12px;border:1px solid #e5e7eb">${cat}</td>
-        <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(total)}</td>
-      </tr>`).join("");
+    const materialsHtml = gpSortedCats.length > 0 ? `
+      <div style="margin-bottom:20px">
+        <div style="background:#e2520a;color:white;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;padding:6px 12px;border-radius:4px 4px 0 0">Materialer</div>
+        <table style="border-collapse:collapse;width:100%;font-size:14px">
+          <thead>
+            <tr style="background:#f3f4f6">
+              <th style="text-align:left;padding:7px 12px;border:1px solid #e5e7eb">Kategori</th>
+              <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Beløp inkl. MVA</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${gpSortedCats.map(([cat, total]) => `
+              <tr>
+                <td style="padding:7px 12px;border:1px solid #e5e7eb">${cat}</td>
+                <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(total)}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+        ${sectionNotes.get("materialpakke") ? `<p style="margin:8px 0 0;font-size:13px;color:#6b7280">${sectionNotes.get("materialpakke")!.replace(/\n/g, "<br>")}</p>` : ""}
+      </div>` : "";
+
+    const SERVICE_LABELS: Record<string, string> = {
+      søknadshjelp: "Søknadshjelp",
+      prefabelement: "Prefabelement",
+      grunnarbeid: "Grunnarbeid og støping",
+    };
+
+    const serviceBlocksHtml = SERVICE_ORDER
+      .filter(cat => serviceSectionTotals.has(cat))
+      .map(cat => `
+        <div style="margin-bottom:20px">
+          <div style="background:#e2520a;color:white;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;padding:6px 12px;border-radius:4px 4px 0 0">${SERVICE_LABELS[cat]}</div>
+          <table style="border-collapse:collapse;width:100%;font-size:14px">
+            <tbody>
+              <tr>
+                <td style="padding:7px 12px;border:1px solid #e5e7eb;color:#555">Pris inkl. MVA</td>
+                <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(serviceSectionTotals.get(cat)!)}</td>
+              </tr>
+            </tbody>
+          </table>
+          ${sectionNotes.get(cat) ? `<p style="margin:8px 0 0;font-size:13px;color:#6b7280">${sectionNotes.get(cat)!.replace(/\n/g, "<br>")}</p>` : ""}
+        </div>`).join("");
 
     const discountRowHtml = Math.abs(discount) >= 1 ? `
-      <tr style="background:#f0fdf4">
-        <td style="padding:7px 12px;border:1px solid #e5e7eb;color:#16a34a;font-style:italic">${discount < 0 ? "Rabatt" : "Påslag"}</td>
-        <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right;color:#16a34a">${discount < 0 ? "−" : "+"}${formatNOK(Math.abs(discount))}</td>
-      </tr>` : "";
+      <div style="display:flex;justify-content:space-between;padding:8px 16px;background:#f0fdf4;color:#16a34a;font-style:italic;font-size:14px">
+        <span>${discount < 0 ? "Rabatt" : "Påslag"}</span>
+        <span>${discount < 0 ? "−" : "+"}${formatNOK(Math.abs(discount))}</span>
+      </div>` : "";
 
-    const notesHtml = allNotes.map(n => `<p style="margin:8px 0 0;font-size:13px;color:#6b7280">${n.replace(/\n/g, "<br>")}</p>`).join("");
-
-    const sectionsHtml = `
-      <table style="border-collapse:collapse;width:100%;font-size:14px;margin-top:16px">
-        <thead>
-          <tr style="background:#f3f4f6">
-            <th style="text-align:left;padding:7px 12px;border:1px solid #e5e7eb">Kategori</th>
-            <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Beløp inkl. MVA</th>
-          </tr>
-        </thead>
-        <tbody>${catRowsHtml}${discountRowHtml}</tbody>
-      </table>
-      ${notesHtml}
-    `;
+    const sectionsHtml = materialsHtml + serviceBlocksHtml;
 
     const paymentSection = paymentUrl
       ? `<p style="margin-top:28px">
@@ -215,10 +250,13 @@ export async function POST(request: Request) {
 
         ${sectionsHtml}
 
-        ${sortedCats.length > 0 ? `
-        <div style="margin-top:20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;display:flex;justify-content:space-between;align-items:center">
-          <span style="font-weight:600;font-size:15px;color:#374151">Totalt inkl. MVA</span>
-          <span style="font-weight:700;font-size:18px;color:#ea580c">${formatNOK(grandTotal)}</span>
+        ${gpSortedCats.length > 0 || serviceSectionTotals.size > 0 ? `
+        <div style="margin-top:4px;border:2px solid #e2520a;border-radius:8px;overflow:hidden">
+          ${discountRowHtml}
+          <div style="background:#fff7ed;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:600;font-size:15px;color:#374151">Totalt inkl. MVA</span>
+            <span style="font-weight:700;font-size:18px;color:#ea580c">${formatNOK(grandTotal)}</span>
+          </div>
         </div>` : ""}
 
         ${paymentSection}

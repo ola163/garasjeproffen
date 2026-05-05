@@ -89,35 +89,46 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
   const { data: rawCats } = await sb.from("gp_categories").select("label, sort_order").order("sort_order");
   const catSortOrder = new Map((rawCats ?? []).map((c: { label: string; sort_order: number }) => [c.label, c.sort_order]));
 
-  // Build category totals from all effective items
+  // Split items: materialpakke → GP catalog categories, services → own section totals
   const hasPrefa  = sections.some(s => s.category === "prefabelement");
   const hasMatpak = sections.some(s => s.category === "materialpakke");
   const itemSectionCat = new Map<LineItem, string>();
   for (const s of sections) for (const i of s.line_items) itemSectionCat.set(i, s.category);
 
+  const sectionNotes = new Map<string, string>();
+  for (const sec of sections) {
+    if (sec.notes?.trim()) sectionNotes.set(sec.category, sec.notes.trim());
+  }
+
   const seenItems = new Set<LineItem>();
-  const catTotals = new Map<string, number>();
-  const catOrderMap = new Map<string, number>();
-  const allNotes: string[] = [];
+  const gpCatTotals = new Map<string, number>();
+  const gpCatOrderMap = new Map<string, number>();
+  const serviceSectionTotals = new Map<string, number>();
 
   for (const sec of sections) {
     if (hasPrefa  && sec.category === "materialpakke") continue;
     if ((hasPrefa || hasMatpak) && sec.category === "søknadshjelp") continue;
-    if (sec.notes?.trim()) allNotes.push(sec.notes.trim());
     for (const item of getEffectiveItems(sec, sections)) {
       if (seenItems.has(item)) continue;
       seenItems.add(item);
       const raw = (item.amount || 0) * (item.quantity || 1);
-      const sectionCat = itemSectionCat.get(item) ?? sec.category;
-      const cat = (item.varenr && gpCatMap.get(item.varenr)) || SECTION_LABELS[sectionCat] || sectionCat;
-      catTotals.set(cat, (catTotals.get(cat) ?? 0) + raw);
-      if (!catOrderMap.has(cat)) catOrderMap.set(cat, catSortOrder.get(cat) ?? 900);
+      const ownerCat = itemSectionCat.get(item) ?? sec.category;
+      if (ownerCat === "materialpakke") {
+        const gpCat = (item.varenr && gpCatMap.get(item.varenr)) || "Materialer";
+        gpCatTotals.set(gpCat, (gpCatTotals.get(gpCat) ?? 0) + raw);
+        if (!gpCatOrderMap.has(gpCat)) gpCatOrderMap.set(gpCat, catSortOrder.get(gpCat) ?? 900);
+      } else {
+        serviceSectionTotals.set(ownerCat, (serviceSectionTotals.get(ownerCat) ?? 0) + raw);
+      }
     }
   }
 
-  const rawTotal = Array.from(catTotals.values()).reduce((a, b) => a + b, 0);
+  const gpSortedCats = Array.from(gpCatTotals.entries()).sort(([a], [b]) => (gpCatOrderMap.get(a) ?? 900) - (gpCatOrderMap.get(b) ?? 900));
+  const SERVICE_ORDER = ["søknadshjelp", "prefabelement", "grunnarbeid"] as const;
+  const rawTotal =
+    Array.from(gpCatTotals.values()).reduce((a, b) => a + b, 0) +
+    Array.from(serviceSectionTotals.values()).reduce((a, b) => a + b, 0);
   const discount = grandTotal - rawTotal;
-  const sortedCats = Array.from(catTotals.entries()).sort(([a], [b]) => (catOrderMap.get(a) ?? 900) - (catOrderMap.get(b) ?? 900));
 
   return (
     <>
@@ -227,9 +238,10 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
           <p style={{ color: "#888", fontStyle: "italic" }}>Ingen tilbudslinjer er lagt til ennå.</p>
         )}
 
-        {sortedCats.length > 0 && (
+        {/* Materialer — GP catalog categories */}
+        {gpSortedCats.length > 0 && (
           <div className="section">
-            <div className="section-header">Tilbudsoversikt</div>
+            <div className="section-header">Materialer</div>
             <table>
               <thead>
                 <tr>
@@ -238,33 +250,47 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
                 </tr>
               </thead>
               <tbody>
-                {sortedCats.map(([cat, total]) => (
+                {gpSortedCats.map(([cat, total]) => (
                   <tr key={cat}>
                     <td>{cat}</td>
                     <td className="right">{nok(total)}</td>
                   </tr>
                 ))}
-                {Math.abs(discount) >= 1 && (
-                  <tr style={{ background: "#f0fdf4" }}>
-                    <td style={{ color: "#16a34a", fontStyle: "italic" }}>
-                      {discount < 0 ? "Rabatt" : "Påslag"}
-                    </td>
-                    <td className="right" style={{ color: "#16a34a" }}>
-                      {discount < 0 ? "−" : "+"}{nok(Math.abs(discount))}
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
-            {allNotes.map((note, i) => (
-              <div key={i} className="notes">{note}</div>
-            ))}
+            {sectionNotes.get("materialpakke") && (
+              <div className="notes">{sectionNotes.get("materialpakke")}</div>
+            )}
           </div>
         )}
+
+        {/* Service sections — each gets its own block */}
+        {SERVICE_ORDER.filter(cat => serviceSectionTotals.has(cat)).map(cat => (
+          <div key={cat} className="section">
+            <div className="section-header">{SECTION_LABELS[cat]}</div>
+            <table>
+              <tbody>
+                <tr>
+                  <td style={{ color: "#555" }}>Pris inkl. MVA</td>
+                  <td className="right">{nok(serviceSectionTotals.get(cat)!)}</td>
+                </tr>
+              </tbody>
+            </table>
+            {sectionNotes.get(cat) && (
+              <div className="notes">{sectionNotes.get(cat)}</div>
+            )}
+          </div>
+        ))}
 
         {/* Grand total */}
         {sections.length > 0 && (
           <div className="total-box">
+            {Math.abs(discount) >= 1 && (
+              <div className="total-row" style={{ background: "#f0fdf4", color: "#16a34a" }}>
+                <span style={{ fontStyle: "italic" }}>{discount < 0 ? "Rabatt" : "Påslag"}</span>
+                <span>{discount < 0 ? "−" : "+"}{nok(Math.abs(discount))}</span>
+              </div>
+            )}
             <div className="total-row grand">
               <span>Totalt inkl. MVA</span>
               <span>{nok(grandTotal)}</span>
