@@ -104,6 +104,7 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
   const gpCatTotals = new Map<string, number>();
   const gpCatOrderMap = new Map<string, number>();
   const serviceSectionTotals = new Map<string, number>();
+  const serviceSectionItems = new Map<string, LineItem[]>();
 
   for (const sec of sections) {
     if (hasPrefa  && sec.category === "materialpakke") continue;
@@ -119,15 +120,24 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
         if (!gpCatOrderMap.has(gpCat)) gpCatOrderMap.set(gpCat, catSortOrder.get(gpCat) ?? 900);
       } else {
         serviceSectionTotals.set(ownerCat, (serviceSectionTotals.get(ownerCat) ?? 0) + raw);
+        serviceSectionItems.set(ownerCat, [...(serviceSectionItems.get(ownerCat) ?? []), item]);
       }
     }
   }
 
   const gpSortedCats = Array.from(gpCatTotals.entries()).sort(([a], [b]) => (gpCatOrderMap.get(a) ?? 900) - (gpCatOrderMap.get(b) ?? 900));
   const SERVICE_ORDER = ["søknadshjelp", "prefabelement", "grunnarbeid"] as const;
-  const rawTotal =
-    Array.from(gpCatTotals.values()).reduce((a, b) => a + b, 0) +
-    Array.from(serviceSectionTotals.values()).reduce((a, b) => a + b, 0);
+
+  // Use adjusted service totals in rawTotal to avoid double-counting with per-line adjusted display
+  const adjustedServiceTotal = SERVICE_ORDER.reduce((total, cat) => {
+    const items = serviceSectionItems.get(cat) ?? [];
+    const ownerSection = sections.find(s => s.category === cat);
+    return total + items.reduce((s, item) => {
+      const base = (item.amount || 0) * (item.quantity || 1);
+      return s + base + (ownerSection ? lineAdj(item, ownerSection) : 0);
+    }, 0);
+  }, 0);
+  const rawTotal = Array.from(gpCatTotals.values()).reduce((a, b) => a + b, 0) + adjustedServiceTotal;
   const discount = grandTotal - rawTotal;
 
   return (
@@ -264,23 +274,40 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
           </div>
         )}
 
-        {/* Service sections — each gets its own block */}
-        {SERVICE_ORDER.filter(cat => serviceSectionTotals.has(cat)).map(cat => (
-          <div key={cat} className="section">
-            <div className="section-header">{SECTION_LABELS[cat]}</div>
-            <table>
-              <tbody>
-                <tr>
-                  <td style={{ color: "#555" }}>Pris inkl. MVA</td>
-                  <td className="right">{nok(serviceSectionTotals.get(cat)!)}</td>
-                </tr>
-              </tbody>
-            </table>
-            {sectionNotes.get(cat) && (
-              <div className="notes">{sectionNotes.get(cat)}</div>
-            )}
-          </div>
-        ))}
+        {/* Service sections — each line shown individually */}
+        {SERVICE_ORDER.filter(cat => serviceSectionTotals.has(cat)).map(cat => {
+          const items = serviceSectionItems.get(cat) ?? [];
+          const ownerSection = sections.find(s => s.category === cat);
+          return (
+            <div key={cat} className="section">
+              <div className="section-header">{SECTION_LABELS[cat]}</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Beskrivelse</th>
+                    <th className="right" style={{ width: 130 }}>Beløp inkl. MVA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, idx) => {
+                    const base = (item.amount || 0) * (item.quantity || 1);
+                    const adj = ownerSection ? lineAdj(item, ownerSection) : 0;
+                    const net = base + adj;
+                    return (
+                      <tr key={idx}>
+                        <td>{item.description}</td>
+                        <td className="right">{nok(net)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {sectionNotes.get(cat) && (
+                <div className="notes">{sectionNotes.get(cat)}</div>
+              )}
+            </div>
+          );
+        })}
 
         {/* Grand total */}
         {sections.length > 0 && (

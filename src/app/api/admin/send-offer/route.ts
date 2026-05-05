@@ -40,6 +40,21 @@ function sectionTotal(section: OfferSection, allSections: OfferSection[]) {
   return getEffectiveItems(section, allSections).reduce((s, item) => s + item.amount * item.quantity, 0);
 }
 
+function adjNok(value: number | undefined, type: "kr" | "pst" | undefined, base: number) {
+  if (!value) return 0;
+  return type === "pst" ? base * value / 100 : value;
+}
+
+function lineAdj(item: LineItem, sec: OfferSection): number {
+  const base = item.amount * item.quantity;
+  const useSec = !item.no_rabatt;
+  const rVal = item.rabatt_value !== undefined ? item.rabatt_value : useSec ? sec.rabatt_value : undefined;
+  const rType = item.rabatt_value !== undefined ? item.rabatt_type : useSec ? sec.rabatt_type : undefined;
+  const pVal = item.påslag_value !== undefined ? item.påslag_value : useSec ? sec.påslag_value : undefined;
+  const pType = item.påslag_value !== undefined ? item.påslag_type : useSec ? sec.påslag_type : undefined;
+  return adjNok(pVal, pType, base) - adjNok(rVal, rType, base);
+}
+
 export async function POST(request: Request) {
   try {
     const { quoteId, offerSections, adminEmail, customerEmail, customerName, ticketNumber } = await request.json() as {
@@ -155,6 +170,7 @@ export async function POST(request: Request) {
     const gpCatTotals = new Map<string, number>();
     const gpCatOrderMap = new Map<string, number>();
     const serviceSectionTotals = new Map<string, number>();
+    const serviceSectionItems = new Map<string, LineItem[]>();
 
     for (const sec of offerSections) {
       if (hasPrefa  && sec.category === "materialpakke") continue;
@@ -170,15 +186,23 @@ export async function POST(request: Request) {
           if (!gpCatOrderMap.has(gpCat)) gpCatOrderMap.set(gpCat, catSortOrder.get(gpCat) ?? 900);
         } else {
           serviceSectionTotals.set(ownerCat, (serviceSectionTotals.get(ownerCat) ?? 0) + raw);
+          serviceSectionItems.set(ownerCat, [...(serviceSectionItems.get(ownerCat) ?? []), item]);
         }
       }
     }
 
     const gpSortedCats = Array.from(gpCatTotals.entries()).sort(([a], [b]) => (gpCatOrderMap.get(a) ?? 900) - (gpCatOrderMap.get(b) ?? 900));
     const SERVICE_ORDER = ["søknadshjelp", "prefabelement", "grunnarbeid"] as const;
-    const rawTotal =
-      Array.from(gpCatTotals.values()).reduce((a, b) => a + b, 0) +
-      Array.from(serviceSectionTotals.values()).reduce((a, b) => a + b, 0);
+
+    const adjustedServiceTotal = SERVICE_ORDER.reduce((total, cat) => {
+      const items = serviceSectionItems.get(cat) ?? [];
+      const ownerSection = offerSections.find(s => s.category === cat);
+      return total + items.reduce((s, item) => {
+        const base = item.amount * item.quantity;
+        return s + base + (ownerSection ? lineAdj(item, ownerSection) : 0);
+      }, 0);
+    }, 0);
+    const rawTotal = Array.from(gpCatTotals.values()).reduce((a, b) => a + b, 0) + adjustedServiceTotal;
     const discount = grandTotal - rawTotal;
 
     // ── Build email HTML ──
@@ -211,19 +235,33 @@ export async function POST(request: Request) {
 
     const serviceBlocksHtml = SERVICE_ORDER
       .filter(cat => serviceSectionTotals.has(cat))
-      .map(cat => `
+      .map(cat => {
+        const items = serviceSectionItems.get(cat) ?? [];
+        const ownerSection = offerSections.find(s => s.category === cat);
+        const rowsHtml = items.map(item => {
+          const base = item.amount * item.quantity;
+          const adj = ownerSection ? lineAdj(item, ownerSection) : 0;
+          const net = base + adj;
+          return `<tr>
+            <td style="padding:7px 12px;border:1px solid #e5e7eb">${item.description}</td>
+            <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(net)}</td>
+          </tr>`;
+        }).join("");
+        return `
         <div style="margin-bottom:20px">
           <div style="background:#e2520a;color:white;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;padding:6px 12px;border-radius:4px 4px 0 0">${SERVICE_LABELS[cat]}</div>
           <table style="border-collapse:collapse;width:100%;font-size:14px">
-            <tbody>
-              <tr>
-                <td style="padding:7px 12px;border:1px solid #e5e7eb;color:#555">Pris inkl. MVA</td>
-                <td style="padding:7px 12px;border:1px solid #e5e7eb;text-align:right">${formatNOK(serviceSectionTotals.get(cat)!)}</td>
+            <thead>
+              <tr style="background:#f3f4f6">
+                <th style="text-align:left;padding:7px 12px;border:1px solid #e5e7eb">Beskrivelse</th>
+                <th style="text-align:right;padding:7px 12px;border:1px solid #e5e7eb">Beløp inkl. MVA</th>
               </tr>
-            </tbody>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
           </table>
           ${sectionNotes.get(cat) ? `<p style="margin:8px 0 0;font-size:13px;color:#6b7280">${sectionNotes.get(cat)!.replace(/\n/g, "<br>")}</p>` : ""}
-        </div>`).join("");
+        </div>`;
+      }).join("");
 
     const discountRowHtml = Math.abs(discount) >= 1 ? `
       <div style="display:flex;justify-content:space-between;padding:8px 16px;background:#f0fdf4;color:#16a34a;font-style:italic;font-size:14px">
