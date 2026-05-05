@@ -1518,10 +1518,24 @@ export default function QuoteDetailPage() {
                             </div>
                             {/* Rad 3: Totalsum + justering */}
                             <LineAdjRow item={item} section={section} sIdx={sIdx} iIdx={iIdx} update={updateLineItemInSection} />
-                            <div className="flex justify-end border-t border-gray-200 pt-1">
-                              <span className="text-xs font-semibold text-gray-700">
-                                {item.amount && item.quantity ? formatNOK(item.amount * item.quantity) : "–"}
-                              </span>
+                            <div className="flex items-baseline justify-end gap-2 border-t border-gray-200 pt-1">
+                              {(() => {
+                                const base = (item.amount || 0) * (item.quantity || 1);
+                                if (!base) return <span className="text-xs font-semibold text-gray-700">–</span>;
+                                const hasLineAdj = item.rabatt_value !== undefined || item.påslag_value !== undefined;
+                                const adj = hasLineAdj ? lineAdj(item, section) : 0;
+                                const net = base + adj;
+                                return (
+                                  <>
+                                    {hasLineAdj && adj !== 0 && (
+                                      <span className="text-[10px] text-gray-400 line-through">{formatNOK(base)}</span>
+                                    )}
+                                    <span className={`text-xs font-semibold ${adj < 0 ? "text-green-700" : adj > 0 ? "text-yellow-700" : "text-gray-700"}`}>
+                                      {formatNOK(net)}
+                                    </span>
+                                  </>
+                                );
+                              })()}
                             </div>
                           </div>
                         ) : (
@@ -1557,6 +1571,22 @@ export default function QuoteDetailPage() {
                               </button>
                             </div>
                             <LineAdjRow item={item} section={section} sIdx={sIdx} iIdx={iIdx} update={updateLineItemInSection} />
+                            {(item.amount || 0) * (item.quantity || 1) > 0 && (() => {
+                              const base = (item.amount || 0) * (item.quantity || 1);
+                              const hasLineAdj = item.rabatt_value !== undefined || item.påslag_value !== undefined;
+                              const adj = hasLineAdj ? lineAdj(item, section) : 0;
+                              const net = base + adj;
+                              return (
+                                <div className="flex items-baseline justify-end gap-2 pt-0.5">
+                                  {hasLineAdj && adj !== 0 && (
+                                    <span className="text-[10px] text-gray-400 line-through">{formatNOK(base)}</span>
+                                  )}
+                                  <span className={`text-xs font-semibold ${adj < 0 ? "text-green-700" : adj > 0 ? "text-yellow-700" : "text-gray-700"}`}>
+                                    {formatNOK(net)}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )
                       )}
