@@ -12,6 +12,7 @@ export default function Header() {
   const [gdDismissed, setGdDismissed] = useState(false);
   const [ctaOpen, setCtaOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => setIsAdmin(!!d.isAdmin));
+    fetch("/api/auth/me").then(r => r.json()).then(d => { setIsAdmin(!!d.isAdmin); setIsLoggedIn(!!d.isLoggedIn); });
   }, []);
 
   useEffect(() => {
@@ -120,6 +121,16 @@ export default function Header() {
             Min side
           </Link>
 
+          {/* Logg ut – desktop */}
+          {isLoggedIn && (
+            <a
+              href="/api/auth/logout"
+              className="hidden sm:block text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              Logg ut
+            </a>
+          )}
+
           {gdDismissed && (
             <button
               onClick={enableGd}
@@ -201,6 +212,16 @@ export default function Header() {
                 </Link>
               </li>
             ))}
+            {isLoggedIn && (
+              <li>
+                <a
+                  href="/api/auth/logout"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-gray-400 hover:bg-gray-50"
+                >
+                  Logg ut
+                </a>
+              </li>
+            )}
           </ul>
         </div>
       )}
