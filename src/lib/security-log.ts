@@ -30,6 +30,6 @@ export function logSecurityEvent(event: SecurityEvent): void {
       .from("security_events")
       .insert(entry)
       .then(() => {})
-      .catch(() => {});
+      .catch((err: unknown) => console.error("[security] DB log failed:", err));
   }
 }

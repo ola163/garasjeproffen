@@ -120,7 +120,7 @@ export async function POST(request: Request) {
     }
 
     // Recalculate price server-side
-    const pricing = calculatePrice(body.configuration);
+    const pricing = calculatePrice(body.configuration, body.packageType as "materialpakke" | "prefab" ?? "materialpakke", body.roofType as "saltak" | "flattak" ?? "flattak", body.buildingType ?? "garasje");
     const p = body.configuration.parameters;
     const elements = body.addedElements ?? [];
     const attachmentUrls = uploadedFiles.length > 0
@@ -236,8 +236,8 @@ export async function POST(request: Request) {
           ${elementsHtml}
           <h3>Prisestimat</h3>
           <table>
-            <tr><td><strong>Grunnpris (bygg):</strong></td><td>${formatPrice(pricing.basePrice, pricing.currency)}</td></tr>
-            <tr><td><strong>Garasjeport:</strong></td><td>${formatPrice(pricing.adjustments[0]?.amount ?? 0, pricing.currency)}</td></tr>
+            <tr><td><strong>Grunnpris:</strong></td><td>${formatPrice(pricing.basePrice, pricing.currency)}</td></tr>
+            ${pricing.adjustments.map(adj => `<tr><td><strong>${esc(adj.label)}:</strong></td><td>${formatPrice(adj.amount, pricing.currency)}</td></tr>`).join("")}
             <tr><td><strong>Totalt:</strong></td><td><strong>${formatPrice(pricing.totalPrice, pricing.currency)}</strong></td></tr>
           </table>
           ${attachmentUrls.length > 0 ? `

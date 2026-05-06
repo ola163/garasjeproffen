@@ -15,12 +15,6 @@ const CARPORT_PRICE_PER_SQM: Record<PackageType, number> = {
 
 const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "NOK";
 
-// Door cost by width in mm
-const DOOR_COST: Record<number, number> = {
-  2500: 20_000,
-  2600: 20_000,
-  5000: 40_000,
-};
 
 export function calculatePrice(config: GarageConfiguration, packageType: PackageType = "materialpakke", roofType: RoofType = "flattak", buildingType: string = "garasje"): PricingResult {
   const lengthMm    =  config.parameters.length    ?? 6000;
