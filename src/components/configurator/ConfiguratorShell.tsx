@@ -307,7 +307,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               </svg>
               <div>
                 <p className="text-sm font-semibold text-gray-700">Logg inn for å bruke tomteplassering</p>
-                <p className="mt-1 text-xs text-gray-400">Plasser garasjen din på din tomt med satellittkart.</p>
+                <p className="mt-1 text-xs text-gray-400">Plasser {buildingType === "carport" ? "carporten" : "garasjen"} din på din tomt med satellittkart.</p>
               </div>
               <a href="/min-side" className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-medium text-white hover:bg-orange-600 transition-colors">
                 Logg inn / Registrer deg
@@ -435,7 +435,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
-              <span>Garasjer over 50 m² krever <strong>ansvarlig søker</strong>. Vi hjelper deg med dette.</span>
+              <span>{buildingType === "carport" ? "Carport" : "Garasjer"} over 50 m² krever <strong>ansvarlig søker</strong>. Vi hjelper deg med dette.</span>
             </div>
           )}
 
@@ -607,7 +607,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               <div className="mt-4 space-y-3">
                 {mapCenter ? (
                   <>
-                    <p className="text-xs text-green-700 font-medium">Garasjen er plassert på kartet.</p>
+                    <p className="text-xs text-green-700 font-medium">{buildingType === "carport" ? "Carporten" : "Garasjen"} er plassert på kartet.</p>
                     {viewMode === "kart" ? (
                       <button
                         onClick={() => { setViewMode("test"); setShowOnPlot(true); }}
@@ -635,7 +635,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     {viewMode !== "kart" && (
                       <>
                         <p className="text-xs text-gray-500">
-                          Søk etter din adresse for å plassere garasjen automatisk, og se den i 3D på tomten.
+                          Søk etter din adresse for å plassere {buildingType === "carport" ? "carporten" : "garasjen"} automatisk, og se den i 3D på tomten.
                         </p>
 
                         {/* Auto-detect position */}
@@ -704,7 +704,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
                     {viewMode === "kart" && (
                       <p className="text-xs text-gray-500 text-center">
-                        Klikk i kartet for å plassere garasjen. Skru på 3D for å se nabobygg.
+                        Klikk i kartet for å plassere {buildingType === "carport" ? "carporten" : "garasjen"}. Skru på 3D for å se nabobygg.
                       </p>
                     )}
                   </>
