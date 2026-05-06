@@ -121,6 +121,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [viewMode, setViewMode] = useState<"kunde" | "test" | "dev" | "kart">("test");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [previewAsUser, setPreviewAsUser] = useState(false);
+  const effectiveAdmin = isAdmin && !previewAsUser;
 
   // Shared map placement state — lifted so it persists across view mode switches
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
@@ -245,7 +247,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           >
             Tomteplassering
           </button>
-          {isAdmin && (
+          {effectiveAdmin && (
             <button
               onClick={() => setViewMode("dev")}
               className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
@@ -736,6 +738,19 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           {isAdmin && (
+            <button
+              onClick={() => setPreviewAsUser(v => !v)}
+              className={`mt-4 w-full rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                previewAsUser
+                  ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              }`}
+            >
+              {previewAsUser ? "← Tilbake til adminvisning" : "Forhåndsvis som bruker"}
+            </button>
+          )}
+
+          {effectiveAdmin && (
             <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
               <p className="font-semibold mb-2">Admin – prisstruktur</p>
               <table className="w-full mb-2">
