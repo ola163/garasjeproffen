@@ -138,7 +138,7 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row gap-6">
           {[
             { name: "Christian S. Årsland", role: "Daglig leder · Prosjektingeniør", img: "/Christian.png" },
-            { name: "Ola K. Undheim", role: "Teknisk sjef · Byggingeniør (master)", img: "/Ola.png" },
+            { name: "Ola K. Undheim", role: "Teknisk sjef · Byggingeniør", img: "/Ola.png" },
           ].map(({ name, role, img }) => (
             <div key={name} className="flex items-center gap-4 flex-1">
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-gray-100 bg-gray-50">
