@@ -518,7 +518,7 @@ export default function LocalGarageViewer({
         <CameraController focusSide={focusSide} lengthM={lengthM} widthM={widthM} />
 
         <GizmoHelper alignment="bottom-left" margin={[50, 50]}>
-          <GizmoViewport axisColors={["#e2520a", "#22c55e", "#2563eb"]} labelColor="#fff" axisHeadScale={0.6} hideNegativeAxes={false} />
+          <GizmoViewport axisColors={["#e2520a", "#22c55e", "#2563eb"]} labelColor="#fff" axisHeadScale={0.6} hideNegativeAxes={true} />
         </GizmoHelper>
       </Canvas>
     </div>
