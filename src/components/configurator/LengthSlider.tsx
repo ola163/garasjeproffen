@@ -49,12 +49,13 @@ export default function LengthSlider({
 
   const displayValue =
     unit === "mm" ? `${(localValue / 1000).toFixed(1)} m` : `${localValue} ${unit}`;
+  const isSnapped = unit === "mm" && localValue % 600 === 0;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-gray-700">{label}</label>
-        <span className="text-sm font-semibold text-[#e2520a]">{displayValue}</span>
+        <span className={`text-sm font-semibold ${isSnapped ? "text-green-600" : "text-[#e2520a]"}`}>{displayValue}</span>
       </div>
 
       <Slider.Root
