@@ -22,7 +22,6 @@ const BUILDING_TYPES = [
 ];
 
 const CATEGORIES = [
-  { id: "søknadshjelp", label: "Søknadshjelp" },
   { id: "materialpakke", label: "Materialpakke" },
   { id: "prefabelement", label: "Prefabelement" },
 ];
@@ -33,6 +32,7 @@ function defaultCategory(packageType: string) {
 }
 
 export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, open }: QuoteFormProps) {
+  const [step, setStep] = useState<"soknad" | "form">("soknad");
   const [buildingType, setBuildingType] = useState("garasje");
   const [category, setCategory] = useState(() => defaultCategory(packageType));
   const [name, setName] = useState("");
@@ -77,6 +77,38 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   }
 
   if (!open) return null;
+
+  if (step === "soknad") {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+          <p className="text-sm font-semibold text-gray-900">Trenger du hjelp med byggesøknaden?</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Vi kan ta hele søknadsprosessen for deg — tegninger, nabovarsel og innlevering til kommunen.
+          </p>
+          <a
+            href={soknadUrl}
+            className="mt-4 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700 hover:bg-orange-100 transition-colors"
+          >
+            <span>Ja, jeg trenger søknadshjelp</span>
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+          <button
+            type="button"
+            onClick={() => setStep("form")}
+            className="mt-2 flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <span>Nei, bare be om tilbud</span>
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (result?.success) {
     return (
@@ -157,14 +189,6 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
             </button>
           ))}
         </div>
-        {category === "søknadshjelp" && (
-          <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-            Vil du bruke søknadshjelp-assistenten vår?{" "}
-            <a href={soknadUrl} className="font-medium underline hover:text-blue-900">
-              Åpne søknadshjelp →
-            </a>
-          </div>
-        )}
       </div>
 
       {/* Customer info */}
