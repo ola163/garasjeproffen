@@ -744,41 +744,71 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             <PriceSummary pricing={pricing} onQuoteOpen={() => setQuoteOpen(true)} />
           </div>
 
-          {effectiveAdmin && (
-            <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
-              <p className="font-semibold mb-2">Admin – prisstruktur</p>
-              <table className="w-full mb-2">
-                <thead>
-                  <tr className="text-left text-blue-600">
-                    <th className="pr-2 font-medium">Type</th>
-                    <th className="pr-2 font-medium text-right">Materialpakke</th>
-                    <th className="font-medium text-right">Prefab</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-blue-100">
-                  <tr><td className="py-0.5 pr-2">Garasje saltak</td><td className="text-right pr-2">4 125 kr/m²</td><td className="text-right">7 700 kr/m²</td></tr>
-                  <tr><td className="py-0.5 pr-2">Garasje flatt tak</td><td className="text-right pr-2">3 850 kr/m²</td><td className="text-right">7 150 kr/m²</td></tr>
-                  <tr><td className="py-0.5 pr-2">Carport</td><td className="text-right pr-2">3 500 kr/m²</td><td className="text-right">6 500 kr/m²</td></tr>
-                </tbody>
-              </table>
-              <p className="font-medium mt-2 mb-1 text-blue-700">Arealtillegg</p>
-              <ul className="space-y-0.5">
-                <li>Over 70 m²: Manuelt tilbud</li>
-              </ul>
-              <p className="font-medium mt-2 mb-1 text-blue-700">Breddetillegg</p>
-              <ul className="space-y-0.5">
-                <li>Flatt tak / carport: over 5,0 m: +5 %</li>
-                <li>Saltak: over 6,2 m: +5 %</li>
-                <li>Over 7,2 m: +10 %</li>
-                <li>Over 8,0 m: Manuelt tilbud</li>
-              </ul>
-              <p className="font-medium mt-2 mb-1 text-blue-700">Snap-rabatt (kun garasje)</p>
-              <ul className="space-y-0.5">
-                <li>1 grønt mål: −5 %</li>
-                <li>2 grønne mål: −10 %</li>
-              </ul>
-            </div>
-          )}
+          {effectiveAdmin && (() => {
+            const sqm    = (lengthValue / 1000) * (widthValue / 1000);
+            const widthM = widthValue / 1000;
+            const isCarportType = buildingType === "carport";
+            const isFlat = roofType === "flattak" || isCarportType;
+
+            const activeRow = isCarportType ? "carport" : roofType === "saltak" ? "saltak" : "flattak";
+
+            const widthTier = widthM > 8.0 ? "manual" : widthM > 7.2 ? "high" : isFlat && widthM > 5.0 ? "low-flat" : !isFlat && widthM > 6.2 ? "low-saltak" : "none";
+
+            const widthSnapped  = !isCarportType && (widthValue - 200) % 600 === 0;
+            const lengthSnapped = !isCarportType && lengthValue % 600 === 0;
+            const snappedCount  = (widthSnapped ? 1 : 0) + (lengthSnapped ? 1 : 0);
+
+            const hi = "font-semibold text-green-700 bg-green-50 rounded px-1 -mx-1";
+            const row = (key: string) => key === activeRow ? "text-green-700 font-semibold" : "";
+
+            return (
+              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+                <p className="font-semibold mb-2">Admin – prisstruktur</p>
+                <table className="w-full mb-2">
+                  <thead>
+                    <tr className="text-left text-blue-600">
+                      <th className="pr-2 font-medium">Type</th>
+                      <th className="pr-2 font-medium text-right">Materialpakke</th>
+                      <th className="font-medium text-right">Prefab</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-blue-100">
+                    <tr className={row("saltak")}>
+                      <td className="py-0.5 pr-2">Garasje saltak</td>
+                      <td className={`text-right pr-2 ${activeRow === "saltak" && packageType === "materialpakke" ? "text-green-700 font-bold" : ""}`}>4 125 kr/m²</td>
+                      <td className={`text-right ${activeRow === "saltak" && packageType === "prefab" ? "text-green-700 font-bold" : ""}`}>7 700 kr/m²</td>
+                    </tr>
+                    <tr className={row("flattak")}>
+                      <td className="py-0.5 pr-2">Garasje flatt tak</td>
+                      <td className={`text-right pr-2 ${activeRow === "flattak" && packageType === "materialpakke" ? "text-green-700 font-bold" : ""}`}>3 850 kr/m²</td>
+                      <td className={`text-right ${activeRow === "flattak" && packageType === "prefab" ? "text-green-700 font-bold" : ""}`}>7 150 kr/m²</td>
+                    </tr>
+                    <tr className={row("carport")}>
+                      <td className="py-0.5 pr-2">Carport</td>
+                      <td className={`text-right pr-2 ${activeRow === "carport" && packageType === "materialpakke" ? "text-green-700 font-bold" : ""}`}>3 500 kr/m²</td>
+                      <td className={`text-right ${activeRow === "carport" && packageType === "prefab" ? "text-green-700 font-bold" : ""}`}>6 500 kr/m²</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="font-medium mt-2 mb-1 text-blue-700">Arealtillegg</p>
+                <ul className="space-y-0.5">
+                  <li className={sqm > 70 ? hi : ""}>Over 70 m²: Manuelt tilbud</li>
+                </ul>
+                <p className="font-medium mt-2 mb-1 text-blue-700">Breddetillegg</p>
+                <ul className="space-y-0.5">
+                  <li className={widthTier === "low-flat" ? hi : ""}>Flatt tak / carport: over 5,0 m: +5 %</li>
+                  <li className={widthTier === "low-saltak" ? hi : ""}>Saltak: over 6,2 m: +5 %</li>
+                  <li className={widthTier === "high" ? hi : ""}>Over 7,2 m: +10 %</li>
+                  <li className={widthTier === "manual" ? hi : ""}>Over 8,0 m: Manuelt tilbud</li>
+                </ul>
+                <p className="font-medium mt-2 mb-1 text-blue-700">Snap-rabatt (kun garasje)</p>
+                <ul className="space-y-0.5">
+                  <li className={snappedCount === 1 ? hi : ""}>1 grønt mål: −5 %</li>
+                  <li className={snappedCount === 2 ? hi : ""}>2 grønne mål: −10 %</li>
+                </ul>
+              </div>
+            );
+          })()}
 
           <div className="mt-8" ref={quoteRef}>
             <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} roofType={roofType} addedElements={addedElements} open={quoteOpen} />
