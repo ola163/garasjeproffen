@@ -28,21 +28,18 @@ export function calculatePrice(config: GarageConfiguration, packageType: Package
   const basePrice = Math.round((lengthMm / 1000) * (widthMm / 1000) * pricePerSqm);
 
   const isCarport     = buildingType === "carport";
-  const doorCost      = isCarport ? 0 : (DOOR_COST[doorWidthMm] ?? 20_000);
   const widthSnapped  = !isCarport && (widthMm - 200) % 600 === 0;
   const lengthSnapped = !isCarport && lengthMm % 600 === 0;
   const snapDiscount  = (widthSnapped || lengthSnapped) ? Math.round(basePrice * 0.10) : 0;
-  const discountLabel = "Standard mål (-10%)";
 
   const adjustments = [
-    ...(!isCarport ? [{ label: "Garasjeport", amount: doorCost }] : []),
-    ...(snapDiscount > 0 ? [{ label: discountLabel, amount: -snapDiscount }] : []),
+    ...(snapDiscount > 0 ? [{ label: "Standard mål (-10%)", amount: -snapDiscount }] : []),
   ];
 
   return {
     basePrice,
     adjustments,
-    totalPrice: basePrice + doorCost - snapDiscount,
+    totalPrice: basePrice - snapDiscount,
     currency: CURRENCY,
   };
 }
