@@ -45,7 +45,7 @@ export default function PriceSummary({ pricing, onQuoteOpen, adminContent }: Pri
               <span className={`${adj.amount < 0 ? "text-green-600" : "text-gray-900"}`}>{formatPrice(adj.amount, pricing.currency)}</span>
             </div>
             {adj.label.startsWith("Bredde over") && (
-              <p className="mt-1 text-xs text-gray-400 italic">Større spenn krever kraftigere bjelker og dimensjonering.</p>
+              <p className="mt-0.5 text-xs text-gray-400">– Større spenn krever kraftigere bjelker og dimensjonering.</p>
             )}
           </div>
         ))}
