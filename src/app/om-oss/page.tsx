@@ -129,7 +129,7 @@ export default function OmOss() {
       {/* Collaboration */}
       <section className="mb-14">
         <h2 className="text-xl font-semibold text-gray-900">
-          Slik samarbeider vi
+          En trygg og ryddig prosess
         </h2>
         <p className="mt-3 leading-relaxed text-gray-600">
           Vi tror på åpenhet og tett dialog gjennom hele prosessen. Kunden får
@@ -144,11 +144,28 @@ export default function OmOss() {
       <section className="mb-14">
         <h2 className="text-xl font-semibold text-gray-900">Vår visjon</h2>
         <p className="mt-3 leading-relaxed text-gray-600">
-          Vi ønsker å være det naturlige førstevalget for alle som skal bygge
-          garasje på Sør-Vestlandet. På sikt vil vi utvide sortimentet med
-          carporter, uthus og næringsbygg – alltid med samme filosofi: god
-          kvalitet, ærlig pris og smidig prosess.
+          Vi ønsker å være det naturlige førstevalget for alle som skal bygge garasje eller carport. På sikt vil vi utvide sortimentet ytterligere med blant annet uthus og mindre næringsbygg – alltid med samme filosofi: god kvalitet, ærlig pris og en smidig prosess.
         </p>
+      </section>
+
+      {/* CTA */}
+      <section className="mb-14 rounded-xl bg-orange-500 px-8 py-10 text-center">
+        <h2 className="text-xl font-bold text-white">Klar til å starte?</h2>
+        <p className="mt-2 text-sm text-orange-100">Design garasjen din i 3D og få et prisestimat med én gang.</p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <a
+            href="/garasje"
+            className="rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-orange-600 hover:bg-orange-50 transition-colors"
+          >
+            Start garasjedesign →
+          </a>
+          <a
+            href="/kontakt"
+            className="rounded-full border border-white/40 px-6 py-2.5 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
+          >
+            Ta kontakt
+          </a>
+        </div>
       </section>
 
       {/* Location */}
