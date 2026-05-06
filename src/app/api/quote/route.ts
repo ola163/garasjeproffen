@@ -85,9 +85,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Idempotency: return existing ticket if same email submitted within last 2 minutes
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    // Idempotency: return existing ticket if same email submitted within last 2 minutes
     if (sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey);
       const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
@@ -128,11 +129,8 @@ export async function POST(request: Request) {
 
     const quoteId = `Q-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
-    // Get ticket number via RPC (works with anon key — function is granted to anon)
-    // then insert explicitly so the same number is used in DB and emails
+    // Get ticket number via RPC, then insert so the same number is used in DB and emails
     let ticketNumber: string = quoteId;
-    const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey);
       const { data: ticketData } = await sb.rpc("next_ticket_number");

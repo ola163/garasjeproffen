@@ -166,7 +166,7 @@ export default function QuoteDetailPage() {
   const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
   const [pendingHref, setPendingHref] = useState("");
   const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ success: boolean; message: string; paymentUrl?: string } | null>(null);
+  const [sendResult, setSendResult] = useState<{ success: boolean; message: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [claimOpen, setClaimOpen] = useState(false);
   const [approvalOpen, setApprovalOpen] = useState(false);
@@ -944,7 +944,6 @@ export default function QuoteDetailPage() {
         setSendResult({
           success: true,
           message: `Tilbud sendt til ${quote.customer_email}!`,
-          paymentUrl: data.paymentUrl,
         });
       } else {
         setSendResult({ success: false, message: data.error ?? "Noe gikk galt." });
@@ -1873,12 +1872,6 @@ export default function QuoteDetailPage() {
               {sendResult && (
                 <div className={`mb-3 rounded-lg border p-3 text-sm ${sendResult.success ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}`}>
                   <p>{sendResult.message}</p>
-                  {sendResult.paymentUrl && (
-                    <a href={sendResult.paymentUrl} target="_blank" rel="noopener noreferrer"
-                      className="mt-1 block text-xs underline text-green-700">
-                      Betalingslenke: {sendResult.paymentUrl}
-                    </a>
-                  )}
                 </div>
               )}
 
