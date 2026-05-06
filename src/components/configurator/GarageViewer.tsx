@@ -390,8 +390,8 @@ export default function GarageViewer({ lengthMm, widthMm, roofType, addedElement
           maxDistance={30}
         />
 
-        <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
-          <GizmoViewport axisColors={["#e2520a", "#22c55e", "#2563eb"]} labelColor="#fff" />
+        <GizmoHelper alignment="bottom-left" margin={[50, 50]}>
+          <GizmoViewport axisColors={["#e2520a", "#22c55e", "#2563eb"]} labelColor="#fff" axisHeadScale={0.6} hideNegativeAxes={false} />
         </GizmoHelper>
       </Canvas>
     </div>
