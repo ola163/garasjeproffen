@@ -43,7 +43,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     urlLength >= lengthParam.min! && urlLength <= lengthParam.max! ? urlLength : lengthParam.defaultValue
   );
   const [widthValue, setWidthValue] = useState(
-    urlWidth >= widthParam.min! && urlWidth <= widthParam.max! ? urlWidth : widthParam.defaultValue
+    urlWidth >= widthParam.min! && urlWidth <= widthParam.max! ? urlWidth
+    : buildingType === "carport" ? 6800
+    : widthParam.defaultValue
   );
   const [doorWidthValue,  setDoorWidthValue]   = useState(doorWidthParam.defaultValue);
   const [doorHeightValue, setDoorHeightValue]  = useState(doorHeightParam.defaultValue);
@@ -417,16 +419,18 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               unit={lengthParam.unit}
               onChange={setLengthValue}
             />
-            <LengthSlider
-              label={buildingType === "carport" ? "Endre bredde carport" : widthParam.label}
-              value={widthValue}
-              min={widthParam.min!}
-              max={widthParam.max!}
-              step={widthParam.step!}
-              unit={widthParam.unit}
-              onChange={setWidthValue}
-              snapOffset={200}
-            />
+            {buildingType !== "carport" && (
+              <LengthSlider
+                label={widthParam.label}
+                value={widthValue}
+                min={widthParam.min!}
+                max={widthParam.max!}
+                step={widthParam.step!}
+                unit={widthParam.unit}
+                onChange={setWidthValue}
+                snapOffset={200}
+              />
+            )}
           </div>
 
           {/* 50 m² warning */}
