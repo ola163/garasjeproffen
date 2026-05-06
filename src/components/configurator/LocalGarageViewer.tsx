@@ -3,7 +3,7 @@
 import { useMemo, Suspense, useEffect, useRef } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitControls, useGLTF } from "@react-three/drei";
+import { OrbitControls, useGLTF, Line, Text } from "@react-three/drei";
 import type { AddedElement, WallSide, ElementCategory } from "./DoorWindowAdder";
 
 useGLTF.preload("/Vindu_100x50glb.glb");
@@ -435,6 +435,32 @@ function CameraController({ focusSide, lengthM, widthM }: {
   );
 }
 
+// ── Dimension lines ───────────────────────────────────────────────────────────
+function DimensionLines({ lengthM, widthM }: { lengthM: number; widthM: number }) {
+  const halfW = widthM  / 2;
+  const halfL = lengthM / 2;
+  const y     = -0.05;
+  const gap   = 0.55;
+
+  const widthPts:  [number, number, number][] = [[-halfW, y, halfL + gap], [halfW, y, halfL + gap]];
+  const lengthPts: [number, number, number][] = [[halfW + gap, y, -halfL], [halfW + gap, y,  halfL]];
+
+  return (
+    <>
+      {/* Width (X) */}
+      <Line points={widthPts}  color="#e2520a" lineWidth={1.5} />
+      <Text position={[0, y + 0.15, halfL + gap]} fontSize={0.22} color="#e2520a" anchorX="center" anchorY="bottom" outlineWidth={0.02} outlineColor="#fff">
+        {`${widthM.toFixed(1)} m`}
+      </Text>
+      {/* Length (Z) */}
+      <Line points={lengthPts} color="#2563eb" lineWidth={1.5} />
+      <Text position={[halfW + gap, y + 0.15, 0]} fontSize={0.22} color="#2563eb" anchorX="center" anchorY="bottom" outlineWidth={0.02} outlineColor="#fff">
+        {`${lengthM.toFixed(1)} m`}
+      </Text>
+    </>
+  );
+}
+
 // ── Viewer ───────────────────────────────────────────────────────────────────
 export default function LocalGarageViewer({
   lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType = "saltak",
@@ -474,6 +500,9 @@ export default function LocalGarageViewer({
             </>
           )}
         </Suspense>
+
+        {/* Dimension lines */}
+        <DimensionLines lengthM={lengthM} widthM={widthM} />
 
         <CameraController focusSide={focusSide} lengthM={lengthM} widthM={widthM} />
       </Canvas>
