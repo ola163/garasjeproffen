@@ -30,10 +30,13 @@ export function calculatePrice(config: GarageConfiguration, packageType: Package
   const isCarport     = buildingType === "carport";
   const widthSnapped  = !isCarport && (widthMm - 200) % 600 === 0;
   const lengthSnapped = !isCarport && lengthMm % 600 === 0;
-  const snapDiscount  = (widthSnapped || lengthSnapped) ? Math.round(basePrice * 0.10) : 0;
+  const snappedCount  = (widthSnapped ? 1 : 0) + (lengthSnapped ? 1 : 0);
+  const discountRate  = snappedCount === 2 ? 0.10 : snappedCount === 1 ? 0.05 : 0;
+  const snapDiscount  = Math.round(basePrice * discountRate);
+  const discountLabel = `Standard mål (-${discountRate * 100}%)`;
 
   const adjustments = [
-    ...(snapDiscount > 0 ? [{ label: "Standard mål (-10%)", amount: -snapDiscount }] : []),
+    ...(snapDiscount > 0 ? [{ label: discountLabel, amount: -snapDiscount }] : []),
   ];
 
   return {
