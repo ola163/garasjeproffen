@@ -26,17 +26,17 @@ export function calculatePrice(config: GarageConfiguration, packageType: Package
 
   const pricePerSqm = roofType === "flattak" ? FLATTAK_PRICE_PER_SQM : PRICE_PER_SQM[packageType];
   const basePrice = Math.round((lengthMm / 1000) * (widthMm / 1000) * pricePerSqm);
-  const doorCost  = DOOR_COST[doorWidthMm] ?? 20_000;
 
-  const isCarport     = buildingType === "carport";
-  const widthSnapped  = !isCarport && (widthMm - 200) % 600 === 0;
+  const isCarport    = buildingType === "carport";
+  const doorCost     = isCarport ? 0 : (DOOR_COST[doorWidthMm] ?? 20_000);
+  const widthSnapped = !isCarport && (widthMm - 200) % 600 === 0;
   const lengthSnapped = lengthMm % 600 === 0;
   const discountRate  = isCarport ? 0.03 : 0.10;
   const snapDiscount  = (widthSnapped || lengthSnapped) ? Math.round(basePrice * discountRate) : 0;
   const discountLabel = isCarport ? "Standard mål (-3%)" : "Standard mål (-10%)";
 
   const adjustments = [
-    { label: "Garasjeport", amount: doorCost },
+    ...(!isCarport ? [{ label: "Garasjeport", amount: doorCost }] : []),
     ...(snapDiscount > 0 ? [{ label: discountLabel, amount: -snapDiscount }] : []),
   ];
 
