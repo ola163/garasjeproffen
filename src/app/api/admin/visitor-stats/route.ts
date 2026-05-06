@@ -184,7 +184,7 @@ export async function GET() {
   for (let i = 0; i < publicIps.length; i += 100) {
     const chunk = publicIps.slice(i, i + 100);
     try {
-      const res = await fetch("http://ip-api.com/batch?fields=query,status,country,countryCode,regionName,city,hosting", {
+      const res = await fetch("https://ip-api.com/batch?fields=query,status,country,countryCode,regionName,city,hosting", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(chunk.map((q) => ({ query: q }))),
