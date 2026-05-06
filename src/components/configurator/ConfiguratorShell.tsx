@@ -769,8 +769,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               </table>
               <p className="font-medium mt-2 mb-1 text-blue-700">Arealtillegg</p>
               <ul className="space-y-0.5">
-                <li>40–55 m²: +5 %</li>
-                <li>55–70 m²: +10 %</li>
                 <li>Over 70 m²: Manuelt tilbud</li>
               </ul>
               <p className="font-medium mt-2 mb-1 text-blue-700">Breddetillegg (alle typer)</p>
