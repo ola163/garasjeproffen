@@ -6,9 +6,10 @@ import { formatPrice } from "@/lib/pricing";
 interface PriceSummaryProps {
   pricing: PricingResult;
   onQuoteOpen: () => void;
+  adminContent?: React.ReactNode;
 }
 
-export default function PriceSummary({ pricing, onQuoteOpen }: PriceSummaryProps) {
+export default function PriceSummary({ pricing, onQuoteOpen, adminContent }: PriceSummaryProps) {
   if (pricing.manualQuote) {
     return (
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -16,6 +17,7 @@ export default function PriceSummary({ pricing, onQuoteOpen }: PriceSummaryProps
         <p className="mt-3 text-sm text-gray-500">
           Dimensjonene du har valgt krever et <strong className="text-gray-800">manuelt tilbud</strong>. Send en forespørsel så kontakter vi deg.
         </p>
+        {adminContent && <div className="mt-3">{adminContent}</div>}
         <button
           onClick={onQuoteOpen}
           className="mt-4 block w-full rounded-lg bg-orange-500 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-orange-600"
@@ -54,6 +56,8 @@ export default function PriceSummary({ pricing, onQuoteOpen }: PriceSummaryProps
       </div>
 
       <p className="mt-2 text-xs text-gray-400">* Estimert pris. Endelig tilbud kan variere.</p>
+
+      {adminContent && <div className="mt-3">{adminContent}</div>}
 
       <button
         onClick={onQuoteOpen}
