@@ -12,14 +12,6 @@ const SECTION_LABELS: Record<string, string> = {
   grunnarbeid: "Grunnarbeid og støping",
 };
 
-function toOre(nok: number) {
-  return Math.round(nok * 100);
-}
-
-function taxAmount(nok: number) {
-  return Math.round(toOre(nok) * 0.2);
-}
-
 function formatNOK(n: number) {
   return new Intl.NumberFormat("nb-NO", { style: "currency", currency: "NOK", maximumFractionDigits: 0 }).format(n);
 }
@@ -93,59 +85,6 @@ export async function POST(request: Request) {
       if ((hasPrefa || hasMatpak) && s.category === "søknadshjelp") return [];
       return getEffectiveItems(s, offerSections);
     });
-
-    // ── Klarna Checkout ──
-    const klarnaUser = process.env.KLARNA_API_USERNAME;
-    const klarnaPass = process.env.KLARNA_API_PASSWORD;
-    const klarnaBase = process.env.KLARNA_API_URL ?? "https://api.playground.klarna.com";
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.garasjeproffen.no";
-
-    let klarnaOrderId: string | null = null;
-    let paymentUrl: string | null = null;
-
-    if (klarnaUser && klarnaPass) {
-      const auth = Buffer.from(`${klarnaUser}:${klarnaPass}`).toString("base64");
-      const orderLines = allLineItems.map((item) => ({
-        type: "physical",
-        name: item.description,
-        quantity: item.quantity,
-        unit_price: toOre(item.amount),
-        tax_rate: 2500,
-        total_amount: toOre(item.amount * item.quantity),
-        total_tax_amount: taxAmount(item.amount * item.quantity),
-      }));
-      const totalOre = toOre(grandTotal);
-      const totalTaxOre = orderLines.reduce((s, l) => s + l.total_tax_amount, 0);
-
-      const klarnaRes = await fetch(`${klarnaBase}/checkout/v3/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
-        body: JSON.stringify({
-          purchase_country: "NO",
-          purchase_currency: "NOK",
-          locale: "nb-NO",
-          order_amount: totalOre,
-          order_tax_amount: totalTaxOre,
-          order_lines: orderLines,
-          merchant_urls: {
-            terms: `${siteUrl}/vilkar`,
-            checkout: `${siteUrl}/betaling/{checkout.order.id}`,
-            confirmation: `${siteUrl}/betaling/{checkout.order.id}/bekreftelse`,
-            push: `${siteUrl}/api/klarna/push?sid={checkout.order.id}`,
-          },
-          billing_address: { email: customerEmail },
-          merchant_reference1: ticketNumber,
-        }),
-      });
-
-      const klarnaData = await klarnaRes.json();
-      if (klarnaData.order_id) {
-        klarnaOrderId = klarnaData.order_id;
-        paymentUrl = `${siteUrl}/betaling/${klarnaData.order_id}`;
-      } else {
-        console.error("Klarna error:", JSON.stringify(klarnaData));
-      }
-    }
 
     // ── Fetch GP catalog categories for varenr lookup ──
     const allVarenrs = [...new Set(offerSections.flatMap(s => s.line_items.map(i => i.varenr).filter((v): v is string => !!v)))];
@@ -280,14 +219,7 @@ export async function POST(request: Request) {
 
     const sectionsHtml = materialsHtml + serviceBlocksHtml;
 
-    const paymentSection = paymentUrl
-      ? `<p style="margin-top:28px">
-          <a href="${paymentUrl}" style="display:inline-block;background:#e2520a;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px">
-            Betal med Klarna
-          </a>
-         </p>
-         <p style="color:#6b7280;font-size:13px;margin-top:8px">Lenken er gyldig i 14 dager.</p>`
-      : `<p style="margin-top:20px;color:#374151">Ta kontakt med oss for å gjennomføre betalingen: <a href="mailto:post@garasjeproffen.no">post@garasjeproffen.no</a></p>`;
+    const paymentSection = `<p style="margin-top:20px;color:#374151">Ta kontakt med oss for å gjennomføre betalingen: <a href="mailto:post@garasjeproffen.no">post@garasjeproffen.no</a></p>`;
 
     const emailHtml = `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
@@ -338,12 +270,11 @@ export async function POST(request: Request) {
       offer_line_items: allLineItems,
       offer_total: grandTotal,
       offer_notes: offerSections.map(s => s.notes).filter(Boolean).join("\n\n") || null,
-      klarna_order_id: klarnaOrderId,
       status: "offer_sent",
       offer_sent_at: new Date().toISOString(),
     }).eq("id", quoteId);
 
-    return NextResponse.json({ success: true, klarnaOrderId, paymentUrl, offerTotal: grandTotal });
+    return NextResponse.json({ success: true, offerTotal: grandTotal });
   } catch (err) {
     console.error("send-offer error:", err);
     return NextResponse.json({ success: false, error: "Noe gikk galt" }, { status: 500 });

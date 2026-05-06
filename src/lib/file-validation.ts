@@ -36,8 +36,20 @@ export async function validateFile(
     return { valid: false, reason: `Filtypen ".${ext}" er ikke tillatt.` };
   }
 
-  // DWG/DXF — no reliable magic bytes, trust extension
-  if (ext === "dwg" || ext === "dxf") {
+  // DWG: magic bytes start with "AC" (AutoCAD format marker)
+  if (ext === "dwg") {
+    if (buffer[0] !== 0x41 || buffer[1] !== 0x43) {
+      return { valid: false, reason: `Filen "${filename}" ser ikke ut som en gyldig DWG-fil.` };
+    }
+    return { valid: true };
+  }
+
+  // DXF: ASCII/UTF-8 text format — reject if null bytes found in first 512 bytes
+  if (ext === "dxf") {
+    const sample = buffer.slice(0, Math.min(512, buffer.length));
+    if (sample.includes(0x00)) {
+      return { valid: false, reason: `Filen "${filename}" ser ikke ut som en gyldig DXF-fil.` };
+    }
     return { valid: true };
   }
 

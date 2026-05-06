@@ -85,6 +85,23 @@ export async function POST(request: Request) {
       );
     }
 
+    // Idempotency: return existing ticket if same email submitted within last 2 minutes
+    const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (sbUrl && sbKey) {
+      const sb = createClient(sbUrl, sbKey);
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      const { data: recent } = await sb.from("quotes")
+        .select("ticket_number")
+        .eq("customer_email", body.customer.email.toLowerCase())
+        .gte("created_at", twoMinutesAgo)
+        .limit(1)
+        .maybeSingle();
+      if (recent) {
+        return NextResponse.json<QuoteResponse>({ success: true, quoteId: recent.ticket_number });
+      }
+    }
+
     // Validate parameters are within bounds
     for (const param of GARAGE_PARAMETERS) {
       const value = body.configuration?.parameters?.[param.id];
@@ -186,7 +203,7 @@ export async function POST(request: Request) {
 
     if (!resendKey) {
       return NextResponse.json<QuoteResponse>(
-        { success: false, error: "Konfigurasjonsfeil: RESEND_API_KEY mangler. Kontakt oss på post@garasjeproffen.no" },
+        { success: false, error: "Noe gikk galt med sending av e-post. Ta kontakt på post@garasjeproffen.no" },
         { status: 500 }
       );
     }
