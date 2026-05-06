@@ -54,7 +54,7 @@ export function calculatePrice(config: GarageConfiguration, packageType: Package
   const lowerLabel = roofType === "flattak" ? "5,0" : "6,2";
   const adjustments = [
     ...(snapDiscount > 0       ? [{ label: `Standard mål (-${discountRate * 100}%)`, amount: -snapDiscount }] : []),
-    ...(widthSurchargeRate > 0 ? [{ label: `Bredde over ${widthM > 7.2 ? "7,2" : lowerLabel} m (+${widthSurchargeRate * 100}%)`, amount: widthAdj }] : []),
+    ...(widthSurchargeRate > 0 ? [{ label: `Bredde over ${widthM > 7.2 ? "7,2" : lowerLabel} m`, amount: widthAdj }] : []),
   ];
 
   return {
