@@ -149,20 +149,6 @@ export default function Header() {
             </button>
           )}
 
-          {isAdmin && (
-            <button
-              onClick={togglePreview}
-              title={previewAsUser ? "Tilbake til adminvisning" : "Forhåndsvis som bruker"}
-              className={`hidden sm:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                previewAsUser
-                  ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-              }`}
-            >
-              {previewAsUser ? "← Admin" : "Forhåndsvis som bruker"}
-            </button>
-          )}
-
           {/* Kom i gang dropdown – desktop */}
           <div ref={ctaRef} className="relative hidden sm:block">
             <button
@@ -192,6 +178,20 @@ export default function Header() {
               </div>
             )}
           </div>
+
+          {isAdmin && (
+            <button
+              onClick={togglePreview}
+              title={previewAsUser ? "Tilbake til adminvisning" : "Forhåndsvis som bruker"}
+              className={`hidden sm:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                previewAsUser
+                  ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              }`}
+            >
+              {previewAsUser ? "← Admin" : "Forhåndsvis som bruker"}
+            </button>
+          )}
 
           {/* Hamburger – mobile only */}
           <button
