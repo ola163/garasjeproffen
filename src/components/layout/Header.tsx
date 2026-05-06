@@ -74,7 +74,7 @@ export default function Header() {
   ];
 
   return (
-    <header className="border-b border-gray-200 bg-white">
+    <header className="relative border-b border-gray-200 bg-white">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-24 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
           <Image
@@ -179,20 +179,6 @@ export default function Header() {
             )}
           </div>
 
-          {isAdmin && (
-            <button
-              onClick={togglePreview}
-              title={previewAsUser ? "Tilbake til adminvisning" : "Forhåndsvis som bruker"}
-              className={`hidden sm:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                previewAsUser
-                  ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-              }`}
-            >
-              {previewAsUser ? "← Admin" : "Forhåndsvis som bruker"}
-            </button>
-          )}
-
           {/* Hamburger – mobile only */}
           <button
             onClick={() => setMobileOpen((v) => !v)}
@@ -211,6 +197,20 @@ export default function Header() {
           </button>
         </nav>
       </div>
+
+      {isAdmin && (
+        <button
+          onClick={togglePreview}
+          title={previewAsUser ? "Tilbake til adminvisning" : "Forhåndsvis som bruker"}
+          className={`absolute right-4 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+            previewAsUser
+              ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+              : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+          }`}
+        >
+          {previewAsUser ? "← Admin" : "Forhåndsvis som bruker"}
+        </button>
+      )}
 
       {/* Mobile menu */}
       {mobileOpen && (
