@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useMemo, Suspense, Component, type ReactNode } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback, Suspense, Component, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import { OrbitControls, Environment, Grid, useGLTF, Line, Text } from "@react-three/drei";
@@ -70,11 +70,12 @@ function WindowGLB({ position, rotY }: { position: [number, number, number]; rot
   );
 }
 
-function GarageWindowElements({ elements, lengthM, widthM }: {
+function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWOverride }: {
   elements: AddedElement[]; lengthM: number; widthM: number;
+  halfLOverride?: number; halfWOverride?: number;
 }) {
-  const halfL = lengthM / 2;
-  const halfW = widthM  / 2;
+  const halfL = halfLOverride ?? lengthM / 2;
+  const halfW = halfWOverride ?? widthM  / 2;
   const matWindow = useMemo(() => new THREE.MeshStandardMaterial({ color: WINDOW_COLOR, roughness: 0.05, metalness: 0.3 }), []);
   const matDoorEl = useMemo(() => new THREE.MeshStandardMaterial({ color: DOOR_EL_COLOR, roughness: 0.6 }), []);
   const matFrame  = useMemo(() => new THREE.MeshStandardMaterial({ color: FRAME_COLOR,   roughness: 0.5 }), []);
@@ -192,7 +193,10 @@ function DimensionLine({
   );
 }
 
-function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg }: { lengthMm: number; widthMm: number; roofType?: string; buildingType?: string; rotationDeg?: number }) {
+function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, onWallFaces }: {
+  lengthMm: number; widthMm: number; roofType?: string; buildingType?: string; rotationDeg?: number;
+  onWallFaces?: (halfL: number, halfW: number) => void;
+}) {
   const modelUrl = buildingType === "carport"
     ? "/Carport_GLB.glb"
     : roofType === "flattak" ? "/garasje_flatt_tak.glb" : "/garasje_saltak.glb";
@@ -223,8 +227,30 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg }:
     const center   = finalBox.getCenter(new Vector3());
     scene.position.set(-center.x, -finalBox.min.y, -center.z);
     scene.rotation.y = ((rotationDeg ?? 0) * Math.PI) / 180;
+    scene.updateMatrixWorld(true);
 
     boxRef.current = new Box3().setFromObject(scene);
+
+    // Scan vertex positions below 65 % of model height to find actual wall
+    // footprint, excluding roof eave/gable overhangs which live above that threshold.
+    if (onWallFaces) {
+      const yThresh = (boxRef.current.max.y ?? WALL_H) * 0.65;
+      let maxAbsX = 0, maxAbsZ = 0;
+      const _v = new THREE.Vector3();
+      scene.traverse((child) => {
+        const mesh = child as Mesh;
+        if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+        const pos = mesh.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          _v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+          if (_v.y < yThresh) {
+            if (Math.abs(_v.x) > maxAbsX) maxAbsX = Math.abs(_v.x);
+            if (Math.abs(_v.z) > maxAbsZ) maxAbsZ = Math.abs(_v.z);
+          }
+        }
+      });
+      if (maxAbsX > 0.1 && maxAbsZ > 0.1) onWallFaces(maxAbsZ, maxAbsX);
+    }
 
     scene.traverse((child) => {
       if (child instanceof Mesh) {
@@ -239,6 +265,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg }:
         });
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, lengthMm, widthMm, rotationDeg]);
 
   const W = widthMm  / 1000;
@@ -292,6 +319,20 @@ class GltfErrorBoundary extends Component<
 export default function GarageViewer({ lengthMm, widthMm, roofType, addedElements = [], buildingType, rotationDeg }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
 
+  const [wallHalfL, setWallHalfL] = useState<number | null>(null);
+  const [wallHalfW, setWallHalfW] = useState<number | null>(null);
+
+  // Reset wall faces when the model type changes so old values don't linger
+  useEffect(() => {
+    setWallHalfL(null);
+    setWallHalfW(null);
+  }, [roofType, buildingType]);
+
+  const handleWallFaces = useCallback((halfL: number, halfW: number) => {
+    setWallHalfL(halfL);
+    setWallHalfW(halfW);
+  }, []);
+
   return (
     <div className="relative h-full w-full">
       <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 w-[90%] max-w-sm rounded-lg bg-yellow-400/90 px-3 py-2 text-center text-xs font-medium text-yellow-900 shadow backdrop-blur-sm">
@@ -308,10 +349,20 @@ export default function GarageViewer({ lengthMm, widthMm, roofType, addedElement
 
         <GltfErrorBoundary onError={(msg) => console.error("3D-feil:", msg)}>
           <Suspense fallback={null}>
-            <GarageModel key={`${buildingType ?? "garasje"}-${roofType ?? "saltak"}`} lengthMm={lengthMm} widthMm={widthMm} roofType={roofType} buildingType={buildingType} rotationDeg={rotationDeg} />
+            <GarageModel
+              key={`${buildingType ?? "garasje"}-${roofType ?? "saltak"}`}
+              lengthMm={lengthMm} widthMm={widthMm} roofType={roofType}
+              buildingType={buildingType} rotationDeg={rotationDeg}
+              onWallFaces={handleWallFaces}
+            />
           </Suspense>
         </GltfErrorBoundary>
-        <GarageWindowElements elements={addedElements} lengthM={lengthMm / 1000} widthM={widthMm / 1000} />
+        <GarageWindowElements
+          elements={addedElements}
+          lengthM={lengthMm / 1000} widthM={widthMm / 1000}
+          halfLOverride={wallHalfL ?? undefined}
+          halfWOverride={wallHalfW ?? undefined}
+        />
 
         <Grid
           position={[0, -0.02, 0]}
