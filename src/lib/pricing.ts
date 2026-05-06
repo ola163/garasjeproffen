@@ -8,6 +8,11 @@ const PRICE_PER_SQM: Record<RoofType, Record<PackageType, number>> = {
   flattak: { materialpakke: 3850, prefab: 7150 },
 };
 
+const CARPORT_PRICE_PER_SQM: Record<PackageType, number> = {
+  materialpakke: 3500,
+  prefab: 6500,
+};
+
 const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "NOK";
 
 // Door cost by width in mm
@@ -22,10 +27,9 @@ export function calculatePrice(config: GarageConfiguration, packageType: Package
   const widthMm     =  config.parameters.width     ?? 8400;
   const doorWidthMm =  config.parameters.doorWidth ?? 2500;
 
-  const pricePerSqm = PRICE_PER_SQM[roofType][packageType];
-  const basePrice = Math.round((lengthMm / 1000) * (widthMm / 1000) * pricePerSqm);
-
-  const isCarport     = buildingType === "carport";
+  const isCarport   = buildingType === "carport";
+  const pricePerSqm = isCarport ? CARPORT_PRICE_PER_SQM[packageType] : PRICE_PER_SQM[roofType][packageType];
+  const basePrice   = Math.round((lengthMm / 1000) * (widthMm / 1000) * pricePerSqm);
   const widthSnapped  = !isCarport && (widthMm - 200) % 600 === 0;
   const lengthSnapped = !isCarport && lengthMm % 600 === 0;
   const snappedCount  = (widthSnapped ? 1 : 0) + (lengthSnapped ? 1 : 0);
