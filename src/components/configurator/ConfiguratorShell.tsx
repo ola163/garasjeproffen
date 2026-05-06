@@ -430,6 +430,13 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             />
           </div>
 
+          {buildingType !== "carport" && (
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+              Grønt mål = standard 60 cm-intervall – 10% rimeligere
+            </p>
+          )}
+
           {/* 50 m² warning */}
           {(lengthValue / 1000) * (widthValue / 1000) > 50 && (
             <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
