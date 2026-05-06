@@ -141,9 +141,13 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     if (viewMode === "test" && mapCenter) setShowOnPlot(true);
   }, [viewMode, mapCenter]);
 
-  // Auto-open placement section when switching to kart mode
+  // Auto-open placement section and detect position when switching to kart mode
   useEffect(() => {
-    if (viewMode === "kart") setPlacementOpen(true);
+    if (viewMode === "kart") {
+      setPlacementOpen(true);
+      if (!mapCenter) detectPosition();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
 
   function pickAddress(placeName: string, center: [number, number]) {
@@ -225,7 +229,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       </div>
     <div className="flex flex-col sm:flex-row sm:h-[calc(100vh-11rem)]">
       {/* 3D Viewer */}
-      <div className="relative h-[60vw] min-h-[240px] sm:h-auto sm:flex-1 bg-stone-100">
+      <div className={`relative sm:h-auto sm:flex-1 bg-stone-100 ${viewMode === "kart" ? "h-[80vw] min-h-[320px]" : "h-[60vw] min-h-[240px]"}`}>
 
         {/* Toggle */}
         <div className="absolute top-2 left-2 z-10 flex rounded-md bg-black/20 p-0.5 backdrop-blur-sm">
