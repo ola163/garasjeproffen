@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 const STORAGE_KEY = "gd-dismissed";
+const PREVIEW_KEY = "gp-preview-user";
 
 export default function Header() {
   const pathname = usePathname();
@@ -12,14 +13,29 @@ export default function Header() {
   const [gdDismissed, setGdDismissed] = useState(false);
   const [ctaOpen, setCtaOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [previewAsUser, setPreviewAsUser] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setGdDismissed(localStorage.getItem(STORAGE_KEY) === "1");
+    setPreviewAsUser(localStorage.getItem(PREVIEW_KEY) === "1");
     function onVisibility() { setGdDismissed(localStorage.getItem(STORAGE_KEY) === "1"); }
+    function onPreview() { setPreviewAsUser(localStorage.getItem(PREVIEW_KEY) === "1"); }
     window.addEventListener("gd-visibility", onVisibility);
-    return () => window.removeEventListener("gd-visibility", onVisibility);
+    window.addEventListener("gp-preview-user", onPreview);
+    return () => {
+      window.removeEventListener("gd-visibility", onVisibility);
+      window.removeEventListener("gp-preview-user", onPreview);
+    };
   }, []);
+
+  function togglePreview() {
+    const next = !previewAsUser;
+    if (next) localStorage.setItem(PREVIEW_KEY, "1");
+    else localStorage.removeItem(PREVIEW_KEY);
+    setPreviewAsUser(next);
+    window.dispatchEvent(new Event("gp-preview-user"));
+  }
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => setIsAdmin(!!d.isAdmin));
@@ -130,6 +146,20 @@ export default function Header() {
               <svg className="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={togglePreview}
+              title={previewAsUser ? "Tilbake til adminvisning" : "Forhåndsvis som bruker"}
+              className={`hidden sm:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                previewAsUser
+                  ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              }`}
+            >
+              {previewAsUser ? "← Admin" : "Forhåndsvis som bruker"}
             </button>
           )}
 

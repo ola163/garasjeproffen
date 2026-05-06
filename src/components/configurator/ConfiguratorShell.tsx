@@ -124,6 +124,13 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [previewAsUser, setPreviewAsUser] = useState(false);
   const effectiveAdmin = isAdmin && !previewAsUser;
 
+  useEffect(() => {
+    setPreviewAsUser(localStorage.getItem("gp-preview-user") === "1");
+    function onPreview() { setPreviewAsUser(localStorage.getItem("gp-preview-user") === "1"); }
+    window.addEventListener("gp-preview-user", onPreview);
+    return () => window.removeEventListener("gp-preview-user", onPreview);
+  }, []);
+
   // Shared map placement state — lifted so it persists across view mode switches
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [mapRotation, setMapRotation] = useState(0);
@@ -736,19 +743,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           <div className="mt-3">
             <PriceSummary pricing={pricing} onQuoteOpen={() => setQuoteOpen(true)} />
           </div>
-
-          {isAdmin && (
-            <button
-              onClick={() => setPreviewAsUser(v => !v)}
-              className={`mt-4 w-full rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
-                previewAsUser
-                  ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-              }`}
-            >
-              {previewAsUser ? "← Tilbake til adminvisning" : "Forhåndsvis som bruker"}
-            </button>
-          )}
 
           {effectiveAdmin && (
             <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
