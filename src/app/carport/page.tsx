@@ -16,11 +16,6 @@ export const metadata = {
 export default function CarportPage() {
   return (
     <>
-      <div className="mx-auto max-w-4xl px-6 pt-10 pb-3">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
-          Carport på Jæren og i Rogaland
-        </h1>
-      </div>
       <Suspense
         fallback={
           <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
