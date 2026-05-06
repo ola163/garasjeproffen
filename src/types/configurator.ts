@@ -21,4 +21,5 @@ export interface PricingResult {
   adjustments: { label: string; amount: number }[];
   totalPrice: number;
   currency: string;
+  manualQuote?: boolean;
 }
