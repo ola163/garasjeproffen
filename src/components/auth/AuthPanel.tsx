@@ -90,11 +90,8 @@ export default function AuthPanel({ currentConfig, onLoadConfig }: AuthPanelProp
   }
 
   async function handleLogout() {
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    setUser(null);
-    setSavedConfigs([]);
-    setView("closed");
+    if (supabase) await supabase.auth.signOut();
+    window.location.href = "/api/auth/logout";
   }
 
   async function handleSave(e: React.SyntheticEvent) {
