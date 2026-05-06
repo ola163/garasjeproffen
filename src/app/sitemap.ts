@@ -20,6 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: "/referanseprosjekter", priority: 0.7, changeFrequency: "monthly" as const },
     { url: "/kontakt", priority: 0.7, changeFrequency: "yearly" as const },
     { url: "/om-oss", priority: 0.6, changeFrequency: "yearly" as const },
+    { url: "/interesse", priority: 0.5, changeFrequency: "yearly" as const },
     { url: "/vilkar", priority: 0.4, changeFrequency: "yearly" as const },
   ];
 
