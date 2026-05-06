@@ -437,6 +437,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               step={widthParam.step!}
               unit={widthParam.unit}
               onChange={setWidthValue}
+              snapOffset={200}
             />
           </div>
 

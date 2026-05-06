@@ -443,8 +443,9 @@ function DimensionLines({ lengthM, widthM }: { lengthM: number; widthM: number }
   const halfL = lengthM / 2;
   const y     = -0.05;
   const gap   = 0.55;
+  const ext   = 0.1;
 
-  const wColor = snap600(widthM)  ? "#16a34a" : "#e2520a";
+  const wColor = (Math.round(widthM  * 1000) - 200) % 600 === 0 ? "#16a34a" : "#e2520a";
   const lColor = snap600(lengthM) ? "#16a34a" : "#2563eb";
 
   const widthPts:  [number, number, number][] = [[-halfW, y, halfL + gap], [halfW, y, halfL + gap]];
@@ -456,10 +457,14 @@ function DimensionLines({ lengthM, widthM }: { lengthM: number; widthM: number }
       <Text position={[0, y + 0.15, halfL + gap]} fontSize={0.22} color={wColor} anchorX="center" anchorY="bottom" outlineWidth={0.02} outlineColor="#fff">
         {`${widthM.toFixed(1)} m`}
       </Text>
+      <Line points={[[-halfW, y, halfL], [-halfW, y, halfL + gap + ext]]} color={wColor} lineWidth={1} />
+      <Line points={[[ halfW, y, halfL], [ halfW, y, halfL + gap + ext]]} color={wColor} lineWidth={1} />
       <Line points={lengthPts} color={lColor} lineWidth={1.5} />
       <Text position={[halfW + gap, y + 0.15, 0]} fontSize={0.22} color={lColor} anchorX="center" anchorY="bottom" outlineWidth={0.02} outlineColor="#fff">
         {`${lengthM.toFixed(1)} m`}
       </Text>
+      <Line points={[[halfW, y, -halfL], [halfW + gap + ext, y, -halfL]]} color={lColor} lineWidth={1} />
+      <Line points={[[halfW, y,  halfL], [halfW + gap + ext, y,  halfL]]} color={lColor} lineWidth={1} />
     </>
   );
 }

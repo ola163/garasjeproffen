@@ -268,36 +268,32 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, lengthMm, widthMm, rotationDeg]);
 
-  const W = widthMm  / 1000;
-  const L = lengthMm / 1000;
-  const halfW = W / 2;
-  const halfL = L / 2;
-  const y = -0.05;
-
   return (
     <>
       <primitive object={scene} dispose={null} />
-
-      {/* Width dimension (X axis) */}
-      <DimensionLine
-        start={[-halfW, y, halfL + 0.5]}
-        end={[halfW, y, halfL + 0.5]}
-        label={`${(widthMm / 1000).toFixed(1)} m`}
-        color="#e2520a"
-        offset={[0, 0, 0]}
-      />
-
-      {/* Length dimension (Z axis) */}
-      <DimensionLine
-        start={[halfW + 0.5, y, -halfL]}
-        end={[halfW + 0.5, y, halfL]}
-        label={`${(lengthMm / 1000).toFixed(1)} m`}
-        color="#2563eb"
-        offset={[0, 0, 0]}
-      />
-
-      {/* Axis arrows */}
       <axesHelper args={[1.5]} />
+    </>
+  );
+}
+
+function GarageDimensionLines({ lengthMm, widthMm, wallHalfL, wallHalfW }: {
+  lengthMm: number; widthMm: number; wallHalfL: number | null; wallHalfW: number | null;
+}) {
+  const halfL = wallHalfL ?? (lengthMm / 2000);
+  const halfW = wallHalfW ?? (widthMm  / 2000);
+  const y   = -0.05;
+  const gap = 0.55;
+  const ext = 0.1;
+  const wColor = ((widthMm  - 200) % 600 === 0) ? "#16a34a" : "#e2520a";
+  const lColor = (lengthMm % 600 === 0) ? "#16a34a" : "#2563eb";
+  return (
+    <>
+      <DimensionLine start={[-halfW, y, halfL + gap]} end={[halfW, y, halfL + gap]} label={`${(widthMm / 1000).toFixed(1)} m`} color={wColor} />
+      <Line points={[[-halfW, y, halfL], [-halfW, y, halfL + gap + ext]]} color={wColor} lineWidth={1} />
+      <Line points={[[ halfW, y, halfL], [ halfW, y, halfL + gap + ext]]} color={wColor} lineWidth={1} />
+      <DimensionLine start={[halfW + gap, y, -halfL]} end={[halfW + gap, y, halfL]} label={`${(lengthMm / 1000).toFixed(1)} m`} color={lColor} />
+      <Line points={[[halfW, y, -halfL], [halfW + gap + ext, y, -halfL]]} color={lColor} lineWidth={1} />
+      <Line points={[[halfW, y,  halfL], [halfW + gap + ext, y,  halfL]]} color={lColor} lineWidth={1} />
     </>
   );
 }
@@ -363,6 +359,7 @@ export default function GarageViewer({ lengthMm, widthMm, roofType, addedElement
           halfLOverride={wallHalfL ?? undefined}
           halfWOverride={wallHalfW ?? undefined}
         />
+        <GarageDimensionLines lengthMm={lengthMm} widthMm={widthMm} wallHalfL={wallHalfL} wallHalfW={wallHalfW} />
 
         <Grid
           position={[0, -0.02, 0]}

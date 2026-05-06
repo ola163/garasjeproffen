@@ -20,18 +20,27 @@ const DOOR_COST: Record<number, number> = {
 };
 
 export function calculatePrice(config: GarageConfiguration, packageType: PackageType = "materialpakke", roofType: RoofType = "flattak"): PricingResult {
-  const lengthM     = (config.parameters.length    ?? 6000) / 1000;
-  const widthM      = (config.parameters.width     ?? 8400) / 1000;
+  const lengthMm    =  config.parameters.length    ?? 6000;
+  const widthMm     =  config.parameters.width     ?? 8400;
   const doorWidthMm =  config.parameters.doorWidth ?? 2500;
 
   const pricePerSqm = roofType === "flattak" ? FLATTAK_PRICE_PER_SQM : PRICE_PER_SQM[packageType];
-  const basePrice = Math.round(lengthM * widthM * pricePerSqm);
+  const basePrice = Math.round((lengthMm / 1000) * (widthMm / 1000) * pricePerSqm);
   const doorCost  = DOOR_COST[doorWidthMm] ?? 20_000;
+
+  const widthSnapped  = (widthMm  - 200) % 600 === 0;
+  const lengthSnapped = lengthMm % 600 === 0;
+  const snapDiscount  = (widthSnapped || lengthSnapped) ? Math.round(basePrice * 0.1) : 0;
+
+  const adjustments = [
+    { label: "Garasjeport", amount: doorCost },
+    ...(snapDiscount > 0 ? [{ label: "Standard mål (-10%)", amount: -snapDiscount }] : []),
+  ];
 
   return {
     basePrice,
-    adjustments: [{ label: "Garasjeport", amount: doorCost }],
-    totalPrice: basePrice + doorCost,
+    adjustments,
+    totalPrice: basePrice + doorCost - snapDiscount,
     currency: CURRENCY,
   };
 }
