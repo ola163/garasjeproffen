@@ -185,8 +185,37 @@ export default function Kontakt() {
           </p>
 
         {result?.success ? (
-          <div className="mt-6 rounded-lg bg-green-50 p-4 text-sm text-green-800">
-            Takk for henvendelsen! Vi tar kontakt snart.
+          <div className="mt-6 rounded-xl border border-green-100 bg-green-50 p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-500">
+                <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-green-900">Meldingen er sendt!</p>
+                <p className="mt-1 text-sm text-green-800">Vi tar kontakt så snart som mulig.</p>
+              </div>
+            </div>
+            <div className="mt-5 border-t border-green-100 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-green-700">Hva skjer nå?</p>
+              <ol className="mt-3 space-y-2">
+                {[
+                  "Vi gjennomgår henvendelsen din og forbereder svar",
+                  "Christian eller Ola tar kontakt – som regel innen noen timer",
+                  "Vi setter opp et uforpliktende møte eller sender et tilbud",
+                ].map((step, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-green-800">
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-200 text-[10px] font-bold text-green-800">{i + 1}</span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <p className="mt-4 text-xs text-green-700">
+              Haster det? Ring oss på{" "}
+              <a href="tel:+4747617563" className="font-semibold underline">+47 476 17 563</a>.
+            </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
