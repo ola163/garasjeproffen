@@ -3,12 +3,10 @@ import type { GarageConfiguration, PricingResult } from "@/types/configurator";
 export type PackageType = "materialpakke" | "prefab";
 export type RoofType = "saltak" | "flattak";
 
-const PRICE_PER_SQM: Record<PackageType, number> = {
-  materialpakke: 3750,
-  prefab: 7000,
+const PRICE_PER_SQM: Record<RoofType, Record<PackageType, number>> = {
+  saltak:  { materialpakke: 3750, prefab: 7000 },
+  flattak: { materialpakke: 3500, prefab: 6500 },
 };
-
-const FLATTAK_PRICE_PER_SQM = 3500;
 
 const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "NOK";
 
@@ -24,7 +22,7 @@ export function calculatePrice(config: GarageConfiguration, packageType: Package
   const widthMm     =  config.parameters.width     ?? 8400;
   const doorWidthMm =  config.parameters.doorWidth ?? 2500;
 
-  const pricePerSqm = roofType === "flattak" ? FLATTAK_PRICE_PER_SQM : PRICE_PER_SQM[packageType];
+  const pricePerSqm = PRICE_PER_SQM[roofType][packageType];
   const basePrice = Math.round((lengthMm / 1000) * (widthMm / 1000) * pricePerSqm);
 
   const isCarport     = buildingType === "carport";
