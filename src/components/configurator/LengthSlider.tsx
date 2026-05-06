@@ -13,6 +13,7 @@ interface LengthSliderProps {
   onChange: (value: number) => void;
   debounceMs?: number;
   snapOffset?: number;
+  disableSnap?: boolean;
 }
 
 export default function LengthSlider({
@@ -25,6 +26,7 @@ export default function LengthSlider({
   onChange,
   debounceMs = 500,
   snapOffset = 0,
+  disableSnap = false,
 }: LengthSliderProps) {
   const [localValue, setLocalValue] = useState(value);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,7 +53,7 @@ export default function LengthSlider({
 
   const displayValue =
     unit === "mm" ? `${(localValue / 1000).toFixed(1)} m` : `${localValue} ${unit}`;
-  const isSnapped = unit === "mm" && (localValue - snapOffset) % 600 === 0;
+  const isSnapped = !disableSnap && unit === "mm" && (localValue - snapOffset) % 600 === 0;
 
   return (
     <div className="space-y-3">

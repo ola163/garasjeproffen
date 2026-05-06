@@ -416,6 +416,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               step={lengthParam.step!}
               unit={lengthParam.unit}
               onChange={setLengthValue}
+              disableSnap={buildingType === "carport"}
             />
             <LengthSlider
               label={buildingType === "carport" ? "Endre bredde carport" : widthParam.label}
