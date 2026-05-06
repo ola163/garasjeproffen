@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { GarageConfiguration, PricingResult } from "@/types/configurator";
 import type { QuoteResponse } from "@/types/quote";
 import type { AddedElement } from "@/components/configurator/DoorWindowAdder";
+
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
 interface QuoteFormProps {
   configuration: GarageConfiguration;
@@ -32,7 +34,16 @@ function defaultCategory(packageType: string) {
 }
 
 export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, open }: QuoteFormProps) {
-  const [step, setStep] = useState<"soknad" | "form">("soknad");
+  const [step, setStep] = useState<"soknad" | "address" | "form">("soknad");
+
+  // Address step state
+  const [addressQuery, setAddressQuery] = useState("");
+  const [addressSuggestions, setAddressSuggestions] = useState<{ place_name: string; id: string }[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const [detectingPos, setDetectingPos] = useState(false);
+  const [addressSearching, setAddressSearching] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [buildingType, setBuildingType] = useState("garasje");
   const [category, setCategory] = useState(() => defaultCategory(packageType));
   const [name, setName] = useState("");
@@ -47,6 +58,54 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => setIsLoggedIn(d.isLoggedIn)).catch(() => {});
   }, []);
+
+  async function searchAddress(q: string) {
+    if (!q.trim()) { setAddressSuggestions([]); return; }
+    setAddressSearching(true);
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${MAPBOX_TOKEN}&country=no&types=address,place&language=no&limit=6`;
+      const res = await fetch(url);
+      const data = await res.json();
+      setAddressSuggestions(data.features ?? []);
+    } catch { /* ignore */ } finally {
+      setAddressSearching(false);
+    }
+  }
+
+  function handleAddressInput(q: string) {
+    setAddressQuery(q);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => searchAddress(q), 300);
+  }
+
+  function pickAddress(name: string) {
+    setSelectedAddress(name);
+    setAddressQuery(name);
+    setAddressSuggestions([]);
+    try { localStorage.setItem("gp-map-address", name); } catch { /* ignore */ }
+  }
+
+  async function detectPosition() {
+    if (!navigator.geolocation) return;
+    setDetectingPos(true);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude: lat, longitude: lng } }) => {
+        try {
+          const res = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,place&language=no&country=no&access_token=${MAPBOX_TOKEN}`
+          );
+          const data = await res.json();
+          pickAddress(data.features?.[0]?.place_name ?? "Min posisjon");
+        } catch {
+          pickAddress("Min posisjon");
+        } finally {
+          setDetectingPos(false);
+        }
+      },
+      () => setDetectingPos(false),
+      { timeout: 10000, maximumAge: 60000 }
+    );
+  }
 
   const p = configuration.parameters;
   const soknadUrl = `/soknadshjelp?buildingType=${buildingType}&lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=${p.doorHeight ?? 2125}&roofType=${roofType}`;
@@ -86,15 +145,16 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
           <p className="mt-1 text-sm text-gray-500">
             Vi kan ta hele søknadsprosessen for deg — tegninger, nabovarsel og innlevering til kommunen.
           </p>
-          <a
-            href={soknadUrl}
-            className="mt-4 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700 hover:bg-orange-100 transition-colors"
+          <button
+            type="button"
+            onClick={() => setStep("address")}
+            className="mt-4 flex w-full items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700 hover:bg-orange-100 transition-colors"
           >
             <span>Ja, jeg trenger søknadshjelp</span>
             <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
-          </a>
+          </button>
           <button
             type="button"
             onClick={() => setStep("form")}
@@ -106,6 +166,106 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
             </svg>
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (step === "address") {
+    return (
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={() => setStep("soknad")}
+          className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Tilbake
+        </button>
+
+        <div>
+          <p className="text-sm font-semibold text-gray-900">Hva er adressen til tomten?</p>
+          <p className="mt-1 text-sm text-gray-500">Vi bruker dette til å forberede søknaden.</p>
+        </div>
+
+        {/* Auto-detect */}
+        <button
+          type="button"
+          onClick={detectPosition}
+          disabled={detectingPos}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+        >
+          <svg className="h-4 w-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          {detectingPos ? "Finner posisjon…" : "Finn min posisjon automatisk"}
+        </button>
+
+        <div className="flex items-center gap-2">
+          <div className="flex-1 border-t border-gray-200" />
+          <span className="text-xs text-gray-400">eller skriv inn</span>
+          <div className="flex-1 border-t border-gray-200" />
+        </div>
+
+        {/* Address input */}
+        {selectedAddress ? (
+          <div className="flex items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+            <svg className="h-4 w-4 shrink-0 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="flex-1 text-sm text-gray-800 leading-snug">{selectedAddress}</span>
+            <button
+              type="button"
+              onClick={() => { setSelectedAddress(null); setAddressQuery(""); }}
+              className="shrink-0 text-sm font-medium text-orange-600 hover:underline"
+            >
+              Endre
+            </button>
+          </div>
+        ) : (
+          <div className="relative">
+            <input
+              type="text"
+              value={addressQuery}
+              onChange={(e) => handleAddressInput(e.target.value)}
+              placeholder="F.eks. Storgata 1, Bryne"
+              autoFocus
+              className="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+            />
+            {addressSearching && (
+              <div className="absolute right-3 top-2.5">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+              </div>
+            )}
+            {addressSuggestions.length > 0 && (
+              <ul className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                {addressSuggestions.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => pickAddress(s.place_name)}
+                      className="w-full px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 first:rounded-t-lg last:rounded-b-lg transition-colors"
+                    >
+                      {s.place_name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          disabled={!selectedAddress}
+          onClick={() => { window.location.href = soknadUrl; }}
+          className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+        >
+          Fortsett til søknadshjelp →
+        </button>
       </div>
     );
   }
