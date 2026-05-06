@@ -42,17 +42,19 @@ export function calculatePrice(config: GarageConfiguration, packageType: Package
   const sqm        = (lengthMm / 1000) * (widthMm / 1000);
   const areaManual = sqm > 70;
 
-  // Width surcharge
+  // Width surcharge — lower threshold for flat roof (5.0 m) vs pitched roof (6.2 m)
   const widthM             = widthMm / 1000;
   const widthManual        = widthM > 8.0;
-  const widthSurchargeRate = !widthManual && widthM > 7.2 ? 0.10 : !widthManual && widthM > 6.2 ? 0.05 : 0;
+  const lowerThreshold     = roofType === "flattak" ? 5.0 : 6.2;
+  const widthSurchargeRate = !widthManual && widthM > 7.2 ? 0.10 : !widthManual && widthM > lowerThreshold ? 0.05 : 0;
 
   const manualQuote = areaManual || widthManual;
   const widthAdj    = Math.round(basePrice * widthSurchargeRate);
 
+  const lowerLabel = roofType === "flattak" ? "5,0" : "6,2";
   const adjustments = [
     ...(snapDiscount > 0       ? [{ label: `Standard mål (-${discountRate * 100}%)`, amount: -snapDiscount }] : []),
-    ...(widthSurchargeRate > 0 ? [{ label: `Bredde over ${widthM > 7.2 ? "7,2" : "6,2"} m (+${widthSurchargeRate * 100}%)`, amount: widthAdj }] : []),
+    ...(widthSurchargeRate > 0 ? [{ label: `Bredde over ${widthM > 7.2 ? "7,2" : lowerLabel} m (+${widthSurchargeRate * 100}%)`, amount: widthAdj }] : []),
   ];
 
   return {

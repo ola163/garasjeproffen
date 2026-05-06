@@ -765,10 +765,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               <ul className="space-y-0.5">
                 <li>Over 70 m²: Manuelt tilbud</li>
               </ul>
-              <p className="font-medium mt-2 mb-1 text-blue-700">Breddetillegg (alle typer)</p>
+              <p className="font-medium mt-2 mb-1 text-blue-700">Breddetillegg</p>
               <ul className="space-y-0.5">
-                <li>6,2–7,2 m: +5 %</li>
-                <li>7,2–8,0 m: +10 %</li>
+                <li>Flatt tak / carport: over 5,0 m: +5 %</li>
+                <li>Saltak: over 6,2 m: +5 %</li>
+                <li>Over 7,2 m: +10 %</li>
                 <li>Over 8,0 m: Manuelt tilbud</li>
               </ul>
               <p className="font-medium mt-2 mb-1 text-blue-700">Snap-rabatt (kun garasje)</p>
