@@ -78,7 +78,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const ELEMENT_PRICES: Partial<Record<string, number>> = { door: 5995, window1: 2995, window2: 3095, window3: 5895 };
   const ELEMENT_LABELS: Partial<Record<string, string>> = { door: "Dør 90×210", window1: "Vindu 100×50", window2: "Vindu 100×60", window3: "Vindu 100×100" };
   const pricing = useMemo(() => {
-    const base = calculatePrice(configuration, packageType, roofType);
+    const base = calculatePrice(configuration, packageType, roofType, buildingType);
     const elementAdjustments = addedElements.flatMap((el) => {
       const unitPrice = ELEMENT_PRICES[el.category];
       if (!unitPrice) return [];

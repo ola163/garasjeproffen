@@ -368,29 +368,32 @@ function GarageElements({ elements, lengthM, widthM }: {
 // ── Carport GLB model ─────────────────────────────────────────────────────────
 function CarportModel({ lengthM, widthM }: { lengthM: number; widthM: number }) {
   const { scene: rawScene } = useGLTF("/Carport_GLB.glb");
-  const scene = useMemo(() => rawScene.clone(true), [rawScene]);
 
-  useEffect(() => {
-    scene.scale.set(1, 1, 1);
-    scene.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(scene);
+  const { scene, sizeX, sizeZ, cx, cz, minY } = useMemo(() => {
+    const s = rawScene.clone(true);
+    s.scale.set(1, 1, 1);
+    s.position.set(0, 0, 0);
+    s.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(s);
     const size = new THREE.Vector3(); box.getSize(size);
-    const scaleX = size.x > 0 ? widthM  / size.x : 1;
-    const scaleZ = size.z > 0 ? lengthM / size.z : 1;
-    scene.scale.set(scaleX, 1, scaleZ);
-    scene.updateMatrixWorld(true);
-    const finalBox = new THREE.Box3().setFromObject(scene);
-    const center = new THREE.Vector3(); finalBox.getCenter(center);
-    scene.position.set(-center.x, -finalBox.min.y, -center.z);
-    scene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-      }
+    const center = new THREE.Vector3(); box.getCenter(center);
+    s.traverse(child => {
+      if ((child as THREE.Mesh).isMesh) { child.castShadow = true; child.receiveShadow = true; }
     });
-  }, [scene, lengthM, widthM]);
+    return { scene: s, sizeX: size.x, sizeZ: size.z, cx: center.x, cz: center.z, minY: box.min.y };
+  }, [rawScene]);
 
-  return <primitive object={scene} dispose={null} />;
+  const scaleX = sizeX > 0 ? widthM  / sizeX : 1;
+  const scaleZ = sizeZ > 0 ? lengthM / sizeZ : 1;
+
+  return (
+    <primitive
+      object={scene}
+      dispose={null}
+      scale={[scaleX, 1, scaleZ]}
+      position={[-cx * scaleX, -minY, -cz * scaleZ]}
+    />
+  );
 }
 
 // ── Camera controller ─────────────────────────────────────────────────────────

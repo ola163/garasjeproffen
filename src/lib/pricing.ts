@@ -19,7 +19,7 @@ const DOOR_COST: Record<number, number> = {
   5000: 40_000,
 };
 
-export function calculatePrice(config: GarageConfiguration, packageType: PackageType = "materialpakke", roofType: RoofType = "flattak"): PricingResult {
+export function calculatePrice(config: GarageConfiguration, packageType: PackageType = "materialpakke", roofType: RoofType = "flattak", buildingType: string = "garasje"): PricingResult {
   const lengthMm    =  config.parameters.length    ?? 6000;
   const widthMm     =  config.parameters.width     ?? 8400;
   const doorWidthMm =  config.parameters.doorWidth ?? 2500;
@@ -28,13 +28,16 @@ export function calculatePrice(config: GarageConfiguration, packageType: Package
   const basePrice = Math.round((lengthMm / 1000) * (widthMm / 1000) * pricePerSqm);
   const doorCost  = DOOR_COST[doorWidthMm] ?? 20_000;
 
-  const widthSnapped  = (widthMm  - 200) % 600 === 0;
+  const isCarport     = buildingType === "carport";
+  const widthSnapped  = !isCarport && (widthMm - 200) % 600 === 0;
   const lengthSnapped = lengthMm % 600 === 0;
-  const snapDiscount  = (widthSnapped || lengthSnapped) ? Math.round(basePrice * 0.1) : 0;
+  const discountRate  = isCarport ? 0.03 : 0.10;
+  const snapDiscount  = (widthSnapped || lengthSnapped) ? Math.round(basePrice * discountRate) : 0;
+  const discountLabel = isCarport ? "Standard mål (-3%)" : "Standard mål (-10%)";
 
   const adjustments = [
     { label: "Garasjeport", amount: doorCost },
-    ...(snapDiscount > 0 ? [{ label: "Standard mål (-10%)", amount: -snapDiscount }] : []),
+    ...(snapDiscount > 0 ? [{ label: discountLabel, amount: -snapDiscount }] : []),
   ];
 
   return {

@@ -201,76 +201,69 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
     ? "/Carport_GLB.glb"
     : roofType === "flattak" ? "/garasje_flatt_tak.glb" : "/garasje_saltak.glb";
   const { scene: rawScene } = useGLTF(modelUrl);
-  // Clone so mutations don't affect the cached scene shared across remounts
-  const scene = useMemo(() => rawScene.clone(true), [rawScene]);
-  const boxRef = useRef<Box3 | null>(null);
 
-  useEffect(() => {
-    // GLB/GLTF is Y-up — no axis rotation needed. Try flipping to face front.
-    scene.rotation.set(0, 0, 0);
-    scene.scale.set(1, 1, 1);
-    scene.updateMatrixWorld(true);
-
-    const box = new Box3().setFromObject(scene);
-    const size = box.getSize(new Vector3());
-
-    const targetWidth  = widthMm  / 1000;
-    const targetLength = lengthMm / 1000;
-
-    const scaleX = size.x > 0 ? targetWidth  / size.x : 1;
-    const scaleZ = size.z > 0 ? targetLength / size.z : 1;
-
-    scene.scale.set(scaleX, 1, scaleZ);
-    scene.updateMatrixWorld(true);
-
-    const finalBox = new Box3().setFromObject(scene);
-    const center   = finalBox.getCenter(new Vector3());
-    scene.position.set(-center.x, -finalBox.min.y, -center.z);
-    scene.rotation.y = ((rotationDeg ?? 0) * Math.PI) / 180;
-    scene.updateMatrixWorld(true);
-
-    boxRef.current = new Box3().setFromObject(scene);
-
-    // Scan vertex positions below 65 % of model height to find actual wall
-    // footprint, excluding roof eave/gable overhangs which live above that threshold.
-    if (onWallFaces) {
-      const yThresh = (boxRef.current.max.y ?? WALL_H) * 0.65;
-      let maxAbsX = 0, maxAbsZ = 0;
-      const _v = new THREE.Vector3();
-      scene.traverse((child) => {
-        const mesh = child as Mesh;
-        if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
-        const pos = mesh.geometry.attributes.position;
-        for (let i = 0; i < pos.count; i++) {
-          _v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
-          if (_v.y < yThresh) {
-            if (Math.abs(_v.x) > maxAbsX) maxAbsX = Math.abs(_v.x);
-            if (Math.abs(_v.z) > maxAbsZ) maxAbsZ = Math.abs(_v.z);
-          }
-        }
-      });
-      if (maxAbsX > 0.1 && maxAbsZ > 0.1) onWallFaces(maxAbsZ, maxAbsX);
-    }
-
-    scene.traverse((child) => {
+  const { scene, sizeX, sizeZ, cx, cz, minY } = useMemo(() => {
+    const s = rawScene.clone(true);
+    s.scale.set(1, 1, 1);
+    s.position.set(0, 0, 0);
+    s.rotation.set(0, 0, 0);
+    s.updateMatrixWorld(true);
+    const box0 = new Box3().setFromObject(s);
+    const size0 = box0.getSize(new Vector3());
+    const center0 = box0.getCenter(new Vector3());
+    s.traverse(child => {
       if (child instanceof Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
         const mats = Array.isArray(child.material) ? child.material : [child.material];
-        mats.forEach((mat) => {
-          if (mat instanceof MeshStandardMaterial) {
-            mat.envMapIntensity = 0.4;
-            mat.needsUpdate = true;
-          }
+        mats.forEach(mat => {
+          if (mat instanceof MeshStandardMaterial) { mat.envMapIntensity = 0.4; mat.needsUpdate = true; }
         });
       }
     });
+    return { scene: s, sizeX: size0.x, sizeZ: size0.z, cx: center0.x, cz: center0.z, minY: box0.min.y };
+  }, [rawScene]);
+
+  const scaleX = sizeX > 0 ? widthMm  / 1000 / sizeX : 1;
+  const scaleZ = sizeZ > 0 ? lengthMm / 1000 / sizeZ : 1;
+  const rotRad = ((rotationDeg ?? 0) * Math.PI) / 180;
+
+  // Vertex scan for wall face positions (needed for window placement + dimension lines)
+  useEffect(() => {
+    if (!onWallFaces) return;
+    scene.scale.set(scaleX, 1, scaleZ);
+    scene.position.set(-cx * scaleX, -minY, -cz * scaleZ);
+    scene.rotation.y = rotRad;
+    scene.updateMatrixWorld(true);
+    const box = new Box3().setFromObject(scene);
+    const yThresh = box.max.y * 0.65;
+    let maxAbsX = 0, maxAbsZ = 0;
+    const _v = new THREE.Vector3();
+    scene.traverse(child => {
+      const mesh = child as Mesh;
+      if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+      const pos = mesh.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        _v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+        if (_v.y < yThresh) {
+          if (Math.abs(_v.x) > maxAbsX) maxAbsX = Math.abs(_v.x);
+          if (Math.abs(_v.z) > maxAbsZ) maxAbsZ = Math.abs(_v.z);
+        }
+      }
+    });
+    if (maxAbsX > 0.1 && maxAbsZ > 0.1) onWallFaces(maxAbsZ, maxAbsX);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene, lengthMm, widthMm, rotationDeg]);
+  }, [scene, scaleX, scaleZ, rotRad]);
 
   return (
     <>
-      <primitive object={scene} dispose={null} />
+      <primitive
+        object={scene}
+        dispose={null}
+        scale={[scaleX, 1, scaleZ]}
+        position={[-cx * scaleX, -minY, -cz * scaleZ]}
+        rotation={[0, rotRad, 0]}
+      />
       <axesHelper args={[1.5]} />
     </>
   );
@@ -314,7 +307,6 @@ class GltfErrorBoundary extends Component<
 
 export default function GarageViewer({ lengthMm, widthMm, roofType, addedElements = [], buildingType, rotationDeg }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
-
   const [wallHalfL, setWallHalfL] = useState<number | null>(null);
   const [wallHalfW, setWallHalfW] = useState<number | null>(null);
 
