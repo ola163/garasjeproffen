@@ -57,7 +57,7 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
 
           <div className="mt-8 border-t border-gray-100 pt-6">
             <p className="text-xs text-gray-400">Har du ikke sendt en forespørsel ennå?</p>
-            <Link href="/" className="mt-2 block text-sm font-medium text-orange-500 hover:underline">
+            <Link href="/garasje" className="mt-2 block text-sm font-medium text-orange-500 hover:underline">
               Design din garasje →
             </Link>
           </div>
@@ -137,10 +137,16 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
             </p>
           </div>
         ) : quotes.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
-            <p className="text-sm text-gray-500">Du har ingen forespørsler ennå.</p>
-            <Link href="/" className="mt-3 inline-block text-sm font-medium text-orange-500 hover:underline">
-              Start en ny forespørsel →
+          <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
+              <svg className="h-6 w-6 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-gray-700">Du har ingen forespørsler ennå</p>
+            <p className="mt-1 text-xs text-gray-400">Design garasjen din i 3D og send en forespørsel – det tar bare noen minutter.</p>
+            <Link href="/garasje" className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition-colors">
+              Start garasjedesign →
             </Link>
           </div>
         ) : (
