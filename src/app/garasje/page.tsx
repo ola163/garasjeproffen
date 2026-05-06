@@ -79,6 +79,25 @@ export default function GarasjePage() {
       >
         <ConfiguratorShell buildingType="garasje" />
       </Suspense>
+
+      <div className="w-full border-t border-gray-100 py-14 px-6">
+        <div className="mx-auto max-w-2xl">
+          <h2 className="mb-8 text-center text-2xl font-bold text-gray-900">Vanlige spørsmål om garasje</h2>
+          <div className="divide-y divide-gray-100">
+            {GARASJE_FAQ.map(({ q, a }) => (
+              <details key={q} className="group py-4">
+                <summary className="flex cursor-pointer items-center justify-between gap-4 text-sm font-semibold text-gray-900 marker:content-none">
+                  {q}
+                  <svg className="h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </summary>
+                <p className="mt-3 text-sm text-gray-500 leading-relaxed">{a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </div>
     </>
   );
 }
