@@ -735,6 +735,43 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             <PriceSummary pricing={pricing} onQuoteOpen={() => setQuoteOpen(true)} />
           </div>
 
+          {isAdmin && (
+            <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+              <p className="font-semibold mb-2">Admin – prisstruktur</p>
+              <table className="w-full mb-2">
+                <thead>
+                  <tr className="text-left text-blue-600">
+                    <th className="pr-2 font-medium">Type</th>
+                    <th className="pr-2 font-medium text-right">Materialpakke</th>
+                    <th className="font-medium text-right">Prefab</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-100">
+                  <tr><td className="py-0.5 pr-2">Garasje saltak</td><td className="text-right pr-2">4 125 kr/m²</td><td className="text-right">7 700 kr/m²</td></tr>
+                  <tr><td className="py-0.5 pr-2">Garasje flatt tak</td><td className="text-right pr-2">3 850 kr/m²</td><td className="text-right">7 150 kr/m²</td></tr>
+                  <tr><td className="py-0.5 pr-2">Carport</td><td className="text-right pr-2">3 500 kr/m²</td><td className="text-right">6 500 kr/m²</td></tr>
+                </tbody>
+              </table>
+              <p className="font-medium mt-2 mb-1 text-blue-700">Arealtillegg</p>
+              <ul className="space-y-0.5">
+                <li>40–55 m²: +5 %</li>
+                <li>55–70 m²: +10 %</li>
+                <li>Over 70 m²: Manuelt tilbud</li>
+              </ul>
+              <p className="font-medium mt-2 mb-1 text-blue-700">Breddetillegg (alle typer)</p>
+              <ul className="space-y-0.5">
+                <li>6,2–7,2 m: +5 %</li>
+                <li>7,2–8,0 m: +10 %</li>
+                <li>Over 8,0 m: Manuelt tilbud</li>
+              </ul>
+              <p className="font-medium mt-2 mb-1 text-blue-700">Snap-rabatt (kun garasje)</p>
+              <ul className="space-y-0.5">
+                <li>1 grønt mål: −5 %</li>
+                <li>2 grønne mål: −10 %</li>
+              </ul>
+            </div>
+          )}
+
           <div className="mt-8" ref={quoteRef}>
             <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} roofType={roofType} addedElements={addedElements} open={quoteOpen} />
           </div>
