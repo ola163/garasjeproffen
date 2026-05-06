@@ -3,7 +3,7 @@
 import { useMemo, Suspense, useEffect, useRef } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitControls, useGLTF, Line, Text } from "@react-three/drei";
+import { OrbitControls, useGLTF, Line, Text, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import type { AddedElement, WallSide, ElementCategory } from "./DoorWindowAdder";
 
 useGLTF.preload("/Vindu_100x50glb.glb");
@@ -505,6 +505,10 @@ export default function LocalGarageViewer({
         <DimensionLines lengthM={lengthM} widthM={widthM} />
 
         <CameraController focusSide={focusSide} lengthM={lengthM} widthM={widthM} />
+
+        <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
+          <GizmoViewport axisColors={["#e2520a", "#22c55e", "#2563eb"]} labelColor="#fff" />
+        </GizmoHelper>
       </Canvas>
     </div>
   );

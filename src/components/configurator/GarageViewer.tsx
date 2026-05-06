@@ -3,7 +3,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback, Suspense, Component, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitControls, Environment, Grid, useGLTF, Line, Text } from "@react-three/drei";
+import { OrbitControls, Environment, Grid, useGLTF, Line, Text, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import { Box3, Vector3, Mesh, MeshStandardMaterial } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { AddedElement, ElementCategory } from "./DoorWindowAdder";
@@ -389,6 +389,10 @@ export default function GarageViewer({ lengthMm, widthMm, roofType, addedElement
           minDistance={4}
           maxDistance={30}
         />
+
+        <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
+          <GizmoViewport axisColors={["#e2520a", "#22c55e", "#2563eb"]} labelColor="#fff" />
+        </GizmoHelper>
       </Canvas>
     </div>
   );
