@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import MobileCTA from "@/components/layout/MobileCTA";
 import ChatWidget from "@/components/chat/ChatWidget";
 import DevPanel from "@/components/dev/DevPanel";
 import VisitorTracker from "@/components/VisitorTracker";
@@ -123,6 +124,7 @@ export default function RootLayout({
         <Header />
         <main>{children}</main>
         <Footer />
+        <MobileCTA />
         <ChatWidget />
         <DevPanel />
         <VisitorTracker />
