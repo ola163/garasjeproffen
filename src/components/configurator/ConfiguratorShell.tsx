@@ -374,12 +374,15 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             <h2 className="text-base sm:text-lg font-semibold text-gray-900">
               {buildingType === "carport" ? "Carport" : "Garasje"}
             </h2>
-            <span className="text-sm text-gray-500">
-              <span className="font-semibold text-gray-800">
-                {((lengthValue / 1000) * (widthValue / 1000)).toFixed(1)}
-              </span>{" "}
-              m²
-            </span>
+            {(() => {
+              const sqm = (lengthValue / 1000) * (widthValue / 1000);
+              const over50 = sqm > 50;
+              return (
+                <span className={`text-sm font-semibold ${over50 ? "text-red-600" : "text-gray-800"}`}>
+                  {sqm.toFixed(1)} m²
+                </span>
+              );
+            })()}
           </div>
 
           {/* Roof type selector — hidden for carport (always flattak) */}
