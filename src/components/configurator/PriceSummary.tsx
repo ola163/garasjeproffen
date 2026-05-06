@@ -39,9 +39,14 @@ export default function PriceSummary({ pricing, onQuoteOpen, adminContent }: Pri
         </div>
 
         {pricing.adjustments.map((adj) => (
-          <div key={adj.label} className="flex justify-between text-sm">
-            <span className="text-gray-600">{adj.label}</span>
-            <span className={`${adj.amount < 0 ? "text-green-600" : "text-gray-900"}`}>{formatPrice(adj.amount, pricing.currency)}</span>
+          <div key={adj.label}>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">{adj.label}</span>
+              <span className={`${adj.amount < 0 ? "text-green-600" : "text-gray-900"}`}>{formatPrice(adj.amount, pricing.currency)}</span>
+            </div>
+            {adj.label.startsWith("Bredde over") && (
+              <p className="mt-0.5 text-xs text-gray-400">Større spenn krever kraftigere bjelker og dimensjonering.</p>
+            )}
           </div>
         ))}
 
