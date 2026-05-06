@@ -82,7 +82,7 @@ export default function Home() {
             Tilpass garasjen etter dine mål og tomt, og få et prisestimat med én gang.
           </p>
           <p className="mt-2 text-sm text-gray-400">
-            Priser fra <span className="font-semibold text-gray-500">kr 95 000</span> — pris beregnes på 2 minutter
+            Priser fra <span className="font-semibold text-gray-500">kr 95 000</span>
           </p>
 
           {/* Interactive buttons — client component */}
