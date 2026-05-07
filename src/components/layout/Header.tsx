@@ -31,8 +31,13 @@ export default function Header() {
 
   function togglePreview() {
     const next = !previewAsUser;
-    if (next) localStorage.setItem(PREVIEW_KEY, "1");
-    else localStorage.removeItem(PREVIEW_KEY);
+    if (next) {
+      localStorage.setItem(PREVIEW_KEY, "1");
+      document.cookie = "gp-preview-user=1; path=/; SameSite=Lax";
+    } else {
+      localStorage.removeItem(PREVIEW_KEY);
+      document.cookie = "gp-preview-user=; path=/; max-age=0; SameSite=Lax";
+    }
     setPreviewAsUser(next);
     window.dispatchEvent(new Event("gp-preview-user"));
   }
@@ -61,8 +66,10 @@ export default function Header() {
       ? "/soknadshjelp?buildingType=garasje"
       : "/soknadshjelp";
 
+  const effectiveAdmin = isAdmin && !previewAsUser;
+
   const navLinks = [
-    ...(isAdmin ? [{ href: "/priser", label: "Priser" }] : []),
+    ...(effectiveAdmin ? [{ href: "/priser", label: "Priser" }] : []),
     { href: "/referanseprosjekter", label: "Referanseprosjekter" },
     { href: "/om-oss", label: "Om oss" },
     { href: "/kontakt", label: "Kontakt oss" },
@@ -104,7 +111,7 @@ export default function Header() {
           ))}
 
           {/* Admin – desktop */}
-          {isAdmin && (
+          {effectiveAdmin && (
             <Link
               href="/admin"
               className={`hidden sm:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
@@ -219,7 +226,7 @@ export default function Header() {
             {[
               ...navLinks,
               { href: "/min-side", label: "Min side" },
-              ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
+              ...(effectiveAdmin ? [{ href: "/admin", label: "Admin" }] : []),
               ...ctaLinks,
             ].map((link) => (
               <li key={link.href}>

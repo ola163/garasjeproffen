@@ -32,9 +32,11 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
   const cookieStore = await cookies();
   const email = cookieStore.get("gp-user")?.value ?? "";
   const isAdmin = cookieStore.get("gp-admin")?.value === "1";
+  const previewAsUser = cookieStore.get("gp-preview-user")?.value === "1";
+  const effectiveAdmin = isAdmin && !previewAsUser;
   const isLoggedIn = !!email;
 
-  const session = { email, name: email, isLoggedIn, isAdmin };
+  const session = { email, name: email, isLoggedIn, isAdmin: effectiveAdmin };
 
   // Not logged in — show login page
   if (!session.isLoggedIn) {
