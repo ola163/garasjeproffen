@@ -269,7 +269,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         widthMm={widthValue}
         mapCenter={mapCenter}
         mapRotation={mapRotation}
-        mapboxToken={MAPBOX_TOKEN}
         initialData={grunnarbeid ?? emptyGrunnarbeidData(sqm, perimeterM)}
         onSave={(data) => setGrunnarbeid(data)}
         onClose={() => setShowGrunnarbeidWizard(false)}
@@ -674,7 +673,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
           {/* Grunn- og betongarbeid */}
           <div className="mt-6 border-t border-gray-100 pt-5">
-            <p className="mb-3 text-sm font-semibold text-gray-700">Grunn- og betongarbeid</p>
             {grunnarbeid === null ? (
               <button
                 type="button"

@@ -58,36 +58,6 @@ function getGarageCorners(
   ]);
 }
 
-async function getElevationAt(lat: number, lng: number, token: string): Promise<number> {
-  const zoom = 14;
-  const n = Math.pow(2, zoom);
-  const tileX = Math.floor(((lng + 180) / 360) * n);
-  const latRad = (lat * Math.PI) / 180;
-  const tileY = Math.floor(
-    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n
-  );
-  const pxX = Math.min(255, Math.floor((((lng + 180) / 360) * n - tileX) * 256));
-  const pxY = Math.min(255, Math.floor(
-    (((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n - tileY) * 256
-  ));
-  const url = `https://api.mapbox.com/v4/mapbox.terrain-rgb/${zoom}/${tileX}/${tileY}.pngraw?access_token=${token}`;
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 256; canvas.height = 256;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("canvas")); return; }
-      ctx.drawImage(img, 0, 0);
-      const [r, g, b] = ctx.getImageData(pxX, pxY, 1, 1).data;
-      resolve(-10000 + (r * 65536 + g * 256 + b) * 0.1);
-    };
-    img.onerror = () => reject(new Error("tile"));
-    img.src = url;
-  });
-}
-
 interface TerrainResult {
   elevations: number[];     // one per sample point
   minElev: number;
@@ -106,7 +76,6 @@ interface Props {
   widthMm: number;
   mapCenter?: [number, number] | null;
   mapRotation?: number;
-  mapboxToken?: string;
   initialData?: GrunnarbeidData;
   onSave: (data: GrunnarbeidData) => void;
   onClose: () => void;
@@ -174,7 +143,7 @@ function SlopeBar({ slopeCm }: { slopeCm: number }) {
   );
 }
 
-export default function GrunnarbeidWizard({ sqm, perimeterM, lengthMm, widthMm, mapCenter, mapRotation = 0, mapboxToken = "", initialData, onSave, onClose }: Props) {
+export default function GrunnarbeidWizard({ sqm, perimeterM, lengthMm, widthMm, mapCenter, mapRotation = 0, initialData, onSave, onClose }: Props) {
   const [step, setStep] = useState(0);
   const [d, setD] = useState<GrunnarbeidData>(initialData ?? emptyGrunnarbeidData(sqm, perimeterM));
   const [terrain, setTerrain] = useState<TerrainResult | null>(null);
@@ -186,26 +155,33 @@ export default function GrunnarbeidWizard({ sqm, perimeterM, lengthMm, widthMm, 
   }
 
   async function handleCalcTerrain() {
-    if (!mapCenter || !mapboxToken) return;
+    if (!mapCenter) return;
     setCalcLoading(true);
     setCalcError("");
     setTerrain(null);
     try {
       const corners = getGarageCorners(mapCenter, mapRotation, lengthMm, widthMm);
       const points: [number, number][] = [...corners, mapCenter];
-      const elevs = await Promise.all(points.map(([lng, lat]) => getElevationAt(lat, lng, mapboxToken)));
-      const minElev = Math.min(...elevs);
-      const maxElev = Math.max(...elevs);
+      const res = await fetch("/api/terrain/elevation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ points }),
+      });
+      const { elevations } = await res.json() as { elevations: (number | null)[] };
+      const valid = elevations.filter((e): e is number => e !== null);
+      if (valid.length === 0) throw new Error("no data");
+      const minElev = Math.min(...valid);
+      const maxElev = Math.max(...valid);
       const slopeCm = Math.round((maxElev - minElev) * 100);
       const suggestedFra = FROST_DEPTH_CM;
       const suggestedTil = Math.max(suggestedFra + 10, Math.round((FROST_DEPTH_CM + (maxElev - minElev) * 100 + 20) / 5) * 5);
-      const result: TerrainResult = { elevations: elevs, minElev, maxElev, slopeCm, suggestedFra, suggestedTil };
+      const result: TerrainResult = { elevations: valid, minElev, maxElev, slopeCm, suggestedFra, suggestedTil };
       setTerrain(result);
       set("utgravingDybdeFra", String(suggestedFra));
       set("utgravingDybdeTil", String(suggestedTil));
       set("utgraving", true);
     } catch {
-      setCalcError("Kunne ikke hente høydedata fra Mapbox. Fyll inn manuelt.");
+      setCalcError("Kunne ikke hente høydedata fra Kartverket. Fyll inn manuelt.");
     } finally {
       setCalcLoading(false);
     }
@@ -216,7 +192,7 @@ export default function GrunnarbeidWizard({ sqm, perimeterM, lengthMm, widthMm, 
     onClose();
   }
 
-  const hasMap = !!mapCenter && !!mapboxToken;
+  const hasMap = !!mapCenter;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -261,7 +237,7 @@ export default function GrunnarbeidWizard({ sqm, perimeterM, lengthMm, widthMm, 
                     <p className="text-sm font-semibold text-gray-800">Masseberegning fra kart</p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {hasMap
-                        ? "Henter høydedata fra Mapbox Terrain for garasjeflaten"
+                        ? "Henter høydedata fra Kartverket for garasjeflaten"
                         : "Plasser garasjen på kartet først (Tomteplassering)"}
                     </p>
                   </div>
