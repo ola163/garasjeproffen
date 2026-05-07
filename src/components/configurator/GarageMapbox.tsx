@@ -516,7 +516,7 @@ export default function GarageMapbox({
           const rotRad = (rotationRenderRef.current * Math.PI) / 180;
 
           // Apply rotation to the garage model only — buildings stay geographically fixed
-          if (three.model) three.model.rotation.y = -rotRad;
+          if (three.model) three.model.rotation.y = rotRad;
 
           // Scene transform: translate to placement → scale → flip to Three.js Z-up
           // RotY is NOT included here so building meshes are not affected by garage rotation
