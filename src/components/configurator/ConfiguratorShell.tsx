@@ -392,14 +392,14 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 />
               </div>
             ) : (
-              <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
-                <Image
-                  src="/material.jpg"
-                  alt="Materialpakke"
-                  width={800}
-                  height={500}
-                  className="w-full h-auto"
-                />
+              <div className="rounded-xl border border-gray-200 bg-orange-50 flex flex-col items-center justify-center gap-3 py-8">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-16 h-16 text-orange-500">
+                  <path d="M15 12l-8.5 8.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L12 9" />
+                  <path d="M17.64 15 22 10.64" />
+                  <path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91" />
+                </svg>
+                <span className="text-sm font-semibold text-orange-600">Materialpakke</span>
+                <span className="text-xs text-gray-500 text-center px-4">Komplett pakke – du bygger selv eller leier håndverker</span>
               </div>
             )}
           </div>
