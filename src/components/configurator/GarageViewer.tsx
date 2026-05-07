@@ -395,13 +395,17 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; d
     const scaleY = size.y > 0.001 ? targetH / size.y : 1;
     const scaleZ = size.z > 0.001 ? 0.05 / size.z : 1;
     clone.scale.set(scaleX, scaleY, scaleZ);
-    clone.position.set(-center.x * scaleX, -box.min.y * scaleY, -center.z * scaleZ);
     clone.traverse(c => { if ((c as Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-    return clone;
+    // Compute centering offsets — cannot set clone.position here because
+    // <primitive position> would override it entirely, so pass offsets to primitive directly
+    const ox = -center.x * scaleX;
+    const oy = -box.min.y * scaleY;
+    const oz = -center.z * scaleZ;
+    return { clone, ox, oy, oz };
   }, [rawScene, targetW, targetH]);
 
-  // halfL - 0.02 was flush with wall face; pull back 0.10 more to sit clearly inside opening
-  const doorZ = halfL - 0.12;
+  // Center door z within wall thickness so it sits recessed but visible
+  const doorZ = halfL - WALL_T / 2;
   const RT = PORT_REVEAL_T;
 
   return (
@@ -420,8 +424,8 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; d
       <mesh position={[0, targetH + RT / 2, halfL - WALL_T / 2]} material={matReveal}>
         <boxGeometry args={[targetW + RT * 2, RT, WALL_T]} />
       </mesh>
-      {/* Door panel inset into wall */}
-      <primitive object={group} position={[0, targetH / 2, doorZ]} dispose={null} />
+      {/* Door panel: combine centering offsets with doorZ in one position prop */}
+      <primitive object={group.clone} position={[group.ox, group.oy, group.oz + doorZ]} dispose={null} />
     </group>
   );
 }
