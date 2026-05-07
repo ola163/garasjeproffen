@@ -70,6 +70,15 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
   const [snapOnly, setSnapOnly] = useState(false);
 
+  // Søknadshjelp priser — fetched once, used when area > 50m²
+  const [soknadshjelpPriser, setSoknadshjelpPriser] = useState<{ key: string; label: string; price: number }[]>([]);
+  useEffect(() => {
+    fetch("/api/admin/soknadshjelp-priser")
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setSoknadshjelpPriser(d); })
+      .catch(() => {});
+  }, []);
+
   function toggleSnapOnly() {
     if (!snapOnly) {
       const nearestLength = Math.max(lengthParam.min!, Math.min(lengthParam.max!, Math.round(lengthValue / 600) * 600));
@@ -887,6 +896,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                   </div>
                 );
               })() : undefined}
+              soknadshjelp={buildingType !== "carport" && (lengthValue / 1000) * (widthValue / 1000) > 50 && soknadshjelpPriser.length > 0 ? soknadshjelpPriser : undefined}
             />
           </div>
 

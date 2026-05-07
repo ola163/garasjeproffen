@@ -61,6 +61,14 @@ interface PriceRecord {
   updated_at: string;
 }
 
+interface SoknadshjelpPris {
+  key: string;
+  label: string;
+  price: number;
+  description: string | null;
+  sort_order: number;
+}
+
 export default function PriserPage() {
   const [suppliers, setSuppliers]     = useState<string[]>([]);
   const [supplier, setSupplier]       = useState<string>("");
@@ -75,7 +83,35 @@ export default function PriserPage() {
   const [counts, setCounts]           = useState<Record<string, number>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadSuppliers(); }, []);
+  const [soknadsPriser, setSoknadsPriser] = useState<SoknadshjelpPris[]>([]);
+  const [editingPris, setEditingPris]     = useState<Record<string, string>>({});
+  const [savingPris, setSavingPris]       = useState<string | null>(null);
+  const [prisMsg, setPrisMsg]             = useState<string | null>(null);
+
+  useEffect(() => { loadSuppliers(); loadSoknadsPriser(); }, []);
+
+  async function loadSoknadsPriser() {
+    const res  = await fetch("/api/admin/soknadshjelp-priser");
+    const data: SoknadshjelpPris[] = await res.json();
+    setSoknadsPriser(data);
+    const map: Record<string, string> = {};
+    for (const p of data) map[p.key] = String(p.price);
+    setEditingPris(map);
+  }
+
+  async function savePris(key: string) {
+    setSavingPris(key); setPrisMsg(null);
+    const price = parseFloat(editingPris[key]);
+    if (isNaN(price)) { setSavingPris(null); return; }
+    const res = await fetch("/api/admin/soknadshjelp-priser", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, price }),
+    });
+    setSavingPris(null);
+    if (res.ok) { setPrisMsg("✓ Lagret"); await loadSoknadsPriser(); }
+    else setPrisMsg("Feil ved lagring");
+  }
 
   // Load rows whenever supplier or search changes
   useEffect(() => {
@@ -244,6 +280,52 @@ export default function PriserPage() {
           <div className="flex items-center gap-3">
             <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-600">← Admin</Link>
             <h1 className="text-xl font-bold text-gray-900">Prisdatabase</h1>
+          </div>
+        </div>
+
+        {/* Søknadshjelp priser */}
+        <div className="mb-8 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-800">Søknadshjelp – priser</h2>
+              <p className="mt-0.5 text-xs text-gray-400">Vises automatisk i prisestimatet når garasjen er over 50 m²</p>
+            </div>
+            {prisMsg && (
+              <span className={`text-xs font-medium ${prisMsg.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>
+                {prisMsg}
+              </span>
+            )}
+          </div>
+          <div className="divide-y divide-gray-100">
+            {soknadsPriser.map((p) => (
+              <div key={p.key} className="flex items-center gap-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{p.label}</p>
+                  {p.description && <p className="text-xs text-gray-400">{p.description}</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">kr</span>
+                    <input
+                      type="number"
+                      value={editingPris[p.key] ?? ""}
+                      onChange={(e) => setEditingPris((prev) => ({ ...prev, [p.key]: e.target.value }))}
+                      onBlur={() => savePris(p.key)}
+                      onKeyDown={(e) => e.key === "Enter" && savePris(p.key)}
+                      className="w-32 rounded-lg border border-gray-200 py-1.5 pl-9 pr-3 text-sm text-right font-medium text-gray-800 focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                    />
+                  </div>
+                  {savingPris === p.key && (
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+                  )}
+                </div>
+              </div>
+            ))}
+            {soknadsPriser.length === 0 && (
+              <p className="py-6 text-center text-sm text-gray-400">
+                Kjør SQL-migrasjonen nedenfor for å opprette tabellen og standardprisene.
+              </p>
+            )}
           </div>
         </div>
 
@@ -428,7 +510,28 @@ export default function PriserPage() {
   );
 }
 
-const SQL_MIGRATION = `-- Kjør i Supabase SQL-editor (én gang)
+const SQL_MIGRATION = `-- Søknadshjelp-priser (kjør én gang)
+CREATE TABLE IF NOT EXISTS soknadshjelp_priser (
+  key         text PRIMARY KEY,
+  label       text NOT NULL,
+  price       numeric NOT NULL DEFAULT 0,
+  description text,
+  sort_order  integer DEFAULT 0,
+  updated_at  timestamptz DEFAULT now()
+);
+
+INSERT INTO soknadshjelp_priser (key, label, price, description, sort_order) VALUES
+  ('tegning',              'Tegning',                              12500, 'Tegninger og dokumentasjon til kommunen', 1),
+  ('nabovarsel',           'Nabovarsel',                           3000,  'Varsling av naboer',                      2),
+  ('dispensasjon_1',       '1. dispensasjon',                      8000,  'Første dispensasjonssøknad',              3),
+  ('dispensasjon_ekstra',  'Ytterligere dispensasjoner (per stk)', 2000,  'Pris per ekstra dispensasjon',            4)
+ON CONFLICT (key) DO NOTHING;
+
+ALTER TABLE soknadshjelp_priser ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public read" ON soknadshjelp_priser FOR SELECT USING (true);
+
+-- Leverandørpriser (kjør én gang)
+CREATE TABLE IF NOT EXISTS supplier_prices (
 CREATE TABLE IF NOT EXISTS supplier_prices (
   id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   supplier      text NOT NULL,
