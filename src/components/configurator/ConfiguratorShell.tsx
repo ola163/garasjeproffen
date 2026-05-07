@@ -86,9 +86,12 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
   const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
+  const [grunnarbeidOpen, setGrunnarbeidOpen] = useState(false);
+  const [grunnarbeid, setGrunnarbeid] = useState(false);
 
   const ELEMENT_PRICES: Partial<Record<string, number>> = { door: 5995, window1: 2995, window2: 3095, window3: 5895 };
   const ELEMENT_LABELS: Partial<Record<string, string>> = { door: "Dør 90×210", window1: "Vindu 100×50", window2: "Vindu 100×60", window3: "Vindu 100×100" };
+  const GRUNNARBEID_KR_PER_SQM = 2000;
   const pricing = useMemo(() => {
     const base = calculatePrice(configuration, packageType, roofType, buildingType);
     const elementAdjustments = addedElements.flatMap((el) => {
@@ -99,9 +102,18 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       return [{ label: qty > 1 ? `${label} (×${qty})` : label, amount: unitPrice * qty }];
     });
     const elementTotal = elementAdjustments.reduce((s, a) => s + a.amount, 0);
-    return { ...base, adjustments: [...base.adjustments, ...elementAdjustments], totalPrice: base.totalPrice + elementTotal };
+    const sqm = (configuration.parameters.length / 1000) * (configuration.parameters.width / 1000);
+    const grunnarbeidAmount = grunnarbeid ? Math.round(sqm * GRUNNARBEID_KR_PER_SQM / 500) * 500 : 0;
+    const grunnarbeidAdjustments = grunnarbeid
+      ? [{ label: "Grunn- og betongarbeid (estimat)", amount: grunnarbeidAmount }]
+      : [];
+    return {
+      ...base,
+      adjustments: [...base.adjustments, ...elementAdjustments, ...grunnarbeidAdjustments],
+      totalPrice: base.totalPrice + elementTotal + grunnarbeidAmount,
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configuration, packageType, roofType, addedElements]);
+  }, [configuration, packageType, roofType, addedElements, grunnarbeid]);
 
   const [focusSide, setFocusSide] = useState<WallSide | null>(null);
   const [editingElement, setEditingElement] = useState<AddedElement | null>(null);
@@ -633,6 +645,54 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             )}
           </div>}
 
+          {/* Grunn- og betongarbeid */}
+          <div className="mt-6 border-t border-gray-100 pt-5">
+            <button
+              type="button"
+              onClick={() => setGrunnarbeidOpen((o) => !o)}
+              className="flex w-full items-center justify-between text-sm font-semibold text-gray-700 hover:text-gray-900"
+            >
+              <span className="flex items-center gap-2">
+                Grunn- og betongarbeid
+                {grunnarbeid && <span className="text-xs font-normal text-green-600">✓ Lagt til</span>}
+              </span>
+              <svg
+                className={`h-4 w-4 text-gray-400 transition-transform ${grunnarbeidOpen ? "rotate-180" : ""}`}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {grunnarbeidOpen && (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Vi tar oss av graving, planering og støping av armert betongplate.
+                  Endelig pris avtales etter befaring av tomten.
+                </p>
+                <label className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-200 px-3 py-3 hover:border-orange-300 hover:bg-orange-50 transition-colors">
+                  <span className="text-sm text-gray-700">Inkluder grunnarbeid</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-gray-900">
+                      +{new Intl.NumberFormat("nb-NO").format(
+                        Math.round(((lengthValue / 1000) * (widthValue / 1000)) * GRUNNARBEID_KR_PER_SQM / 500) * 500
+                      )} kr
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={grunnarbeid}
+                      onChange={(e) => setGrunnarbeid(e.target.checked)}
+                      className="h-4 w-4 accent-orange-500 cursor-pointer"
+                    />
+                  </div>
+                </label>
+                <p className="text-xs text-gray-400">
+                  Estimat ~{GRUNNARBEID_KR_PER_SQM.toLocaleString("nb-NO")} kr/m² · {((lengthValue / 1000) * (widthValue / 1000)).toFixed(1)} m² · Endelig pris etter befaring
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Tomteplassering */}
           <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
             {/* Header */}
@@ -831,7 +891,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           <div className="mt-8" ref={quoteRef}>
-            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} roofType={roofType} addedElements={addedElements} open={quoteOpen} />
+            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} roofType={roofType} addedElements={addedElements} grunnarbeid={grunnarbeid} open={quoteOpen} />
           </div>
 
           <AuthPanel

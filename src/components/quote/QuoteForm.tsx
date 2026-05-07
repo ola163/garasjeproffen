@@ -13,6 +13,7 @@ interface QuoteFormProps {
   packageType: string;
   roofType: string;
   addedElements: AddedElement[];
+  grunnarbeid?: boolean;
   open: boolean;
 }
 
@@ -33,7 +34,7 @@ function defaultCategory(packageType: string) {
   return "materialpakke";
 }
 
-export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, open }: QuoteFormProps) {
+export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, grunnarbeid, open }: QuoteFormProps) {
   const [step, setStep] = useState<"soknad" | "address" | "form">("soknad");
 
   // Address step state
@@ -117,7 +118,7 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
     try {
       const formData = new FormData();
       formData.append("data", JSON.stringify({
-        configuration, pricing, packageType, roofType, addedElements,
+        configuration, pricing, packageType, roofType, addedElements, grunnarbeid,
         category, buildingType,
         customer: { name, email, phone, message },
       }));
