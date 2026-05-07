@@ -12,6 +12,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["file-type"],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
