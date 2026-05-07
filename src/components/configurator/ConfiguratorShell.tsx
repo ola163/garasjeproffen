@@ -16,6 +16,7 @@ import { GARAGE_PARAMETERS } from "@/lib/parameters";
 const GarageViewer      = dynamic(() => import("./GarageViewer"),      { ssr: false });
 const LocalGarageViewer = dynamic(() => import("./LocalGarageViewer"), { ssr: false });
 const GarageMapbox      = dynamic(() => import("./GarageMapbox"),      { ssr: false });
+const GarageMålAdmin    = dynamic(() => import("./GarageMålAdmin"),    { ssr: false });
 
 /** Minimum combined side clearance: widthMm >= doorWidthMm + MIN_CLEARANCE */
 const MIN_CLEARANCE = 300;
@@ -147,7 +148,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     }
   }, [quoteOpen]);
 
-  const [viewMode, setViewMode] = useState<"test" | "dev" | "kart">("test");
+  const [viewMode, setViewMode] = useState<"test" | "dev" | "kart" | "mål">("test");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [previewAsUser, setPreviewAsUser] = useState(false);
@@ -301,6 +302,16 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               Utvikler modus
             </button>
           )}
+          {effectiveAdmin && (
+            <button
+              onClick={() => setViewMode("mål")}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
+                viewMode === "mål" ? "bg-white/90 text-gray-800 shadow-sm" : "text-white/80 hover:text-white"
+              }`}
+            >
+              Målsetting
+            </button>
+          )}
         </div>
 
         {/* Toggle button — switches between 3D model and plot view */}
@@ -352,6 +363,16 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               </a>
             </div>
           )
+        )}
+        {viewMode === "mål" && (
+          <div className="absolute inset-0 overflow-y-auto bg-white z-10">
+            <GarageMålAdmin
+              widthMm={widthValue} lengthMm={lengthValue}
+              doorWidthMm={doorWidthValue} doorHeightMm={doorHeightValue}
+              roofType={roofType} buildingType={buildingType}
+              addedElements={addedElements}
+            />
+          </div>
         )}
       </div>
 
