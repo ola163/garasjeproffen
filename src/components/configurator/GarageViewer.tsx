@@ -37,7 +37,6 @@ const WINDOW_COLOR  = "#9ECFEA";
 const FRAME_COLOR   = "#FFFFFF";
 const SILL_COLOR    = "#E0E0DE";
 const DOOR_EL_COLOR = "#C4A882";
-const RECESS_COLOR  = "#1a1a1a"; // dark plate behind frame to suggest wall opening
 const REVEAL_COLOR  = "#cfc5bc"; // inner wall reveal / jamb colour
 
 function getElDims(cat: ElementCategory) {
@@ -79,12 +78,23 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
 }) {
   const halfL = halfLOverride ?? lengthM / 2;
   const halfW = halfWOverride ?? widthM  / 2;
-  const matWindow = useMemo(() => new THREE.MeshStandardMaterial({ color: WINDOW_COLOR, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.55 }), []);
-  const matDoorEl = useMemo(() => new THREE.MeshStandardMaterial({ color: DOOR_EL_COLOR, roughness: 0.6 }), []);
-  const matFrame  = useMemo(() => new THREE.MeshStandardMaterial({ color: FRAME_COLOR,   roughness: 0.5 }), []);
-  const matSill   = useMemo(() => new THREE.MeshStandardMaterial({ color: SILL_COLOR,    roughness: 0.55 }), []);
-  const matRecess = useMemo(() => new THREE.MeshStandardMaterial({ color: RECESS_COLOR,  roughness: 1.0 }), []);
-  const matReveal = useMemo(() => new THREE.MeshStandardMaterial({ color: REVEAL_COLOR,  roughness: 0.7 }), []);
+  const matWindow   = useMemo(() => new THREE.MeshStandardMaterial({ color: WINDOW_COLOR, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.55 }), []);
+  const matDoorEl   = useMemo(() => new THREE.MeshStandardMaterial({ color: DOOR_EL_COLOR, roughness: 0.6 }), []);
+  const matFrame    = useMemo(() => new THREE.MeshStandardMaterial({ color: FRAME_COLOR,   roughness: 0.5 }), []);
+  const matSill     = useMemo(() => new THREE.MeshStandardMaterial({ color: SILL_COLOR,    roughness: 0.55 }), []);
+  const matReveal   = useMemo(() => new THREE.MeshStandardMaterial({ color: REVEAL_COLOR,  roughness: 0.7 }), []);
+  const matInterior = useMemo(() => new THREE.MeshBasicMaterial({ color: "#0d0808" }), []);
+  const matCut      = useMemo(() => {
+    const m = new THREE.MeshBasicMaterial();
+    m.colorWrite  = false;
+    m.depthWrite  = false;
+    m.depthTest   = false;
+    m.stencilWrite = true;
+    m.stencilFunc  = THREE.AlwaysStencilFunc;
+    m.stencilRef   = 1;
+    m.stencilZPass = THREE.ReplaceStencilOp;
+    return m;
+  }, []);
 
   const meshes: React.ReactNode[] = [];
   elements.forEach((el, idx) => {
@@ -121,8 +131,11 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
 
         if (isGLBWindow) {
           meshes.push(
-            <mesh key={`${key}-rc`} position={[x, cy, wFace + dir * 0.003]} material={matRecess}>
-              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, 0.008]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace]} material={matCut}>
+              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, 0.001]} />
+            </mesh>,
+            <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.05)]} material={matInterior}>
+              <boxGeometry args={[w + FB * 2, h + FB * 2, 0.02]} />
             </mesh>,
             ...frontRevealsMeshes,
             <WindowGLB key={key} position={[x, cy, wCz]} rotY={rotY} />,
@@ -132,8 +145,11 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
           );
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-rc`} position={[x, cy, wFace + dir * 0.003]} material={matRecess}>
-              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, 0.008]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace]} material={matCut}>
+              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, 0.001]} />
+            </mesh>,
+            <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.05)]} material={matInterior}>
+              <boxGeometry args={[w + FB * 2, h + FB * 2, 0.02]} />
             </mesh>,
             ...frontRevealsMeshes,
             <mesh key={`${key}-frL`} position={[x - (w / 2 + FB / 2), cy, revZ]} material={matFrame} castShadow>
@@ -183,8 +199,11 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
 
         if (isGLBWindow) {
           meshes.push(
-            <mesh key={`${key}-rc`} position={[wFace + dir * 0.003, cy, z]} material={matRecess}>
-              <boxGeometry args={[0.008, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace, cy, z]} material={matCut}>
+              <boxGeometry args={[0.001, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
+            </mesh>,
+            <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.05), cy, z]} material={matInterior}>
+              <boxGeometry args={[0.02, h + FB * 2, w + FB * 2]} />
             </mesh>,
             ...sideRevealMeshes,
             <WindowGLB key={key} position={[wCx, cy, z]} rotY={rotY} />,
@@ -194,8 +213,11 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
           );
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-rc`} position={[wFace + dir * 0.003, cy, z]} material={matRecess}>
-              <boxGeometry args={[0.008, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace, cy, z]} material={matCut}>
+              <boxGeometry args={[0.001, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
+            </mesh>,
+            <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.05), cy, z]} material={matInterior}>
+              <boxGeometry args={[0.02, h + FB * 2, w + FB * 2]} />
             </mesh>,
             ...sideRevealMeshes,
             <mesh key={`${key}-frL`} position={[revX, cy, z - (w / 2 + FB / 2)]} material={matFrame} castShadow>
@@ -284,7 +306,13 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
         child.receiveShadow = true;
         const mats = Array.isArray(child.material) ? child.material : [child.material];
         mats.forEach(mat => {
-          if (mat instanceof MeshStandardMaterial) { mat.envMapIntensity = 0.4; mat.needsUpdate = true; }
+          if (mat instanceof MeshStandardMaterial) {
+            mat.envMapIntensity = 0.4;
+            mat.stencilWrite = false;
+            mat.stencilFunc  = THREE.NotEqualStencilFunc;
+            mat.stencilRef   = 1;
+            mat.needsUpdate  = true;
+          }
         });
       }
     });
@@ -419,7 +447,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
       <Canvas
         shadows
         camera={{ position: [12, 7, 12], fov: 42 }}
-        gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+        gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0, stencil: true }}
       >
         <color attach="background" args={["#f5f5f4"]} />
         <ambientLight intensity={0.6} />
