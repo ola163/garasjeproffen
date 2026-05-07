@@ -68,6 +68,18 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
+  const [snapOnly, setSnapOnly] = useState(false);
+
+  function toggleSnapOnly() {
+    if (!snapOnly) {
+      const nearestLength = Math.max(lengthParam.min!, Math.min(lengthParam.max!, Math.round(lengthValue / 600) * 600));
+      const nearestWidth  = Math.max(widthParam.min!,  Math.min(widthParam.max!,  Math.round((widthValue - 200) / 600) * 600 + 200));
+      setLengthValue(nearestLength);
+      setWidthValue(nearestWidth);
+    }
+    setSnapOnly((v) => !v);
+  }
+
   const [quoteOpen, setQuoteOpen] = useState(false);
   const quoteRef = useRef<HTMLDivElement>(null);
   const [garageDoorOpen, setGarageDoorOpen] = useState(false);
@@ -418,14 +430,28 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             </button>
           </div>}
 
+          {/* Snap-only toggle */}
+          {buildingType !== "carport" && (
+            <label className="mt-5 flex cursor-pointer items-center gap-2.5 select-none">
+              <input
+                type="checkbox"
+                checked={snapOnly}
+                onChange={toggleSnapOnly}
+                className="h-4 w-4 accent-green-600 cursor-pointer"
+              />
+              <span className="text-sm text-gray-700">Kun anbefalte mål</span>
+              <span className="text-xs font-medium text-green-600">— gir opptil 10% rabatt</span>
+            </label>
+          )}
+
           {/* Sliders */}
-          <div className="mt-6 space-y-6">
+          <div className="mt-4 space-y-6">
             <LengthSlider
               label={buildingType === "carport" ? "Endre lengde carport" : lengthParam.label}
               value={lengthValue}
-              min={lengthParam.min!}
-              max={lengthParam.max!}
-              step={lengthParam.step!}
+              min={snapOnly ? Math.ceil(lengthParam.min! / 600) * 600 : lengthParam.min!}
+              max={snapOnly ? Math.floor(lengthParam.max! / 600) * 600 : lengthParam.max!}
+              step={snapOnly ? 600 : lengthParam.step!}
               unit={lengthParam.unit}
               onChange={setLengthValue}
               disableSnap={buildingType === "carport"}
@@ -433,16 +459,16 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             <LengthSlider
               label={buildingType === "carport" ? "Endre bredde carport" : widthParam.label}
               value={widthValue}
-              min={widthParam.min!}
-              max={widthParam.max!}
-              step={widthParam.step!}
+              min={snapOnly ? Math.ceil((widthParam.min! - 200) / 600) * 600 + 200 : widthParam.min!}
+              max={snapOnly ? Math.floor((widthParam.max! - 200) / 600) * 600 + 200 : widthParam.max!}
+              step={snapOnly ? 600 : widthParam.step!}
               unit={widthParam.unit}
               onChange={setWidthValue}
               snapOffset={200}
             />
           </div>
 
-          {buildingType !== "carport" && (
+          {buildingType !== "carport" && !snapOnly && (
             <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-400">
               <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
               Grønt mål = standard 60 cm-intervall – ett grønt mål gir 5%, begge gir 10% rimeligere
