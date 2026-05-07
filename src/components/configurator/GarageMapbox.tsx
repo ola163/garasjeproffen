@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as THREE from "three";
@@ -234,6 +234,17 @@ export default function GarageMapbox({
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [boundaryVersion,  setBoundaryVersion]  = useState(0);
 
+  type ToolMode = "pan" | "move" | "rotate";
+  const [toolMode,     setToolMode]     = useState<ToolMode>("move");
+  const [isActiveDrag, setIsActiveDrag] = useState(false);
+  const toolModeRef = useRef<ToolMode>("move");
+  const dragRef     = useRef<{
+    clientX: number; clientY: number;
+    startBearing: number; startRotation: number;
+    startCenter: [number, number];
+  } | null>(null);
+  const isDraggingRef = useRef(false);
+
   const center   = externalCenter   !== undefined ? externalCenter   : internalCenter;
   const rotation = externalRotation !== undefined ? externalRotation : internalRotation;
 
@@ -244,6 +255,89 @@ export default function GarageMapbox({
   function setRotation(r: number) {
     setInternalRotation(r);
     onRotationChange?.(r);
+  }
+
+  useEffect(() => { toolModeRef.current = toolMode; }, [toolMode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (toolMode === "pan") map.dragPan.enable();
+    else map.dragPan.disable();
+  }, [toolMode]);
+
+  function getBearing(clientX: number, clientY: number, c: [number, number]): number {
+    const map = mapRef.current;
+    if (!map || !containerRef.current) return 0;
+    const rect = containerRef.current.getBoundingClientRect();
+    const pt = map.unproject([clientX - rect.left, clientY - rect.top]);
+    const mPerLng = 111320 * Math.cos((c[1] * Math.PI) / 180);
+    const dx = (pt.lng - c[0]) * mPerLng;
+    const dy = (pt.lat - c[1]) * 111320;
+    return Math.atan2(dx, dy) * (180 / Math.PI);
+  }
+
+  function handlePointerDown(e: React.MouseEvent<HTMLDivElement>) {
+    const mode = toolModeRef.current;
+    if (mode === "pan") return;
+    e.preventDefault();
+    const cur = centerRenderRef.current;
+    dragRef.current = {
+      clientX: e.clientX, clientY: e.clientY,
+      startBearing: cur ? getBearing(e.clientX, e.clientY, cur) : 0,
+      startRotation: rotationRenderRef.current,
+      startCenter: cur ?? [0, 0],
+    };
+    isDraggingRef.current = false;
+  }
+
+  function handlePointerMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (!dragRef.current) return;
+    if (toolModeRef.current === "pan") return;
+    const dx = e.clientX - dragRef.current.clientX;
+    const dy = e.clientY - dragRef.current.clientY;
+    if (!isDraggingRef.current) {
+      if (Math.hypot(dx, dy) < 4) return;
+      isDraggingRef.current = true;
+      setIsActiveDrag(true);
+    }
+    const map = mapRef.current;
+    if (!map || !containerRef.current) return;
+    const mode = toolModeRef.current;
+    if (mode === "rotate" && centerRenderRef.current) {
+      const curBearing = getBearing(e.clientX, e.clientY, centerRenderRef.current);
+      const delta = curBearing - dragRef.current.startBearing;
+      const newRot = ((dragRef.current.startRotation + delta) % 360 + 360) % 360;
+      setRotation(Math.round(newRot));
+    } else if (mode === "move") {
+      const rect = containerRef.current.getBoundingClientRect();
+      const startPt = map.unproject([dragRef.current.clientX - rect.left, dragRef.current.clientY - rect.top]);
+      const curPt   = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+      const sc = dragRef.current.startCenter;
+      const newCenter: [number, number] = [sc[0] + (curPt.lng - startPt.lng), sc[1] + (curPt.lat - startPt.lat)];
+      setCenter(newCenter);
+      if (markerRef.current) markerRef.current.setLngLat(newCenter);
+    }
+  }
+
+  function handlePointerUp(e: React.MouseEvent<HTMLDivElement>) {
+    const wasDragging = isDraggingRef.current;
+    isDraggingRef.current = false;
+    setIsActiveDrag(false);
+    const mode = toolModeRef.current;
+    if (mode === "pan") { dragRef.current = null; return; }
+    if (!wasDragging && dragRef.current) {
+      const map = mapRef.current;
+      if (map && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const pt = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+        const c: [number, number] = [pt.lng, pt.lat];
+        setCenter(c);
+        if (markerRef.current) markerRef.current.remove();
+        markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
+      }
+    }
+    dragRef.current = null;
   }
 
   const lengthM = lengthMm / 1000;
@@ -542,12 +636,7 @@ export default function GarageMapbox({
     });
 
     if (!readOnly) {
-      map.on("click", (e) => {
-        const c: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-        setCenter(c);
-        if (markerRef.current) markerRef.current.remove();
-        markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
-      });
+      map.dragPan.disable(); // default tool is "move"; React handlers manage placement/drag
     }
 
     return () => {
@@ -725,34 +814,69 @@ export default function GarageMapbox({
       )}
 
       {/* Map */}
-      <div ref={containerRef} className="flex-1 w-full" />
+      <div
+        ref={containerRef}
+        className="flex-1 w-full"
+        style={{ cursor: readOnly ? "default" : toolMode === "rotate" ? "crosshair" : isActiveDrag ? "grabbing" : toolMode === "move" ? "grab" : "default" }}
+        onMouseDown={!readOnly ? handlePointerDown : undefined}
+        onMouseMove={!readOnly ? handlePointerMove : undefined}
+        onMouseUp={!readOnly ? handlePointerUp : undefined}
+        onMouseLeave={!readOnly ? handlePointerUp : undefined}
+      />
 
-      {/* Bottom controls */}
+      {/* Tool toolbar */}
       {!readOnly && (
-        <div className="absolute bottom-4 left-3 right-3 z-10">
-          <div className="rounded-xl bg-white/95 shadow-lg backdrop-blur-sm p-3 flex flex-col gap-2">
-            {!center && (
-              <p className="text-xs text-gray-500 text-center">
-                Søk etter adresse eller klikk i kartet for å plassere garasjen
-              </p>
-            )}
-            {center && (
-              <>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-medium text-gray-600 shrink-0">Roter</span>
-                  <input
-                    type="range" min={0} max={359} value={rotation}
-                    onChange={(e) => setRotation(Number(e.target.value))}
-                    className="flex-1 accent-orange-500"
-                  />
-                  <span className="text-xs text-gray-500 w-8 text-right">{rotation}°</span>
-                </div>
-                <p className="text-xs text-gray-400 text-center">
-                  {lengthM.toFixed(1)} m × {widthM.toFixed(1)} m
-                  {is3D ? ` × ${heightM.toFixed(1)} m høy` : ""} — klikk i kartet for å flytte
-                </p>
-              </>
-            )}
+        <div className="absolute bottom-4 left-3 z-10 flex flex-col gap-1 bg-white/95 rounded-xl shadow-lg p-1.5 backdrop-blur-sm">
+          {/* Move */}
+          <button
+            onClick={() => setToolMode("move")}
+            title="Flytt garasje"
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${toolMode === "move" ? "bg-orange-500 text-white" : "text-gray-600 hover:bg-orange-50"}`}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/>
+              <polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/>
+              <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
+            </svg>
+          </button>
+          {/* Rotate */}
+          <button
+            onClick={() => setToolMode("rotate")}
+            title="Roter garasje"
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${toolMode === "rotate" ? "bg-orange-500 text-white" : "text-gray-600 hover:bg-orange-50"}`}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.5 2v6h-6"/>
+              <path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/>
+            </svg>
+          </button>
+          {/* Pan */}
+          <button
+            onClick={() => setToolMode("pan")}
+            title="Panorér kart"
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${toolMode === "pan" ? "bg-orange-500 text-white" : "text-gray-600 hover:bg-orange-50"}`}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v0"/>
+              <path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v2"/>
+              <path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8"/>
+              <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+            </svg>
+          </button>
+        </div>
+      )}
+      {/* Rotation / size readout */}
+      {!readOnly && center && (
+        <div className="absolute bottom-4 left-16 z-10 bg-white/95 rounded-lg shadow-md px-2.5 py-2 text-xs text-gray-600 backdrop-blur-sm leading-tight">
+          <span className="font-semibold text-gray-800">{rotation}°</span>
+          <span className="ml-1.5 text-gray-400">{lengthM.toFixed(1)}×{widthM.toFixed(1)} m{is3D ? ` ×${heightM.toFixed(1)}` : ""}</span>
+        </div>
+      )}
+      {/* Placement hint */}
+      {!readOnly && !center && (
+        <div className="absolute bottom-4 left-16 right-3 z-10">
+          <div className="rounded-xl bg-white/95 shadow-lg backdrop-blur-sm px-4 py-2.5 text-center">
+            <p className="text-xs text-gray-500">Klikk i kartet for å plassere garasjen</p>
           </div>
         </div>
       )}
