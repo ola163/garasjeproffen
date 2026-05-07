@@ -439,7 +439,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 onChange={toggleSnapOnly}
                 className="h-4 w-4 accent-green-600 cursor-pointer"
               />
-              <span className="text-sm text-gray-700">Kun anbefalte mål</span>
+              <span className="text-sm text-gray-700">Lås til standard mål</span>
               <span className="text-xs font-medium text-green-600">— gir opptil 10% rabatt</span>
             </label>
           )}
