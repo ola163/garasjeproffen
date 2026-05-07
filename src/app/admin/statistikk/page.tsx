@@ -63,7 +63,7 @@ export default function StatistikkPage() {
   const [data, setData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [tab, setTab] = useState<"brukere" | "iper" | "utland" | "sider" | "trafikk">("brukere");
+  const [tab, setTab] = useState<"brukere" | "iper" | "utland" | "forside" | "sider" | "trafikk">("brukere");
   const [relinking, setRelinking] = useState(false);
   const [relinkResult, setRelinkResult] = useState<string | null>(null);
   const [assigningIp, setAssigningIp] = useState<string | null>(null);
@@ -224,8 +224,10 @@ export default function StatistikkPage() {
                 )}
               </button>
               {(() => {
-                const norske = data.uniqueIps.filter((e) => !e.countryCode || e.countryCode === "NO");
-                const utland = data.uniqueIps.filter((e) => e.countryCode && e.countryCode !== "NO");
+                const homepageOnly = (e: IpEntry) => e.paths.length === 0 || (e.paths.length === 1 && e.paths[0] === "/");
+                const norske = data.uniqueIps.filter((e) => (!e.countryCode || e.countryCode === "NO") && !homepageOnly(e));
+                const utland = data.uniqueIps.filter((e) => e.countryCode && e.countryCode !== "NO" && !homepageOnly(e));
+                const forside = data.uniqueIps.filter(homepageOnly);
                 return (
                   <>
                     <button onClick={() => setTab("iper")}
@@ -235,6 +237,10 @@ export default function StatistikkPage() {
                     <button onClick={() => setTab("utland")}
                       className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === "utland" ? "bg-red-500 text-white" : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"}`}>
                       Utlandet {utland.length > 0 && <span className={`ml-1 rounded-full px-1.5 text-xs font-bold ${tab === "utland" ? "bg-white text-red-500" : "bg-red-100 text-red-600"}`}>{utland.length}</span>}
+                    </button>
+                    <button onClick={() => setTab("forside")}
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === "forside" ? "bg-gray-500 text-white" : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"}`}>
+                      Kun forside {forside.length > 0 && <span className={`ml-1 rounded-full px-1.5 text-xs font-bold ${tab === "forside" ? "bg-white text-gray-500" : "bg-gray-100 text-gray-500"}`}>{forside.length}</span>}
                     </button>
                   </>
                 );
@@ -332,11 +338,13 @@ export default function StatistikkPage() {
             )}
 
             {/* IP tables */}
-            {(tab === "iper" || tab === "utland") && (() => {
-              const norske = data.uniqueIps.filter((e) => !e.countryCode || e.countryCode === "NO");
-              const utland = data.uniqueIps.filter((e) => e.countryCode && e.countryCode !== "NO");
-              const entries = tab === "iper" ? norske : utland;
-              const emptyMsg = tab === "iper" ? "Ingen norske besøk registrert ennå." : "Ingen besøk fra utlandet.";
+            {(tab === "iper" || tab === "utland" || tab === "forside") && (() => {
+              const homepageOnly = (e: IpEntry) => e.paths.length === 0 || (e.paths.length === 1 && e.paths[0] === "/");
+              const norske = data.uniqueIps.filter((e) => (!e.countryCode || e.countryCode === "NO") && !homepageOnly(e));
+              const utland = data.uniqueIps.filter((e) => e.countryCode && e.countryCode !== "NO" && !homepageOnly(e));
+              const forside = data.uniqueIps.filter(homepageOnly);
+              const entries = tab === "iper" ? norske : tab === "utland" ? utland : forside;
+              const emptyMsg = tab === "iper" ? "Ingen norske besøk registrert ennå." : tab === "utland" ? "Ingen besøk fra utlandet." : "Ingen som kun besøkte forsiden.";
 
               return (
                 <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
