@@ -3,13 +3,11 @@
 import { useState } from "react";
 
 export interface GrunnarbeidData {
-  // 1. Grunnarbeid
   utgraving: boolean;
   utgravingDybdeFra: string;
   utgravingDybdeTil: string;
   markisolering: boolean;
   markinsoleringstykkelse: string;
-  // 2. Betongarbeid
   betongdekke: boolean;
   fallGulv: boolean;
   helikopterpuss: boolean;
@@ -18,7 +16,6 @@ export interface GrunnarbeidData {
   ringmurLengde: string;
   skillvegg: boolean;
   skillveggLengde: string;
-  // 4. Utomhusarbeider
   fjernAsfalt: boolean;
   fjernAsfaltAreal: string;
   masseutskiftning: boolean;
@@ -43,15 +40,80 @@ export function emptyGrunnarbeidData(sqm: number, perimeterM: number): Grunnarbe
   };
 }
 
+// ─── Terrain helpers ──────────────────────────────────────────────────────────
+
+function getGarageCorners(
+  center: [number, number], rotationDeg: number, lengthMm: number, widthMm: number
+): Array<[number, number]> {
+  const [lng, lat] = center;
+  const rot = (rotationDeg * Math.PI) / 180;
+  const latPerM = 1 / 111320;
+  const lngPerM = 1 / (111320 * Math.cos((lat * Math.PI) / 180));
+  const hL = (lengthMm / 1000) / 2;
+  const hW = (widthMm / 1000) / 2;
+  const offsets: [number, number][] = [[-hW, -hL], [hW, -hL], [hW, hL], [-hW, hL]];
+  return offsets.map(([dx, dy]) => [
+    lng + (dx * Math.cos(rot) - dy * Math.sin(rot)) * lngPerM,
+    lat + (dx * Math.sin(rot) + dy * Math.cos(rot)) * latPerM,
+  ]);
+}
+
+async function getElevationAt(lat: number, lng: number, token: string): Promise<number> {
+  const zoom = 14;
+  const n = Math.pow(2, zoom);
+  const tileX = Math.floor(((lng + 180) / 360) * n);
+  const latRad = (lat * Math.PI) / 180;
+  const tileY = Math.floor(
+    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n
+  );
+  const pxX = Math.min(255, Math.floor((((lng + 180) / 360) * n - tileX) * 256));
+  const pxY = Math.min(255, Math.floor(
+    (((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n - tileY) * 256
+  ));
+  const url = `https://api.mapbox.com/v4/mapbox.terrain-rgb/${zoom}/${tileX}/${tileY}.pngraw?access_token=${token}`;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256; canvas.height = 256;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("canvas")); return; }
+      ctx.drawImage(img, 0, 0);
+      const [r, g, b] = ctx.getImageData(pxX, pxY, 1, 1).data;
+      resolve(-10000 + (r * 65536 + g * 256 + b) * 0.1);
+    };
+    img.onerror = () => reject(new Error("tile"));
+    img.src = url;
+  });
+}
+
+interface TerrainResult {
+  elevations: number[];     // one per sample point
+  minElev: number;
+  maxElev: number;
+  slopeCm: number;          // height difference in cm across the footprint
+  suggestedFra: number;     // cm
+  suggestedTil: number;     // cm
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 interface Props {
   sqm: number;
   perimeterM: number;
+  lengthMm: number;
+  widthMm: number;
+  mapCenter?: [number, number] | null;
+  mapRotation?: number;
+  mapboxToken?: string;
   initialData?: GrunnarbeidData;
   onSave: (data: GrunnarbeidData) => void;
   onClose: () => void;
 }
 
 const STEPS = ["Grunnarbeid", "Betongarbeid", "Utomhusarbeider"];
+const FROST_DEPTH_CM = 80; // South/West Norway
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -92,18 +154,69 @@ function NumberInput({ value, onChange, unit, placeholder }: { value: string; on
   );
 }
 
-export default function GrunnarbeidWizard({ sqm, perimeterM, initialData, onSave, onClose }: Props) {
+// Inline slope bar visualisation
+function SlopeBar({ slopeCm }: { slopeCm: number }) {
+  const pct = Math.min(100, (slopeCm / 150) * 100);
+  const color = slopeCm < 20 ? "bg-green-400" : slopeCm < 60 ? "bg-yellow-400" : "bg-red-400";
+  return (
+    <div className="mt-2">
+      <div className="flex justify-between text-xs text-gray-400 mb-1">
+        <span>Terrengfall</span>
+        <span className="font-semibold text-gray-700">{slopeCm} cm</span>
+      </div>
+      <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-1 text-xs text-gray-400">
+        {slopeCm < 10 ? "Tilnærmet flatt terreng" : slopeCm < 40 ? "Moderat skråning" : "Betydelig skråning – mye masseutskiftning"}
+      </p>
+    </div>
+  );
+}
+
+export default function GrunnarbeidWizard({ sqm, perimeterM, lengthMm, widthMm, mapCenter, mapRotation = 0, mapboxToken = "", initialData, onSave, onClose }: Props) {
   const [step, setStep] = useState(0);
   const [d, setD] = useState<GrunnarbeidData>(initialData ?? emptyGrunnarbeidData(sqm, perimeterM));
+  const [terrain, setTerrain] = useState<TerrainResult | null>(null);
+  const [calcLoading, setCalcLoading] = useState(false);
+  const [calcError, setCalcError] = useState("");
 
   function set<K extends keyof GrunnarbeidData>(key: K, val: GrunnarbeidData[K]) {
     setD(prev => ({ ...prev, [key]: val }));
+  }
+
+  async function handleCalcTerrain() {
+    if (!mapCenter || !mapboxToken) return;
+    setCalcLoading(true);
+    setCalcError("");
+    setTerrain(null);
+    try {
+      const corners = getGarageCorners(mapCenter, mapRotation, lengthMm, widthMm);
+      const points: [number, number][] = [...corners, mapCenter];
+      const elevs = await Promise.all(points.map(([lng, lat]) => getElevationAt(lat, lng, mapboxToken)));
+      const minElev = Math.min(...elevs);
+      const maxElev = Math.max(...elevs);
+      const slopeCm = Math.round((maxElev - minElev) * 100);
+      const suggestedFra = FROST_DEPTH_CM;
+      const suggestedTil = Math.max(suggestedFra + 10, Math.round((FROST_DEPTH_CM + (maxElev - minElev) * 100 + 20) / 5) * 5);
+      const result: TerrainResult = { elevations: elevs, minElev, maxElev, slopeCm, suggestedFra, suggestedTil };
+      setTerrain(result);
+      set("utgravingDybdeFra", String(suggestedFra));
+      set("utgravingDybdeTil", String(suggestedTil));
+      set("utgraving", true);
+    } catch {
+      setCalcError("Kunne ikke hente høydedata fra Mapbox. Fyll inn manuelt.");
+    } finally {
+      setCalcLoading(false);
+    }
   }
 
   function handleSave() {
     onSave(d);
     onClose();
   }
+
+  const hasMap = !!mapCenter && !!mapboxToken;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -120,7 +233,6 @@ export default function GrunnarbeidWizard({ sqm, perimeterM, initialData, onSave
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
           </div>
-          {/* Step dots */}
           <div className="mt-3 flex gap-2">
             {STEPS.map((s, i) => (
               <button
@@ -137,9 +249,59 @@ export default function GrunnarbeidWizard({ sqm, perimeterM, initialData, onSave
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
 
+          {/* ── Step 1: Grunnarbeid ── */}
           {step === 0 && (
             <div>
               <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-400">1. Grunnarbeid</p>
+
+              {/* Terrain calculator */}
+              <div className={`mb-4 rounded-xl border p-4 ${terrain ? "border-blue-200 bg-blue-50" : "border-gray-200 bg-gray-50"}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Masseberegning fra kart</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {hasMap
+                        ? "Henter høydedata fra Mapbox Terrain for garasjeflaten"
+                        : "Plasser garasjen på kartet først (Tomteplassering)"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCalcTerrain}
+                    disabled={!hasMap || calcLoading}
+                    className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                  >
+                    {calcLoading ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Beregner…
+                      </span>
+                    ) : "Beregn fra kart"}
+                  </button>
+                </div>
+
+                {calcError && <p className="mt-2 text-xs text-red-600">{calcError}</p>}
+
+                {terrain && (
+                  <div className="mt-3 space-y-2">
+                    <SlopeBar slopeCm={terrain.slopeCm} />
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="rounded-lg bg-white border border-blue-100 px-3 py-2 text-center">
+                        <p className="text-xs text-gray-400">Laveste punkt</p>
+                        <p className="text-sm font-bold text-gray-800">{terrain.minElev.toFixed(1)} m</p>
+                      </div>
+                      <div className="rounded-lg bg-white border border-blue-100 px-3 py-2 text-center">
+                        <p className="text-xs text-gray-400">Høyeste punkt</p>
+                        <p className="text-sm font-bold text-gray-800">{terrain.maxElev.toFixed(1)} m</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-blue-700 font-medium mt-1">
+                      Anbefalt utgravingsdybde: {terrain.suggestedFra}–{terrain.suggestedTil} cm (inkl. {FROST_DEPTH_CM} cm frostdybde)
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <Field label="Utgraving / masseutskiftning av byggegrop" sub="Spesifiser dybde fra–til">
                 <Toggle checked={d.utgraving} onChange={v => set("utgraving", v)} />
               </Field>
@@ -155,6 +317,7 @@ export default function GrunnarbeidWizard({ sqm, perimeterM, initialData, onSave
                   </div>
                 </div>
               )}
+
               <Field label="Markisolering inkludert" sub="Spesifiser tykkelse i cm">
                 <Toggle checked={d.markisolering} onChange={v => set("markisolering", v)} />
               </Field>
@@ -166,6 +329,7 @@ export default function GrunnarbeidWizard({ sqm, perimeterM, initialData, onSave
             </div>
           )}
 
+          {/* ── Step 2: Betongarbeid ── */}
           {step === 1 && (
             <div>
               <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-400">2. Betongarbeid</p>
@@ -212,6 +376,7 @@ export default function GrunnarbeidWizard({ sqm, perimeterM, initialData, onSave
             </div>
           )}
 
+          {/* ── Step 3: Utomhusarbeider ── */}
           {step === 2 && (
             <div>
               <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-400">4. Utomhusarbeider</p>

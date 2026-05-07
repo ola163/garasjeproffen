@@ -265,6 +265,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       <GrunnarbeidWizard
         sqm={sqm}
         perimeterM={perimeterM}
+        lengthMm={lengthValue}
+        widthMm={widthValue}
+        mapCenter={mapCenter}
+        mapRotation={mapRotation}
+        mapboxToken={MAPBOX_TOKEN}
         initialData={grunnarbeid ?? emptyGrunnarbeidData(sqm, perimeterM)}
         onSave={(data) => setGrunnarbeid(data)}
         onClose={() => setShowGrunnarbeidWizard(false)}
