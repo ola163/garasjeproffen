@@ -29,7 +29,6 @@ export function logSecurityEvent(event: SecurityEvent): void {
     createClient(sbUrl, sbKey)
       .from("security_events")
       .insert(entry)
-      .then(() => {})
       .catch((err: unknown) => console.error("[security] DB log failed:", err));
   }
 }
