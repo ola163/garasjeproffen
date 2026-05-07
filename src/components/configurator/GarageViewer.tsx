@@ -365,14 +365,27 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-// Native door size: 2500 x 2125 mm
-const DOOR_W = 2.5;
-const DOOR_H = 2.125;
+const PORT_REVEAL_T = 0.02; // reveal jamb face thickness
 
 function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; doorWidthMm: number; doorHeightMm: number }) {
   const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
+
+  const matReveal = useMemo(() => new THREE.MeshStandardMaterial({ color: REVEAL_COLOR, roughness: 0.7 }), []);
+  const matCut    = useMemo(() => {
+    const m = new THREE.MeshBasicMaterial();
+    m.colorWrite  = false;
+    m.depthWrite  = false;
+    m.depthTest   = false;
+    m.side        = THREE.DoubleSide;
+    m.stencilWrite = true;
+    m.stencilFunc  = THREE.AlwaysStencilFunc;
+    m.stencilRef   = 1;
+    m.stencilZPass = THREE.ReplaceStencilOp;
+    return m;
+  }, []);
+
   const group = useMemo(() => {
     const clone = rawScene.clone(true);
     const box = new Box3().setFromObject(clone);
@@ -387,7 +400,30 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; d
     return clone;
   }, [rawScene, targetW, targetH]);
 
-  return <primitive object={group} position={[0, targetH / 2, halfL - 0.02]} dispose={null} />;
+  // Door is 0.05 m thick (half = 0.025). Position so front face sits 3 cm inside wall.
+  const doorZ = halfL - 0.03 - 0.025;
+  const RT = PORT_REVEAL_T;
+
+  return (
+    <group>
+      {/* Stencil cutter — punches hole through full wall at door opening */}
+      <mesh renderOrder={-2} position={[0, targetH / 2, halfL - WALL_T / 2]} material={matCut}>
+        <boxGeometry args={[targetW, targetH, WALL_T + 0.1]} />
+      </mesh>
+      {/* Reveal jambs */}
+      <mesh position={[-(targetW / 2 + RT / 2), targetH / 2, halfL - WALL_T / 2]} material={matReveal}>
+        <boxGeometry args={[RT, targetH, WALL_T]} />
+      </mesh>
+      <mesh position={[(targetW / 2 + RT / 2), targetH / 2, halfL - WALL_T / 2]} material={matReveal}>
+        <boxGeometry args={[RT, targetH, WALL_T]} />
+      </mesh>
+      <mesh position={[0, targetH + RT / 2, halfL - WALL_T / 2]} material={matReveal}>
+        <boxGeometry args={[targetW + RT * 2, RT, WALL_T]} />
+      </mesh>
+      {/* Door panel inset into wall */}
+      <primitive object={group} position={[0, targetH / 2, doorZ]} dispose={null} />
+    </group>
+  );
 }
 
 function GarageDimensionLines({ lengthMm, widthMm, wallHalfL, wallHalfW }: {
