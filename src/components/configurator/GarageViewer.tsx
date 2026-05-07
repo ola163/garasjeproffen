@@ -365,14 +365,11 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-const PORT_REVEAL_T = 0.02; // reveal jamb face thickness
-
 function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; doorWidthMm: number; doorHeightMm: number }) {
   const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
 
-  const matReveal = useMemo(() => new THREE.MeshStandardMaterial({ color: REVEAL_COLOR, roughness: 0.7 }), []);
   const matCut    = useMemo(() => {
     const m = new THREE.MeshBasicMaterial();
     m.colorWrite  = false;
@@ -404,25 +401,13 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; d
     return { clone, ox, oy, oz };
   }, [rawScene, targetW, targetH]);
 
-  // Center door z within wall thickness so it sits recessed but visible
   const doorZ = halfL - WALL_T / 2;
-  const RT = PORT_REVEAL_T;
 
   return (
     <group>
       {/* Stencil cutter — punches hole through full wall at door opening */}
       <mesh renderOrder={-2} position={[0, targetH / 2, halfL - WALL_T / 2]} material={matCut}>
         <boxGeometry args={[targetW, targetH, WALL_T + 0.1]} />
-      </mesh>
-      {/* Reveal jambs */}
-      <mesh position={[-(targetW / 2 + RT / 2), targetH / 2, halfL - WALL_T / 2]} material={matReveal}>
-        <boxGeometry args={[RT, targetH, WALL_T]} />
-      </mesh>
-      <mesh position={[(targetW / 2 + RT / 2), targetH / 2, halfL - WALL_T / 2]} material={matReveal}>
-        <boxGeometry args={[RT, targetH, WALL_T]} />
-      </mesh>
-      <mesh position={[0, targetH + RT / 2, halfL - WALL_T / 2]} material={matReveal}>
-        <boxGeometry args={[targetW + RT * 2, RT, WALL_T]} />
       </mesh>
       {/* Door panel: combine centering offsets with doorZ in one position prop */}
       <primitive object={group.clone} position={[group.ox, group.oy, group.oz + doorZ]} dispose={null} />
