@@ -96,7 +96,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
   const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
-  const [grunnarbeidOpen, setGrunnarbeidOpen] = useState(false);
   const [grunnarbeid, setGrunnarbeid] = useState<GrunnarbeidData | null>(null);
   const [showGrunnarbeidWizard, setShowGrunnarbeidWizard] = useState(false);
 
@@ -670,78 +669,55 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
           {/* Grunn- og betongarbeid */}
           <div className="mt-6 border-t border-gray-100 pt-5">
-            <button
-              type="button"
-              onClick={() => setGrunnarbeidOpen((o) => !o)}
-              className="flex w-full items-center justify-between text-sm font-semibold text-gray-700 hover:text-gray-900"
-            >
-              <span className="flex items-center gap-2">
-                Grunn- og betongarbeid
-                {grunnarbeid !== null && <span className="text-xs font-normal text-green-600">✓ Lagt til</span>}
-              </span>
-              <svg
-                className={`h-4 w-4 text-gray-400 transition-transform ${grunnarbeidOpen ? "rotate-180" : ""}`}
-                viewBox="0 0 20 20" fill="currentColor"
+            <p className="mb-3 text-sm font-semibold text-gray-700">Grunn- og betongarbeid</p>
+            {grunnarbeid === null ? (
+              <button
+                type="button"
+                onClick={() => setShowGrunnarbeidWizard(true)}
+                className="flex w-full items-center gap-2 rounded-lg border-2 border-dashed border-orange-300 px-4 py-3 text-sm font-semibold text-orange-500 hover:border-orange-400 hover:bg-orange-50 transition-colors"
               >
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-            {grunnarbeidOpen && (
-              <div className="mt-4 space-y-3">
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  Vi tar oss av graving, planering og støping av armert betongplate.
-                  Endelig pris avtales etter befaring av tomten.
-                </p>
-                {grunnarbeid === null ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowGrunnarbeidWizard(true)}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-orange-300 px-4 py-3 text-sm font-semibold text-orange-500 hover:border-orange-400 hover:bg-orange-50 transition-colors"
-                  >
-                    <span className="text-lg leading-none">+</span>
-                    <span>Legg til grunn- og betongarbeid</span>
-                    <span className="ml-auto text-xs font-normal text-gray-400">
-                      ~{new Intl.NumberFormat("nb-NO").format(
-                        Math.round(((lengthValue / 1000) * (widthValue / 1000)) * GRUNNARBEID_KR_PER_SQM / 500) * 500
-                      )} kr
-                    </span>
-                  </button>
-                ) : (
-                  <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-semibold text-green-800">Grunnarbeid lagt til</p>
-                        <p className="text-xs text-green-600 mt-0.5">
-                          {[
-                            grunnarbeid.utgraving && "Utgraving",
-                            grunnarbeid.betongdekke && "Betongdekke",
-                            grunnarbeid.ringmur && "Ringmur",
-                          ].filter(Boolean).join(" · ") || "Tilpasset valg"}
-                          {grunnarbeid.betongtype ? ` · ${grunnarbeid.betongtype}` : ""}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 ml-2">
-                        <button
-                          onClick={() => setShowGrunnarbeidWizard(true)}
-                          className="text-xs font-medium text-orange-600 hover:text-orange-700"
-                        >
-                          Rediger
-                        </button>
-                        <button
-                          onClick={() => setGrunnarbeid(null)}
-                          className="text-gray-400 hover:text-red-500 text-sm"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
+                <span className="text-lg leading-none">+</span>
+                <span>Legg til grunn- og betongarbeid</span>
+                <span className="ml-auto text-xs font-normal text-gray-400">
+                  ~{new Intl.NumberFormat("nb-NO").format(
+                    Math.round(((lengthValue / 1000) * (widthValue / 1000)) * GRUNNARBEID_KR_PER_SQM / 500) * 500
+                  )} kr
+                </span>
+              </button>
+            ) : (
+              <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-green-800">Lagt til</p>
+                    <p className="text-xs text-green-600 mt-0.5">
+                      {[
+                        grunnarbeid.utgraving && "Utgraving",
+                        grunnarbeid.betongdekke && "Betongdekke",
+                        grunnarbeid.ringmur && "Ringmur",
+                      ].filter(Boolean).join(" · ") || "Tilpasset valg"}
+                      {grunnarbeid.betongtype ? ` · ${grunnarbeid.betongtype}` : ""}
+                    </p>
                   </div>
-                )}
-                <p className="text-xs text-gray-400">
-                  Estimat ~{GRUNNARBEID_KR_PER_SQM.toLocaleString("nb-NO")} kr/m² · {((lengthValue / 1000) * (widthValue / 1000)).toFixed(1)} m² · Endelig pris etter befaring
-                </p>
+                  <div className="flex items-center gap-2 ml-2">
+                    <button
+                      onClick={() => setShowGrunnarbeidWizard(true)}
+                      className="text-xs font-medium text-orange-600 hover:text-orange-700"
+                    >
+                      Rediger
+                    </button>
+                    <button
+                      onClick={() => setGrunnarbeid(null)}
+                      className="text-gray-400 hover:text-red-500 text-sm"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
+            <p className="mt-2 text-xs text-gray-400">
+              Estimat ~{GRUNNARBEID_KR_PER_SQM.toLocaleString("nb-NO")} kr/m² · Endelig pris etter befaring
+            </p>
           </div>
 
           {/* Tomteplassering */}
