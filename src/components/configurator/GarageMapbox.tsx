@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as THREE from "three";
@@ -189,6 +189,14 @@ function buildingToGroup(
   return group;
 }
 
+/** Bearing (degrees) from a geographic center to a lngLat point; 0=North, 90=East */
+function lngLatBearing(lngLat: { lng: number; lat: number }, center: [number, number]): number {
+  const mPerLng = 111320 * Math.cos((center[1] * Math.PI) / 180);
+  const dx = (lngLat.lng - center[0]) * mPerLng;
+  const dy = (lngLat.lat - center[1]) * 111320;
+  return Math.atan2(dx, dy) * (180 / Math.PI);
+}
+
 // ─── ThreeState ──────────────────────────────────────────────────────────────
 
 type ThreeState = {
@@ -235,15 +243,8 @@ export default function GarageMapbox({
   const [boundaryVersion,  setBoundaryVersion]  = useState(0);
 
   type ToolMode = "pan" | "move" | "rotate";
-  const [toolMode,     setToolMode]     = useState<ToolMode>("move");
-  const [isActiveDrag, setIsActiveDrag] = useState(false);
+  const [toolMode,  setToolMode]  = useState<ToolMode>("move");
   const toolModeRef = useRef<ToolMode>("move");
-  const dragRef     = useRef<{
-    clientX: number; clientY: number;
-    startBearing: number; startRotation: number;
-    startCenter: [number, number];
-  } | null>(null);
-  const isDraggingRef = useRef(false);
 
   const center   = externalCenter   !== undefined ? externalCenter   : internalCenter;
   const rotation = externalRotation !== undefined ? externalRotation : internalRotation;
@@ -252,93 +253,22 @@ export default function GarageMapbox({
     setInternalCenter(c);
     if (c) onCenterChange?.(c);
   }
-  function setRotation(r: number) {
-    setInternalRotation(r);
-    onRotationChange?.(r);
-  }
+
 
   useEffect(() => { toolModeRef.current = toolMode; }, [toolMode]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (toolMode === "pan") map.dragPan.enable();
-    else map.dragPan.disable();
+    const canvas = map.getCanvas();
+    if (toolMode === "pan") {
+      map.dragPan.enable();
+      canvas.style.cursor = "";
+    } else {
+      map.dragPan.disable();
+      canvas.style.cursor = toolMode === "rotate" ? "crosshair" : "grab";
+    }
   }, [toolMode]);
-
-  function getBearing(clientX: number, clientY: number, c: [number, number]): number {
-    const map = mapRef.current;
-    if (!map || !containerRef.current) return 0;
-    const rect = containerRef.current.getBoundingClientRect();
-    const pt = map.unproject([clientX - rect.left, clientY - rect.top]);
-    const mPerLng = 111320 * Math.cos((c[1] * Math.PI) / 180);
-    const dx = (pt.lng - c[0]) * mPerLng;
-    const dy = (pt.lat - c[1]) * 111320;
-    return Math.atan2(dx, dy) * (180 / Math.PI);
-  }
-
-  function handlePointerDown(e: React.MouseEvent<HTMLDivElement>) {
-    const mode = toolModeRef.current;
-    if (mode === "pan") return;
-    e.preventDefault();
-    const cur = centerRenderRef.current;
-    dragRef.current = {
-      clientX: e.clientX, clientY: e.clientY,
-      startBearing: cur ? getBearing(e.clientX, e.clientY, cur) : 0,
-      startRotation: rotationRenderRef.current,
-      startCenter: cur ?? [0, 0],
-    };
-    isDraggingRef.current = false;
-  }
-
-  function handlePointerMove(e: React.MouseEvent<HTMLDivElement>) {
-    if (!dragRef.current) return;
-    if (toolModeRef.current === "pan") return;
-    const dx = e.clientX - dragRef.current.clientX;
-    const dy = e.clientY - dragRef.current.clientY;
-    if (!isDraggingRef.current) {
-      if (Math.hypot(dx, dy) < 4) return;
-      isDraggingRef.current = true;
-      setIsActiveDrag(true);
-    }
-    const map = mapRef.current;
-    if (!map || !containerRef.current) return;
-    const mode = toolModeRef.current;
-    if (mode === "rotate" && centerRenderRef.current) {
-      const curBearing = getBearing(e.clientX, e.clientY, centerRenderRef.current);
-      const delta = curBearing - dragRef.current.startBearing;
-      const newRot = ((dragRef.current.startRotation + delta) % 360 + 360) % 360;
-      setRotation(Math.round(newRot));
-    } else if (mode === "move") {
-      const rect = containerRef.current.getBoundingClientRect();
-      const startPt = map.unproject([dragRef.current.clientX - rect.left, dragRef.current.clientY - rect.top]);
-      const curPt   = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
-      const sc = dragRef.current.startCenter;
-      const newCenter: [number, number] = [sc[0] + (curPt.lng - startPt.lng), sc[1] + (curPt.lat - startPt.lat)];
-      setCenter(newCenter);
-      if (markerRef.current) markerRef.current.setLngLat(newCenter);
-    }
-  }
-
-  function handlePointerUp(e: React.MouseEvent<HTMLDivElement>) {
-    const wasDragging = isDraggingRef.current;
-    isDraggingRef.current = false;
-    setIsActiveDrag(false);
-    const mode = toolModeRef.current;
-    if (mode === "pan") { dragRef.current = null; return; }
-    if (!wasDragging && dragRef.current) {
-      const map = mapRef.current;
-      if (map && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const pt = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
-        const c: [number, number] = [pt.lng, pt.lat];
-        setCenter(c);
-        if (markerRef.current) markerRef.current.remove();
-        markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
-      }
-    }
-    dragRef.current = null;
-  }
 
   const lengthM = lengthMm / 1000;
   const widthM  = widthMm  / 1000;
@@ -636,7 +566,65 @@ export default function GarageMapbox({
     });
 
     if (!readOnly) {
-      map.dragPan.disable(); // default tool is "move"; React handlers manage placement/drag
+      map.dragPan.disable(); // default tool is "move"
+      map.getCanvas().style.cursor = "grab";
+
+      // Local drag state — lives in the init closure, safe from React re-renders
+      type DS = { clientX: number; clientY: number; startLngLat: mapboxgl.LngLat; startBearing: number; startRotation: number; startCenter: [number, number] };
+      let ds: DS | null = null;
+      let dragging = false;
+
+      map.on("mousedown", (e) => {
+        if (toolModeRef.current === "pan") return;
+        dragging = false;
+        const cur = centerRenderRef.current;
+        ds = {
+          clientX: e.originalEvent.clientX,
+          clientY: e.originalEvent.clientY,
+          startLngLat: e.lngLat,
+          startBearing: cur ? lngLatBearing(e.lngLat, cur) : 0,
+          startRotation: rotationRenderRef.current,
+          startCenter: cur ? [cur[0], cur[1]] : [e.lngLat.lng, e.lngLat.lat],
+        };
+        map.getCanvas().style.cursor = toolModeRef.current === "rotate" ? "crosshair" : "grabbing";
+      });
+
+      map.on("mousemove", (e) => {
+        if (!ds || toolModeRef.current === "pan") return;
+        const dx = e.originalEvent.clientX - ds.clientX;
+        const dy = e.originalEvent.clientY - ds.clientY;
+        if (!dragging && Math.hypot(dx, dy) < 4) return;
+        dragging = true;
+        const mode = toolModeRef.current;
+        if (mode === "rotate" && centerRenderRef.current) {
+          const delta = lngLatBearing(e.lngLat, centerRenderRef.current) - ds.startBearing;
+          const newRot = ((ds.startRotation + delta) % 360 + 360) % 360;
+          setInternalRotation(Math.round(newRot));
+          onRotationChange?.(Math.round(newRot));
+        } else if (mode === "move") {
+          const newCenter: [number, number] = [
+            ds.startCenter[0] + (e.lngLat.lng - ds.startLngLat.lng),
+            ds.startCenter[1] + (e.lngLat.lat - ds.startLngLat.lat),
+          ];
+          setInternalCenter(newCenter);
+          onCenterChange?.(newCenter);
+          if (markerRef.current) markerRef.current.setLngLat(newCenter);
+        }
+      });
+
+      map.on("mouseup", (e) => {
+        const wasDragging = dragging;
+        dragging = false;
+        map.getCanvas().style.cursor = toolModeRef.current === "rotate" ? "crosshair" : "grab";
+        if (!wasDragging && ds) {
+          const c: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+          setInternalCenter(c);
+          onCenterChange?.(c);
+          if (markerRef.current) markerRef.current.remove();
+          markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
+        }
+        ds = null;
+      });
     }
 
     return () => {
@@ -814,15 +802,7 @@ export default function GarageMapbox({
       )}
 
       {/* Map */}
-      <div
-        ref={containerRef}
-        className="flex-1 w-full"
-        style={{ cursor: readOnly ? "default" : toolMode === "rotate" ? "crosshair" : isActiveDrag ? "grabbing" : toolMode === "move" ? "grab" : "default" }}
-        onMouseDown={!readOnly ? handlePointerDown : undefined}
-        onMouseMove={!readOnly ? handlePointerMove : undefined}
-        onMouseUp={!readOnly ? handlePointerUp : undefined}
-        onMouseLeave={!readOnly ? handlePointerUp : undefined}
-      />
+      <div ref={containerRef} className="flex-1 w-full" />
 
       {/* Tool toolbar */}
       {!readOnly && (
