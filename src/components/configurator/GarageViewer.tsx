@@ -89,6 +89,7 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
     m.colorWrite  = false;
     m.depthWrite  = false;
     m.depthTest   = false;
+    m.side        = THREE.DoubleSide;
     m.stencilWrite = true;
     m.stencilFunc  = THREE.AlwaysStencilFunc;
     m.stencilRef   = 1;
@@ -131,10 +132,10 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
 
         if (isGLBWindow) {
           meshes.push(
-            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace]} material={matCut}>
-              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, 0.001]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace - dir * WALL_T / 2]} material={matCut}>
+              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, WALL_T + 0.1]} />
             </mesh>,
-            <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.05)]} material={matInterior}>
+            <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.4)]} material={matInterior}>
               <boxGeometry args={[w + FB * 2, h + FB * 2, 0.02]} />
             </mesh>,
             ...frontRevealsMeshes,
@@ -145,10 +146,10 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
           );
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace]} material={matCut}>
-              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, 0.001]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace - dir * WALL_T / 2]} material={matCut}>
+              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, WALL_T + 0.1]} />
             </mesh>,
-            <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.05)]} material={matInterior}>
+            <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.4)]} material={matInterior}>
               <boxGeometry args={[w + FB * 2, h + FB * 2, 0.02]} />
             </mesh>,
             ...frontRevealsMeshes,
@@ -199,10 +200,10 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
 
         if (isGLBWindow) {
           meshes.push(
-            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace, cy, z]} material={matCut}>
-              <boxGeometry args={[0.001, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace - dir * WALL_T / 2, cy, z]} material={matCut}>
+              <boxGeometry args={[WALL_T + 0.1, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
             </mesh>,
-            <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.05), cy, z]} material={matInterior}>
+            <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.4), cy, z]} material={matInterior}>
               <boxGeometry args={[0.02, h + FB * 2, w + FB * 2]} />
             </mesh>,
             ...sideRevealMeshes,
@@ -213,10 +214,10 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
           );
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace, cy, z]} material={matCut}>
-              <boxGeometry args={[0.001, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace - dir * WALL_T / 2, cy, z]} material={matCut}>
+              <boxGeometry args={[WALL_T + 0.1, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
             </mesh>,
-            <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.05), cy, z]} material={matInterior}>
+            <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.4), cy, z]} material={matInterior}>
               <boxGeometry args={[0.02, h + FB * 2, w + FB * 2]} />
             </mesh>,
             ...sideRevealMeshes,
