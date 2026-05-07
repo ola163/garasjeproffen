@@ -112,15 +112,10 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       return [{ label: qty > 1 ? `${label} (×${qty})` : label, amount: unitPrice * qty }];
     });
     const elementTotal = elementAdjustments.reduce((s, a) => s + a.amount, 0);
-    const sqm = (configuration.parameters.length / 1000) * (configuration.parameters.width / 1000);
-    const grunnarbeidAmount = grunnarbeid !== null ? Math.round(sqm * GRUNNARBEID_KR_PER_SQM / 500) * 500 : 0;
-    const grunnarbeidAdjustments = grunnarbeid !== null
-      ? [{ label: "Grunn- og betongarbeid (estimat)", amount: grunnarbeidAmount }]
-      : [];
     return {
       ...base,
-      adjustments: [...base.adjustments, ...elementAdjustments, ...grunnarbeidAdjustments],
-      totalPrice: base.totalPrice + elementTotal + grunnarbeidAmount,
+      adjustments: [...base.adjustments, ...elementAdjustments],
+      totalPrice: base.totalPrice + elementTotal,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configuration, packageType, roofType, addedElements, grunnarbeid]);
