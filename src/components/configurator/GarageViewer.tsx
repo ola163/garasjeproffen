@@ -10,6 +10,8 @@ import type { AddedElement, ElementCategory } from "./DoorWindowAdder";
 
 useGLTF.preload("/Vindu_100x50glb.glb");
 useGLTF.preload("/Carport_GLB.glb");
+useGLTF.preload("/Garasje_Flatt_tak.glb");
+useGLTF.preload("/Garasjeport_2500x2125.glb");
 
 interface GarageViewerProps {
   lengthMm: number;
@@ -269,6 +271,27 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
+function GaragePortFlat({ doorWidthMm, doorHeightMm, halfL }: {
+  doorWidthMm: number; doorHeightMm: number; halfL: number;
+}) {
+  const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
+  const group = useMemo(() => {
+    const clone = rawScene.clone(true);
+    const box = new Box3().setFromObject(clone);
+    const size = new Vector3(); box.getSize(size);
+    const center = new Vector3(); box.getCenter(center);
+    const scaleX = size.x > 0.001 ? (doorWidthMm / 1000) / size.x : 1;
+    const scaleY = size.y > 0.001 ? (doorHeightMm / 1000) / size.y : 1;
+    const scaleZ = size.z > 0.001 ? 1 / size.z * 0.05 : 1;
+    clone.scale.set(scaleX, scaleY, scaleZ);
+    clone.position.set(-center.x * scaleX, -center.y * scaleY + (doorHeightMm / 2000), -center.z * scaleZ);
+    clone.traverse(c => { if ((c as Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+    return clone;
+  }, [rawScene, doorWidthMm, doorHeightMm]);
+
+  return <primitive object={group} position={[0, 0, -(halfL - 0.02)]} dispose={null} />;
+}
+
 function GarageDimensionLines({ lengthMm, widthMm, wallHalfL, wallHalfW }: {
   lengthMm: number; widthMm: number; wallHalfL: number | null; wallHalfW: number | null;
 }) {
@@ -341,6 +364,12 @@ export default function GarageViewer({ lengthMm, widthMm, roofType, addedElement
               buildingType={buildingType} rotationDeg={rotationDeg}
               onWallFaces={handleWallFaces}
             />
+            {roofType === "flattak" && buildingType !== "carport" && wallHalfL !== null && (
+              <GaragePortFlat
+                doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm}
+                halfL={wallHalfL}
+              />
+            )}
           </Suspense>
         </GltfErrorBoundary>
         <GarageWindowElements
