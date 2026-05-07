@@ -386,7 +386,7 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; d
     return m;
   }, []);
 
-  const group = useMemo(() => {
+  const { group, scaledMaxZ } = useMemo(() => {
     const clone = rawScene.clone(true);
     const box = new Box3().setFromObject(clone);
     const size = new Vector3(); box.getSize(size);
@@ -395,13 +395,15 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; d
     const scaleY = size.y > 0.001 ? targetH / size.y : 1;
     const scaleZ = size.z > 0.001 ? 0.05 / size.z : 1;
     clone.scale.set(scaleX, scaleY, scaleZ);
-    clone.position.set(-center.x * scaleX, -box.min.y * scaleY, -center.z * scaleZ);
+    // Don't adjust z here — primitive position prop overrides clone.position entirely.
+    // scaledMaxZ lets us compute doorZ so front face lands exactly at halfL - PORTAL_INSET.
+    clone.position.set(-center.x * scaleX, -box.min.y * scaleY, 0);
     clone.traverse(c => { if ((c as Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-    return clone;
+    return { group: clone, scaledMaxZ: box.max.z * scaleZ };
   }, [rawScene, targetW, targetH]);
 
-  // Door is 0.05 m thick (half = 0.025). Position so front face sits 3 cm inside wall.
-  const doorZ = halfL - 0.03 - 0.025;
+  // world z of front face = doorZ + scaledMaxZ → doorZ = halfL - PORTAL_INSET - scaledMaxZ
+  const doorZ = halfL - 0.08 - scaledMaxZ;
   const RT = PORT_REVEAL_T;
 
   return (
