@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import type { GarageConfiguration, PricingResult } from "@/types/configurator";
 import type { QuoteResponse } from "@/types/quote";
 import type { AddedElement } from "@/components/configurator/DoorWindowAdder";
+import type { GrunnarbeidData } from "@/components/configurator/GrunnarbeidWizard";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
@@ -13,7 +14,7 @@ interface QuoteFormProps {
   packageType: string;
   roofType: string;
   addedElements: AddedElement[];
-  grunnarbeid?: boolean;
+  grunnarbeid?: GrunnarbeidData;
   open: boolean;
 }
 

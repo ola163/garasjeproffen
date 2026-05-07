@@ -8,6 +8,7 @@ import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
 import QuoteForm from "../quote/QuoteForm";
 import DoorWindowAdder, { type AddedElement, type WallSide } from "./DoorWindowAdder";
+import GrunnarbeidWizard, { type GrunnarbeidData, emptyGrunnarbeidData } from "./GrunnarbeidWizard";
 import AuthPanel from "../auth/AuthPanel";
 import { calculatePrice, type PackageType } from "@/lib/pricing";
 import { GARAGE_PARAMETERS } from "@/lib/parameters";
@@ -96,7 +97,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
   const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
   const [grunnarbeidOpen, setGrunnarbeidOpen] = useState(false);
-  const [grunnarbeid, setGrunnarbeid] = useState(false);
+  const [grunnarbeid, setGrunnarbeid] = useState<GrunnarbeidData | null>(null);
+  const [showGrunnarbeidWizard, setShowGrunnarbeidWizard] = useState(false);
 
   const ELEMENT_PRICES: Partial<Record<string, number>> = { door: 5995, window1: 2995, window2: 3095, window3: 5895 };
   const ELEMENT_LABELS: Partial<Record<string, string>> = { door: "Dør 90×210", window1: "Vindu 100×50", window2: "Vindu 100×60", window3: "Vindu 100×100" };
@@ -112,8 +114,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     });
     const elementTotal = elementAdjustments.reduce((s, a) => s + a.amount, 0);
     const sqm = (configuration.parameters.length / 1000) * (configuration.parameters.width / 1000);
-    const grunnarbeidAmount = grunnarbeid ? Math.round(sqm * GRUNNARBEID_KR_PER_SQM / 500) * 500 : 0;
-    const grunnarbeidAdjustments = grunnarbeid
+    const grunnarbeidAmount = grunnarbeid !== null ? Math.round(sqm * GRUNNARBEID_KR_PER_SQM / 500) * 500 : 0;
+    const grunnarbeidAdjustments = grunnarbeid !== null
       ? [{ label: "Grunn- og betongarbeid (estimat)", amount: grunnarbeidAmount }]
       : [];
     return {
@@ -255,8 +257,20 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     buildingType,
   };
 
+  const sqm = (lengthValue / 1000) * (widthValue / 1000);
+  const perimeterM = 2 * ((lengthValue + widthValue) / 1000);
+
   return (
     <div className="flex flex-col">
+    {showGrunnarbeidWizard && (
+      <GrunnarbeidWizard
+        sqm={sqm}
+        perimeterM={perimeterM}
+        initialData={grunnarbeid ?? emptyGrunnarbeidData(sqm, perimeterM)}
+        onSave={(data) => setGrunnarbeid(data)}
+        onClose={() => setShowGrunnarbeidWizard(false)}
+      />
+    )}
     <div className="flex flex-col sm:flex-row sm:h-[calc(100vh-11rem)]">
       {/* 3D Viewer */}
       <div className={`relative sm:h-auto sm:flex-1 bg-stone-100 ${viewMode === "kart" ? "h-[80vw] min-h-[320px]" : "h-[60vw] min-h-[240px]"}`}>
@@ -663,12 +677,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             >
               <span className="flex items-center gap-2">
                 Grunn- og betongarbeid
-                {grunnarbeid && <span className="text-xs font-normal text-green-600">✓ Lagt til</span>}
+                {grunnarbeid !== null && <span className="text-xs font-normal text-green-600">✓ Lagt til</span>}
               </span>
               <svg
                 className={`h-4 w-4 text-gray-400 transition-transform ${grunnarbeidOpen ? "rotate-180" : ""}`}
-                viewBox="0 0 20 20"
-                fill="currentColor"
+                viewBox="0 0 20 20" fill="currentColor"
               >
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
@@ -679,22 +692,51 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                   Vi tar oss av graving, planering og støping av armert betongplate.
                   Endelig pris avtales etter befaring av tomten.
                 </p>
-                <label className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-200 px-3 py-3 hover:border-orange-300 hover:bg-orange-50 transition-colors">
-                  <span className="text-sm text-gray-700">Inkluder grunnarbeid</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-gray-900">
-                      +{new Intl.NumberFormat("nb-NO").format(
+                {grunnarbeid === null ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowGrunnarbeidWizard(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-orange-300 px-4 py-3 text-sm font-semibold text-orange-500 hover:border-orange-400 hover:bg-orange-50 transition-colors"
+                  >
+                    <span className="text-lg leading-none">+</span>
+                    <span>Legg til grunn- og betongarbeid</span>
+                    <span className="ml-auto text-xs font-normal text-gray-400">
+                      ~{new Intl.NumberFormat("nb-NO").format(
                         Math.round(((lengthValue / 1000) * (widthValue / 1000)) * GRUNNARBEID_KR_PER_SQM / 500) * 500
                       )} kr
                     </span>
-                    <input
-                      type="checkbox"
-                      checked={grunnarbeid}
-                      onChange={(e) => setGrunnarbeid(e.target.checked)}
-                      className="h-4 w-4 accent-orange-500 cursor-pointer"
-                    />
+                  </button>
+                ) : (
+                  <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-green-800">Grunnarbeid lagt til</p>
+                        <p className="text-xs text-green-600 mt-0.5">
+                          {[
+                            grunnarbeid.utgraving && "Utgraving",
+                            grunnarbeid.betongdekke && "Betongdekke",
+                            grunnarbeid.ringmur && "Ringmur",
+                          ].filter(Boolean).join(" · ") || "Tilpasset valg"}
+                          {grunnarbeid.betongtype ? ` · ${grunnarbeid.betongtype}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        <button
+                          onClick={() => setShowGrunnarbeidWizard(true)}
+                          className="text-xs font-medium text-orange-600 hover:text-orange-700"
+                        >
+                          Rediger
+                        </button>
+                        <button
+                          onClick={() => setGrunnarbeid(null)}
+                          className="text-gray-400 hover:text-red-500 text-sm"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </label>
+                )}
                 <p className="text-xs text-gray-400">
                   Estimat ~{GRUNNARBEID_KR_PER_SQM.toLocaleString("nb-NO")} kr/m² · {((lengthValue / 1000) * (widthValue / 1000)).toFixed(1)} m² · Endelig pris etter befaring
                 </p>
@@ -901,7 +943,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           <div className="mt-8" ref={quoteRef}>
-            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} roofType={roofType} addedElements={addedElements} grunnarbeid={grunnarbeid} open={quoteOpen} />
+            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} roofType={roofType} addedElements={addedElements} grunnarbeid={grunnarbeid ?? undefined} open={quoteOpen} />
           </div>
 
           <AuthPanel
