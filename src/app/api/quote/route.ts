@@ -57,7 +57,7 @@ async function uploadFilesServerSide(files: File[]): Promise<string[]> {
   return urls;
 }
 
-type RequestBody = QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[]; category?: string; buildingType?: string; customer: { name: string; email: string; phone?: string; message?: string; phoneVerified?: boolean } };
+type RequestBody = QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[]; category?: string; buildingType?: string; address?: string; mapCenter?: [number, number] | null; mapRotation?: number; customer: { name: string; email: string; phone?: string; message?: string; phoneVerified?: boolean } };
 
 export async function POST(request: Request) {
   try {
@@ -233,6 +233,14 @@ export async function POST(request: Request) {
             <tr><td><strong>Portbredde:</strong></td><td>${p.doorWidth ?? 2500} mm</td></tr>
             <tr><td><strong>Porthøyde:</strong></td><td>${p.doorHeight ?? 2125} mm</td></tr>
           </table>
+          ${body.address || body.mapCenter ? `
+          <h3>Plassering</h3>
+          <table>
+            ${body.address ? `<tr><td><strong>Adresse:</strong></td><td>${esc(body.address)}</td></tr>` : ""}
+            ${body.mapCenter ? `<tr><td><strong>Koordinater:</strong></td><td>${body.mapCenter[1].toFixed(6)}, ${body.mapCenter[0].toFixed(6)}</td></tr>
+            <tr><td><strong>Vinkel:</strong></td><td>${body.mapRotation ?? 0}°</td></tr>
+            <tr><td><strong>Kartlenke:</strong></td><td><a href="https://www.google.com/maps?q=${body.mapCenter[1]},${body.mapCenter[0]}">Åpne i Google Maps</a></td></tr>` : ""}
+          </table>` : ""}
           ${elementsHtml}
           <h3>Prisestimat</h3>
           <table>
@@ -270,6 +278,7 @@ export async function POST(request: Request) {
               <tr><td style="padding:4px 8px;color:#6b7280">Pakke:</td><td style="padding:4px 8px">${body.packageType === "prefab" ? "Prefabrikert løsning" : "Materialpakke"}</td></tr>
               <tr><td style="padding:4px 8px;color:#6b7280">Taktype:</td><td style="padding:4px 8px">${body.roofType === "saltak" ? "Saltak" : "Flattak"}</td></tr>
               <tr><td style="padding:4px 8px;color:#6b7280">Størrelse:</td><td style="padding:4px 8px">${(p.width ?? 8400) / 1000} × ${(p.length ?? 6000) / 1000} m</td></tr>
+              ${body.address ? `<tr><td style="padding:4px 8px;color:#6b7280">Adresse:</td><td style="padding:4px 8px">${esc(body.address)}</td></tr>` : ""}
               <tr><td style="padding:4px 8px;color:#6b7280">Prisestimat:</td><td style="padding:4px 8px;font-weight:bold">${formatPrice(pricing.totalPrice, pricing.currency)}</td></tr>
             </table>
             <p style="font-size:13px;color:#6b7280;margin-top:24px">

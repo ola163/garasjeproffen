@@ -16,6 +16,9 @@ interface QuoteFormProps {
   addedElements: AddedElement[];
   grunnarbeid?: GrunnarbeidData;
   open: boolean;
+  address?: string;
+  mapCenter?: [number, number] | null;
+  mapRotation?: number;
 }
 
 const BUILDING_TYPES = [
@@ -35,13 +38,13 @@ function defaultCategory(packageType: string) {
   return "materialpakke";
 }
 
-export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, grunnarbeid, open }: QuoteFormProps) {
+export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, grunnarbeid, open, address, mapCenter, mapRotation }: QuoteFormProps) {
   const [step, setStep] = useState<"soknad" | "address" | "form">("soknad");
 
-  // Address step state
-  const [addressQuery, setAddressQuery] = useState("");
+  // Address step state — pre-fill from map placement if available
+  const [addressQuery, setAddressQuery] = useState(address ?? "");
   const [addressSuggestions, setAddressSuggestions] = useState<{ place_name: string; id: string }[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(address ?? null);
   const [detectingPos, setDetectingPos] = useState(false);
   const [addressSearching, setAddressSearching] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -118,9 +121,13 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
     setResult(null);
     try {
       const formData = new FormData();
+      const resolvedAddress = selectedAddress ?? address ?? null;
       formData.append("data", JSON.stringify({
         configuration, pricing, packageType, roofType, addedElements, grunnarbeid,
         category, buildingType,
+        address: resolvedAddress,
+        mapCenter: mapCenter ?? null,
+        mapRotation: mapRotation ?? 0,
         customer: { name, email, phone, message },
       }));
       files.forEach((f) => formData.append("files", f));
@@ -142,6 +149,15 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   if (step === "soknad") {
     return (
       <div className="space-y-4">
+        {selectedAddress && (
+          <div className="flex items-center gap-2.5 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
+            <svg className="h-4 w-4 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="truncate">{selectedAddress}</span>
+          </div>
+        )}
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
           <p className="text-sm font-semibold text-gray-900">Trenger du hjelp med byggesøknaden?</p>
           <p className="mt-1 text-sm text-gray-500">
@@ -352,6 +368,36 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
           ))}
         </div>
       </div>
+
+      {/* Location summary */}
+      {(selectedAddress || mapCenter) && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm font-medium text-gray-700 mb-2">Plassering</p>
+          {selectedAddress && (
+            <div className="flex items-start gap-2 text-sm text-gray-800">
+              <svg className="h-4 w-4 shrink-0 mt-0.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{selectedAddress}</span>
+            </div>
+          )}
+          {mapCenter && (
+            <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+              <span>Koordinater: {mapCenter[1].toFixed(6)}, {mapCenter[0].toFixed(6)}</span>
+              {mapRotation !== undefined && <span>· Vinkel: {mapRotation}°</span>}
+              <a
+                href={`https://www.google.com/maps?q=${mapCenter[1]},${mapCenter[0]}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-orange-600 hover:underline"
+              >
+                Åpne i kart ↗
+              </a>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Customer info */}
       <div>
