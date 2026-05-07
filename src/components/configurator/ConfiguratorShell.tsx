@@ -275,7 +275,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       <div className={`relative sm:h-auto sm:flex-1 bg-stone-100 ${viewMode === "kart" ? "h-[80vw] min-h-[320px]" : "h-[60vw] min-h-[240px]"}`}>
 
         {/* Toggle */}
-        <div className="absolute top-2 left-2 z-10 flex rounded-md bg-black/20 p-0.5 backdrop-blur-sm">
+        <div className="absolute top-2 left-2 z-20 flex rounded-md bg-black/20 p-0.5 backdrop-blur-sm">
           <button
             onClick={() => setViewMode("test")}
             className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
@@ -365,7 +365,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           )
         )}
         {viewMode === "mål" && (
-          <div className="absolute inset-0 overflow-y-auto bg-white z-10">
+          <div className="absolute inset-0 overflow-y-auto bg-white z-[5]">
             <GarageMålAdmin
               widthMm={widthValue} lengthMm={lengthValue}
               doorWidthMm={doorWidthValue} doorHeightMm={doorHeightValue}
