@@ -38,6 +38,7 @@ const FRAME_COLOR   = "#FFFFFF";
 const SILL_COLOR    = "#E0E0DE";
 const DOOR_EL_COLOR = "#C4A882";
 const RECESS_COLOR  = "#1a1a1a"; // dark plate behind frame to suggest wall opening
+const REVEAL_COLOR  = "#cfc5bc"; // inner wall reveal / jamb colour
 
 function getElDims(cat: ElementCategory) {
   const w  = cat === "door" ? 0.9 : 1.0;
@@ -78,11 +79,12 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
 }) {
   const halfL = halfLOverride ?? lengthM / 2;
   const halfW = halfWOverride ?? widthM  / 2;
-  const matWindow = useMemo(() => new THREE.MeshStandardMaterial({ color: WINDOW_COLOR, roughness: 0.05, metalness: 0.3 }), []);
+  const matWindow = useMemo(() => new THREE.MeshStandardMaterial({ color: WINDOW_COLOR, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.55 }), []);
   const matDoorEl = useMemo(() => new THREE.MeshStandardMaterial({ color: DOOR_EL_COLOR, roughness: 0.6 }), []);
   const matFrame  = useMemo(() => new THREE.MeshStandardMaterial({ color: FRAME_COLOR,   roughness: 0.5 }), []);
   const matSill   = useMemo(() => new THREE.MeshStandardMaterial({ color: SILL_COLOR,    roughness: 0.55 }), []);
   const matRecess = useMemo(() => new THREE.MeshStandardMaterial({ color: RECESS_COLOR,  roughness: 1.0 }), []);
+  const matReveal = useMemo(() => new THREE.MeshStandardMaterial({ color: REVEAL_COLOR,  roughness: 0.7 }), []);
 
   const meshes: React.ReactNode[] = [];
   elements.forEach((el, idx) => {
@@ -90,66 +92,129 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
     const isGLBWindow = el.category === "window1";
     const isWindow    = el.category !== "door";
     const fracs = el.placement === "both" ? [-0.25, 0.25] : el.placement === "left" ? [0.25] : [-0.25];
+    const FB = FRAME_BORDER;
 
     fracs.forEach((frac, pi) => {
       const key = `${idx}-${pi}`;
       if (el.side === "front" || el.side === "back") {
-        const dir    = el.side === "front" ? 1 : -1;
-        const wFace  = dir * halfL;
-        const wCz    = dir * (halfL - WALL_T / 2);
-        const x      = widthM * frac;
-        const rotY   = el.side === "back" ? Math.PI : 0;
+        const dir   = el.side === "front" ? 1 : -1;
+        const wFace = dir * halfL;
+        const wCz   = dir * (halfL - WALL_T / 2);
+        const x     = widthM * frac;
+        const rotY  = el.side === "back" ? Math.PI : 0;
+        const revZ  = wFace - dir * FRAME_DEPTH / 2;
+
+        const frontRevealsMeshes = [
+          <mesh key={`${key}-rvL`} position={[x - (w / 2 + FB), cy, revZ]} material={matReveal}>
+            <boxGeometry args={[0.012, h + FB * 2, FRAME_DEPTH]} />
+          </mesh>,
+          <mesh key={`${key}-rvR`} position={[x + (w / 2 + FB), cy, revZ]} material={matReveal}>
+            <boxGeometry args={[0.012, h + FB * 2, FRAME_DEPTH]} />
+          </mesh>,
+          <mesh key={`${key}-rvT`} position={[x, cy + (h / 2 + FB), revZ]} material={matReveal}>
+            <boxGeometry args={[w + FB * 2 + 0.024, 0.012, FRAME_DEPTH]} />
+          </mesh>,
+          <mesh key={`${key}-rvB`} position={[x, cy - (h / 2 + FB), revZ]} material={matReveal}>
+            <boxGeometry args={[w + FB * 2 + 0.024, 0.012, FRAME_DEPTH]} />
+          </mesh>,
+        ];
+
         if (isGLBWindow) {
           meshes.push(
-            <mesh key={`${key}-rc`} position={[x, cy, wFace + dir * 0.002]} material={matRecess}>
-              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.01, h + FRAME_BORDER * 2 + 0.01, 0.006]} />
+            <mesh key={`${key}-rc`} position={[x, cy, wFace + dir * 0.003]} material={matRecess}>
+              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, 0.008]} />
             </mesh>,
+            ...frontRevealsMeshes,
             <WindowGLB key={key} position={[x, cy, wCz]} rotY={rotY} />,
+            <mesh key={`${key}-si`} position={[x, cy - h / 2 - SILL_H / 2, wFace + dir * (SILL_EXTRA / 2 - FRAME_DEPTH / 2)]} material={matSill} castShadow>
+              <boxGeometry args={[w + FB * 2 + 0.06, SILL_H, FRAME_DEPTH + SILL_EXTRA]} />
+            </mesh>,
           );
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-rc`} position={[x, cy, wFace + dir * 0.002]} material={matRecess}>
-              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.01, h + FRAME_BORDER * 2 + 0.01, 0.006]} />
+            <mesh key={`${key}-rc`} position={[x, cy, wFace + dir * 0.003]} material={matRecess}>
+              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, 0.008]} />
             </mesh>,
-            <mesh key={`${key}-fr`} position={[x, cy, wFace - dir * FRAME_DEPTH / 2]} material={matFrame} castShadow receiveShadow>
-              <boxGeometry args={[w + FRAME_BORDER * 2, h + FRAME_BORDER * 2, FRAME_DEPTH]} />
+            ...frontRevealsMeshes,
+            <mesh key={`${key}-frL`} position={[x - (w / 2 + FB / 2), cy, revZ]} material={matFrame} castShadow>
+              <boxGeometry args={[FB, h + 0.005, FRAME_DEPTH]} />
+            </mesh>,
+            <mesh key={`${key}-frR`} position={[x + (w / 2 + FB / 2), cy, revZ]} material={matFrame} castShadow>
+              <boxGeometry args={[FB, h + 0.005, FRAME_DEPTH]} />
+            </mesh>,
+            <mesh key={`${key}-frT`} position={[x, cy + (h / 2 + FB / 2), revZ]} material={matFrame} castShadow>
+              <boxGeometry args={[w + FB * 2, FB, FRAME_DEPTH]} />
+            </mesh>,
+            <mesh key={`${key}-frBt`} position={[x, cy - (h / 2 + FB / 2), revZ]} material={matFrame} castShadow>
+              <boxGeometry args={[w + FB * 2, FB, FRAME_DEPTH]} />
             </mesh>,
             <mesh key={`${key}-gl`} position={[x, cy, wFace - dir * GLASS_INSET]} material={matWindow}>
-              <boxGeometry args={[w, h, 0.015]} />
+              <boxGeometry args={[w, h, 0.012]} />
             </mesh>,
             <mesh key={`${key}-si`} position={[x, cy - h / 2 - SILL_H / 2, wFace + dir * (SILL_EXTRA / 2 - FRAME_DEPTH / 2)]} material={matSill} castShadow>
-              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.06, SILL_H, FRAME_DEPTH + SILL_EXTRA]} />
+              <boxGeometry args={[w + FB * 2 + 0.06, SILL_H, FRAME_DEPTH + SILL_EXTRA]} />
             </mesh>,
           );
         } else {
           meshes.push(<mesh key={key} position={[x, cy, wFace - dir * 0.05]} material={matDoorEl} castShadow><boxGeometry args={[w, h, 0.05]} /></mesh>);
         }
       } else {
-        const dir    = el.side === "right" ? 1 : -1;
-        const wFace  = dir * halfW;
-        const wCx    = dir * (halfW - WALL_T / 2);
-        const z      = lengthM * frac;
-        const rotY   = el.side === "right" ? -Math.PI / 2 : Math.PI / 2;
+        const dir   = el.side === "right" ? 1 : -1;
+        const wFace = dir * halfW;
+        const wCx   = dir * (halfW - WALL_T / 2);
+        const z     = lengthM * frac;
+        const rotY  = el.side === "right" ? -Math.PI / 2 : Math.PI / 2;
+        const revX  = wFace - dir * FRAME_DEPTH / 2;
+
+        const sideRevealMeshes = [
+          <mesh key={`${key}-rvL`} position={[revX, cy, z - (w / 2 + FB)]} material={matReveal}>
+            <boxGeometry args={[FRAME_DEPTH, h + FB * 2, 0.012]} />
+          </mesh>,
+          <mesh key={`${key}-rvR`} position={[revX, cy, z + (w / 2 + FB)]} material={matReveal}>
+            <boxGeometry args={[FRAME_DEPTH, h + FB * 2, 0.012]} />
+          </mesh>,
+          <mesh key={`${key}-rvT`} position={[revX, cy + (h / 2 + FB), z]} material={matReveal}>
+            <boxGeometry args={[FRAME_DEPTH, 0.012, w + FB * 2]} />
+          </mesh>,
+          <mesh key={`${key}-rvB`} position={[revX, cy - (h / 2 + FB), z]} material={matReveal}>
+            <boxGeometry args={[FRAME_DEPTH, 0.012, w + FB * 2]} />
+          </mesh>,
+        ];
+
         if (isGLBWindow) {
           meshes.push(
-            <mesh key={`${key}-rc`} position={[wFace + dir * 0.002, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matRecess}>
-              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.01, h + FRAME_BORDER * 2 + 0.01, 0.006]} />
+            <mesh key={`${key}-rc`} position={[wFace + dir * 0.003, cy, z]} material={matRecess}>
+              <boxGeometry args={[0.008, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
             </mesh>,
+            ...sideRevealMeshes,
             <WindowGLB key={key} position={[wCx, cy, z]} rotY={rotY} />,
+            <mesh key={`${key}-si`} position={[wFace + dir * (SILL_EXTRA / 2 - FRAME_DEPTH / 2), cy - h / 2 - SILL_H / 2, z]} material={matSill} castShadow>
+              <boxGeometry args={[FRAME_DEPTH + SILL_EXTRA, SILL_H, w + FB * 2 + 0.06]} />
+            </mesh>,
           );
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-rc`} position={[wFace + dir * 0.002, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matRecess}>
-              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.01, h + FRAME_BORDER * 2 + 0.01, 0.006]} />
+            <mesh key={`${key}-rc`} position={[wFace + dir * 0.003, cy, z]} material={matRecess}>
+              <boxGeometry args={[0.008, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
             </mesh>,
-            <mesh key={`${key}-fr`} position={[wFace - dir * FRAME_DEPTH / 2, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matFrame} castShadow receiveShadow>
-              <boxGeometry args={[w + FRAME_BORDER * 2, h + FRAME_BORDER * 2, FRAME_DEPTH]} />
+            ...sideRevealMeshes,
+            <mesh key={`${key}-frL`} position={[revX, cy, z - (w / 2 + FB / 2)]} material={matFrame} castShadow>
+              <boxGeometry args={[FRAME_DEPTH, h + 0.005, FB]} />
             </mesh>,
-            <mesh key={`${key}-gl`} position={[wFace - dir * GLASS_INSET, cy, z]} rotation={[0, Math.PI / 2, 0]} material={matWindow}>
-              <boxGeometry args={[w, h, 0.015]} />
+            <mesh key={`${key}-frR`} position={[revX, cy, z + (w / 2 + FB / 2)]} material={matFrame} castShadow>
+              <boxGeometry args={[FRAME_DEPTH, h + 0.005, FB]} />
             </mesh>,
-            <mesh key={`${key}-si`} position={[wFace + dir * (SILL_EXTRA / 2 - FRAME_DEPTH / 2), cy - h / 2 - SILL_H / 2, z]} rotation={[0, Math.PI / 2, 0]} material={matSill} castShadow>
-              <boxGeometry args={[w + FRAME_BORDER * 2 + 0.06, SILL_H, FRAME_DEPTH + SILL_EXTRA]} />
+            <mesh key={`${key}-frT`} position={[revX, cy + (h / 2 + FB / 2), z]} material={matFrame} castShadow>
+              <boxGeometry args={[FRAME_DEPTH, FB, w + FB * 2]} />
+            </mesh>,
+            <mesh key={`${key}-frBt`} position={[revX, cy - (h / 2 + FB / 2), z]} material={matFrame} castShadow>
+              <boxGeometry args={[FRAME_DEPTH, FB, w + FB * 2]} />
+            </mesh>,
+            <mesh key={`${key}-gl`} position={[wFace - dir * GLASS_INSET, cy, z]} material={matWindow}>
+              <boxGeometry args={[0.012, h, w]} />
+            </mesh>,
+            <mesh key={`${key}-si`} position={[wFace + dir * (SILL_EXTRA / 2 - FRAME_DEPTH / 2), cy - h / 2 - SILL_H / 2, z]} material={matSill} castShadow>
+              <boxGeometry args={[FRAME_DEPTH + SILL_EXTRA, SILL_H, w + FB * 2 + 0.06]} />
             </mesh>,
           );
         } else {
