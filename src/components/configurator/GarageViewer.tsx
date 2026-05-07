@@ -286,12 +286,14 @@ function GaragePortFlat({ halfL }: { halfL: number }) {
     const scaleY = size.y > 0.001 ? DOOR_H / size.y : 1;
     const scaleZ = size.z > 0.001 ? 0.05 / size.z : 1;
     clone.scale.set(scaleX, scaleY, scaleZ);
-    clone.position.set(-center.x * scaleX, -center.y * scaleY + DOOR_H / 2, -center.z * scaleZ);
+    // Center horizontally, lift bottom edge to ground (y=0)
+    clone.position.set(-center.x * scaleX, -box.min.y * scaleY, -center.z * scaleZ);
     clone.traverse(c => { if ((c as Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
     return clone;
   }, [rawScene]);
 
-  return <primitive object={group} position={[0, 0, -(halfL - 0.02)]} dispose={null} />;
+  // Positive halfL = front face of garage (opposite side from before)
+  return <primitive object={group} position={[0, 0, halfL - 0.02]} dispose={null} />;
 }
 
 function GarageDimensionLines({ lengthMm, widthMm, wallHalfL, wallHalfW }: {
