@@ -49,7 +49,7 @@ function buildGarageGeoJSON(
 
 function getModelUrl(bt?: string, rt?: string): string {
   if (bt === "carport") return "/Carport_GLB.glb";
-  return rt === "saltak" ? "/garasje_saltak.glb" : "/garasje_flatt_tak.glb";
+  return rt === "saltak" ? "/garasje_saltak.glb" : "/Garasje_Flatt_tak.glb";
 }
 
 /** Point-to-segment distance (same units as inputs) */

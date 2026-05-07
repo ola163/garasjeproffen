@@ -199,7 +199,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
 }) {
   const modelUrl = buildingType === "carport"
     ? "/Carport_GLB.glb"
-    : roofType === "flattak" ? "/garasje_flatt_tak.glb" : "/garasje_saltak.glb";
+    : roofType === "flattak" ? "/Garasje_Flatt_tak.glb" : "/garasje_saltak.glb";
   const { scene: rawScene } = useGLTF(modelUrl);
 
   const { scene, sizeX, sizeZ, cx, cz, minY } = useMemo(() => {
