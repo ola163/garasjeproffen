@@ -293,7 +293,7 @@ function GaragePortFlat({ halfL }: { halfL: number }) {
   }, [rawScene]);
 
   // Positive halfL = front face of garage (opposite side from before)
-  return <primitive object={group} position={[0, 0, halfL - 0.02]} dispose={null} />;
+  return <primitive object={group} position={[0, DOOR_H / 2, halfL - 0.02]} dispose={null} />;
 }
 
 function GarageDimensionLines({ lengthMm, widthMm, wallHalfL, wallHalfW }: {
