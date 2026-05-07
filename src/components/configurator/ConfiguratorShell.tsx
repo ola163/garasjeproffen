@@ -857,6 +857,13 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
 
+          <div className="hidden sm:block mt-6 rounded-lg bg-red-50 border border-red-200 p-3">
+            <p className="text-xs text-red-600 leading-relaxed">
+              <span className="font-semibold">Konfiguratoren er under utvikling.</span>{" "}
+              Prisene kan avvike fra endelig tilbud. Ta kontakt for et manuelt pristilbud.
+            </p>
+          </div>
+
           <div className="mt-3">
             <PriceSummary
               pricing={pricing}
