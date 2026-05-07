@@ -13,6 +13,7 @@ interface GpPayload {
   widthMm?: number;
   lengthMm?: number;
   roofType?: "saltak" | "flattak";
+  snapOnly?: boolean;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ function buildUrl(p: GpPayload): string {
   if (p.widthMm)  q.set("width",    String(p.widthMm));
   if (p.lengthMm) q.set("length",   String(p.lengthMm));
   if (p.roofType) q.set("roofType", p.roofType);
+  if (p.snapOnly) q.set("snapOnly", "1");
   return `${route}?${q}`;
 }
 
@@ -438,7 +440,7 @@ export default function ChatWidget() {
                       onClick={() => { router.push(buildUrl(ctaData)); setOpen(false); }}
                       className="w-full rounded-xl bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors shadow-sm"
                     >
-                      {ctaData.service === "søknadshjelp" ? "Gå til søknadshjelp →" : "Åpne konfiguratoren →"}
+                      {ctaData.service === "søknadshjelp" ? "Gå til søknadshjelp →" : ctaData.snapOnly ? "Åpne konfiguratoren med standard mål →" : "Åpne konfiguratoren →"}
                     </button>
                   )}
                 </div>

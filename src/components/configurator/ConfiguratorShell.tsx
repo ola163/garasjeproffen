@@ -69,7 +69,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
   const veggCmm = (widthValue - doorWidthValue) / 2;
 
-  const [snapOnly, setSnapOnly] = useState(false);
+  const [snapOnly, setSnapOnly] = useState(searchParams.get("snapOnly") === "1");
 
   // Søknadshjelp priser — fetched once, used when area > 50m²
   const [soknadshjelpPriser, setSoknadshjelpPriser] = useState<{ key: string; label: string; price: number }[]>([]);
