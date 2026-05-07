@@ -147,7 +147,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     }
   }, [quoteOpen]);
 
-  const [viewMode, setViewMode] = useState<"kunde" | "test" | "dev" | "kart">("test");
+  const [viewMode, setViewMode] = useState<"test" | "dev" | "kart">("test");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [previewAsUser, setPreviewAsUser] = useState(false);
@@ -276,20 +276,12 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         {/* Toggle */}
         <div className="absolute top-2 left-2 z-10 flex rounded-md bg-black/20 p-0.5 backdrop-blur-sm">
           <button
-            onClick={() => setViewMode("kunde")}
-            className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
-              viewMode === "kunde" ? "bg-white/90 text-gray-800 shadow-sm" : "text-white/80 hover:text-white"
-            }`}
-          >
-            Kundevisning
-          </button>
-          <button
             onClick={() => setViewMode("test")}
             className={`rounded px-2.5 py-1 text-xs font-medium transition-all ${
               viewMode === "test" ? "bg-white/90 text-gray-800 shadow-sm" : "text-white/80 hover:text-white"
             }`}
           >
-            Test visning
+            3D-visning
           </button>
           <button
             onClick={() => setViewMode("kart")}
@@ -312,7 +304,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         </div>
 
         {/* Toggle button — switches between 3D model and plot view */}
-        {(viewMode === "kunde" || viewMode === "test") && mapCenter && (
+        {viewMode === "test" && mapCenter && (
           <button
             onClick={() => setShowOnPlot((v) => !v)}
             className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-white/95 px-4 py-1.5 text-xs font-semibold text-gray-700 shadow-md hover:bg-orange-50 hover:text-orange-600 transition-colors backdrop-blur-sm"
@@ -327,14 +319,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </button>
         )}
 
-        {viewMode === "kunde" && !showOnPlot && <LocalGarageViewer {...viewerProps} />}
-        {viewMode === "kunde" && showOnPlot && mapCenter && (
-          <GarageMapbox
-            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
-            externalCenter={mapCenter} externalRotation={mapRotation}
-            readOnly forceIs3D
-          />
-        )}
         {viewMode === "test" && !showOnPlot && <GarageViewer {...viewerProps} rotationDeg={mapRotation} />}
         {viewMode === "test" && showOnPlot && mapCenter && (
           <GarageMapbox
