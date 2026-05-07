@@ -73,10 +73,10 @@ export default function HeroButtons() {
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-orange-50 transition-colors"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-6 w-6">
-                  <rect x="11" y="13" width="3.5" height="9" rx="1.2" fill="white" transform="rotate(-45 12.75 17.5)"/>
-                  <rect x="7" y="3" width="10" height="6" rx="1.5" fill="white"/>
-                  <rect x="5.5" y="8" width="7" height="3.5" rx="1" fill="white"/>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                  <path d="M15 12l-8.5 8.5c-.83.83-2.17.83-3 0a2.12 2.12 0 0 1 0-3L12 9" />
+                  <path d="M17.64 15 22 10.64" />
+                  <path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91" />
                 </svg>
               </div>
               <div>
