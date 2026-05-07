@@ -275,25 +275,25 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
 const DOOR_W = 2.5;
 const DOOR_H = 2.125;
 
-function GaragePortFlat({ halfL }: { halfL: number }) {
+function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; doorWidthMm: number; doorHeightMm: number }) {
   const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
+  const targetW = doorWidthMm / 1000;
+  const targetH = doorHeightMm / 1000;
   const group = useMemo(() => {
     const clone = rawScene.clone(true);
     const box = new Box3().setFromObject(clone);
     const size = new Vector3(); box.getSize(size);
     const center = new Vector3(); box.getCenter(center);
-    const scaleX = size.x > 0.001 ? DOOR_W / size.x : 1;
-    const scaleY = size.y > 0.001 ? DOOR_H / size.y : 1;
+    const scaleX = size.x > 0.001 ? targetW / size.x : 1;
+    const scaleY = size.y > 0.001 ? targetH / size.y : 1;
     const scaleZ = size.z > 0.001 ? 0.05 / size.z : 1;
     clone.scale.set(scaleX, scaleY, scaleZ);
-    // Center horizontally, lift bottom edge to ground (y=0)
     clone.position.set(-center.x * scaleX, -box.min.y * scaleY, -center.z * scaleZ);
     clone.traverse(c => { if ((c as Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
     return clone;
-  }, [rawScene]);
+  }, [rawScene, targetW, targetH]);
 
-  // Positive halfL = front face of garage (opposite side from before)
-  return <primitive object={group} position={[0, DOOR_H / 2, halfL - 0.02]} dispose={null} />;
+  return <primitive object={group} position={[0, targetH / 2, halfL - 0.02]} dispose={null} />;
 }
 
 function GarageDimensionLines({ lengthMm, widthMm, wallHalfL, wallHalfW }: {
@@ -332,7 +332,7 @@ class GltfErrorBoundary extends Component<
   }
 }
 
-export default function GarageViewer({ lengthMm, widthMm, roofType, addedElements = [], buildingType, rotationDeg }: GarageViewerProps) {
+export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType, addedElements = [], buildingType, rotationDeg }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
   const [wallHalfL, setWallHalfL] = useState<number | null>(null);
   const [wallHalfW, setWallHalfW] = useState<number | null>(null);
@@ -369,7 +369,7 @@ export default function GarageViewer({ lengthMm, widthMm, roofType, addedElement
               onWallFaces={handleWallFaces}
             />
             {roofType === "flattak" && buildingType !== "carport" && wallHalfL !== null && (
-              <GaragePortFlat halfL={wallHalfL} />
+              <GaragePortFlat halfL={wallHalfL} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} />
             )}
           </Suspense>
         </GltfErrorBoundary>
