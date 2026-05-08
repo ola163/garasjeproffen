@@ -495,16 +495,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           {/* Sliders */}
           <div className="mt-4 space-y-6">
             <LengthSlider
-              label={buildingType === "carport" ? "Endre lengde carport" : lengthParam.label}
-              value={lengthValue}
-              min={snapOnly ? Math.ceil(lengthParam.min! / 600) * 600 : lengthParam.min!}
-              max={snapOnly ? Math.floor(lengthParam.max! / 600) * 600 : lengthParam.max!}
-              step={snapOnly ? 600 : lengthParam.step!}
-              unit={lengthParam.unit}
-              onChange={setLengthValue}
-              disableSnap={buildingType === "carport"}
-            />
-            <LengthSlider
               label={buildingType === "carport" ? "Endre bredde carport" : widthParam.label}
               value={widthValue}
               min={snapOnly ? Math.ceil((widthParam.min! - 200) / 600) * 600 + 200 : widthParam.min!}
@@ -513,6 +503,16 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               unit={widthParam.unit}
               onChange={setWidthValue}
               snapOffset={200}
+            />
+            <LengthSlider
+              label={buildingType === "carport" ? "Endre lengde carport" : lengthParam.label}
+              value={lengthValue}
+              min={snapOnly ? Math.ceil(lengthParam.min! / 600) * 600 : lengthParam.min!}
+              max={snapOnly ? Math.floor(lengthParam.max! / 600) * 600 : lengthParam.max!}
+              step={snapOnly ? 600 : lengthParam.step!}
+              unit={lengthParam.unit}
+              onChange={setLengthValue}
+              disableSnap={buildingType === "carport"}
             />
           </div>
 
