@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { GarageConfiguration, PricingResult } from "@/types/configurator";
 import type { QuoteResponse } from "@/types/quote";
 import type { AddedElement } from "@/components/configurator/DoorWindowAdder";
 import type { GrunnarbeidData } from "@/components/configurator/GrunnarbeidWizard";
+import GarageMapbox from "@/components/configurator/GarageMapbox";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
@@ -39,7 +41,7 @@ function defaultCategory(packageType: string) {
 }
 
 export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, grunnarbeid, open, address, mapCenter, mapRotation }: QuoteFormProps) {
-  const [step, setStep] = useState<"soknad" | "address" | "form">("soknad");
+  const [step, setStep] = useState<"soknad" | "address" | "kart" | "form">("soknad");
 
   // Address step state — pre-fill from map placement if available
   const [addressQuery, setAddressQuery] = useState(address ?? "");
@@ -48,6 +50,11 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   const [detectingPos, setDetectingPos] = useState(false);
   const [addressSearching, setAddressSearching] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Local map placement (captured in the "kart" step, overrides prop)
+  const [localMapCenter, setLocalMapCenter]   = useState<[number, number] | null>(null);
+  const [localMapRotation, setLocalMapRotation] = useState(0);
+  const [localMapAddress, setLocalMapAddress]   = useState<string | null>(null);
 
   const [buildingType, setBuildingType] = useState("garasje");
   const [category, setCategory] = useState(() => defaultCategory(packageType));
@@ -59,10 +66,17 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<QuoteResponse | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => setIsLoggedIn(d.isLoggedIn)).catch(() => {});
+    setMounted(true);
   }, []);
+
+  // Resolved coordinates: local placement (from kart step) takes priority over prop
+  const resolvedCenter   = localMapCenter   ?? mapCenter   ?? null;
+  const resolvedRotation = localMapRotation !== 0 ? localMapRotation : (mapRotation ?? 0);
+  const hasPlacement     = resolvedCenter !== null;
 
   async function searchAddress(q: string) {
     if (!q.trim()) { setAddressSuggestions([]); return; }
@@ -121,13 +135,13 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
     setResult(null);
     try {
       const formData = new FormData();
-      const resolvedAddress = selectedAddress ?? address ?? null;
+      const resolvedAddress = selectedAddress ?? localMapAddress ?? address ?? null;
       formData.append("data", JSON.stringify({
         configuration, pricing, packageType, roofType, addedElements, grunnarbeid,
         category, buildingType,
         address: resolvedAddress,
-        mapCenter: mapCenter ?? null,
-        mapRotation: mapRotation ?? 0,
+        mapCenter: resolvedCenter,
+        mapRotation: resolvedRotation,
         customer: { name, email, phone, message },
       }));
       files.forEach((f) => formData.append("files", f));
@@ -145,6 +159,88 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   }
 
   if (!open) return null;
+
+  // ── "Kart"-step: full-screen portal map for garage placement ──
+  if (step === "kart" && mounted) {
+    const mapName = buildingType === "carport" ? "carporten" : buildingType === "uthus" ? "uthuset" : "garasjen";
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] flex flex-col bg-white">
+        {/* Top bar */}
+        <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm shrink-0">
+          <button
+            type="button"
+            onClick={() => setStep("soknad")}
+            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Tilbake
+          </button>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-gray-800">Plasser {mapName} på tomten</p>
+            <p className="text-xs text-gray-400">Klikk i kartet for å plassere, dra for å flytte</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStep("form")}
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Hopp over
+          </button>
+          <button
+            type="button"
+            onClick={() => setStep("form")}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              localMapCenter
+                ? "bg-orange-500 text-white hover:bg-orange-600 shadow"
+                : "bg-gray-100 text-gray-400 cursor-not-allowed"
+            }`}
+            disabled={!localMapCenter}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            {localMapCenter ? "Bekreft plassering" : "Plasser for å bekrefte"}
+          </button>
+        </div>
+
+        {/* Map */}
+        <div className="flex-1 overflow-hidden">
+          <GarageMapbox
+            widthMm={p.width ?? 5000}
+            lengthMm={p.length ?? 6000}
+            roofType={roofType as "saltak" | "flattak"}
+            buildingType={buildingType as "garasje" | "carport"}
+            externalCenter={localMapCenter}
+            externalRotation={localMapRotation}
+            onCenterChange={setLocalMapCenter}
+            onRotationChange={setLocalMapRotation}
+            onAddressSelect={(addr) => setLocalMapAddress(addr)}
+            showNeighbors
+            showCadastralToggle
+            defaultShowCadastral
+            defaultCenter={localMapCenter ?? mapCenter ?? undefined}
+          />
+        </div>
+
+        {/* Bottom hint when placed */}
+        {localMapCenter && (
+          <div className="shrink-0 px-4 py-2.5 bg-green-50 border-t border-green-200 text-xs text-green-800 flex items-center gap-2">
+            <svg className="h-4 w-4 text-green-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>
+              {localMapAddress ? <strong>{localMapAddress}</strong> : `${localMapCenter[1].toFixed(5)}, ${localMapCenter[0].toFixed(5)}`}
+              {" "}· Vinkel {localMapRotation}°
+            </span>
+          </div>
+        )}
+      </div>,
+      document.body,
+    );
+  }
 
   if (step === "soknad") {
     return (
@@ -175,7 +271,7 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
           </button>
           <button
             type="button"
-            onClick={() => setStep("form")}
+            onClick={() => setStep(hasPlacement ? "form" : "kart")}
             className="mt-2 flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <span>Nei, bare be om tilbud</span>
@@ -369,35 +465,55 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
         </div>
       </div>
 
-      {/* Location summary */}
-      {(selectedAddress || mapCenter) && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <p className="text-sm font-medium text-gray-700 mb-2">Plassering</p>
-          {selectedAddress && (
-            <div className="flex items-start gap-2 text-sm text-gray-800">
-              <svg className="h-4 w-4 shrink-0 mt-0.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span>{selectedAddress}</span>
-            </div>
-          )}
-          {mapCenter && (
-            <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-              <span>Koordinater: {mapCenter[1].toFixed(6)}, {mapCenter[0].toFixed(6)}</span>
-              {mapRotation !== undefined && <span>· Vinkel: {mapRotation}°</span>}
+      {/* Placement summary — show resolved placement + option to change */}
+      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-medium text-gray-700">Tomteplassering</p>
+          <button
+            type="button"
+            onClick={() => { setLocalMapCenter(null); setLocalMapRotation(0); setStep("kart"); }}
+            className="text-xs font-medium text-orange-600 hover:underline"
+          >
+            {hasPlacement ? "Endre" : "Plasser på kart"}
+          </button>
+        </div>
+        {hasPlacement ? (
+          <div className="space-y-1">
+            {(localMapAddress ?? selectedAddress ?? address) && (
+              <div className="flex items-start gap-2 text-sm text-gray-800">
+                <svg className="h-4 w-4 shrink-0 mt-0.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>{localMapAddress ?? selectedAddress ?? address}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>Koordinater: {resolvedCenter![1].toFixed(6)}, {resolvedCenter![0].toFixed(6)}</span>
+              <span>· Vinkel: {resolvedRotation}°</span>
               <a
-                href={`https://www.google.com/maps?q=${mapCenter[1]},${mapCenter[0]}`}
+                href={`https://www.google.com/maps?q=${resolvedCenter![1]},${resolvedCenter![0]}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-orange-600 hover:underline"
               >
-                Åpne i kart ↗
+                Kart ↗
               </a>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setStep("kart")}
+            className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm font-medium text-gray-500 hover:border-orange-400 hover:text-orange-600 transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+            Vis garasjen på tomten din
+          </button>
+        )}
+      </div>
 
       {/* Customer info */}
       <div>
