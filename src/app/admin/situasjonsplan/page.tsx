@@ -180,8 +180,9 @@ function SituasjonsplanContent() {
 
   const utmCenter = center ? wgs84ToUtm33N(center[0], center[1]) : null;
   // Correct ISYMap URL: lat=northing, lon=easting, zoom=16 ≈ 1:500
+  // No project parameter — Time kommune doesn't require one
   const timeKartUrl = utmCenter
-    ? `https://geoinnsyn.no/?application=time&project=GeoInnsyn&lat=${utmCenter[1]}&lon=${utmCenter[0]}&zoom=16`
+    ? `https://geoinnsyn.no/?application=time&lat=${utmCenter[1]}&lon=${utmCenter[0]}&zoom=16`
     : "https://geoinnsyn.no/?application=time";
   // Direct iframe embed URL (same format, works in iframe if X-Frame-Options allows)
   const iframeUrl = timeKartUrl;
