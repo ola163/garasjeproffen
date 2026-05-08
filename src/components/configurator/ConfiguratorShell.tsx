@@ -97,12 +97,41 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
   const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
+  // Elements removed because they didn't fit — restored when they fit again
+  const sizeRemovedRef = useRef<AddedElement[]>([]);
 
-  // Remove elements that no longer fit when dimensions or roof type change
   useEffect(() => {
     const hasPort = roofType === "flattak" && buildingType !== "carport";
     const filtered = filterValidElements(addedElements, widthValue / 1000, doorWidthValue / 1000, hasPort);
-    if (filtered.length < addedElements.length) setAddedElements(filtered);
+
+    // Save newly invalid elements into the ref
+    const newlyRemoved = addedElements.filter(
+      el => !filtered.some(f => f.side === el.side && f.category === el.category && f.placement === el.placement)
+    );
+    if (newlyRemoved.length > 0) {
+      sizeRemovedRef.current = [
+        ...sizeRemovedRef.current,
+        ...newlyRemoved.filter(r => !sizeRemovedRef.current.some(
+          s => s.side === r.side && s.category === r.category && s.placement === r.placement
+        )),
+      ];
+    }
+
+    // Re-add elements from the ref that now fit and aren't already present
+    const toReAdd = sizeRemovedRef.current.filter(el => {
+      const fits = filterValidElements([el], widthValue / 1000, doorWidthValue / 1000, hasPort).length > 0;
+      const present = filtered.some(f => f.side === el.side && f.category === el.category && f.placement === el.placement);
+      return fits && !present;
+    });
+
+    if (toReAdd.length > 0) {
+      sizeRemovedRef.current = sizeRemovedRef.current.filter(
+        el => !toReAdd.some(r => r.side === el.side && r.category === el.category && r.placement === el.placement)
+      );
+      setAddedElements([...filtered, ...toReAdd]);
+    } else if (filtered.length < addedElements.length) {
+      setAddedElements(filtered);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widthValue, doorWidthValue, roofType, buildingType]);
 
@@ -344,6 +373,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           <GarageMapbox
             lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
             externalCenter={mapCenter} externalRotation={mapRotation}
+            addedElements={addedElements} doorWidthMm={doorWidthValue} doorHeightMm={doorHeightValue}
             readOnly forceIs3D streetView
           />
         )}
@@ -356,6 +386,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               onCenterChange={(c) => { setMapCenter(c); setShowOnPlot(false); }}
               onRotationChange={setMapRotation}
               defaultCenter={mapCenter ?? undefined}
+              addedElements={addedElements} doorWidthMm={doorWidthValue} doorHeightMm={doorHeightValue}
               showNeighbors
             />
           ) : (
@@ -668,6 +699,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                         <div className="ml-2 flex items-center gap-2">
                           <button
                             onClick={() => {
+                              sizeRemovedRef.current = sizeRemovedRef.current.filter(
+                                r => !(r.side === el.side && r.category === el.category && r.placement === el.placement)
+                              );
                               setAddedElements((prev) => prev.filter((_, j) => j !== i));
                               setEditingElement(el);
                               setShowDoorWindowAdder(true);
@@ -677,7 +711,12 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                             Endre
                           </button>
                           <button
-                            onClick={() => setAddedElements((prev) => prev.filter((_, j) => j !== i))}
+                            onClick={() => {
+                              sizeRemovedRef.current = sizeRemovedRef.current.filter(
+                                r => !(r.side === el.side && r.category === el.category && r.placement === el.placement)
+                              );
+                              setAddedElements((prev) => prev.filter((_, j) => j !== i));
+                            }}
                             className="text-gray-400 hover:text-red-500"
                           >
                             ×
