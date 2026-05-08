@@ -368,7 +368,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </button>
         )}
 
-        {viewMode === "test" && !showOnPlot && <GarageViewer {...viewerProps} rotationDeg={mapRotation} />}
+        {viewMode === "test" && !showOnPlot && <GarageViewer {...viewerProps} />}
         {viewMode === "test" && showOnPlot && mapCenter && (
           <GarageMapbox
             lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
