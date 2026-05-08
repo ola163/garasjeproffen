@@ -25,6 +25,8 @@ interface GarageMapboxProps {
   addedElements?: AddedElement[];
   doorWidthMm?: number;
   doorHeightMm?: number;
+  showCadastralToggle?: boolean;
+  defaultShowCadastral?: boolean;
 }
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -225,6 +227,7 @@ export default function GarageMapbox({
   readOnly = false, forceIs3D = false, streetView = false,
   showNeighbors = false, defaultCenter, onAddressSelect,
   addedElements = [], doorWidthMm = 2500, doorHeightMm = 2125,
+  showCadastralToggle = false, defaultShowCadastral = false,
 }: GarageMapboxProps) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const mapRef        = useRef<mapboxgl.Map | null>(null);
@@ -254,7 +257,7 @@ export default function GarageMapbox({
   const [boundaryWarning,  setBoundaryWarning]  = useState<null | "safe" | "nabovarsel" | "danger" | "on-building">(null);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [boundaryVersion,  setBoundaryVersion]  = useState(0);
-  const [showCadastral,    setShowCadastral]    = useState(false);
+  const [showCadastral,    setShowCadastral]    = useState(defaultShowCadastral);
 
   type ToolMode = "pan" | "move" | "rotate";
   const [toolMode,  setToolMode]  = useState<ToolMode>("move");
@@ -1018,15 +1021,17 @@ export default function GarageMapbox({
           >
             {is3D ? "3D på" : "3D av"}
           </button>
-          <button
-            onClick={() => setShowCadastral((v) => !v)}
-            title="Vis situasjonsplan fra Kartverket"
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-md transition-colors ${
-              showCadastral ? "bg-orange-500 text-white" : "bg-white/95 text-gray-700 hover:bg-orange-50"
-            }`}
-          >
-            {showCadastral ? "Kart på" : "Kart av"}
-          </button>
+          {showCadastralToggle && (
+            <button
+              onClick={() => setShowCadastral((v) => !v)}
+              title="Vis situasjonsplan fra Kartverket"
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-md transition-colors ${
+                showCadastral ? "bg-orange-500 text-white" : "bg-white/95 text-gray-700 hover:bg-orange-50"
+              }`}
+            >
+              {showCadastral ? "Kart på" : "Kart av"}
+            </button>
+          )}
         </div>
       )}
 

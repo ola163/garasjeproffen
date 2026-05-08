@@ -289,6 +289,18 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-teal-500 group-hover:underline">Åpne →</p>
           </Link>
 
+          {/* Situasjonsplan */}
+          <Link href="/admin/situasjonsplan" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-teal-100">
+              <svg className="h-6 w-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 group-hover:text-teal-600">Situasjonsplan</h2>
+            <p className="mt-1 text-sm text-gray-500">Plasser garasje på tomt med matrikkelkart fra Kartverket og eksporter situasjonsplan.</p>
+            <p className="mt-4 text-xs font-medium text-teal-500 group-hover:underline">Åpne →</p>
+          </Link>
+
           {/* Referanseprosjekter */}
           <Link href="/referanseprosjekter/admin" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
