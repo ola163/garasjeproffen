@@ -261,7 +261,15 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
           </p>
           <button
             type="button"
-            onClick={() => setStep("address")}
+            onClick={() => {
+              const knownAddress = localMapAddress ?? selectedAddress ?? address ?? null;
+              if (knownAddress) {
+                // Already have address from map placement or prop — go straight to søknadshjelp
+                window.location.href = soknadUrl;
+              } else {
+                setStep("address");
+              }
+            }}
             className="mt-4 flex w-full items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700 hover:bg-orange-100 transition-colors"
           >
             <span>Ja, jeg trenger søknadshjelp</span>
