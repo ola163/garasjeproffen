@@ -1291,6 +1291,58 @@ export default function QuoteDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Tegninger */}
+            {(() => {
+              const hasPlacement = quote.map_lat != null && quote.map_lng != null;
+              const baseParams = [
+                `lat=${quote.map_lat ?? ""}`,
+                `lng=${quote.map_lng ?? ""}`,
+                `rotation=${quote.map_rotation ?? 0}`,
+                `widthMm=${p?.width ?? 5000}`,
+                `lengthMm=${p?.length ?? 6000}`,
+                `roofType=${quote.roof_type ?? "saltak"}`,
+                `buildingType=${quote.building_type ?? "garasje"}`,
+                `quote=${quote.ticket_number}`,
+                ...(quote.map_address ? [`address=${encodeURIComponent(quote.map_address)}`] : []),
+              ].join("&");
+              return (
+                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <h2 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">Tegninger</h2>
+                  {!hasPlacement ? (
+                    <p className="text-xs text-gray-400 italic">Kunden har ikke plassert garasjen i kartet.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {quote.map_address && (
+                        <p className="text-xs text-gray-600 font-medium">{quote.map_address}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/admin/situasjonsplan?${baseParams}`}
+                          target="_blank"
+                          className="flex items-center gap-1.5 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold px-3 py-2 transition-colors"
+                        >
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                          </svg>
+                          Situasjonsplan
+                        </Link>
+                        <Link
+                          href={`/admin/fasadetegning?${baseParams}`}
+                          target="_blank"
+                          className="flex items-center gap-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold px-3 py-2 transition-colors"
+                        >
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+                          </svg>
+                          Fasadetegning
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Right: offer builder */}

@@ -58,4 +58,8 @@ export interface QuoteRow {
   paid_at: string | null;
   created_at: string;
   address_change_note: string | null;
+  map_lat: number | null;
+  map_lng: number | null;
+  map_rotation: number | null;
+  map_address: string | null;
 }

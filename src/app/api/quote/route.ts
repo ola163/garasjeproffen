@@ -150,6 +150,10 @@ export async function POST(request: Request) {
         pricing,
         attachments: attachmentUrls.length > 0 ? attachmentUrls : null,
         phone_verified: body.customer.phoneVerified ?? false,
+        map_lat:   body.mapCenter ? body.mapCenter[1] : null,
+        map_lng:   body.mapCenter ? body.mapCenter[0] : null,
+        map_rotation: body.mapRotation ?? null,
+        map_address: body.address ?? null,
       });
       if (dbErr) console.error("Supabase quote insert error:", dbErr.message);
 
