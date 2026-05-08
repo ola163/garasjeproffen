@@ -5,6 +5,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { AddedElement } from "./DoorWindowAdder";
 
 interface GarageMapboxProps {
   lengthMm: number;
@@ -21,6 +22,9 @@ interface GarageMapboxProps {
   showNeighbors?: boolean;
   defaultCenter?: [number, number];
   onAddressSelect?: (address: string, coords: [number, number]) => void;
+  addedElements?: AddedElement[];
+  doorWidthMm?: number;
+  doorHeightMm?: number;
 }
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -189,6 +193,9 @@ function buildingToGroup(
   return group;
 }
 
+const WALL_H = 3.0;
+const WALL_T = 0.12;
+
 /** Bearing (degrees) from a geographic center to a lngLat point; 0=North, 90=East */
 function lngLatBearing(lngLat: { lng: number; lat: number }, center: [number, number]): number {
   const mPerLng = 111320 * Math.cos((center[1] * Math.PI) / 180);
@@ -217,6 +224,7 @@ export default function GarageMapbox({
   onCenterChange, onRotationChange,
   readOnly = false, forceIs3D = false, streetView = false,
   showNeighbors = false, defaultCenter, onAddressSelect,
+  addedElements = [], doorWidthMm = 2500, doorHeightMm = 2125,
 }: GarageMapboxProps) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const mapRef        = useRef<mapboxgl.Map | null>(null);
@@ -226,10 +234,15 @@ export default function GarageMapbox({
   const boundaryRef        = useRef<[number, number][]>([]);
   const osmPolygonsRef     = useRef<Array<[number, number][]>>([]);
 
+  // Element GLB assets and the live element group
+  const doorGlbRef    = useRef<THREE.Group | null>(null);
+  const windowGlbRef  = useRef<THREE.Group | null>(null);
+  const addedGroupRef = useRef<THREE.Group | null>(null);
+  const [glbsVersion, setGlbsVersion] = useState(0); // incremented when a GLB finishes loading
+
   // Render-time refs — read by Mapbox render callback every frame
   const centerRenderRef   = useRef<[number, number] | null>(null);
   const rotationRenderRef = useRef<number>(0);
-  const is3DRenderRef     = useRef<boolean>(forceIs3D);
   const dimsRenderRef     = useRef({ widthMm, lengthMm });
 
   const [internalCenter,   setInternalCenter]   = useState<[number, number] | null>(null);
@@ -439,7 +452,12 @@ export default function GarageMapbox({
     if (!map || !center) return;
     const geo = buildGarageGeoJSON(center, lengthM, widthM, rotation);
     const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-    if (src) src.setData(geo);
+    if (src) {
+      src.setData(geo);
+      // Hide the 2D fill polygon — the Three.js model is always shown when placed
+      if (map.isStyleLoaded() && map.getLayer(FILL_LAYER))
+        map.setLayoutProperty(FILL_LAYER, "visibility", "none");
+    }
   }, [center, lengthM, widthM, rotation]);
 
   useEffect(() => {
@@ -528,19 +546,32 @@ export default function GarageMapbox({
             scene, camera: new THREE.Camera(), renderer,
             model: null, origSize: null, origCenter: null, origMinY: 0,
           };
+          // Trigger an immediate rebuild now that the scene is ready, even
+          // before the element GLBs finish loading (they'll trigger again later).
+          setGlbsVersion((v) => v + 1);
           loadModel(getModelUrl(buildingType, roofType));
+
+          new GLTFLoader().load("/Garasjeport_2500x2125.glb", (gltf) => {
+            doorGlbRef.current = gltf.scene;
+            setGlbsVersion((v) => v + 1);
+          });
+          new GLTFLoader().load("/Vindu_100x50glb.glb", (gltf) => {
+            windowGlbRef.current = gltf.scene;
+            setGlbsVersion((v) => v + 1);
+          });
         },
         render(_gl, matrix) {
           const three = threeRef.current;
-          if (!three || !is3DRenderRef.current || !centerRenderRef.current) return;
+          if (!three || !centerRenderRef.current) return;
 
           const [lng, lat] = centerRenderRef.current;
           const mc = mapboxgl.MercatorCoordinate.fromLngLat({ lng, lat }, 0);
           const s  = mc.meterInMercatorCoordinateUnits();
           const rotRad = (rotationRenderRef.current * Math.PI) / 180;
 
-          // Apply rotation to the garage model only — buildings stay geographically fixed
+          // Apply rotation to the garage model and its attached elements
           if (three.model) three.model.rotation.y = rotRad;
+          if (addedGroupRef.current) addedGroupRef.current.rotation.y = rotRad;
 
           // Scene transform: translate to placement → scale → flip to Three.js Z-up
           // RotY is NOT included here so building meshes are not affected by garage rotation
@@ -570,38 +601,67 @@ export default function GarageMapbox({
       map.getCanvas().style.cursor = "grab";
 
       // Local drag state — lives in the init closure, safe from React re-renders
-      type DS = { clientX: number; clientY: number; startLngLat: mapboxgl.LngLat; startBearing: number; startRotation: number; startCenter: [number, number] };
+      type DS = {
+        clientX: number; clientY: number;
+        prevX: number; prevY: number;
+        startLngLat: mapboxgl.LngLat;
+        startBearing: number; startRotation: number;
+        startCenter: [number, number];
+        effectiveMode: "move" | "rotate" | "pan";
+      };
       let ds: DS | null = null;
       let dragging = false;
 
       map.on("mousedown", (e) => {
-        if (toolModeRef.current === "pan") return;
+        if (toolModeRef.current === "pan") return; // Mapbox dragPan handles it
         dragging = false;
         const cur = centerRenderRef.current;
+        const mode = toolModeRef.current;
+
+        let effectiveMode: "move" | "rotate" | "pan";
+        if (mode === "rotate") {
+          effectiveMode = "rotate";
+        } else if (!cur) {
+          effectiveMode = "move"; // no garage placed yet — place on click
+        } else {
+          const { widthMm: wm, lengthMm: lm } = dimsRenderRef.current;
+          const corners = garageCorners(cur, wm / 1000, lm / 1000, rotationRenderRef.current);
+          effectiveMode = pointInPolygon(e.lngLat.lng, e.lngLat.lat, corners) ? "move" : "pan";
+        }
+
         ds = {
           clientX: e.originalEvent.clientX,
           clientY: e.originalEvent.clientY,
+          prevX: e.originalEvent.clientX,
+          prevY: e.originalEvent.clientY,
           startLngLat: e.lngLat,
           startBearing: cur ? lngLatBearing(e.lngLat, cur) : 0,
           startRotation: rotationRenderRef.current,
           startCenter: cur ? [cur[0], cur[1]] : [e.lngLat.lng, e.lngLat.lat],
+          effectiveMode,
         };
-        map.getCanvas().style.cursor = toolModeRef.current === "rotate" ? "crosshair" : "grabbing";
+        map.getCanvas().style.cursor = effectiveMode === "rotate" ? "crosshair" : "grabbing";
       });
 
       map.on("mousemove", (e) => {
-        if (!ds || toolModeRef.current === "pan") return;
+        if (!ds) return;
         const dx = e.originalEvent.clientX - ds.clientX;
         const dy = e.originalEvent.clientY - ds.clientY;
         if (!dragging && Math.hypot(dx, dy) < 4) return;
         dragging = true;
-        const mode = toolModeRef.current;
-        if (mode === "rotate" && centerRenderRef.current) {
+
+        if (ds.effectiveMode === "pan") {
+          const pdx = e.originalEvent.clientX - ds.prevX;
+          const pdy = e.originalEvent.clientY - ds.prevY;
+          ds.prevX = e.originalEvent.clientX;
+          ds.prevY = e.originalEvent.clientY;
+          map.panBy([-pdx, -pdy], { animate: false });
+        } else if (ds.effectiveMode === "rotate" && centerRenderRef.current) {
           const delta = lngLatBearing(e.lngLat, centerRenderRef.current) - ds.startBearing;
           const newRot = ((ds.startRotation + delta) % 360 + 360) % 360;
           setInternalRotation(Math.round(newRot));
           onRotationChange?.(Math.round(newRot));
-        } else if (mode === "move") {
+        } else if (ds.effectiveMode === "move") {
           const newCenter: [number, number] = [
             ds.startCenter[0] + (e.lngLat.lng - ds.startLngLat.lng),
             ds.startCenter[1] + (e.lngLat.lat - ds.startLngLat.lat),
@@ -614,24 +674,26 @@ export default function GarageMapbox({
 
       map.on("mouseup", (e) => {
         const wasDragging = dragging;
+        const savedDs = ds;
         dragging = false;
+        ds = null;
         map.getCanvas().style.cursor = toolModeRef.current === "rotate" ? "crosshair" : "grab";
-        if (!wasDragging && ds) {
+        if (!wasDragging && savedDs?.effectiveMode === "move") {
           const c: [number, number] = [e.lngLat.lng, e.lngLat.lat];
           setInternalCenter(c);
           onCenterChange?.(c);
           if (markerRef.current) markerRef.current.remove();
           markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
         }
-        ds = null;
       });
     }
 
     return () => {
       map.remove();
-      mapRef.current   = null;
-      threeRef.current = null;
+      mapRef.current        = null;
+      threeRef.current      = null;
       buildingGroupRef.current = null;
+      addedGroupRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -649,7 +711,6 @@ export default function GarageMapbox({
   }, [rotation]);
 
   useEffect(() => {
-    is3DRenderRef.current = is3D;
     mapRef.current?.triggerRepaint();
   }, [is3D]);
 
@@ -667,11 +728,141 @@ export default function GarageMapbox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roofType, buildingType]);
 
-  // 3D toggle: camera, layers, and neighbors
+  // ─── Element group (port + windows/doors on walls) ───────────────────────
+
+  const rebuildElements = useCallback(() => {
+    const three = threeRef.current;
+    if (!three) return;
+
+    // Tear down previous group
+    if (addedGroupRef.current) {
+      three.scene.remove(addedGroupRef.current);
+      addedGroupRef.current.traverse((c) => {
+        if (c instanceof THREE.Mesh) {
+          c.geometry.dispose();
+          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+          else (c.material as THREE.Material).dispose();
+        }
+      });
+      addedGroupRef.current = null;
+    }
+
+    const group = new THREE.Group();
+    const halfL = lengthMm / 2000;
+    const halfW = widthMm  / 2000;
+    const DW    = doorWidthMm  / 1000;
+    const DH    = doorHeightMm / 1000;
+
+    // ── Garage port (flattak, not carport) ─────────────────────────────────
+    if (roofType === "flattak" && buildingType !== "carport") {
+      if (doorGlbRef.current) {
+        const clone = doorGlbRef.current.clone(true);
+        const box  = new THREE.Box3().setFromObject(clone);
+        const size = new THREE.Vector3(); box.getSize(size);
+        clone.scale.set(
+          size.x > 0.001 ? DW   / size.x : 1,
+          size.y > 0.001 ? DH   / size.y : 1,
+          size.z > 0.001 ? 0.05 / size.z : 1,
+        );
+        clone.position.set(0, DH / 2, halfL - 0.02);
+        group.add(clone);
+      } else {
+        // Fallback box until the GLB finishes loading
+        const mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(DW, DH, 0.05),
+          new THREE.MeshLambertMaterial({ color: 0x8B6914 }),
+        );
+        mesh.position.set(0, DH / 2, halfL - 0.02);
+        group.add(mesh);
+      }
+    }
+
+    // ── Added windows and doors on walls ───────────────────────────────────
+    const elDims = (cat: string) => {
+      const w  = cat === "door" ? 0.9 : 1.0;
+      const h  = cat === "door" ? 2.1 : cat === "window1" ? 0.5 : cat === "window2" ? 0.6 : 1.0;
+      const cy = cat === "door" ? h / 2 : WALL_H * 0.55;
+      return { w, h, cy };
+    };
+
+    for (const el of addedElements) {
+      const { w, h, cy } = elDims(el.category);
+      const fracs = el.placement === "both" ? [-0.25, 0.25] : el.placement === "left" ? [0.25] : [-0.25];
+
+      for (const frac of fracs) {
+        const isFrontBack = el.side === "front" || el.side === "back";
+
+        if (isFrontBack) {
+          const dir  = el.side === "front" ? 1 : -1;
+          const x    = (widthMm / 1000) * frac;
+          const wCz  = dir * (halfL - WALL_T / 2);
+          const rotY = el.side === "back" ? Math.PI : 0;
+
+          if (el.category === "window1" && windowGlbRef.current) {
+            const clone = windowGlbRef.current.clone(true);
+            const box  = new THREE.Box3().setFromObject(clone);
+            const size = new THREE.Vector3(); box.getSize(size);
+            if (size.x > 0.001 && size.y > 0.001)
+              clone.scale.set(1.0 / size.x, 0.5 / size.y, size.z > 0.001 ? WALL_T / size.z : 1);
+            const box2    = new THREE.Box3().setFromObject(clone);
+            const center2 = new THREE.Vector3(); box2.getCenter(center2);
+            clone.position.sub(center2);
+            const g = new THREE.Group(); g.add(clone);
+            g.position.set(x, cy, wCz); g.rotation.y = rotY;
+            group.add(g);
+          } else {
+            const color = el.category === "door" ? 0xC4A882 : 0x9ECFEA;
+            const mesh  = new THREE.Mesh(
+              new THREE.BoxGeometry(w, h, WALL_T),
+              new THREE.MeshLambertMaterial({ color }),
+            );
+            mesh.position.set(x, cy, wCz);
+            group.add(mesh);
+          }
+        } else {
+          const dir  = el.side === "right" ? 1 : -1;
+          const z    = (lengthMm / 1000) * frac;
+          const wCx  = dir * (halfW - WALL_T / 2);
+          const rotY = el.side === "right" ? -Math.PI / 2 : Math.PI / 2;
+
+          if (el.category === "window1" && windowGlbRef.current) {
+            const clone = windowGlbRef.current.clone(true);
+            const box  = new THREE.Box3().setFromObject(clone);
+            const size = new THREE.Vector3(); box.getSize(size);
+            if (size.x > 0.001 && size.y > 0.001)
+              clone.scale.set(1.0 / size.x, 0.5 / size.y, size.z > 0.001 ? WALL_T / size.z : 1);
+            const box2    = new THREE.Box3().setFromObject(clone);
+            const center2 = new THREE.Vector3(); box2.getCenter(center2);
+            clone.position.sub(center2);
+            const g = new THREE.Group(); g.add(clone);
+            g.position.set(wCx, cy, z); g.rotation.y = rotY;
+            group.add(g);
+          } else {
+            const color = el.category === "door" ? 0xC4A882 : 0x9ECFEA;
+            const mesh  = new THREE.Mesh(
+              new THREE.BoxGeometry(w, h, WALL_T),
+              new THREE.MeshLambertMaterial({ color }),
+            );
+            mesh.position.set(wCx, cy, z);
+            mesh.rotation.y = rotY;
+            group.add(mesh);
+          }
+        }
+      }
+    }
+
+    three.scene.add(group);
+    addedGroupRef.current = group;
+    mapRef.current?.triggerRepaint();
+  }, [addedElements, widthMm, lengthMm, doorWidthMm, doorHeightMm, roofType, buildingType, glbsVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { rebuildElements(); }, [rebuildElements]);
+
+  // 3D toggle: camera angle and neighbor visibility only
+  // (fill layer is managed by updateGarage — hidden whenever a center is placed)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
-    if (map.getLayer(FILL_LAYER))      map.setLayoutProperty(FILL_LAYER,      "visibility", is3D ? "none" : "visible");
     if (map.getLayer(EXTRUSION_LAYER)) map.setLayoutProperty(EXTRUSION_LAYER, "visibility", "none");
     if (showNeighbors && map.getLayer("neighbors-3d"))
       map.setLayoutProperty("neighbors-3d", "visibility", is3D ? "visible" : "none");
@@ -845,11 +1036,26 @@ export default function GarageMapbox({
           </button>
         </div>
       )}
-      {/* Rotation / size readout */}
+      {/* Rotation / size readout + slider */}
       {!readOnly && center && (
-        <div className="absolute bottom-4 left-16 z-10 bg-white/95 rounded-lg shadow-md px-2.5 py-2 text-xs text-gray-600 backdrop-blur-sm leading-tight">
-          <span className="font-semibold text-gray-800">{rotation}°</span>
-          <span className="ml-1.5 text-gray-400">{lengthM.toFixed(1)}×{widthM.toFixed(1)} m{is3D ? ` ×${heightM.toFixed(1)}` : ""}</span>
+        <div className="absolute bottom-4 left-16 z-10 bg-white/95 rounded-lg shadow-md px-2.5 py-2 text-xs text-gray-600 backdrop-blur-sm leading-tight flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-gray-800">{rotation}°</span>
+            <span className="text-gray-400">{lengthM.toFixed(1)}×{widthM.toFixed(1)} m{is3D ? ` ×${heightM.toFixed(1)}` : ""}</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={359}
+            value={rotation}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              setInternalRotation(val);
+              onRotationChange?.(val);
+              mapRef.current?.triggerRepaint();
+            }}
+            className="w-28 accent-orange-500"
+          />
         </div>
       )}
       {/* Placement hint */}
