@@ -102,6 +102,26 @@ function fitsNextToGarageDoor(
   return widthM >= portWidthM + elWidth + DOOR_SIDE_GAP_M + 2 * WALL_EDGE_MARGIN_M;
 }
 
+/** Remove elements that no longer fit given the current dimensions. */
+export function filterValidElements(
+  elements: AddedElement[],
+  widthM: number,
+  portWidthM: number,
+  hasPort: boolean,
+): AddedElement[] {
+  if (!hasPort) return elements;
+  const frontEls = elements.filter(e => e.side === "front");
+  const otherEls = elements.filter(e => e.side !== "front");
+  const validFront = frontEls.filter(el => {
+    const others = frontEls.filter(e => e !== el);
+    if (el.placement === "both") {
+      return widthM / 2 >= portWidthM / 2 + DOOR_SIDE_GAP_M + ELEMENT_WIDTH[el.category] + WALL_EDGE_MARGIN_M;
+    }
+    return fitsNextToGarageDoor(el.placement, el.category, widthM, portWidthM, others);
+  });
+  return [...otherEls, ...validFront];
+}
+
 function blockedPositions(
   side: WallSide,
   category: ElementCategory,

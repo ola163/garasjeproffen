@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import LengthSlider from "./LengthSlider";
 import PriceSummary from "./PriceSummary";
 import QuoteForm from "../quote/QuoteForm";
-import DoorWindowAdder, { type AddedElement, type WallSide } from "./DoorWindowAdder";
+import DoorWindowAdder, { filterValidElements, type AddedElement, type WallSide } from "./DoorWindowAdder";
 import GrunnarbeidWizard, { type GrunnarbeidData, emptyGrunnarbeidData } from "./GrunnarbeidWizard";
 import AuthPanel from "../auth/AuthPanel";
 import { calculatePrice, type PackageType } from "@/lib/pricing";
@@ -97,6 +97,15 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [doorWindowOpen, setDoorWindowOpen] = useState(false);
   const [showDoorWindowAdder, setShowDoorWindowAdder] = useState(false);
   const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
+
+  // Remove elements that no longer fit when dimensions or roof type change
+  useEffect(() => {
+    const hasPort = roofType === "flattak" && buildingType !== "carport";
+    const filtered = filterValidElements(addedElements, widthValue / 1000, doorWidthValue / 1000, hasPort);
+    if (filtered.length < addedElements.length) setAddedElements(filtered);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widthValue, doorWidthValue, roofType, buildingType]);
+
   const [grunnarbeid, setGrunnarbeid] = useState<GrunnarbeidData | null>(null);
   const [showGrunnarbeidWizard, setShowGrunnarbeidWizard] = useState(false);
 
