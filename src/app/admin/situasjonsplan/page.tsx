@@ -179,10 +179,11 @@ function SituasjonsplanContent() {
     : null;
 
   const utmCenter = center ? wgs84ToUtm33N(center[0], center[1]) : null;
-  // Correct ISYMap URL: lat=northing, lon=easting, zoom=16 ≈ 1:500
-  // No project parameter — Time kommune doesn't require one
-  const timeKartUrl = utmCenter
-    ? `https://geoinnsyn.no/?application=time&lat=${utmCenter[1]}&lon=${utmCenter[0]}&zoom=16`
+  // ISYMap URL for Time kommune.
+  // Hash format (#zoom/lat/lng) uses WGS84 and skips ISYMap's project lookup entirely.
+  // zoom=19 ≈ 1:500 in the Leaflet tile scheme used by geoinnsyn.no
+  const timeKartUrl = center
+    ? `https://geoinnsyn.no/?application=time#19/${center[1]}/${center[0]}`
     : "https://geoinnsyn.no/?application=time";
   // Direct iframe embed URL (same format, works in iframe if X-Frame-Options allows)
   const iframeUrl = timeKartUrl;
