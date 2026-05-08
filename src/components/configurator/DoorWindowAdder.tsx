@@ -16,6 +16,7 @@ interface Props {
   existingElements: AddedElement[];
   widthMm: number;
   doorWidthMm: number;
+  roofType?: "saltak" | "flattak";
   startWith?: { side: WallSide; category: ElementCategory };
   onFocusSide: (side: WallSide | null) => void;
   onAdd: (el: AddedElement) => void;
@@ -57,18 +58,12 @@ function occupiedPositions(side: WallSide, elements: AddedElement[]): Set<"left"
   return occupied;
 }
 
-const DOOR_CLEARANCE_M = 0.10;
+const DOOR_SIDE_GAP_M   = 0.15; // gap between port and adjacent door/window
+const WALL_EDGE_MARGIN_M = 0.15; // min distance from wall edge
 
-function overlapsGarageDoor(
-  placement: "left" | "right",
-  category: ElementCategory,
-  widthM: number,
-  doorWidthM: number
-): boolean {
-  const halfEl   = ELEMENT_WIDTH[category] / 2;
-  const halfDoor = doorWidthM / 2 + DOOR_CLEARANCE_M;
-  const cx       = placement === "left" ? -widthM * 0.25 : widthM * 0.25;
-  return cx + halfEl > -halfDoor && cx - halfEl < halfDoor;
+function fitsNextToGarageDoor(category: ElementCategory, widthM: number, doorWidthM: number): boolean {
+  // Element is placed at doorWidthM/2 + gap + elWidth/2 from wall centre (each side)
+  return doorWidthM / 2 + DOOR_SIDE_GAP_M + ELEMENT_WIDTH[category] + WALL_EDGE_MARGIN_M <= widthM / 2;
 }
 
 function blockedPositions(
@@ -76,13 +71,13 @@ function blockedPositions(
   category: ElementCategory,
   existing: AddedElement[],
   widthM: number,
-  doorWidthM: number
+  doorWidthM: number,
+  hasPort: boolean,
 ): Set<"left" | "right"> {
   const blocked = occupiedPositions(side, existing);
-  if (side === "front") {
-    (["left", "right"] as const).forEach((p) => {
-      if (overlapsGarageDoor(p, category, widthM, doorWidthM)) blocked.add(p);
-    });
+  if (side === "front" && hasPort && !fitsNextToGarageDoor(category, widthM, doorWidthM)) {
+    blocked.add("left");
+    blocked.add("right");
   }
   return blocked;
 }
@@ -94,7 +89,7 @@ function isPlacementValid(placement: Placement, blocked: Set<"left" | "right">):
 }
 
 export default function DoorWindowAdder({
-  existingElements, widthMm, doorWidthMm, startWith,
+  existingElements, widthMm, doorWidthMm, roofType, startWith,
   onFocusSide, onAdd, onClose,
 }: Props) {
   const [hoveredSide, setHoveredSide]     = useState<WallSide | null>(null);
@@ -157,7 +152,7 @@ export default function DoorWindowAdder({
   const showBack = !!(selectedSide || selectedCategory || pickingHeight);
 
   const blocked = selectedSide && selectedCategory
-    ? blockedPositions(selectedSide, selectedCategory, existingElements, widthM, doorWidthM)
+    ? blockedPositions(selectedSide, selectedCategory, existingElements, widthM, doorWidthM, roofType === "flattak")
     : new Set<"left" | "right">();
 
   const placementOptions: { id: Placement; label: string; valid: boolean; reason?: string }[] = [

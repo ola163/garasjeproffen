@@ -638,6 +638,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     existingElements={addedElements}
                     widthMm={widthValue}
                     doorWidthMm={doorWidthValue}
+                    roofType={roofType}
                     startWith={editingElement ? { side: editingElement.side, category: editingElement.category } : undefined}
                     onFocusSide={setFocusSide}
                     onAdd={(el) => setAddedElements((prev) => [...prev, el])}

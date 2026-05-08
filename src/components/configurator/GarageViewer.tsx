@@ -72,9 +72,12 @@ function WindowGLB({ position, rotY }: { position: [number, number, number]; rot
   );
 }
 
-function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWOverride }: {
+const DOOR_SIDE_GAP = 0.15; // gap between garage port and adjacent pedestrian door
+
+function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWOverride, doorWidthM, hasFlatRoof }: {
   elements: AddedElement[]; lengthM: number; widthM: number;
   halfLOverride?: number; halfWOverride?: number;
+  doorWidthM?: number; hasFlatRoof?: boolean;
 }) {
   const halfL = halfLOverride ?? lengthM / 2;
   const halfW = halfWOverride ?? widthM  / 2;
@@ -111,7 +114,10 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
         const dir   = el.side === "front" ? 1 : -1;
         const wFace = dir * halfL;
         const wCz   = dir * (halfL - WALL_T / 2);
-        const x     = widthM * frac;
+        // Front wall: place next to garage port using door width; other walls use fixed frac
+        const x = (el.side === "front" && hasFlatRoof && doorWidthM)
+          ? (frac > 0 ? 1 : -1) * (doorWidthM / 2 + DOOR_SIDE_GAP + w / 2)
+          : widthM * frac;
         const rotY  = el.side === "back" ? Math.PI : 0;
         const revZ  = wFace - dir * FRAME_DEPTH / 2;
 
@@ -497,6 +503,8 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
           lengthM={lengthMm / 1000} widthM={widthMm / 1000}
           halfLOverride={wallHalfL ?? undefined}
           halfWOverride={wallHalfW ?? undefined}
+          doorWidthM={doorWidthMm / 1000}
+          hasFlatRoof={roofType === "flattak" && buildingType !== "carport"}
         />
         <GarageDimensionLines lengthMm={lengthMm} widthMm={widthMm} wallHalfL={wallHalfL} wallHalfW={wallHalfW} />
 

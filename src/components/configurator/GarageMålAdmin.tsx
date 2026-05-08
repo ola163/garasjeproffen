@@ -113,17 +113,21 @@ function resolvePlacements(
   }
 
   // Doors & windows
-  // frac: left=0.25, right=-0.25 (relative to wall centre, matching GarageViewer fracs)
+  const DOOR_SIDE_GAP_MM = 150;
   elements.forEach((el, i) => {
     const wMm   = EL_W_MM[el.category] ?? 1000;
     const hMm   = EL_H_MM[el.category] ?? 600;
     const cyMm  = EL_CY_MM[el.category] ?? 1500;
     const yMm   = cyMm - hMm / 2;
-    const fracs = el.placement === "both" ? [0.25, -0.25] : el.placement === "left" ? [0.25] : [-0.25];
 
-    fracs.forEach((frac, pi) => {
-      // Centre of element from wall left edge (in mm)
-      const cxMm = wallMm / 2 + frac * wallMm;
+    // Signs matching GarageViewer: "left"→+1, "right"→-1
+    const signs = el.placement === "both" ? [1, -1] : el.placement === "left" ? [1] : [-1];
+
+    signs.forEach((sign, pi) => {
+      // Front wall with port: place adjacent to port; all other walls use fixed frac
+      const cxMm = (isGarageFront && roofType === "flattak")
+        ? wallMm / 2 + sign * (doorWidthMm / 2 + DOOR_SIDE_GAP_MM + wMm / 2)
+        : wallMm / 2 + sign * wallMm * 0.25;
       result.push({
         xMm: cxMm - wMm / 2,
         yMm,
