@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import GarageMapbox from "@/components/configurator/GarageMapbox";
@@ -170,15 +170,21 @@ function SituasjonsplanContent() {
   const [address,     setAddress]     = useState(initAddress);
   const [generating,  setGenerating]  = useState(false);
   const [genError,    setGenError]    = useState<string | null>(null);
+  const [mapView,     setMapView]     = useState<"eget" | "kommune">("eget");
+  const [iframeKey,   setIframeKey]   = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const fasadeUrl = center
     ? `/admin/fasadetegning?lat=${center[1]}&lng=${center[0]}&rotation=${rotation}&widthMm=${config.widthMm}&lengthMm=${config.lengthMm}&roofType=${config.roofType}&buildingType=${config.buildingType}${quoteId ? `&quote=${quoteId}` : ""}${address ? `&address=${encodeURIComponent(address)}` : ""}`
     : null;
 
   const utmCenter = center ? wgs84ToUtm33N(center[0], center[1]) : null;
+  // Correct ISYMap URL: lat=northing, lon=easting, zoom=16 ≈ 1:500
   const timeKartUrl = utmCenter
-    ? `https://geoinnsyn.no/?application=time&scale=500&east=${utmCenter[0]}&north=${utmCenter[1]}&map=situasjonskart`
-    : null;
+    ? `https://geoinnsyn.no/?application=time&project=GeoInnsyn&lat=${utmCenter[1]}&lon=${utmCenter[0]}&zoom=16`
+    : "https://geoinnsyn.no/?application=time";
+  // Direct iframe embed URL (same format, works in iframe if X-Frame-Options allows)
+  const iframeUrl = timeKartUrl;
 
   async function handleGenerate() {
     if (!center) return;
@@ -415,23 +421,89 @@ function SituasjonsplanContent() {
           </div>
         </div>
 
-        {/* ── Map ── */}
-        <div className="flex-1 relative">
-          <GarageMapbox
-            widthMm={config.widthMm}
-            lengthMm={config.lengthMm}
-            roofType={config.roofType}
-            buildingType={config.buildingType}
-            externalCenter={center}
-            externalRotation={rotation}
-            showNeighbors
-            showCadastralToggle
-            defaultShowCadastral
-            defaultCenter={initCenter ?? undefined}
-            onCenterChange={setCenter}
-            onRotationChange={setRotation}
-            onAddressSelect={(addr) => setAddress(addr)}
-          />
+        {/* ── Map area with tabs ── */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+
+          {/* Tab bar */}
+          <div className="flex items-center gap-0 border-b border-gray-200 bg-white px-4 print:hidden shrink-0">
+            <button
+              onClick={() => setMapView("eget")}
+              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${mapView === "eget" ? "border-orange-500 text-orange-600" : "border-transparent text-gray-500 hover:text-gray-800"}`}
+            >
+              Vårt kart
+            </button>
+            <button
+              onClick={() => { setMapView("kommune"); setIframeKey(k => k + 1); }}
+              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${mapView === "kommune" ? "border-orange-500 text-orange-600" : "border-transparent text-gray-500 hover:text-gray-800"}`}
+            >
+              Time kommunes kartportal
+            </button>
+            {mapView === "kommune" && (
+              <div className="ml-auto flex items-center gap-2 py-1.5">
+                <span className="text-[10px] text-gray-400">
+                  {utmCenter ? `UTM33N Ø${utmCenter[0]} N${utmCenter[1]} · zoom 16` : "Ingen plassering"}
+                </span>
+                <button
+                  onClick={() => setIframeKey(k => k + 1)}
+                  className="text-[10px] border border-gray-200 rounded px-2 py-1 text-gray-500 hover:bg-gray-50"
+                  title="Last inn kartet på nytt"
+                >
+                  ↺ Last inn
+                </button>
+                <a
+                  href={timeKartUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] border border-gray-200 rounded px-2 py-1 text-gray-500 hover:bg-gray-50"
+                >
+                  Åpne i nytt vindu ↗
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* Our own map */}
+          <div className={`flex-1 relative ${mapView === "eget" ? "" : "hidden"}`}>
+            <GarageMapbox
+              widthMm={config.widthMm}
+              lengthMm={config.lengthMm}
+              roofType={config.roofType}
+              buildingType={config.buildingType}
+              externalCenter={center}
+              externalRotation={rotation}
+              showNeighbors
+              showCadastralToggle
+              defaultShowCadastral
+              defaultCenter={initCenter ?? undefined}
+              onCenterChange={setCenter}
+              onRotationChange={setRotation}
+              onAddressSelect={(addr) => setAddress(addr)}
+            />
+          </div>
+
+          {/* Municipality portal embedded */}
+          {mapView === "kommune" && (
+            <div className="flex-1 relative">
+              <iframe
+                key={iframeKey}
+                ref={iframeRef}
+                src={iframeUrl}
+                className="absolute inset-0 w-full h-full border-0"
+                title="Time kommune kartportal"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                onError={() => {/* iframe load error handled visually below */}}
+              />
+              {/* Fallback message shown below iframe if it's blocked */}
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur rounded-lg border border-gray-200 px-4 py-2.5 text-xs text-gray-600 text-center shadow pointer-events-none">
+                Hvis kartet ikke vises kan du{" "}
+                <a href={timeKartUrl} target="_blank" rel="noopener noreferrer"
+                   className="text-orange-600 font-medium pointer-events-auto hover:underline">
+                  åpne det i nytt vindu ↗
+                </a>
+              </div>
+            </div>
+          )}
+
         </div>
 
       </div>
