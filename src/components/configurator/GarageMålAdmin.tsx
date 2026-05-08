@@ -98,12 +98,32 @@ function resolvePlacements(
 ): Placed[] {
   const result: Placed[] = [];
 
-  // Garage door — centred on front wall, bottom at ground
+  const DOOR_SIDE_GAP_MM  = 150;
+  const WALL_EDGE_MARGIN_MM = 150;
+
+  // Compute port offset in mm (mirrors computePortOffset in DoorWindowAdder)
+  let portOffsetMm = 0;
+  if (isGarageFront && roofType === "flattak") {
+    const frontEls = elements; // already filtered to this wall
+    const hasLeft  = frontEls.some(e => e.placement === "left"  || e.placement === "both");
+    const hasRight = frontEls.some(e => e.placement === "right" || e.placement === "both");
+    if (hasLeft !== hasRight) {
+      const dir = hasLeft ? -1 : 1;
+      const side = hasLeft ? "left" : "right";
+      const maxElW = Math.max(...frontEls.filter(e => e.placement === side || e.placement === "both").map(e => EL_W_MM[e.category] ?? 1000));
+      const needed = doorWidthMm / 2 + DOOR_SIDE_GAP_MM + maxElW + WALL_EDGE_MARGIN_MM - wallMm / 2;
+      const minShift = Math.max(0, needed);
+      const maxShift = Math.max(0, wallMm / 2 - WALL_EDGE_MARGIN_MM - doorWidthMm / 2);
+      portOffsetMm = dir * Math.min(minShift, maxShift);
+    }
+  }
+
+  // Garage door — possibly offset from centre
   if (isGarageFront && roofType === "flattak") {
     const wMm = doorWidthMm;
     const hMm = doorHeightMm;
     result.push({
-      xMm: (wallMm - wMm) / 2,
+      xMm: (wallMm - wMm) / 2 + portOffsetMm,
       yMm: 0,
       wMm, hMm,
       label: `Port ${wMm}×${hMm} mm`,
@@ -113,7 +133,6 @@ function resolvePlacements(
   }
 
   // Doors & windows
-  const DOOR_SIDE_GAP_MM = 150;
   elements.forEach((el, i) => {
     const wMm   = EL_W_MM[el.category] ?? 1000;
     const hMm   = EL_H_MM[el.category] ?? 600;
@@ -124,9 +143,9 @@ function resolvePlacements(
     const signs = el.placement === "both" ? [1, -1] : el.placement === "left" ? [1] : [-1];
 
     signs.forEach((sign, pi) => {
-      // Front wall with port: place adjacent to port; all other walls use fixed frac
+      // Front wall with port: place adjacent to (possibly offset) port
       const cxMm = (isGarageFront && roofType === "flattak")
-        ? wallMm / 2 + sign * (doorWidthMm / 2 + DOOR_SIDE_GAP_MM + wMm / 2)
+        ? wallMm / 2 + portOffsetMm + sign * (doorWidthMm / 2 + DOOR_SIDE_GAP_MM + wMm / 2)
         : wallMm / 2 + sign * wallMm * 0.25;
       result.push({
         xMm: cxMm - wMm / 2,

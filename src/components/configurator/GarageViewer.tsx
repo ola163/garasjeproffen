@@ -7,6 +7,7 @@ import { OrbitControls, Environment, Grid, useGLTF, Line, Text, GizmoHelper, Giz
 import { Box3, Vector3, Mesh, MeshStandardMaterial } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { AddedElement, ElementCategory } from "./DoorWindowAdder";
+import { computePortOffset } from "./DoorWindowAdder";
 
 useGLTF.preload("/Vindu_100x50glb.glb");
 useGLTF.preload("/Carport_GLB.glb");
@@ -74,10 +75,10 @@ function WindowGLB({ position, rotY }: { position: [number, number, number]; rot
 
 const DOOR_SIDE_GAP = 0.15; // gap between garage port and adjacent pedestrian door
 
-function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWOverride, doorWidthM, hasFlatRoof }: {
+function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWOverride, doorWidthM, hasFlatRoof, portOffsetX = 0 }: {
   elements: AddedElement[]; lengthM: number; widthM: number;
   halfLOverride?: number; halfWOverride?: number;
-  doorWidthM?: number; hasFlatRoof?: boolean;
+  doorWidthM?: number; hasFlatRoof?: boolean; portOffsetX?: number;
 }) {
   const halfL = halfLOverride ?? lengthM / 2;
   const halfW = halfWOverride ?? widthM  / 2;
@@ -114,9 +115,9 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
         const dir   = el.side === "front" ? 1 : -1;
         const wFace = dir * halfL;
         const wCz   = dir * (halfL - WALL_T / 2);
-        // Front wall: place next to garage port using door width; other walls use fixed frac
+        // Front wall: place next to garage port (offset by port shift); other walls use fixed frac
         const x = (el.side === "front" && hasFlatRoof && doorWidthM)
-          ? (frac > 0 ? 1 : -1) * (doorWidthM / 2 + DOOR_SIDE_GAP + w / 2)
+          ? portOffsetX + (frac > 0 ? 1 : -1) * (doorWidthM / 2 + DOOR_SIDE_GAP + w / 2)
           : widthM * frac;
         const rotY  = el.side === "back" ? Math.PI : 0;
         const revZ  = wFace - dir * FRAME_DEPTH / 2;
@@ -371,7 +372,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; doorWidthMm: number; doorHeightMm: number }) {
+function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm, portOffsetX = 0 }: { halfL: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number }) {
   const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
@@ -410,7 +411,7 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm }: { halfL: number; d
   const doorZ = halfL - WALL_T / 2;
 
   return (
-    <group>
+    <group position={[portOffsetX, 0, 0]}>
       {/* Stencil cutter — punches hole through full wall at door opening */}
       <mesh renderOrder={-2} position={[0, targetH / 2, halfL - WALL_T / 2]} material={matCut}>
         <boxGeometry args={[targetW, targetH, WALL_T + 0.1]} />
@@ -473,6 +474,11 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
     setWallHalfW(halfW);
   }, []);
 
+  const hasFlatGarage = roofType === "flattak" && buildingType !== "carport";
+  const portOffsetX = hasFlatGarage
+    ? computePortOffset(addedElements.filter(e => e.side === "front"), widthMm / 1000, doorWidthMm / 1000)
+    : 0;
+
   return (
     <div className="relative h-full w-full">
 
@@ -493,8 +499,8 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
               buildingType={buildingType} rotationDeg={rotationDeg}
               onWallFaces={handleWallFaces}
             />
-            {roofType === "flattak" && buildingType !== "carport" && wallHalfL !== null && (
-              <GaragePortFlat halfL={wallHalfL} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} />
+            {hasFlatGarage && wallHalfL !== null && (
+              <GaragePortFlat halfL={wallHalfL} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} />
             )}
           </Suspense>
         </GltfErrorBoundary>
@@ -504,7 +510,8 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
           halfLOverride={wallHalfL ?? undefined}
           halfWOverride={wallHalfW ?? undefined}
           doorWidthM={doorWidthMm / 1000}
-          hasFlatRoof={roofType === "flattak" && buildingType !== "carport"}
+          hasFlatRoof={hasFlatGarage}
+          portOffsetX={portOffsetX}
         />
         <GarageDimensionLines lengthMm={lengthMm} widthMm={widthMm} wallHalfL={wallHalfL} wallHalfW={wallHalfW} />
 

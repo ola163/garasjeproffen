@@ -58,12 +58,48 @@ function occupiedPositions(side: WallSide, elements: AddedElement[]): Set<"left"
   return occupied;
 }
 
-const DOOR_SIDE_GAP_M   = 0.15; // gap between port and adjacent door/window
-const WALL_EDGE_MARGIN_M = 0.15; // min distance from wall edge
+export const DOOR_SIDE_GAP_M    = 0.15; // gap between port and adjacent door/window
+export const WALL_EDGE_MARGIN_M = 0.15; // min distance from wall edge
 
-function fitsNextToGarageDoor(category: ElementCategory, widthM: number, doorWidthM: number): boolean {
-  // Element is placed at doorWidthM/2 + gap + elWidth/2 from wall centre (each side)
-  return doorWidthM / 2 + DOOR_SIDE_GAP_M + ELEMENT_WIDTH[category] + WALL_EDGE_MARGIN_M <= widthM / 2;
+/** How far the port shifts (in m) along x to make room for a single-side door.
+ *  Positive = towards +x, negative = towards −x. Returns 0 when centred. */
+export function computePortOffset(
+  frontElements: AddedElement[],
+  widthM: number,
+  portWidthM: number,
+): number {
+  const hasLeft  = frontElements.some(e => e.placement === "left"  || e.placement === "both");
+  const hasRight = frontElements.some(e => e.placement === "right" || e.placement === "both");
+  if ((!hasLeft && !hasRight) || (hasLeft && hasRight)) return 0;
+
+  // GarageViewer "left" is +x → port shifts towards −x (dir = −1)
+  const dir = hasLeft ? -1 : 1;
+  const side = hasLeft ? "left" : "right";
+  const maxElWidth = Math.max(
+    ...frontElements
+      .filter(e => e.placement === side || e.placement === "both")
+      .map(e => ELEMENT_WIDTH[e.category])
+  );
+  const needed   = portWidthM / 2 + DOOR_SIDE_GAP_M + maxElWidth + WALL_EDGE_MARGIN_M - widthM / 2;
+  const minShift = Math.max(0, needed);
+  const maxShift = Math.max(0, widthM / 2 - WALL_EDGE_MARGIN_M - portWidthM / 2);
+  return dir * Math.min(minShift, maxShift);
+}
+
+function fitsNextToGarageDoor(
+  placement: "left" | "right",
+  category: ElementCategory,
+  widthM: number,
+  portWidthM: number,
+  frontEls: AddedElement[],
+): boolean {
+  const elWidth    = ELEMENT_WIDTH[category];
+  const otherSide  = placement === "left" ? "right" : "left";
+  const otherHasDoor = frontEls.some(e => e.placement === otherSide || e.placement === "both");
+  // If other side already has a door, port stays centred → need centred-fit
+  if (otherHasDoor) return widthM / 2 >= portWidthM / 2 + DOOR_SIDE_GAP_M + elWidth + WALL_EDGE_MARGIN_M;
+  // Port can shift to make room
+  return widthM >= portWidthM + elWidth + DOOR_SIDE_GAP_M + 2 * WALL_EDGE_MARGIN_M;
 }
 
 function blockedPositions(
@@ -75,9 +111,11 @@ function blockedPositions(
   hasPort: boolean,
 ): Set<"left" | "right"> {
   const blocked = occupiedPositions(side, existing);
-  if (side === "front" && hasPort && !fitsNextToGarageDoor(category, widthM, doorWidthM)) {
-    blocked.add("left");
-    blocked.add("right");
+  if (side === "front" && hasPort) {
+    const frontEls = existing.filter(e => e.side === "front");
+    (["left", "right"] as const).forEach(p => {
+      if (!fitsNextToGarageDoor(p, category, widthM, doorWidthM, frontEls)) blocked.add(p);
+    });
   }
   return blocked;
 }
