@@ -493,10 +493,14 @@ export default function GarageMapbox({
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     map.on("load", () => {
-      // Kartverket cadastral / situasjonsplan overlay
+      // Kartverket Matrikkel WMS — property boundaries, addresses, parcel IDs (all Norway, free, no auth)
       map.addSource("cadastral", {
         type: "raster",
-        tiles: ["https://cache.kartverket.no/v1/wmts/1.0.0/matrikkelkart/default/googlemaps/{z}/{y}/{x}.png"],
+        tiles: [
+          "https://wms.geonorge.no/skwms1/wms.matrikkel?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap" +
+          "&LAYERS=eiendomsgrense,adresse,eiendoms_id&SRS=EPSG:3857" +
+          "&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=TRUE&STYLES=",
+        ],
         tileSize: 256,
         attribution: "© Kartverket",
       });
@@ -504,7 +508,7 @@ export default function GarageMapbox({
         id: "cadastral-layer",
         type: "raster",
         source: "cadastral",
-        paint: { "raster-opacity": 0.85 },
+        paint: { "raster-opacity": 0.9 },
         layout: { visibility: "none" },
       });
 
