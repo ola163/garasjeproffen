@@ -254,6 +254,7 @@ export default function GarageMapbox({
   const [boundaryWarning,  setBoundaryWarning]  = useState<null | "safe" | "nabovarsel" | "danger" | "on-building">(null);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [boundaryVersion,  setBoundaryVersion]  = useState(0);
+  const [showCadastral,    setShowCadastral]    = useState(false);
 
   type ToolMode = "pan" | "move" | "rotate";
   const [toolMode,  setToolMode]  = useState<ToolMode>("move");
@@ -489,6 +490,21 @@ export default function GarageMapbox({
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     map.on("load", () => {
+      // Kartverket cadastral / situasjonsplan overlay
+      map.addSource("cadastral", {
+        type: "raster",
+        tiles: ["https://cache.kartverket.no/v1/wmts/1.0.0/matrikkelkart/default/googlemaps/{z}/{y}/{x}.png"],
+        tileSize: 256,
+        attribution: "© Kartverket",
+      });
+      map.addLayer({
+        id: "cadastral-layer",
+        type: "raster",
+        source: "cadastral",
+        paint: { "raster-opacity": 0.85 },
+        layout: { visibility: "none" },
+      });
+
       map.addSource(SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({ id: FILL_LAYER, type: "fill", source: SOURCE_ID,
         paint: { "fill-color": "#e2520a", "fill-opacity": 0.5 } });
@@ -877,16 +893,29 @@ export default function GarageMapbox({
       map.setPaintProperty(EXTRUSION_LAYER, "fill-extrusion-height", heightM);
   }, [heightM]);
 
-  // Fetch OSM buildings + plot boundary whenever center changes (3D mode)
+  // Always fetch property boundary when center changes (enables warning badge in 2D too)
+  useEffect(() => {
+    if (!center) return;
+    const id = setTimeout(() => fetchBoundary(center), 600);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center?.[0], center?.[1]]);
+
+  // Fetch OSM 3D buildings only in 3D mode
   useEffect(() => {
     if (!center || !is3D) return;
-    const id = setTimeout(() => {
-      fetchBuildings(center);
-      fetchBoundary(center);
-    }, 600);
+    const id = setTimeout(() => fetchBuildings(center), 600);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center?.[0], center?.[1], is3D]);
+
+  // Toggle cadastral (situasjonsplan) layer visibility
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    if (map.getLayer("cadastral-layer"))
+      map.setLayoutProperty("cadastral-layer", "visibility", showCadastral ? "visible" : "none");
+  }, [showCadastral]);
 
   // ─── Address search ──────────────────────────────────────────────────────
 
@@ -978,7 +1007,7 @@ export default function GarageMapbox({
         </div>
       )}
 
-      {/* 3D toggle */}
+      {/* 3D toggle + cadastral toggle */}
       {!readOnly && (
         <div className="absolute right-3 z-10 flex flex-col gap-2" style={{ top: 52 }}>
           <button
@@ -988,6 +1017,15 @@ export default function GarageMapbox({
             }`}
           >
             {is3D ? "3D på" : "3D av"}
+          </button>
+          <button
+            onClick={() => setShowCadastral((v) => !v)}
+            title="Vis situasjonsplan fra Kartverket"
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-md transition-colors ${
+              showCadastral ? "bg-orange-500 text-white" : "bg-white/95 text-gray-700 hover:bg-orange-50"
+            }`}
+          >
+            {showCadastral ? "Kart på" : "Kart av"}
           </button>
         </div>
       )}
