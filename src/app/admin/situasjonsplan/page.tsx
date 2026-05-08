@@ -58,6 +58,37 @@ function SituasjonsplanContent() {
         )}
         <h1 className="text-sm font-semibold text-gray-800">Situasjonsplan</h1>
         <div className="flex-1" />
+        {/* Time kommune map links — only shown when coordinates are available */}
+        {center && (
+          <>
+            <a
+              href={`https://geoinnsyn.no/?application=time#17/${center[1]}/${center[0]}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Åpne Time kommunes kartportal på plasseringen"
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-medium px-3 py-1.5 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+              Time kart
+            </a>
+            <a
+              href="https://e-torg.no/time/tilpass/NK11210300"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Bestill offisiell situasjonskart fra Norkart e-Torg"
+              className="flex items-center gap-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs font-medium px-3 py-1.5 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Bestill situasjonskart
+            </a>
+          </>
+        )}
         {fasadeUrl && (
           <Link
             href={fasadeUrl}
@@ -160,6 +191,40 @@ function SituasjonsplanContent() {
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-700 leading-snug">
             <p className="font-semibold mb-1">Bruk av kartet</p>
             <p>Slå på <span className="font-medium">«Kart»</span> for å vise matrikkelkart fra Kartverket. Trykk «Skriv ut» for å eksportere situasjonsplanen.</p>
+          </div>
+
+          <div className="rounded-lg bg-teal-50 border border-teal-100 p-3 text-xs text-teal-800 leading-snug space-y-2">
+            <p className="font-semibold">Time kommune</p>
+            {center ? (
+              <div className="flex flex-col gap-1.5">
+                <a
+                  href={`https://geoinnsyn.no/?application=time#17/${center[1]}/${center[0]}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 font-medium text-teal-700 hover:text-teal-900 hover:underline"
+                >
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  </svg>
+                  Åpne i kommunens kartportal →
+                </a>
+                <a
+                  href="https://e-torg.no/time/tilpass/NK11210300"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 font-medium text-teal-700 hover:text-teal-900 hover:underline"
+                >
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Bestill offisiell situasjonskart →
+                </a>
+              </div>
+            ) : (
+              <p className="text-teal-600 italic">Plasser garasjen for å åpne kommunekart.</p>
+            )}
           </div>
         </div>
 
