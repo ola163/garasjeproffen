@@ -174,9 +174,11 @@ function SituasjonsplanContent() {
   const [iframeKey,   setIframeKey]   = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const fasadeUrl = center
-    ? `/admin/fasadetegning?lat=${center[1]}&lng=${center[0]}&rotation=${rotation}&widthMm=${config.widthMm}&lengthMm=${config.lengthMm}&roofType=${config.roofType}&buildingType=${config.buildingType}${quoteId ? `&quote=${quoteId}` : ""}${address ? `&address=${encodeURIComponent(address)}` : ""}`
+  const sharedParams = center
+    ? `lat=${center[1]}&lng=${center[0]}&rotation=${rotation}&widthMm=${config.widthMm}&lengthMm=${config.lengthMm}&roofType=${config.roofType}&buildingType=${config.buildingType}${quoteId ? `&quote=${quoteId}` : ""}${address ? `&address=${encodeURIComponent(address)}` : ""}`
     : null;
+  const fasadeUrl = sharedParams ? `/admin/fasadetegning?${sharedParams}` : null;
+  const tegningUrl = sharedParams ? `/admin/situasjonsplan/print?${sharedParams}` : null;
 
   const utmCenter = center ? wgs84ToUtm33N(center[0], center[1]) : null;
   // ISYMap URL for Time kommune.
@@ -276,6 +278,19 @@ function SituasjonsplanContent() {
               {generating ? "Genererer…" : "Last ned PNG"}
             </button>
           </>
+        )}
+        {tegningUrl && (
+          <Link
+            href={tegningUrl}
+            className="flex items-center gap-1.5 rounded-lg border border-orange-300 text-orange-700 hover:bg-orange-50 text-xs font-medium px-3 py-1.5 transition-colors"
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <rect x="8" y="13" width="8" height="6" rx="0.5"/>
+            </svg>
+            Tegning
+          </Link>
         )}
         {fasadeUrl && (
           <Link
