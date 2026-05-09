@@ -1038,12 +1038,16 @@ export default function GarageMapbox({
         const c: [number, number] = [lng, lat];
         let name = "Min posisjon";
         try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 5000);
           const res = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,place&language=no&country=no&access_token=${TOKEN}`
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,place&language=no&country=no&access_token=${TOKEN}`,
+            { signal: ctrl.signal },
           );
+          clearTimeout(timer);
           const data = await res.json();
           name = data.features?.[0]?.place_name ?? "Min posisjon";
-        } catch { /* address lookup failed, position is still valid */ }
+        } catch { /* address lookup failed — position is still valid */ }
         setQuery(name);
         onAddressSelect?.(name, c);
         setCenter(c);
@@ -1172,9 +1176,11 @@ export default function GarageMapbox({
             </div>
           </div>
           {geoLocating && (
-            <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 text-xs text-orange-700 shadow-sm">
-              <div className="h-3 w-3 animate-spin rounded-full border-2 border-orange-500 border-t-transparent flex-none" />
-              Henter din posisjon…
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none" style={{ top: 0, left: 0, right: 0, bottom: 0, position: "absolute" }}>
+              <div className="bg-white rounded-2xl shadow-xl px-6 py-4 flex items-center gap-3">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent flex-none" />
+                <span className="text-sm font-medium text-gray-700">Henter din posisjon…</span>
+              </div>
             </div>
           )}
           {geoError && !geoLocating && (
