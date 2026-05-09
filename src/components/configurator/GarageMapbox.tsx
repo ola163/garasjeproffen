@@ -263,6 +263,7 @@ export default function GarageMapbox({
   const [geoLocating,     setGeoLocating]     = useState(false);
   const [geoError,        setGeoError]        = useState<string | null>(null);
   const [geoDenied,       setGeoDenied]       = useState(false);
+  const [showGeoPrompt,   setShowGeoPrompt]   = useState(false);
 
   type ToolMode = "pan" | "move" | "rotate";
   const [toolMode,  setToolMode]  = useState<ToolMode>("move");
@@ -994,10 +995,10 @@ export default function GarageMapbox({
     );
   }
 
-  // Auto-detect on mount when no center is set
+  // Show location prompt on mount when no center is set
   useEffect(() => {
-    if (!center && !readOnly) {
-      const t = setTimeout(() => geolocate(), 600);
+    if (!center && !readOnly && navigator.geolocation) {
+      const t = setTimeout(() => setShowGeoPrompt(true), 600);
       return () => clearTimeout(t);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1243,6 +1244,39 @@ export default function GarageMapbox({
         <div className="absolute bottom-4 left-16 right-3 z-10">
           <div className="rounded-xl bg-white/95 shadow-lg backdrop-blur-sm px-4 py-2.5 text-center">
             <p className="text-xs text-gray-500">Klikk i kartet for å plassere garasjen</p>
+          </div>
+        </div>
+      )}
+
+      {/* Location permission prompt */}
+      {showGeoPrompt && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl p-5 mx-4 w-full max-w-xs">
+            <div className="flex flex-col items-center text-center mb-4">
+              <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center mb-3">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-500">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+                  <circle cx="12" cy="12" r="8" strokeDasharray="4 2"/>
+                </svg>
+              </div>
+              <h3 className="font-semibold text-gray-900 text-base mb-1">Bruk din posisjon?</h3>
+              <p className="text-sm text-gray-500">Vi bruker posisjonen din til å plassere garasjen på riktig sted i kartet.</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => { setShowGeoPrompt(false); geolocate(); }}
+                className="w-full py-2.5 bg-orange-500 text-white rounded-xl text-sm font-semibold hover:bg-orange-600 transition-colors"
+              >
+                Tillat posisjon
+              </button>
+              <button
+                onClick={() => setShowGeoPrompt(false)}
+                className="w-full py-2.5 text-gray-500 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+              >
+                Ikke nå
+              </button>
+            </div>
           </div>
         </div>
       )}
