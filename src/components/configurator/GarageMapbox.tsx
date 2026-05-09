@@ -262,6 +262,7 @@ export default function GarageMapbox({
   const [showCadastral,    setShowCadastral]    = useState(defaultShowCadastral);
   const [geoLocating,     setGeoLocating]     = useState(false);
   const [geoError,        setGeoError]        = useState<string | null>(null);
+  const [geoDenied,       setGeoDenied]       = useState(false);
 
   type ToolMode = "pan" | "move" | "rotate";
   const [toolMode,  setToolMode]  = useState<ToolMode>("move");
@@ -947,13 +948,28 @@ export default function GarageMapbox({
 
   // ─── Geolocation ─────────────────────────────────────────────────────────
 
-  function geolocate() {
+  async function geolocate() {
     if (!navigator.geolocation) {
       setGeoError("Nettleseren støtter ikke GPS.");
+      setGeoDenied(false);
       return;
     }
-    setGeoLocating(true);
     setGeoError(null);
+    setGeoDenied(false);
+
+    // Pre-check: if already denied, show instructions immediately without triggering a prompt
+    if ("permissions" in navigator) {
+      try {
+        const perm = await navigator.permissions.query({ name: "geolocation" });
+        if (perm.state === "denied") {
+          setGeoDenied(true);
+          setGeoError("denied");
+          return;
+        }
+      } catch { /* permissions API not supported in this browser */ }
+    }
+
+    setGeoLocating(true);
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lng } }) => {
         const c: [number, number] = [lng, lat];
@@ -980,8 +996,12 @@ export default function GarageMapbox({
       },
       (err) => {
         setGeoLocating(false);
-        if (err.code === 1) setGeoError("GPS-tilgang avslått. Skriv inn adressen din.");
-        else setGeoError("Kunne ikke hente posisjon.");
+        if (err.code === 1) {
+          setGeoDenied(true);
+          setGeoError("denied");
+        } else {
+          setGeoError("Kunne ikke hente posisjon.");
+        }
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
@@ -1093,12 +1113,29 @@ export default function GarageMapbox({
             </div>
           )}
           {geoError && !geoLocating && (
-            <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 text-xs text-red-600 shadow-sm">
-              <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="flex-none">
-                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
-              </svg>
-              {geoError}
-            </div>
+            geoDenied ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 shadow-sm">
+                <p className="text-xs font-semibold text-amber-800 mb-1.5">GPS-tilgang er avslått i nettleseren</p>
+                <ol className="text-xs text-amber-700 space-y-0.5 mb-2 list-decimal list-inside">
+                  <li>Klikk på lås-ikonet (🔒) øverst i adressefeltet</li>
+                  <li>Velg «Tillatelser» → «Posisjon» → «Tillat»</li>
+                  <li>Last inn siden på nytt og prøv igjen</li>
+                </ol>
+                <button
+                  onClick={geolocate}
+                  className="text-xs text-amber-800 underline hover:text-amber-900 font-medium"
+                >
+                  Prøv igjen
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 text-xs text-red-600 shadow-sm">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="flex-none">
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+                </svg>
+                {geoError}
+              </div>
+            )
           )}
           {suggestions.length > 0 && (
             <ul className="rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
