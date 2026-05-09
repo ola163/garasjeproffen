@@ -1115,12 +1115,14 @@ export default function GarageMapbox({
           {geoError && !geoLocating && (
             geoDenied ? (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 shadow-sm">
-                <p className="text-xs font-semibold text-amber-800 mb-1.5">GPS-tilgang er avslått i nettleseren</p>
+                <p className="text-xs font-semibold text-amber-800 mb-1.5">Posisjon er blokkert for dette nettstedet</p>
                 <ol className="text-xs text-amber-700 space-y-0.5 mb-2 list-decimal list-inside">
-                  <li>Klikk på lås-ikonet (🔒) øverst i adressefeltet</li>
-                  <li>Velg «Tillatelser» → «Posisjon» → «Tillat»</li>
-                  <li>Last inn siden på nytt og prøv igjen</li>
+                  <li>Klikk på lås-ikonet (🔒) til venstre i adressefeltet</li>
+                  <li>Klikk «Tillatelser for dette nettstedet»</li>
+                  <li>Finn «Posisjon / Location» og sett den til «Tillat»</li>
+                  <li>Last inn siden på nytt</li>
                 </ol>
+                <p className="text-xs text-amber-600 italic mb-2">Merk: global plasseringstilgang i Chrome er ikke nok — nettstedet må ha sin egen tillatelse.</p>
                 <button
                   onClick={geolocate}
                   className="text-xs text-amber-800 underline hover:text-amber-900 font-medium"
