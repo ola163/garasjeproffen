@@ -948,7 +948,7 @@ export default function GarageMapbox({
 
   // ─── Geolocation ─────────────────────────────────────────────────────────
 
-  async function geolocate() {
+  function geolocate() {
     if (!navigator.geolocation) {
       setGeoError("Nettleseren støtter ikke GPS.");
       setGeoDenied(false);
@@ -956,19 +956,6 @@ export default function GarageMapbox({
     }
     setGeoError(null);
     setGeoDenied(false);
-
-    // Pre-check: if already denied, show instructions immediately without triggering a prompt
-    if ("permissions" in navigator) {
-      try {
-        const perm = await navigator.permissions.query({ name: "geolocation" });
-        if (perm.state === "denied") {
-          setGeoDenied(true);
-          setGeoError("denied");
-          return;
-        }
-      } catch { /* permissions API not supported in this browser */ }
-    }
-
     setGeoLocating(true);
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lng } }) => {
@@ -1115,14 +1102,20 @@ export default function GarageMapbox({
           {geoError && !geoLocating && (
             geoDenied ? (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 shadow-sm">
-                <p className="text-xs font-semibold text-amber-800 mb-1.5">Posisjon er blokkert for dette nettstedet</p>
+                <p className="text-xs font-semibold text-amber-800 mb-1.5">Posisjon er blokkert</p>
+                <p className="text-xs text-amber-700 mb-1.5 font-medium">Alternativ 1 – Windows-innstillinger:</p>
                 <ol className="text-xs text-amber-700 space-y-0.5 mb-2 list-decimal list-inside">
-                  <li>Klikk på lås-ikonet (🔒) til venstre i adressefeltet</li>
-                  <li>Klikk «Tillatelser for dette nettstedet»</li>
-                  <li>Finn «Posisjon / Location» og sett den til «Tillat»</li>
+                  <li>Åpne Windows-innstillinger → Personvern og sikkerhet → Posisjon</li>
+                  <li>Slå på «Posisjonstilgang» og «La apper bruke posisjon»</li>
+                  <li>Sørg for at Chrome er tillatt i listen</li>
                   <li>Last inn siden på nytt</li>
                 </ol>
-                <p className="text-xs text-amber-600 italic mb-2">Merk: global plasseringstilgang i Chrome er ikke nok — nettstedet må ha sin egen tillatelse.</p>
+                <p className="text-xs text-amber-700 mb-1.5 font-medium">Alternativ 2 – Nettstedsinnstillinger i Chrome:</p>
+                <ol className="text-xs text-amber-700 space-y-0.5 mb-2 list-decimal list-inside">
+                  <li>Klikk på lås-ikonet (🔒) i adressefeltet</li>
+                  <li>Finn «Posisjon» og sett den til «Tillat»</li>
+                  <li>Last inn siden på nytt</li>
+                </ol>
                 <button
                   onClick={geolocate}
                   className="text-xs text-amber-800 underline hover:text-amber-900 font-medium"
