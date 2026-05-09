@@ -1250,28 +1250,31 @@ export default function GarageMapbox({
         </div>
       )}
 
-      {/* 3D toggle + cadastral toggle */}
+      {/* 3D toggle — sits above the rotation panel */}
       {!readOnly && (
-        <div className="absolute right-3 z-10 flex flex-col gap-2" style={{ top: 52 }}>
+        <button
+          onClick={() => setIs3D((v) => !v)}
+          className={`absolute bottom-24 left-16 z-10 rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
+            is3D
+              ? "bg-orange-500 text-white border-transparent"
+              : "bg-white/95 text-gray-700 border-gray-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600"
+          }`}
+        >
+          {is3D ? "3D på" : "3D av"}
+        </button>
+      )}
+      {/* Cadastral toggle — admin only, stays top-right */}
+      {!readOnly && showCadastralToggle && (
+        <div className="absolute right-3 z-10" style={{ top: 52 }}>
           <button
-            onClick={() => setIs3D((v) => !v)}
+            onClick={() => setShowCadastral((v) => !v)}
+            title="Vis situasjonsplan fra Kartverket"
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-md transition-colors ${
-              is3D ? "bg-orange-500 text-white" : "bg-white/95 text-gray-700 hover:bg-orange-50"
+              showCadastral ? "bg-orange-500 text-white" : "bg-white/95 text-gray-700 hover:bg-orange-50"
             }`}
           >
-            {is3D ? "3D på" : "3D av"}
+            {showCadastral ? "Kart på" : "Kart av"}
           </button>
-          {showCadastralToggle && (
-            <button
-              onClick={() => setShowCadastral((v) => !v)}
-              title="Vis situasjonsplan fra Kartverket"
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-md transition-colors ${
-                showCadastral ? "bg-orange-500 text-white" : "bg-white/95 text-gray-700 hover:bg-orange-50"
-              }`}
-            >
-              {showCadastral ? "Kart på" : "Kart av"}
-            </button>
-          )}
         </div>
       )}
 
