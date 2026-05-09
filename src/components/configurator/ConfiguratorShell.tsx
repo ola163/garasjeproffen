@@ -240,11 +240,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [detectingPos, setDetectingPos] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
 
-  // Auto-activate plot view when entering test mode with a plot already selected
-  useEffect(() => {
-    if (viewMode === "test" && mapCenter) setShowOnPlot(true);
-  }, [viewMode, mapCenter]);
-
   // Auto-open placement section when switching to kart mode
   useEffect(() => {
     if (viewMode === "kart") setPlacementOpen(true);
@@ -279,18 +274,24 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     setGeoError(null);
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lng } }) => {
+        let name = "Min posisjon";
         try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 5000);
           const res = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,place&language=no&country=no&access_token=${MAPBOX_TOKEN}`
+            `https://ws.geonorge.no/adresser/v1/punktsok?lat=${lat}&lon=${lng}&radius=100&utkoordsys=4258&treffPerSide=1`,
+            { signal: ctrl.signal },
           );
+          clearTimeout(t);
           const data = await res.json();
-          const name = data.features?.[0]?.place_name ?? "Min posisjon";
-          pickAddress(name, [lng, lat], true);
-        } catch {
-          pickAddress("Min posisjon", [lng, lat], true);
-        } finally {
-          setDetectingPos(false);
-        }
+          const a = data.adresser?.[0];
+          if (a?.adressetekst) {
+            const poststed = (a.poststed as string).charAt(0) + (a.poststed as string).slice(1).toLowerCase();
+            name = `${a.adressetekst}, ${a.postnummer} ${poststed}`;
+          }
+        } catch { /* fall through */ }
+        pickAddress(name, [lng, lat], true);
+        setDetectingPos(false);
       },
       (err) => {
         setDetectingPos(false);
@@ -300,7 +301,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           setGeoError("Kunne ikke hente posisjon. Prøv å skrive inn adressen.");
         }
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
     );
   }
 

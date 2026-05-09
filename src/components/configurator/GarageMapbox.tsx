@@ -32,6 +32,36 @@ interface GarageMapboxProps {
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
+async function reverseGeocodeNO(lat: number, lng: number): Promise<string> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(
+      `https://ws.geonorge.no/adresser/v1/punktsok?lat=${lat}&lon=${lng}&radius=100&utkoordsys=4258&treffPerSide=1`,
+      { signal: ctrl.signal },
+    );
+    clearTimeout(t);
+    const data = await res.json();
+    const a = data.adresser?.[0];
+    if (a?.adressetekst) {
+      const poststed = (a.poststed as string).charAt(0) + (a.poststed as string).slice(1).toLowerCase();
+      return `${a.adressetekst}, ${a.postnummer} ${poststed}`;
+    }
+  } catch { /* fall through */ }
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address&language=no&country=no&access_token=${TOKEN}`,
+      { signal: ctrl.signal },
+    );
+    clearTimeout(t);
+    const data = await res.json();
+    return data.features?.[0]?.place_name ?? "Min posisjon";
+  } catch { /* fall through */ }
+  return "Min posisjon";
+}
+
 // ─── Pure helpers ────────────────────────────────────────────────────────────
 
 type OSMBuildingData = { nodes: Array<{ lat: number; lon: number }>; height: number };
@@ -716,6 +746,10 @@ export default function GarageMapbox({
           onCenterChange?.(c);
           if (markerRef.current) markerRef.current.remove();
           markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
+          reverseGeocodeNO(e.lngLat.lat, e.lngLat.lng).then((name) => {
+            setQuery(name);
+            onAddressSelect?.(name, c);
+          });
         }
       });
 
@@ -791,6 +825,10 @@ export default function GarageMapbox({
           onCenterChange?.(c);
           if (markerRef.current) markerRef.current.remove();
           markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
+          reverseGeocodeNO(e.lngLat.lat, e.lngLat.lng).then((name) => {
+            setQuery(name);
+            onAddressSelect?.(name, c);
+          });
         }
       });
     }
@@ -1036,18 +1074,7 @@ export default function GarageMapbox({
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lng } }) => {
         const c: [number, number] = [lng, lat];
-        let name = "Min posisjon";
-        try {
-          const ctrl = new AbortController();
-          const t = setTimeout(() => ctrl.abort(), 5000);
-          const res = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,place&language=no&country=no&access_token=${TOKEN}`,
-            { signal: ctrl.signal },
-          );
-          clearTimeout(t);
-          const data = await res.json();
-          name = data.features?.[0]?.place_name ?? "Min posisjon";
-        } catch { /* geocoding failed — position still valid */ }
+        const name = await reverseGeocodeNO(lat, lng);
         setQuery(name);
         onAddressSelect?.(name, c);
         setCenter(c);
