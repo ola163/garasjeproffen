@@ -189,7 +189,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [viewMode, setViewMode] = useState<"test" | "dev" | "kart" | "mål">("test");
   const [mobileLandscape, setMobileLandscape] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia("(orientation: landscape) and (max-width: 639px)");
+    const mq = window.matchMedia("(orientation: landscape) and (max-height: 500px)");
     const check = () => setMobileLandscape(mq.matches);
     check();
     mq.addEventListener("change", check);
@@ -354,14 +354,14 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         onClose={() => setShowGrunnarbeidWizard(false)}
       />
     )}
-    <div className="flex flex-col sm:flex-row sm:h-[calc(100vh-11rem)]">
+    <div className={`flex flex-col ${mobileLandscape ? "" : "sm:flex-row sm:h-[calc(100vh-11rem)]"}`}>
       {/* 3D Viewer */}
-      <div className={`relative sm:h-auto sm:flex-1 bg-stone-100 ${
+      <div className={`relative bg-stone-100 ${
         mobileLandscape
-          ? "h-dvh"
+          ? "h-dvh w-full"
           : viewMode === "kart"
-            ? "h-[80vw] min-h-[320px]"
-            : "h-[60vw] min-h-[240px]"
+            ? "h-[80vw] min-h-[320px] sm:h-auto sm:flex-1"
+            : "h-[60vw] min-h-[240px] sm:h-auto sm:flex-1"
       }`}>
 
         {/* Toggle */}
@@ -465,7 +465,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       )}
 
       {/* Sidebar */}
-      <div className={`${mobileLandscape ? "hidden" : ""} flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white`}>
+      <div className={mobileLandscape ? "hidden" : "flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white"}>
         <div ref={scrollContainerRef} className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
           {/* Package illustration */}
           <div className={`overflow-hidden transition-all duration-300 sm:max-h-[500px] sm:opacity-100 sm:mb-3 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
