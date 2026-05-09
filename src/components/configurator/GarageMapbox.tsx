@@ -1101,27 +1101,25 @@ export default function GarageMapbox({
           )}
           {geoError && !geoLocating && (
             geoDenied ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 shadow-sm">
-                <p className="text-xs font-semibold text-amber-800 mb-1.5">Posisjon er blokkert</p>
-                <p className="text-xs text-amber-700 mb-1.5 font-medium">Alternativ 1 – Windows-innstillinger:</p>
-                <ol className="text-xs text-amber-700 space-y-0.5 mb-2 list-decimal list-inside">
-                  <li>Åpne Windows-innstillinger → Personvern og sikkerhet → Posisjon</li>
-                  <li>Slå på «Posisjonstilgang» og «La apper bruke posisjon»</li>
-                  <li>Sørg for at Chrome er tillatt i listen</li>
-                  <li>Last inn siden på nytt</li>
-                </ol>
-                <p className="text-xs text-amber-700 mb-1.5 font-medium">Alternativ 2 – Nettstedsinnstillinger i Chrome:</p>
-                <ol className="text-xs text-amber-700 space-y-0.5 mb-2 list-decimal list-inside">
-                  <li>Klikk på lås-ikonet (🔒) i adressefeltet</li>
-                  <li>Finn «Posisjon» og sett den til «Tillat»</li>
-                  <li>Last inn siden på nytt</li>
-                </ol>
-                <button
-                  onClick={geolocate}
-                  className="text-xs text-amber-800 underline hover:text-amber-900 font-medium"
-                >
-                  Prøv igjen
-                </button>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-amber-800 mb-1">GPS-tilgang blokkert</p>
+                    <p className="text-xs text-amber-700">Klikk 🔒 i adressefeltet → Posisjon → Tillat, eller sjekk Windows-innstillinger → Personvern → Posisjon.</p>
+                    <button onClick={geolocate} className="text-xs text-amber-800 underline hover:text-amber-900 font-medium mt-1">
+                      Prøv igjen
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => { setGeoError(null); setGeoDenied(false); }}
+                    className="flex-none text-amber-500 hover:text-amber-800 leading-none mt-0.5"
+                    title="Lukk"
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                      <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 text-xs text-red-600 shadow-sm">
