@@ -1025,8 +1025,8 @@ export default function GarageMapbox({
   // ─── Geolocation ─────────────────────────────────────────────────────────
 
   function geolocate() {
-    if (!navigator.geolocation) {
-      setGeoError("Nettleseren støtter ikke GPS.");
+    if (!navigator?.geolocation) {
+      setGeoError("Posisjonstjenester støttes ikke av denne enheten.");
       setGeoDenied(false);
       return;
     }
@@ -1039,15 +1039,15 @@ export default function GarageMapbox({
         let name = "Min posisjon";
         try {
           const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), 5000);
+          const t = setTimeout(() => ctrl.abort(), 5000);
           const res = await fetch(
             `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,place&language=no&country=no&access_token=${TOKEN}`,
             { signal: ctrl.signal },
           );
-          clearTimeout(timer);
+          clearTimeout(t);
           const data = await res.json();
           name = data.features?.[0]?.place_name ?? "Min posisjon";
-        } catch { /* address lookup failed — position is still valid */ }
+        } catch { /* geocoding failed — position still valid */ }
         setQuery(name);
         onAddressSelect?.(name, c);
         setCenter(c);
@@ -1069,10 +1069,11 @@ export default function GarageMapbox({
           setGeoDenied(true);
           setGeoError("denied");
         } else {
-          setGeoError("Kunne ikke hente posisjon.");
+          setGeoError(`Kunne ikke hente posisjon (kode ${err.code}). Skriv inn adressen.`);
         }
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      // enableHighAccuracy:false = nettverksposisjon (rask) i stedet for GPS-chip (treg)
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
   }
 
@@ -1175,14 +1176,6 @@ export default function GarageMapbox({
               )}
             </div>
           </div>
-          {geoLocating && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none" style={{ top: 0, left: 0, right: 0, bottom: 0, position: "absolute" }}>
-              <div className="bg-white rounded-2xl shadow-xl px-6 py-4 flex items-center gap-3">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent flex-none" />
-                <span className="text-sm font-medium text-gray-700">Henter din posisjon…</span>
-              </div>
-            </div>
-          )}
           {geoError && !geoLocating && (
             geoDenied ? (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 shadow-sm">
@@ -1327,6 +1320,16 @@ export default function GarageMapbox({
         <div className="absolute bottom-4 left-16 right-3 z-10">
           <div className="rounded-xl bg-white/95 shadow-lg backdrop-blur-sm px-4 py-2.5 text-center">
             <p className="text-xs text-gray-500">Klikk i kartet for å plassere garasjen</p>
+          </div>
+        </div>
+      )}
+
+      {/* GPS locating overlay */}
+      {geoLocating && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none">
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-4 flex items-center gap-3">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent flex-none" />
+            <span className="text-sm font-medium text-gray-700">Henter din posisjon…</span>
           </div>
         </div>
       )}
