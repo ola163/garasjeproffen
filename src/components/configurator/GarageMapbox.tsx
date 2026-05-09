@@ -1036,15 +1036,16 @@ export default function GarageMapbox({
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lng } }) => {
         const c: [number, number] = [lng, lat];
+        let name = "Min posisjon";
         try {
           const res = await fetch(
             `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,place&language=no&country=no&access_token=${TOKEN}`
           );
           const data = await res.json();
-          const name: string = data.features?.[0]?.place_name ?? "Min posisjon";
-          setQuery(name);
-          onAddressSelect?.(name, c);
+          name = data.features?.[0]?.place_name ?? "Min posisjon";
         } catch { /* address lookup failed, position is still valid */ }
+        setQuery(name);
+        onAddressSelect?.(name, c);
         setCenter(c);
         const map = mapRef.current;
         if (map) {

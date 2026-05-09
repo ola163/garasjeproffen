@@ -245,13 +245,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     if (viewMode === "test" && mapCenter) setShowOnPlot(true);
   }, [viewMode, mapCenter]);
 
-  // Auto-open placement section and detect position when switching to kart mode
+  // Auto-open placement section when switching to kart mode
   useEffect(() => {
-    if (viewMode === "kart") {
-      setPlacementOpen(true);
-      if (!mapCenter) detectPosition();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (viewMode === "kart") setPlacementOpen(true);
   }, [viewMode]);
 
   function pickAddress(placeName: string, center: [number, number], fromGeo = false) {
@@ -437,7 +433,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             externalCenter={mapCenter} externalRotation={mapRotation}
             onCenterChange={(c) => { setMapCenter(c); setShowOnPlot(false); }}
             onRotationChange={setMapRotation}
-            onAddressSelect={(addr) => setSelectedAddress(addr)}
+            onAddressSelect={(addr, coords) => pickAddress(addr, coords, true)}
             defaultCenter={mapCenter ?? undefined}
             addedElements={addedElements} doorWidthMm={doorWidthValue} doorHeightMm={doorHeightValue}
             showNeighbors
