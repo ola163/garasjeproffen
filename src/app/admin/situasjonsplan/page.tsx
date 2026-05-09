@@ -9,139 +9,7 @@ import { wgs84ToUtm33N } from "@/lib/utm33n";
 const WIDTHS  = [2400, 3000, 3600, 4000, 5000, 6000, 7000];
 const LENGTHS = [4000, 5000, 6000, 7000, 8000, 9000, 10000];
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload  = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
-    img.src = src;
-  });
-}
 
-async function generatePng(
-  lat: number, lon: number,
-  widthMm: number, lengthMm: number, rotationDeg: number,
-  addr: string,
-): Promise<string> {
-  const res = await fetch(
-    `/api/admin/situasjonsplan/generate?lat=${lat}&lng=${lon}&halfMeters=150`,
-  );
-  if (!res.ok) throw new Error(`API error ${res.status}`);
-  const { topo, matrikkel, bbox, size } = await res.json() as {
-    topo: string; matrikkel: string;
-    bbox: { minLon: number; minLat: number; maxLon: number; maxLat: number };
-    size: number;
-  };
-
-  const [topoImg, matrikkelImg] = await Promise.all([
-    loadImage(`data:image/png;base64,${topo}`),
-    loadImage(`data:image/png;base64,${matrikkel}`),
-  ]);
-
-  const canvas = document.createElement("canvas");
-  canvas.width  = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d")!;
-
-  // Background layers
-  ctx.drawImage(topoImg,      0, 0, size, size);
-  ctx.drawImage(matrikkelImg, 0, 0, size, size);
-
-  // ── Garage footprint ──
-  const bboxW = bbox.maxLon - bbox.minLon;
-  const bboxH = bbox.maxLat - bbox.minLat;
-  const cx    = (lon - bbox.minLon) / bboxW * size;
-  // WMS y-axis is inverted (north = top)
-  const cy    = (1 - (lat - bbox.minLat) / bboxH) * size;
-
-  // metres per pixel
-  const latRad = lat * Math.PI / 180;
-  const mPerPixLon = (bboxW / size) * 111_412.84 * Math.cos(latRad);
-  const mPerPixLat = (bboxH / size) * 111_132.92;
-
-  const halfW = (widthMm  / 1000) / 2 / mPerPixLon;
-  const halfH = (lengthMm / 1000) / 2 / mPerPixLat;
-  const ang   = (rotationDeg * Math.PI) / 180;
-
-  const corners: [number, number][] = [
-    [-halfW, -halfH], [halfW, -halfH], [halfW, halfH], [-halfW, halfH],
-  ].map(([dx, dy]) => [
-    cx + dx * Math.cos(ang) - dy * Math.sin(ang),
-    cy + dx * Math.sin(ang) + dy * Math.cos(ang),
-  ]);
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(corners[0][0], corners[0][1]);
-  for (let i = 1; i < 4; i++) ctx.lineTo(corners[i][0], corners[i][1]);
-  ctx.closePath();
-  ctx.fillStyle   = "rgba(234,88,12,0.35)";
-  ctx.strokeStyle = "#ea580c";
-  ctx.lineWidth   = 3;
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-
-  // ── North arrow (top-right) ──
-  const ax = size - 60, ay = 60, ar = 28;
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(ax, ay - ar);
-  ctx.lineTo(ax + ar * 0.4, ay + ar);
-  ctx.lineTo(ax, ay + ar * 0.3);
-  ctx.lineTo(ax - ar * 0.4, ay + ar);
-  ctx.closePath();
-  ctx.fillStyle = "#1e293b";
-  ctx.fill();
-  ctx.font = "bold 18px sans-serif";
-  ctx.fillStyle = "#1e293b";
-  ctx.textAlign = "center";
-  ctx.fillText("N", ax, ay - ar - 8);
-  ctx.restore();
-
-  // ── Scale bar (bottom-left) ──
-  // 50 m at current scale
-  const scaleMeters = 50;
-  const scalePx = scaleMeters / mPerPixLon;
-  const sbX = 40, sbY = size - 40, sbH = 10;
-  ctx.save();
-  ctx.fillStyle = "#1e293b";
-  ctx.fillRect(sbX, sbY, scalePx, sbH);
-  ctx.fillRect(sbX + scalePx / 2, sbY, 2, sbH);
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(sbX, sbY, scalePx, sbH);
-  ctx.fillStyle = "#1e293b";
-  ctx.font = "bold 14px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText("0", sbX, sbY - 4);
-  ctx.textAlign = "center";
-  ctx.fillText(`${scaleMeters / 2} m`, sbX + scalePx / 2, sbY - 4);
-  ctx.textAlign = "right";
-  ctx.fillText(`${scaleMeters} m`, sbX + scalePx, sbY - 4);
-  ctx.fillText("Målestokk ca. 1:500", sbX + scalePx / 2, sbY + sbH + 18);
-  ctx.restore();
-
-  // ── Info box (bottom) ──
-  const now = new Date().toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit", year: "numeric" });
-  const [utmE, utmN] = wgs84ToUtm33N(lon, lat);
-  const lines = [
-    addr || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
-    `UTM33N  Ø ${utmE}  N ${utmN}`,
-    `Dato: ${now}  |  © Kartverket`,
-  ];
-  const boxH2 = 18 * lines.length + 16;
-  ctx.save();
-  ctx.fillStyle = "rgba(255,255,255,0.88)";
-  ctx.fillRect(0, size - boxH2, size, boxH2);
-  ctx.fillStyle = "#1e293b";
-  ctx.font = "13px sans-serif";
-  ctx.textAlign = "center";
-  lines.forEach((line, i) => ctx.fillText(line, size / 2, size - boxH2 + 20 + i * 18));
-  ctx.restore();
-
-  return canvas.toDataURL("image/png");
-}
 
 function SituasjonsplanContent() {
   const params = useSearchParams();
@@ -170,10 +38,6 @@ function SituasjonsplanContent() {
   const [address,     setAddress]     = useState(initAddress);
   const [generating,  setGenerating]  = useState(false);
   const [genError,    setGenError]    = useState<string | null>(null);
-  const [mapView,     setMapView]     = useState<"eget" | "kommune">("eget");
-  const [iframeKey,   setIframeKey]   = useState(0);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
   const sharedParams = center
     ? `lat=${center[1]}&lng=${center[0]}&rotation=${rotation}&widthMm=${config.widthMm}&lengthMm=${config.lengthMm}&roofType=${config.roofType}&buildingType=${config.buildingType}${quoteId ? `&quote=${quoteId}` : ""}${address ? `&address=${encodeURIComponent(address)}` : ""}`
     : null;
@@ -181,27 +45,73 @@ function SituasjonsplanContent() {
   const tegningUrl = sharedParams ? `/admin/situasjonsplan/print?${sharedParams}` : null;
 
   const utmCenter = center ? wgs84ToUtm33N(center[0], center[1]) : null;
-  // ISYMap URL for Time kommune.
-  // Hash format (#zoom/lat/lng) uses WGS84 and skips ISYMap's project lookup entirely.
-  // zoom=19 ≈ 1:500 in the Leaflet tile scheme used by geoinnsyn.no
-  const timeKartUrl = center
-    ? `https://geoinnsyn.no/?application=time#19/${center[1]}/${center[0]}`
-    : "https://geoinnsyn.no/?application=time";
-  // Direct iframe embed URL (same format, works in iframe if X-Frame-Options allows)
-  const iframeUrl = timeKartUrl;
+
+  type MapLike = { getCanvas(): HTMLCanvasElement; triggerRepaint(): void; once(e: string, cb: () => void): void };
+  const mapInstanceRef = useRef<MapLike | null>(null);
 
   async function handleGenerate() {
-    if (!center) return;
+    const map = mapInstanceRef.current;
+    if (!center || !map) return;
     setGenerating(true);
     setGenError(null);
     try {
-      const dataUrl = await generatePng(
-        center[1], center[0],
-        config.widthMm, config.lengthMm, rotation,
-        address,
-      );
+      // Ensure the latest frame is rendered before capture
+      map.triggerRepaint();
+      await new Promise<void>((res) => { map.once("render", res); setTimeout(res, 300); });
+
+      const mapCanvas = map.getCanvas();
+      const mW = mapCanvas.width;
+      const mH = mapCanvas.height;
+      const dpr = window.devicePixelRatio || 1;
+      const titleH = Math.round(110 * dpr);
+
+      const out = document.createElement("canvas");
+      out.width  = mW;
+      out.height = mH + titleH;
+      const ctx = out.getContext("2d")!;
+
+      // Map image
+      ctx.drawImage(mapCanvas, 0, 0);
+
+      // Title block background
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(0, mH, mW, titleH);
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = Math.round(2 * dpr);
+      ctx.beginPath(); ctx.moveTo(0, mH); ctx.lineTo(mW, mH); ctx.stroke();
+
+      const pad  = Math.round(16 * dpr);
+      const fs   = Math.round(13 * dpr);
+      const now  = new Date().toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const [utmE, utmN] = wgs84ToUtm33N(center[0], center[1]);
+      const wLabel = (config.widthMm  / 1000).toFixed(1).replace(".0", "");
+      const lLabel = (config.lengthMm / 1000).toFixed(1).replace(".0", "");
+
+      ctx.textBaseline = "top";
+
+      // Left column
+      ctx.font = `bold ${Math.round(18 * dpr)}px sans-serif`;
+      ctx.fillStyle = "#1e293b";
+      ctx.textAlign = "left";
+      ctx.fillText("SITUASJONSPLAN", pad, mH + pad);
+
+      ctx.font = `${fs}px sans-serif`;
+      ctx.fillStyle = "#475569";
+      if (address) ctx.fillText(address, pad, mH + pad + Math.round(26 * dpr));
+      ctx.fillText(`${wLabel} × ${lLabel} m  ·  Rotasjon: ${rotation}°`, pad, mH + pad + Math.round(46 * dpr));
+      ctx.fillText(`UTM33N  Ø${utmE}  N${utmN}`, pad, mH + pad + Math.round(64 * dpr));
+
+      // Right column
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#475569";
+      ctx.fillText(`Dato: ${now}`, mW - pad, mH + pad);
+      ctx.fillText("© Kartverket · © OpenStreetMap", mW - pad, mH + pad + Math.round(20 * dpr));
+      ctx.font = `bold ${fs}px sans-serif`;
+      ctx.fillStyle = "#ea580c";
+      ctx.fillText("Garasjeproffen AS", mW - pad, mH + pad + Math.round(42 * dpr));
+
       const a = document.createElement("a");
-      a.href     = dataUrl;
+      a.href     = out.toDataURL("image/png");
       a.download = `situasjonsplan${address ? `-${address.replace(/[^a-zA-Z0-9]/g, "_")}` : ""}.png`;
       a.click();
     } catch (e) {
@@ -233,19 +143,6 @@ function SituasjonsplanContent() {
         <div className="flex-1" />
         {center && (
           <>
-            <a
-              href={timeKartUrl!}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Åpne Time kommunes kartportal på plasseringen (1:500)"
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-medium px-3 py-1.5 transition-colors"
-            >
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-              </svg>
-              Time kart
-            </a>
             <a
               href="https://e-torg.no/time/tilpass/NK11210300"
               target="_blank"
@@ -400,127 +297,46 @@ function SituasjonsplanContent() {
 
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-700 leading-snug">
             <p className="font-semibold mb-1">Bruk av kartet</p>
-            <p>Slå på <span className="font-medium">«Kart»</span> for å vise matrikkelkart fra Kartverket. «Last ned PNG» genererer en situasjonsplan med garasjefotavtrykk.</p>
+            <p>Slå på <span className="font-medium">«Kart»</span> for matrikkellaget fra Kartverket. Trykk <span className="font-medium">«Last ned PNG»</span> for situasjonsplan med garasjefotavtrykk, eller <span className="font-medium">«Tegning»</span> for A4-PDF.</p>
           </div>
 
-          <div className="rounded-lg bg-teal-50 border border-teal-100 p-3 text-xs text-teal-800 leading-snug space-y-2">
-            <p className="font-semibold">Time kommune</p>
-            {center ? (
-              <div className="flex flex-col gap-1.5">
-                <a
-                  href={timeKartUrl!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 font-medium text-teal-700 hover:text-teal-900 hover:underline"
-                >
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                  </svg>
-                  Åpne i kommunens kartportal (1:500) →
-                </a>
-                <a
-                  href="https://e-torg.no/time/tilpass/NK11210300"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 font-medium text-teal-700 hover:text-teal-900 hover:underline"
-                >
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  Bestill offisiell situasjonskart →
-                </a>
-              </div>
-            ) : (
-              <p className="text-teal-600 italic">Plasser garasjen for å åpne kommunekart.</p>
-            )}
-          </div>
-        </div>
-
-        {/* ── Map area with tabs ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-
-          {/* Tab bar */}
-          <div className="flex items-center gap-0 border-b border-gray-200 bg-white px-4 print:hidden shrink-0">
-            <button
-              onClick={() => setMapView("eget")}
-              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${mapView === "eget" ? "border-orange-500 text-orange-600" : "border-transparent text-gray-500 hover:text-gray-800"}`}
-            >
-              Vårt kart
-            </button>
-            <button
-              onClick={() => { setMapView("kommune"); setIframeKey(k => k + 1); }}
-              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${mapView === "kommune" ? "border-orange-500 text-orange-600" : "border-transparent text-gray-500 hover:text-gray-800"}`}
-            >
-              Time kommunes kartportal
-            </button>
-            {mapView === "kommune" && (
-              <div className="ml-auto flex items-center gap-2 py-1.5">
-                <span className="text-[10px] text-gray-400">
-                  {utmCenter ? `UTM33N Ø${utmCenter[0]} N${utmCenter[1]} · zoom 16` : "Ingen plassering"}
-                </span>
-                <button
-                  onClick={() => setIframeKey(k => k + 1)}
-                  className="text-[10px] border border-gray-200 rounded px-2 py-1 text-gray-500 hover:bg-gray-50"
-                  title="Last inn kartet på nytt"
-                >
-                  ↺ Last inn
-                </button>
-                <a
-                  href={timeKartUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] border border-gray-200 rounded px-2 py-1 text-gray-500 hover:bg-gray-50"
-                >
-                  Åpne i nytt vindu ↗
-                </a>
-              </div>
-            )}
-          </div>
-
-          {/* Our own map */}
-          <div className={`flex-1 relative ${mapView === "eget" ? "" : "hidden"}`}>
-            <GarageMapbox
-              widthMm={config.widthMm}
-              lengthMm={config.lengthMm}
-              roofType={config.roofType}
-              buildingType={config.buildingType}
-              externalCenter={center}
-              externalRotation={rotation}
-              showNeighbors
-              showCadastralToggle
-              defaultShowCadastral
-              defaultCenter={initCenter ?? undefined}
-              onCenterChange={setCenter}
-              onRotationChange={setRotation}
-              onAddressSelect={(addr) => setAddress(addr)}
-            />
-          </div>
-
-          {/* Municipality portal embedded */}
-          {mapView === "kommune" && (
-            <div className="flex-1 relative">
-              <iframe
-                key={iframeKey}
-                ref={iframeRef}
-                src={iframeUrl}
-                className="absolute inset-0 w-full h-full border-0"
-                title="Time kommune kartportal"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-                onError={() => {/* iframe load error handled visually below */}}
-              />
-              {/* Fallback message shown below iframe if it's blocked */}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur rounded-lg border border-gray-200 px-4 py-2.5 text-xs text-gray-600 text-center shadow pointer-events-none">
-                Hvis kartet ikke vises kan du{" "}
-                <a href={timeKartUrl} target="_blank" rel="noopener noreferrer"
-                   className="text-orange-600 font-medium pointer-events-auto hover:underline">
-                  åpne det i nytt vindu ↗
-                </a>
-              </div>
+          {center && (
+            <div className="rounded-lg bg-teal-50 border border-teal-100 p-3 text-xs text-teal-800 leading-snug">
+              <p className="font-semibold mb-1.5">Offisiell situasjonskart</p>
+              <a
+                href="https://e-torg.no/time/tilpass/NK11210300"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 font-medium text-teal-700 hover:text-teal-900 hover:underline"
+              >
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Bestill fra Norkart e-Torg →
+              </a>
             </div>
           )}
+        </div>
 
+        {/* ── Map area ── */}
+        <div className="flex-1 relative overflow-hidden">
+          <GarageMapbox
+            widthMm={config.widthMm}
+            lengthMm={config.lengthMm}
+            roofType={config.roofType}
+            buildingType={config.buildingType}
+            externalCenter={center}
+            externalRotation={rotation}
+            showNeighbors
+            showCadastralToggle
+            defaultShowCadastral
+            defaultCenter={initCenter ?? undefined}
+            onCenterChange={setCenter}
+            onRotationChange={setRotation}
+            onAddressSelect={(addr) => setAddress(addr)}
+            onMapReady={(m) => { mapInstanceRef.current = m as MapLike; }}
+          />
         </div>
 
       </div>

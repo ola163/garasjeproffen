@@ -27,6 +27,7 @@ interface GarageMapboxProps {
   doorHeightMm?: number;
   showCadastralToggle?: boolean;
   defaultShowCadastral?: boolean;
+  onMapReady?: (map: mapboxgl.Map) => void;
 }
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -228,6 +229,7 @@ export default function GarageMapbox({
   showNeighbors = false, defaultCenter, onAddressSelect,
   addedElements = [], doorWidthMm = 2500, doorHeightMm = 2125,
   showCadastralToggle = false, defaultShowCadastral = false,
+  onMapReady,
 }: GarageMapboxProps) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const mapRef        = useRef<mapboxgl.Map | null>(null);
@@ -258,6 +260,8 @@ export default function GarageMapbox({
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [boundaryVersion,  setBoundaryVersion]  = useState(0);
   const [showCadastral,    setShowCadastral]    = useState(defaultShowCadastral);
+  const [geoLocating,     setGeoLocating]     = useState(false);
+  const [geoError,        setGeoError]        = useState<string | null>(null);
 
   type ToolMode = "pan" | "move" | "rotate";
   const [toolMode,  setToolMode]  = useState<ToolMode>("move");
@@ -488,6 +492,7 @@ export default function GarageMapbox({
       zoom: streetView ? 19.5 : externalCenter ? 19 : 14,
       pitch:   streetView ? 72  : forceIs3D ? 60 : 0,
       bearing: streetView ? initRot : forceIs3D ? -20 : 0,
+      preserveDrawingBuffer: true,
     });
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
@@ -617,6 +622,8 @@ export default function GarageMapbox({
         if (forceIs3D || streetView)
           map.setLayoutProperty(FILL_LAYER, "visibility", "none");
       }
+
+      onMapReady?.(map);
     });
 
     if (!readOnly) {
@@ -725,7 +732,21 @@ export default function GarageMapbox({
 
   useEffect(() => {
     centerRenderRef.current = center;
-    if (center) mapRef.current?.triggerRepaint();
+    const map = mapRef.current;
+    if (!center || !map) { map?.triggerRepaint(); return; }
+
+    if (map.isStyleLoaded()) {
+      const mc = map.getCenter();
+      const dlng = Math.abs(center[0] - mc.lng);
+      const dlat = Math.abs(center[1] - mc.lat);
+      // Fly only when the change is large enough to be external (geolocation / address pick)
+      // — not a user drag which stays within a few pixels (~0.0001°)
+      if (dlng > 0.0005 || dlat > 0.0005) {
+        map.flyTo({ center, zoom: 19, duration: 1200 });
+        return;
+      }
+    }
+    map.triggerRepaint();
   }, [center]);
 
   useEffect(() => {
@@ -924,6 +945,57 @@ export default function GarageMapbox({
       map.setLayoutProperty("cadastral-layer", "visibility", showCadastral ? "visible" : "none");
   }, [showCadastral]);
 
+  // ─── Geolocation ─────────────────────────────────────────────────────────
+
+  function geolocate() {
+    if (!navigator.geolocation) {
+      setGeoError("Nettleseren støtter ikke GPS.");
+      return;
+    }
+    setGeoLocating(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude: lat, longitude: lng } }) => {
+        const c: [number, number] = [lng, lat];
+        try {
+          const res = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,place&language=no&country=no&access_token=${TOKEN}`
+          );
+          const data = await res.json();
+          const name: string = data.features?.[0]?.place_name ?? "Min posisjon";
+          setQuery(name);
+          onAddressSelect?.(name, c);
+        } catch { /* address lookup failed, position is still valid */ }
+        setCenter(c);
+        const map = mapRef.current;
+        if (map) {
+          if (markerRef.current) markerRef.current.remove();
+          markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
+        }
+        try {
+          localStorage.setItem("gp-map-lat", String(lat));
+          localStorage.setItem("gp-map-lng", String(lng));
+        } catch {}
+        setGeoLocating(false);
+      },
+      (err) => {
+        setGeoLocating(false);
+        if (err.code === 1) setGeoError("GPS-tilgang avslått. Skriv inn adressen din.");
+        else setGeoError("Kunne ikke hente posisjon.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  }
+
+  // Auto-detect on mount when no center is set
+  useEffect(() => {
+    if (!center && !readOnly) {
+      const t = setTimeout(() => geolocate(), 600);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ─── Address search ──────────────────────────────────────────────────────
 
   async function searchAddress(q: string) {
@@ -984,6 +1056,23 @@ export default function GarageMapbox({
       {!readOnly && (
         <div className="absolute left-3 right-12 z-10 flex flex-col gap-1" style={{ top: 52 }}>
           <div className="flex gap-2">
+            {/* GPS button */}
+            <button
+              onClick={geolocate}
+              disabled={geoLocating}
+              title="Bruk min nåværende posisjon"
+              className="flex-none flex items-center justify-center w-10 h-10 rounded-lg bg-white/95 border border-gray-200 shadow-md hover:bg-orange-50 hover:border-orange-300 disabled:opacity-60 transition-colors"
+            >
+              {geoLocating ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+              ) : (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-500">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+                  <circle cx="12" cy="12" r="8" strokeDasharray="4 2"/>
+                </svg>
+              )}
+            </button>
             <div className="relative flex-1">
               <input
                 type="text"
@@ -997,6 +1086,20 @@ export default function GarageMapbox({
               )}
             </div>
           </div>
+          {geoLocating && (
+            <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 text-xs text-orange-700 shadow-sm">
+              <div className="h-3 w-3 animate-spin rounded-full border-2 border-orange-500 border-t-transparent flex-none" />
+              Henter din posisjon…
+            </div>
+          )}
+          {geoError && !geoLocating && (
+            <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 text-xs text-red-600 shadow-sm">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="flex-none">
+                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+              </svg>
+              {geoError}
+            </div>
+          )}
           {suggestions.length > 0 && (
             <ul className="rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
               {suggestions.map((s, i) => (

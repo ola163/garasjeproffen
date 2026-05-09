@@ -200,10 +200,28 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   }, []);
 
   // Shared map placement state — lifted so it persists across view mode switches
-  const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number] | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const lat = parseFloat(localStorage.getItem("gp-map-lat") ?? "");
+      const lng = parseFloat(localStorage.getItem("gp-map-lng") ?? "");
+      if (!isNaN(lat) && !isNaN(lng)) return [lng, lat];
+    } catch {}
+    return null;
+  });
   const [mapRotation, setMapRotation] = useState(0);
   // Whether to show the plot view instead of the 3D model in kunde/test mode
   const [showOnPlot, setShowOnPlot] = useState(false);
+
+  // Restore saved address label for a pre-loaded map position
+  useEffect(() => {
+    if (!mapCenter) return;
+    try {
+      const addr = localStorage.getItem("gp-map-address");
+      if (addr) { setAddressQuery(addr); setSelectedAddress(addr); }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Tomteplassering sidebar state
   const [placementOpen, setPlacementOpen] = useState(false);
@@ -212,6 +230,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [addressSearching, setAddressSearching] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [detectingPos, setDetectingPos] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
 
   // Auto-activate plot view when entering test mode with a plot already selected
   useEffect(() => {
@@ -227,18 +246,33 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
 
-  function pickAddress(placeName: string, center: [number, number]) {
+  function pickAddress(placeName: string, center: [number, number], fromGeo = false) {
     setAddressQuery(placeName);
     setAddressSuggestions([]);
     setSelectedAddress(placeName);
     setMapCenter(center);
-    try { localStorage.setItem("gp-map-address", placeName); } catch {}
+    try {
+      localStorage.setItem("gp-map-address", placeName);
+      localStorage.setItem("gp-map-lat", String(center[1]));
+      localStorage.setItem("gp-map-lng", String(center[0]));
+    } catch {}
+    if (fromGeo) {
+      fetch("/api/profile/location", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: center[1], lng: center[0], address: placeName }),
+      }).catch(() => {});
+    }
     setViewMode("kart");
   }
 
   async function detectPosition() {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setGeoError("Nettleseren støtter ikke posisjonstjenester.");
+      return;
+    }
     setDetectingPos(true);
+    setGeoError(null);
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lng } }) => {
         try {
@@ -247,15 +281,22 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           );
           const data = await res.json();
           const name = data.features?.[0]?.place_name ?? "Min posisjon";
-          pickAddress(name, [lng, lat]);
+          pickAddress(name, [lng, lat], true);
         } catch {
-          pickAddress("Min posisjon", [lng, lat]);
+          pickAddress("Min posisjon", [lng, lat], true);
         } finally {
           setDetectingPos(false);
         }
       },
-      () => setDetectingPos(false),
-      { timeout: 10000, maximumAge: 60000 }
+      (err) => {
+        setDetectingPos(false);
+        if (err.code === 1) {
+          setGeoError("Posisjon ikke tillatt – skriv inn adressen din under.");
+        } else {
+          setGeoError("Kunne ikke hente posisjon. Prøv å skrive inn adressen.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }
 
@@ -820,10 +861,20 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 </button>
               </div>
             ) : viewMode === "kart" ? (
-              <p className="mt-1 text-xs text-gray-500 text-center leading-relaxed">
-                Klikk i kartet for å plassere {buildingType === "carport" ? "carporten" : "garasjen"}.<br />
-                Skru på 3D for å se nabobygg.
-              </p>
+              <div className="mt-1 text-center space-y-2">
+                {detectingPos ? (
+                  <p className="text-xs text-orange-600 flex items-center justify-center gap-1.5">
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-orange-500 border-t-transparent inline-block" />
+                    Henter din posisjon…
+                  </p>
+                ) : geoError ? (
+                  <p className="text-xs text-red-500 leading-snug">{geoError}</p>
+                ) : null}
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Klikk i kartet for å plassere {buildingType === "carport" ? "carporten" : "garasjen"}.<br />
+                  Skru på 3D for å se nabobygg.
+                </p>
+              </div>
             ) : (
               <div className="space-y-2.5 mt-1">
                 {/* Auto-detect */}
@@ -842,6 +893,10 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                   )}
                   {detectingPos ? "Henter posisjon…" : "Finn min posisjon"}
                 </button>
+
+                {geoError && (
+                  <p className="text-xs text-red-500 text-center leading-snug">{geoError}</p>
+                )}
 
                 <div className="flex items-center gap-2">
                   <div className="flex-1 border-t border-gray-200" />
