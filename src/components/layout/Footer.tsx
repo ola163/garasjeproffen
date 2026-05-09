@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CookieSettingsLink from "@/components/cookie/CookieSettingsLink";
 
 export default function Footer() {
   return (
@@ -63,6 +64,7 @@ export default function Footer() {
               <li><Link href="/referanseprosjekter" className="hover:text-orange-500">Referanseprosjekter</Link></li>
               <li><Link href="/vilkar"              className="hover:text-orange-500">Personvernerklæring</Link></li>
               <li><Link href="/vilkar"              className="hover:text-orange-500">Brukervilkår</Link></li>
+              <li className="text-gray-400"><CookieSettingsLink /></li>
             </ul>
             <a
               href="https://www.facebook.com/garasjeproffen"

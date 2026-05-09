@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import dynamic from "next/dynamic";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import MobileCTA from "@/components/layout/MobileCTA";
@@ -7,6 +8,8 @@ import ChatWidget from "@/components/chat/ChatWidget";
 import DevPanel from "@/components/dev/DevPanel";
 import VisitorTracker from "@/components/VisitorTracker";
 import "./globals.css";
+
+const CookieConsent = dynamic(() => import("@/components/cookie/CookieConsent"), { ssr: false });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -128,6 +131,7 @@ export default function RootLayout({
         <ChatWidget />
         <DevPanel />
         <VisitorTracker />
+        <CookieConsent />
       </body>
     </html>
   );
