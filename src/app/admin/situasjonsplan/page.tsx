@@ -65,6 +65,33 @@ function SituasjonsplanContent() {
       const dpr = window.devicePixelRatio || 1;
       const titleH = Math.round(110 * dpr);
 
+      // Fetch municipality info + logo
+      let kommuneNavn = "";
+      let kommuneLogo: HTMLImageElement | null = null;
+      try {
+        const ctrl = new AbortController();
+        setTimeout(() => ctrl.abort(), 5000);
+        const mRes = await fetch(
+          `https://ws.geonorge.no/adresser/v1/punktsok?lat=${center[1]}&lon=${center[0]}&radius=500&utkoordsys=4258&treffPerSide=1`,
+          { signal: ctrl.signal },
+        );
+        const mData = await mRes.json();
+        const a = mData.adresser?.[0];
+        if (a?.kommunenummer) {
+          kommuneNavn = a.kommunenavn
+            ? (a.kommunenavn as string).charAt(0) + (a.kommunenavn as string).slice(1).toLowerCase()
+            : "";
+          try {
+            kommuneLogo = await new Promise<HTMLImageElement>((resolve, reject) => {
+              const img = new Image();
+              img.onload  = () => resolve(img);
+              img.onerror = reject;
+              img.src = `/kommuner/${a.kommunenummer}.png`;
+            });
+          } catch { /* no logo file */ }
+        }
+      } catch { /* skip kommune info */ }
+
       const out = document.createElement("canvas");
       out.width  = mW;
       out.height = mH + titleH;
@@ -101,9 +128,25 @@ function SituasjonsplanContent() {
       ctx.fillText(`${wLabel} × ${lLabel} m  ·  Rotasjon: ${rotation}°`, pad, mH + pad + Math.round(46 * dpr));
       ctx.fillText(`UTM33N  Ø${utmE}  N${utmN}`, pad, mH + pad + Math.round(64 * dpr));
 
+      // Center: kommune logo or name
+      if (kommuneLogo) {
+        const maxH = titleH - pad * 2;
+        const maxW = Math.round(mW * 0.2);
+        const scale = Math.min(maxW / kommuneLogo.width, maxH / kommuneLogo.height, 1);
+        const lW = Math.round(kommuneLogo.width * scale);
+        const lH = Math.round(kommuneLogo.height * scale);
+        ctx.drawImage(kommuneLogo, Math.round((mW - lW) / 2), mH + Math.round((titleH - lH) / 2), lW, lH);
+      } else if (kommuneNavn) {
+        ctx.font = `bold ${fs}px sans-serif`;
+        ctx.fillStyle = "#334155";
+        ctx.textAlign = "center";
+        ctx.fillText(kommuneNavn, Math.round(mW / 2), mH + pad);
+      }
+
       // Right column
       ctx.textAlign = "right";
       ctx.fillStyle = "#475569";
+      ctx.font = `${fs}px sans-serif`;
       ctx.fillText(`Dato: ${now}`, mW - pad, mH + pad);
       ctx.fillText("© Kartverket · © OpenStreetMap", mW - pad, mH + pad + Math.round(20 * dpr));
       ctx.font = `bold ${fs}px sans-serif`;

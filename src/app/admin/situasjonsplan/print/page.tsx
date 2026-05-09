@@ -150,73 +150,195 @@ function drawGarageFootprint(
   lat: number,
   widthMm: number, lengthMm: number,
   rotationDeg: number,
+  roofType: string = "saltak",
+  buildingType: string = "garasje",
 ) {
-  const latRad    = lat * Math.PI / 180;
+  const latRad     = lat * Math.PI / 180;
   const mPerPixLon = (bbox.maxLon - bbox.minLon) / imgW * 111_412.84 * Math.cos(latRad);
   const mPerPixLat = (bbox.maxLat - bbox.minLat) / imgH * 111_132.92;
 
-  const halfWpx = (widthMm  / 1000) / 2 / mPerPixLon;
-  const halfLpx = (lengthMm / 1000) / 2 / mPerPixLat;
+  const wallM = 0.22;  // 220 mm wall thickness
+  const ovhM  = 0.40;  // 400 mm roof overhang (saltak)
+
+  const halfWpx = widthMm  / 2000 / mPerPixLon;
+  const halfLpx = lengthMm / 2000 / mPerPixLat;
+  const wallWpx = wallM / mPerPixLon;
+  const wallLpx = wallM / mPerPixLat;
+  const ovhWpx  = ovhM  / mPerPixLon;
+  const ovhLpx  = ovhM  / mPerPixLat;
   const ang = rotationDeg * Math.PI / 180;
 
-  const corners: [number, number][] = [
-    [-halfWpx, -halfLpx],
-    [ halfWpx, -halfLpx],
-    [ halfWpx,  halfLpx],
-    [-halfWpx,  halfLpx],
-  ].map(([dx, dy]) => [
-    cx + dx * Math.cos(ang) - dy * Math.sin(ang),
-    cy + dx * Math.sin(ang) + dy * Math.cos(ang),
-  ]);
+  // Build a rotated rectangle centered on (cx, cy)
+  function makeRect(hw: number, hl: number): [number, number][] {
+    return (
+      [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]] as [number, number][]
+    ).map(([dx, dy]): [number, number] => [
+      cx + dx * Math.cos(ang) - dy * Math.sin(ang),
+      cy + dx * Math.sin(ang) + dy * Math.cos(ang),
+    ]);
+  }
+
+  function polyPath(pts: [number, number][]) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+  }
+
+  function mid(a: [number, number], b: [number, number]): [number, number] {
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  }
+
+  const outer = makeRect(halfWpx, halfLpx);
+  const inner = makeRect(halfWpx - wallWpx, halfLpx - wallLpx);
+  const ovh   = makeRect(halfWpx + ovhWpx,  halfLpx + ovhLpx);
 
   ctx.save();
 
-  // Fill
-  ctx.beginPath();
-  ctx.moveTo(corners[0][0], corners[0][1]);
-  for (let i = 1; i < 4; i++) ctx.lineTo(corners[i][0], corners[i][1]);
-  ctx.closePath();
-  ctx.fillStyle   = "rgba(234,88,12,0.28)";
-  ctx.strokeStyle = "#ea580c";
-  ctx.lineWidth   = 3;
+  // ── 1. Takutstikk – dashed overhang outline (saltak only) ──────────
+  if (roofType === "saltak") {
+    polyPath(ovh);
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = "#64748b";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── 2. Building body fill ──────────────────────────────────────────
+  polyPath(outer);
+  ctx.fillStyle = "#f0ede6"; // warm off-white, like architectural paper
   ctx.fill();
+
+  // ── 3. Inner wall line – 220 mm inside outer face ─────────────────
+  if (buildingType !== "carport") {
+    polyPath(inner);
+    ctx.strokeStyle = "rgba(100,116,139,0.55)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // ── 4. Møne (ridge line) – dashed along long axis ─────────────────
+  if (roofType === "saltak") {
+    let rA: [number, number], rB: [number, number];
+    if (lengthMm >= widthMm) {
+      // Long axis = Y → ridge top-mid → bottom-mid
+      rA = mid(outer[0], outer[1]);
+      rB = mid(outer[2], outer[3]);
+    } else {
+      // Long axis = X → ridge left-mid → right-mid
+      rA = mid(outer[0], outer[3]);
+      rB = mid(outer[1], outer[2]);
+    }
+    ctx.setLineDash([9, 5]);
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(rA[0], rA[1]);
+    ctx.lineTo(rB[0], rB[1]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── 5. Outer walls ────────────────────────────────────────────────
+  polyPath(outer);
+  ctx.strokeStyle = "#1e293b";
+  ctx.lineWidth = buildingType === "carport" ? 1.5 : 3.5;
+  if (buildingType === "carport") ctx.setLineDash([8, 5]);
   ctx.stroke();
+  ctx.setLineDash([]);
 
-  // Dimension labels
-  ctx.font      = "bold 16px sans-serif";
-  ctx.fillStyle = "#c2410c";
+  // ── 6. Garasjeport – plan-view door symbol ────────────────────────
+  // Door is on the short face: south (bottom) if length≥width, east (right) otherwise
+  if (buildingType === "garasje") {
+    let doorA: [number, number], doorB: [number, number];
+    let oppA:  [number, number], oppB:  [number, number];
+    if (lengthMm >= widthMm) {
+      // Door on south face (bottom, short end)
+      doorA = outer[3]; doorB = outer[2];
+      oppA  = outer[0]; oppB  = outer[1];
+    } else {
+      // Door on east face (right, short end for wide/shallow garages)
+      doorA = outer[1]; doorB = outer[2];
+      oppA  = outer[0]; oppB  = outer[3];
+    }
 
-  function edgeMid(a: [number,number], b: [number,number]): [number,number] {
-    return [(a[0]+b[0])/2, (a[1]+b[1])/2];
+    const doorMid = mid(doorA, doorB);
+    const oppMid  = mid(oppA, oppB);
+    const fLen = Math.hypot(doorB[0] - doorA[0], doorB[1] - doorA[1]);
+
+    // Unit vectors: along door face and inward
+    const fux = (doorB[0] - doorA[0]) / fLen;
+    const fuy = (doorB[1] - doorA[1]) / fLen;
+    const inD = Math.hypot(oppMid[0] - doorMid[0], oppMid[1] - doorMid[1]);
+    const iux = (oppMid[0] - doorMid[0]) / inD;
+    const iuy = (oppMid[1] - doorMid[1]) / inD;
+
+    // Door panels = 85% of facade width, depth ≈ wall thickness × 1.6
+    const doorHW = fLen * 0.425;
+    const pD = Math.max(wallWpx * 1.6, 5);
+
+    const dL:  [number, number] = [doorMid[0] - fux * doorHW, doorMid[1] - fuy * doorHW];
+    const dR:  [number, number] = [doorMid[0] + fux * doorHW, doorMid[1] + fuy * doorHW];
+    const dLi: [number, number] = [dL[0] + iux * pD,          dL[1] + iuy * pD         ];
+    const dRi: [number, number] = [dR[0] + iux * pD,          dR[1] + iuy * pD         ];
+    const dMi: [number, number] = [doorMid[0] + iux * pD,     doorMid[1] + iuy * pD    ];
+
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    // Left panel edge
+    ctx.moveTo(dL[0],  dL[1]);  ctx.lineTo(dLi[0], dLi[1]);
+    // Right panel edge
+    ctx.moveTo(dR[0],  dR[1]);  ctx.lineTo(dRi[0], dRi[1]);
+    // Inner face of panels (horizontal bar)
+    ctx.moveTo(dLi[0], dLi[1]); ctx.lineTo(dRi[0], dRi[1]);
+    // Center divider between two door panels
+    ctx.moveTo(doorMid[0], doorMid[1]); ctx.lineTo(dMi[0], dMi[1]);
+    ctx.stroke();
   }
-  function edgeAngle(a: [number,number], b: [number,number]): number {
-    return Math.atan2(b[1]-a[1], b[0]-a[0]);
+
+  // ── 7. Dimension labels ───────────────────────────────────────────
+  function edgeMid(a: [number, number], b: [number, number]): [number, number] {
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  }
+  function edgeAngle(a: [number, number], b: [number, number]): number {
+    return Math.atan2(b[1] - a[1], b[0] - a[0]);
   }
 
-  const widthM  = (widthMm  / 1000).toFixed(1).replace(".0", "") + " m";
-  const lengthM = (lengthMm / 1000).toFixed(1).replace(".0", "") + " m";
+  const widthLabel  = (widthMm  / 1000).toFixed(1).replace(".0", "") + " m";
+  const lengthLabel = (lengthMm / 1000).toFixed(1).replace(".0", "") + " m";
 
-  // Bottom edge (corners[2]→corners[3]) = width
-  const [bx, by]   = edgeMid(corners[1], corners[2]);
-  const bottomAng  = edgeAngle(corners[1], corners[2]);
-  ctx.save();
-  ctx.translate(bx, by);
-  ctx.rotate(bottomAng);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.fillText(widthM, 0, 5);
-  ctx.restore();
+  ctx.font = "bold 16px sans-serif";
 
-  // Right edge (corners[1]→corners[2]) = length
-  const [rx, ry]  = edgeMid(corners[2], corners[3]);
-  const rightAng  = edgeAngle(corners[2], corners[3]);
-  ctx.save();
-  ctx.translate(rx, ry);
-  ctx.rotate(rightAng);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "bottom";
-  ctx.fillText(lengthM, 0, -5);
-  ctx.restore();
+  // Label background helper
+  function labelWithBg(text: string, x: number, y: number, angle: number, baseline: CanvasTextBaseline) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.textAlign = "center";
+    ctx.textBaseline = baseline;
+    const tw = ctx.measureText(text).width;
+    const th = 18;
+    const offset = baseline === "top" ? 5 : -5;
+    const oy = baseline === "top" ? offset : offset - th;
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.fillRect(-tw / 2 - 4, oy, tw + 8, th);
+    ctx.fillStyle = "#c2410c";
+    ctx.fillText(text, 0, baseline === "top" ? 5 : -5);
+    ctx.restore();
+  }
+
+  // Right edge = widthLabel (existing placement)
+  {
+    const [bx, by] = edgeMid(outer[1], outer[2]);
+    labelWithBg(widthLabel, bx, by, edgeAngle(outer[1], outer[2]), "top");
+  }
+  // Bottom edge = lengthLabel (existing placement)
+  {
+    const [rx, ry] = edgeMid(outer[2], outer[3]);
+    labelWithBg(lengthLabel, rx, ry, edgeAngle(outer[2], outer[3]), "bottom");
+  }
 
   ctx.restore();
 
@@ -231,6 +353,7 @@ function drawTitleBlock(
   widthMm: number,
   lengthMm: number,
   dateStr: string,
+  kommune?: { navn: string; logo?: HTMLImageElement | null } | null,
 ) {
   const W  = CANVAS_W;
   const H  = TITLE_H;
@@ -321,10 +444,28 @@ function drawTitleBlock(
   ctx.fillStyle = "#ea580c";
   ctx.fillText("Garasjeproffen AS", col1 + pad, y2);
 
-  // ── Column 3: North arrow ──
-  const arrowX = col2 + Math.round((W - col2) / 2);
-  const arrowY = y + Math.round(H / 2) + 10;
-  drawNorthArrow(ctx, arrowX, arrowY, 38);
+  // ── Column 3: Kommune logo + north arrow ──
+  const col3CenterX = col2 + Math.round((W - col2) / 2);
+  const col3W = W - col2;
+
+  if (kommune?.logo) {
+    const maxW = col3W - pad * 2;
+    const maxH = 110;
+    const scale = Math.min(maxW / kommune.logo.width, maxH / kommune.logo.height, 1);
+    const lW = Math.round(kommune.logo.width  * scale);
+    const lH = Math.round(kommune.logo.height * scale);
+    ctx.drawImage(kommune.logo, col2 + Math.round((col3W - lW) / 2), y + pad, lW, lH);
+    drawNorthArrow(ctx, col3CenterX, y + H - 68, 32);
+  } else {
+    if (kommune?.navn) {
+      ctx.font      = "bold 13px sans-serif";
+      ctx.fillStyle = "#334155";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(kommune.navn, col3CenterX, y + pad + 4);
+    }
+    drawNorthArrow(ctx, col3CenterX, y + Math.round(H / 2) + (kommune?.navn ? 18 : 10), 38);
+  }
 }
 
 // ── Main render function ──
@@ -336,6 +477,8 @@ async function renderSituasjonsplan(
   lengthMm: number,
   rotation: number,
   address: string,
+  roofType: string = "saltak",
+  buildingType: string = "garasje",
 ): Promise<void> {
   const ctx = canvas.getContext("2d")!;
 
@@ -371,6 +514,7 @@ async function renderSituasjonsplan(
   const { mPerPixLon } = drawGarageFootprint(
     ctx, cx, cy, bbox, imgW, imgH,
     lat, widthMm, lengthMm, rotation,
+    roofType, buildingType,
   );
 
   // 5. Scale bar (bottom-left of map area)
@@ -379,11 +523,32 @@ async function renderSituasjonsplan(
   // 6. North arrow (top-right of map area)
   drawNorthArrow(ctx, imgW - 68, 72, 32);
 
-  // 7. Title block
-  const now = new Date().toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit", year: "numeric" });
-  drawTitleBlock(ctx, MAP_H, address, rotation, widthMm, lengthMm, now);
+  // 7. Fetch municipality info + logo
+  let kommune: { navn: string; logo?: HTMLImageElement | null } | null = null;
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 5000);
+    const mRes = await fetch(
+      `https://ws.geonorge.no/adresser/v1/punktsok?lat=${lat}&lon=${lng}&radius=500&utkoordsys=4258&treffPerSide=1`,
+      { signal: ctrl.signal },
+    );
+    const mData = await mRes.json();
+    const a = mData.adresser?.[0];
+    if (a?.kommunenummer) {
+      const navn = a.kommunenavn
+        ? (a.kommunenavn as string).charAt(0) + (a.kommunenavn as string).slice(1).toLowerCase()
+        : "";
+      let logo: HTMLImageElement | null = null;
+      try { logo = await loadImage(`/kommuner/${a.kommunenummer}.png`); } catch { /* no logo */ }
+      kommune = { navn, logo };
+    }
+  } catch { /* kommuneInfo stays null */ }
 
-  // 8. Thin separator line between map and title block
+  // 8. Title block
+  const now = new Date().toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit", year: "numeric" });
+  drawTitleBlock(ctx, MAP_H, address, rotation, widthMm, lengthMm, now, kommune);
+
+  // 9. Thin separator line between map and title block
   ctx.strokeStyle = "#cbd5e1";
   ctx.lineWidth   = 1;
   ctx.beginPath();
@@ -427,13 +592,14 @@ function PrintContent() {
         lat, lng,
         widthMm, lengthMm, rotation,
         address,
+        roofType, buildingType,
       );
       setStatus("done");
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Ukjent feil");
       setStatus("error");
     }
-  }, [lat, lng, widthMm, lengthMm, rotation, address, isValid]);
+  }, [lat, lng, widthMm, lengthMm, rotation, address, roofType, buildingType, isValid]);
 
   useEffect(() => {
     render();
