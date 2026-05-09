@@ -264,8 +264,6 @@ export default function GarageMapbox({
   const [geoError,        setGeoError]        = useState<string | null>(null);
   const [geoDenied,       setGeoDenied]       = useState(false);
   const [showGeoPrompt,   setShowGeoPrompt]   = useState(false);
-  const [debugLog,        setDebugLog]        = useState<string[]>([]);
-  function dbg(msg: string) { setDebugLog((l) => [...l.slice(-6), msg]); }
 
   type ToolMode = "pan" | "move" | "rotate";
   const [toolMode,  setToolMode]  = useState<ToolMode>("move");
@@ -1027,20 +1025,16 @@ export default function GarageMapbox({
   // ─── Geolocation ─────────────────────────────────────────────────────────
 
   function geolocate() {
-    dbg("1. geolocate() called");
     if (!navigator?.geolocation) {
-      dbg("2. FEIL: ingen geolocation API");
       setGeoError("Posisjonstjenester støttes ikke av denne enheten.");
       setGeoDenied(false);
       return;
     }
-    dbg("2. geolocation API OK – kaller getCurrentPosition...");
     setGeoError(null);
     setGeoDenied(false);
     setGeoLocating(true);
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lng } }) => {
-        dbg(`3. SUKSESS: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
         const c: [number, number] = [lng, lat];
         let name = "Min posisjon";
         try {
@@ -1053,18 +1047,15 @@ export default function GarageMapbox({
           clearTimeout(t);
           const data = await res.json();
           name = data.features?.[0]?.place_name ?? "Min posisjon";
-          dbg(`4. Adresse: ${name}`);
-        } catch (e) { dbg(`4. Geocoding feil: ${e}`); }
+        } catch { /* geocoding failed — position still valid */ }
         setQuery(name);
         onAddressSelect?.(name, c);
         setCenter(c);
         const map = mapRef.current;
-        dbg(`5. mapRef: ${map ? "OK" : "NULL"}`);
         if (map) {
           map.flyTo({ center: c, zoom: 19, duration: 1200 });
           if (markerRef.current) markerRef.current.remove();
           markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
-          dbg("6. flyTo kalt, markør satt");
         }
         try {
           localStorage.setItem("gp-map-lat", String(lat));
@@ -1073,7 +1064,6 @@ export default function GarageMapbox({
         setGeoLocating(false);
       },
       (err) => {
-        dbg(`3. FEIL kode=${err.code}: ${err.message}`);
         setGeoLocating(false);
         if (err.code === 1) {
           setGeoDenied(true);
@@ -1082,7 +1072,6 @@ export default function GarageMapbox({
           setGeoError(`Kunne ikke hente posisjon (kode ${err.code}). Skriv inn adressen.`);
         }
       },
-      // enableHighAccuracy:false = nettverksposisjon (rask) i stedet for GPS-chip (treg)
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
   }
@@ -1341,13 +1330,6 @@ export default function GarageMapbox({
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent flex-none" />
             <span className="text-sm font-medium text-gray-700">Henter din posisjon…</span>
           </div>
-        </div>
-      )}
-
-      {/* DEBUG LOG — fjernes etter feilsøking */}
-      {debugLog.length > 0 && (
-        <div className="absolute bottom-20 left-3 right-3 z-50 bg-black/85 text-green-300 text-xs rounded-lg p-2 font-mono space-y-0.5 pointer-events-none">
-          {debugLog.map((l, i) => <div key={i}>{l}</div>)}
         </div>
       )}
 
