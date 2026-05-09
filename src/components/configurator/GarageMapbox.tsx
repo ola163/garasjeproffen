@@ -718,6 +718,81 @@ export default function GarageMapbox({
           markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
         }
       });
+
+      // ── Touch equivalents (mobile) ───────────────────────────────────────
+      map.on("touchstart", (e) => {
+        if (e.originalEvent.touches.length !== 1) { ds = null; return; }
+        if (toolModeRef.current === "pan") return;
+        dragging = false;
+        const cur = centerRenderRef.current;
+        const mode = toolModeRef.current;
+
+        let effectiveMode: "move" | "rotate" | "pan";
+        if (mode === "rotate") {
+          effectiveMode = "rotate";
+        } else if (!cur) {
+          effectiveMode = "move";
+        } else {
+          const { widthMm: wm, lengthMm: lm } = dimsRenderRef.current;
+          const corners = garageCorners(cur, wm / 1000, lm / 1000, rotationRenderRef.current);
+          effectiveMode = pointInPolygon(e.lngLat.lng, e.lngLat.lat, corners) ? "move" : "pan";
+        }
+
+        const t0 = e.originalEvent.touches[0];
+        ds = {
+          clientX: t0.clientX, clientY: t0.clientY,
+          prevX: t0.clientX,   prevY: t0.clientY,
+          startLngLat: e.lngLat,
+          startBearing: cur ? lngLatBearing(e.lngLat, cur) : 0,
+          startRotation: rotationRenderRef.current,
+          startCenter: cur ? [cur[0], cur[1]] : [e.lngLat.lng, e.lngLat.lat],
+          effectiveMode,
+        };
+      });
+
+      map.on("touchmove", (e) => {
+        if (e.originalEvent.touches.length !== 1 || !ds) return;
+        const t0 = e.originalEvent.touches[0];
+        const dx = t0.clientX - ds.clientX;
+        const dy = t0.clientY - ds.clientY;
+        if (!dragging && Math.hypot(dx, dy) < 4) return;
+        dragging = true;
+
+        if (ds.effectiveMode === "pan") {
+          const pdx = t0.clientX - ds.prevX;
+          const pdy = t0.clientY - ds.prevY;
+          ds.prevX = t0.clientX;
+          ds.prevY = t0.clientY;
+          map.panBy([-pdx, -pdy], { animate: false });
+        } else if (ds.effectiveMode === "rotate" && centerRenderRef.current) {
+          const delta = lngLatBearing(e.lngLat, centerRenderRef.current) - ds.startBearing;
+          const newRot = ((ds.startRotation + delta) % 360 + 360) % 360;
+          setInternalRotation(Math.round(newRot));
+          onRotationChange?.(Math.round(newRot));
+        } else if (ds.effectiveMode === "move") {
+          const newCenter: [number, number] = [
+            ds.startCenter[0] + (e.lngLat.lng - ds.startLngLat.lng),
+            ds.startCenter[1] + (e.lngLat.lat - ds.startLngLat.lat),
+          ];
+          setInternalCenter(newCenter);
+          onCenterChange?.(newCenter);
+          if (markerRef.current) markerRef.current.setLngLat(newCenter);
+        }
+      });
+
+      map.on("touchend", (e) => {
+        const wasDragging = dragging;
+        const savedDs = ds;
+        dragging = false;
+        ds = null;
+        if (!wasDragging && savedDs?.effectiveMode === "move") {
+          const c: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+          setInternalCenter(c);
+          onCenterChange?.(c);
+          if (markerRef.current) markerRef.current.remove();
+          markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
+        }
+      });
     }
 
     return () => {

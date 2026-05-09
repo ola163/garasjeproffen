@@ -187,6 +187,14 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   }, [quoteOpen]);
 
   const [viewMode, setViewMode] = useState<"test" | "dev" | "kart" | "mål">("test");
+  const [mobileLandscape, setMobileLandscape] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: landscape) and (max-width: 639px)");
+    const check = () => setMobileLandscape(mq.matches);
+    check();
+    mq.addEventListener("change", check);
+    return () => mq.removeEventListener("change", check);
+  }, []);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [previewAsUser, setPreviewAsUser] = useState(false);
@@ -351,7 +359,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     )}
     <div className="flex flex-col sm:flex-row sm:h-[calc(100vh-11rem)]">
       {/* 3D Viewer */}
-      <div className={`relative sm:h-auto sm:flex-1 bg-stone-100 ${viewMode === "kart" ? "h-[80vw] min-h-[320px]" : "h-[60vw] min-h-[240px]"}`}>
+      <div className={`relative sm:h-auto sm:flex-1 bg-stone-100 ${
+        viewMode === "kart"
+          ? mobileLandscape ? "h-dvh" : "h-[80vw] min-h-[320px]"
+          : mobileLandscape ? "h-[80vh]" : "h-[60vw] min-h-[240px]"
+      }`}>
 
         {/* Toggle */}
         <div className="absolute top-2 left-2 z-20 flex rounded-md bg-black/20 p-0.5 backdrop-blur-sm">
