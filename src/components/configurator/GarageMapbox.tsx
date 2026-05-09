@@ -1049,6 +1049,7 @@ export default function GarageMapbox({
         setCenter(c);
         const map = mapRef.current;
         if (map) {
+          map.flyTo({ center: c, zoom: 19, duration: 1200 });
           if (markerRef.current) markerRef.current.remove();
           markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
         }
