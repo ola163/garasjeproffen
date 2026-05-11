@@ -219,7 +219,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   });
   const [mapRotation, setMapRotation] = useState(0);
   // Whether to show the plot view instead of the 3D model in kunde/test mode
-  const [showOnPlot, setShowOnPlot] = useState(false);
 
   // Restore saved address label for a pre-loaded map position
   useEffect(() => {
@@ -404,37 +403,27 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           )}
         </div>
 
-        {/* Toggle button — switches between 3D model and plot view */}
+        {/* Vis på tomt — navigates to the Tomteplassering tab */}
         {viewMode === "test" && mapCenter && (
           <button
-            onClick={() => setShowOnPlot((v) => !v)}
+            onClick={() => setViewMode("kart")}
             className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-white/95 px-4 py-1.5 text-xs font-semibold text-gray-700 shadow-md hover:bg-orange-50 hover:text-orange-600 transition-colors backdrop-blur-sm"
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              {showOnPlot
-                ? <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
-                : <><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></>
-              }
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            {showOnPlot ? "Vis 3D-modell" : "Vis på tomt"}
+            Vis på tomt
           </button>
         )}
 
-        {viewMode === "test" && !showOnPlot && <GarageViewer {...viewerProps} />}
-        {viewMode === "test" && showOnPlot && mapCenter && (
-          <GarageMapbox
-            lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
-            externalCenter={mapCenter} externalRotation={mapRotation}
-            addedElements={addedElements} doorWidthMm={doorWidthValue} doorHeightMm={doorHeightValue}
-            readOnly forceIs3D streetView
-          />
-        )}
+        {viewMode === "test" && <GarageViewer {...viewerProps} />}
         {viewMode === "dev" && <LocalGarageViewer {...viewerProps} />}
         {viewMode === "kart" && (
           <GarageMapbox
             lengthMm={lengthValue} widthMm={widthValue} roofType={roofType} buildingType={buildingType}
             externalCenter={mapCenter} externalRotation={mapRotation}
-            onCenterChange={(c) => { setMapCenter(c); setShowOnPlot(false); }}
+            onCenterChange={(c) => { setMapCenter(c); }}
             onRotationChange={setMapRotation}
             onAddressSelect={(addr, coords) => pickAddress(addr, coords, true)}
             defaultCenter={mapCenter ?? undefined}
@@ -843,7 +832,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               <div className="space-y-2 mt-3">
                 {viewMode === "kart" ? (
                   <button
-                    onClick={() => { setViewMode("test"); setShowOnPlot(true); }}
+                    onClick={() => setViewMode("test")}
                     className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
