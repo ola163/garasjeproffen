@@ -3,7 +3,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback, Suspense, Component, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitControls, Environment, Grid, useGLTF, Line, Text, GizmoHelper, GizmoViewport } from "@react-three/drei";
+import { OrbitControls, Environment, Grid, Sky, useGLTF, Line, Text, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import { Box3, Vector3, Mesh, MeshStandardMaterial } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { AddedElement, ElementCategory } from "./DoorWindowAdder";
@@ -474,6 +474,8 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
     setWallHalfW(halfW);
   }, []);
 
+  const [realisticBg, setRealisticBg] = useState(false);
+
   const hasFlatGarage = roofType === "flattak" && buildingType !== "carport";
   const portOffsetX = hasFlatGarage
     ? computePortOffset(addedElements.filter(e => e.side === "front"), widthMm / 1000, doorWidthMm / 1000)
@@ -482,14 +484,45 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
   return (
     <div className="relative h-full w-full">
 
+      {/* Realistic background toggle */}
+      <button
+        onClick={() => setRealisticBg(v => !v)}
+        title={realisticBg ? "Vis enkel bakgrunn" : "Vis realistisk bakgrunn"}
+        className={`absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow transition-colors ${
+          realisticBg
+            ? "bg-sky-500 text-white hover:bg-sky-600"
+            : "bg-white/80 text-gray-600 hover:bg-white border border-gray-200"
+        }`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+        </svg>
+        {realisticBg ? "Realistisk" : "Realistisk"}
+      </button>
+
       <Canvas
         shadows
         camera={{ position: [12, 7, 12], fov: 42 }}
         gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0, stencil: true }}
       >
-        <color attach="background" args={["#f5f5f4"]} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[10, 15, 10]} intensity={1.2} castShadow shadow-mapSize={[2048, 2048]} />
+        {realisticBg ? (
+          <>
+            <Sky distance={450000} sunPosition={[100, 30, 100]} inclination={0.5} azimuth={0.25} />
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[100, 30, 100]} intensity={2.0} castShadow shadow-mapSize={[2048, 2048]} />
+            {/* Ground plane */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.021, 0]} receiveShadow>
+              <planeGeometry args={[80, 80]} />
+              <meshStandardMaterial color="#4a7c4e" roughness={0.9} />
+            </mesh>
+          </>
+        ) : (
+          <>
+            <color attach="background" args={["#f5f5f4"]} />
+            <ambientLight intensity={0.6} />
+            <directionalLight position={[10, 15, 10]} intensity={1.2} castShadow shadow-mapSize={[2048, 2048]} />
+          </>
+        )}
 
         <GltfErrorBoundary onError={(msg) => console.error("3D-feil:", msg)}>
           <Suspense fallback={null}>
@@ -515,20 +548,22 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
         />
         <GarageDimensionLines lengthMm={lengthMm} widthMm={widthMm} wallHalfL={wallHalfL} wallHalfW={wallHalfW} />
 
-        <Grid
-          position={[0, -0.02, 0]}
-          args={[30, 30]}
-          cellSize={1}
-          cellThickness={0.5}
-          cellColor="#d1d5db"
-          sectionSize={5}
-          sectionThickness={1}
-          sectionColor="#9ca3af"
-          fadeDistance={30}
-          fadeStrength={1}
-        />
+        {!realisticBg && (
+          <Grid
+            position={[0, -0.02, 0]}
+            args={[30, 30]}
+            cellSize={1}
+            cellThickness={0.5}
+            cellColor="#d1d5db"
+            sectionSize={5}
+            sectionThickness={1}
+            sectionColor="#9ca3af"
+            fadeDistance={30}
+            fadeStrength={1}
+          />
+        )}
 
-        <Environment preset="city" />
+        <Environment preset={realisticBg ? "sunset" : "city"} />
 
         <OrbitControls
           ref={orbitRef}
