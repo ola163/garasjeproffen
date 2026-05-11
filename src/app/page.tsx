@@ -94,7 +94,7 @@ export default function Home() {
             {[
               { step: "1", title: "Konfigurer", desc: "Design i 3D og få pris med én gang" },
               { step: "2", title: "Vi søker", desc: "Vi tar all papirarbeid og kommunal godkjenning" },
-              { step: "3", title: "Nøkkelferdig", desc: "Monteres på 1–2 dager på din tomt" },
+              { step: "3", title: "Nøkkelferdig", desc: "Rask montering på din tomt – en brøkdel av tiden for tradisjonelt bygg" },
             ].map(({ step, title, desc }) => (
               <div key={step} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
                 <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-sm font-bold text-white">
