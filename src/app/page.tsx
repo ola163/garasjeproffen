@@ -93,8 +93,8 @@ export default function Home() {
           <div className="grid grid-cols-3 gap-3">
             {[
               { step: "1", title: "Konfigurer", desc: "Design i 3D og få pris med én gang" },
-              { step: "2", title: "Vi søker", desc: "Vi tar all papirarbeid og kommunal godkjenning" },
-              { step: "3", title: "Nøkkelferdig", desc: "Rask montering på din tomt – en brøkdel av tiden for tradisjonelt bygg" },
+              { step: "2", title: "Vi søker", desc: "Vi håndterer søknad, tegninger og dialog med kommunen." },
+              { step: "3", title: "Klar for bygging", desc: "Vi monterer prefabrikkerte elementer, eller leverer materialpakke for egen montering." },
             ].map(({ step, title, desc }) => (
               <div key={step} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
                 <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-sm font-bold text-white">
