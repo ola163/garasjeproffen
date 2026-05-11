@@ -31,7 +31,7 @@ Gyldige verdier i markøren:
 - snapOnly: true (valgfri) — sett denne når du anbefaler standard mål, slik at konfiguratoren åpnes med "Lås til standard mål" aktivert
 
 Inkluder IKKE markøren i de første meldingene – bare når du har nok info.
-For søknadshjelp trenger du IKKE størrelse eller taktype.
+For søknadshjelp: samle inn størrelse og taktype på samme måte som for andre tjenester – da kan vi forhåndsutfylle søknadsskjemaet for kunden.
 Du skal IKKE gi tekniske råd om selvbygg, anbefale konkurrenter eller gi bindende priser.
 Ring direkte: 476 17 563 (Christian) eller 913 44 486 (Ola). E-post: post@garasjeproffen.no`;
 
@@ -72,7 +72,7 @@ Gyldige verdiar i markøren:
 - snapOnly: true (valfri) — set denne når du tilrår standard mål, slik at konfiguratoren opnar med "Lås til standard mål" aktivert
 
 Inkluder IKKJE markøren i dei første meldingane – berre når du har nok info.
-For søknadshjelp treng du IKKJE størrelse eller taktype.
+For søknadshjelp: samla inn størrelse og taktype på same måte som for andre tenester – då kan me forhåndsutfylla søknadsskjemaet for kunden.
 Du skal IKKJE gje råd om sjølvbygg, tilrå konkurrentar eller gje bindande prisar.
 Ring direkte: 476 17 563 (Christian) eller 913 44 486 (Ola). E-post: post@garasjeproffen.no`;
 

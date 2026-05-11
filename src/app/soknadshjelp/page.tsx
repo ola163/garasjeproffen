@@ -38,12 +38,12 @@ export default async function Soknadshjelp({ searchParams }: Props) {
   const params = await searchParams;
 
   const garageConfig: GarageConfig | undefined =
-    params.lengthMm && params.widthMm && params.doorWidthMm && params.doorHeightMm
+    params.widthMm && params.lengthMm
       ? {
           lengthMm:    Number(params.lengthMm),
           widthMm:     Number(params.widthMm),
-          doorWidthMm: Number(params.doorWidthMm),
-          doorHeightMm: Number(params.doorHeightMm),
+          doorWidthMm: params.doorWidthMm ? Number(params.doorWidthMm) : 2400,
+          doorHeightMm: params.doorHeightMm ? Number(params.doorHeightMm) : 2100,
           roofType:    params.roofType === "flattak" ? "flattak" : "saltak",
         }
       : undefined;

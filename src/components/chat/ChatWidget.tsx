@@ -62,6 +62,9 @@ function buildUrl(p: GpPayload): string {
   if (p.service === "søknadshjelp") {
     const q = new URLSearchParams();
     if (p.buildingType) q.set("buildingType", p.buildingType);
+    if (p.widthMm)  q.set("widthMm",  String(p.widthMm));
+    if (p.lengthMm) q.set("lengthMm", String(p.lengthMm));
+    if (p.roofType) q.set("roofType", p.roofType);
     return `/soknadshjelp?${q}`;
   }
   const route = p.buildingType === "carport" ? "/carport" : "/garasje";
