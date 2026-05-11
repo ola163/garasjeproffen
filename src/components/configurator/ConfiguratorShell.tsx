@@ -778,11 +778,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               >
                 <span className="text-lg leading-none">+</span>
                 <span>Legg til grunn- og betongarbeid</span>
-                <span className="ml-auto text-xs font-normal text-gray-400">
-                  ~{new Intl.NumberFormat("nb-NO").format(
-                    Math.round(((lengthValue / 1000) * (widthValue / 1000)) * GRUNNARBEID_KR_PER_SQM / 500) * 500
-                  )} kr
-                </span>
               </button>
             ) : (
               <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3">
@@ -816,7 +811,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               </div>
             )}
             <p className="mt-2 text-xs text-gray-400">
-              Estimat ~{GRUNNARBEID_KR_PER_SQM.toLocaleString("nb-NO")} kr/m² · Endelig pris etter befaring
+              Endelig pris etter befaring
             </p>
           </div>
 
