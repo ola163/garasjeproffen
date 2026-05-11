@@ -379,7 +379,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               viewMode === "kart" ? "bg-white/90 text-gray-800 shadow-sm" : "text-white/80 hover:text-white"
             }`}
           >
-            Tomteplassering
+            Vis på tomt
           </button>
           {effectiveAdmin && (
             <button
