@@ -444,6 +444,80 @@ function GarageDimensionLines({ lengthMm, widthMm, wallHalfL, wallHalfW }: {
   );
 }
 
+// ── Simple house for realistic background ─────────────────────────────────────
+function SimpleHouse({ px, pz, scale = 1 }: { px: number; pz: number; scale?: number }) {
+  const w   = 8   * scale;
+  const d   = 10  * scale;
+  const wH  = 3.2 * scale;
+  const rH  = 2.4 * scale;
+  const ov  = 0.5 * scale;
+  const halfD = d / 2;
+
+  const roofGeo = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-(w / 2 + ov), 0);
+    shape.lineTo(0, rH);
+    shape.lineTo(w / 2 + ov, 0);
+    shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, { depth: d + ov * 2, bevelEnabled: false });
+  }, [w, d, rH, ov]);
+
+  const matWall  = useMemo(() => new THREE.MeshStandardMaterial({ color: "#f0ebe2", roughness: 0.85 }), []);
+  const matRoof  = useMemo(() => new THREE.MeshStandardMaterial({ color: "#2e2e2e", roughness: 0.95 }), []);
+  const matFrame = useMemo(() => new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 }), []);
+  const matGlass = useMemo(() => new THREE.MeshStandardMaterial({ color: "#9ecfea", roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.6 }), []);
+  const matDoor  = useMemo(() => new THREE.MeshStandardMaterial({ color: "#5c3d1e", roughness: 0.7 }), []);
+  const matSill  = useMemo(() => new THREE.MeshStandardMaterial({ color: "#d8d0c4", roughness: 0.6 }), []);
+
+  const winW = 1.0 * scale;
+  const winH = 1.1 * scale;
+  const winY = wH * 0.55;
+  const fb   = 0.06;
+
+  return (
+    <group position={[px, 0, pz]}>
+      {/* Body */}
+      <mesh position={[0, wH / 2, 0]} castShadow receiveShadow material={matWall}>
+        <boxGeometry args={[w, wH, d]} />
+      </mesh>
+
+      {/* Roof */}
+      <mesh position={[0, wH, -(halfD + ov)]} geometry={roofGeo} castShadow material={matRoof} />
+
+      {/* Fascia boards (gable trim) */}
+      {[-1, 1].map(side => (
+        <mesh key={side} position={[0, wH + rH / 2, side * (halfD + ov + 0.02)]} material={matFrame} castShadow>
+          <boxGeometry args={[w + ov * 2 + 0.1, rH + 0.05, 0.04]} />
+        </mesh>
+      ))}
+
+      {/* Front windows × 2 */}
+      {([-w * 0.27, w * 0.27] as number[]).map((wx, i) => (
+        <group key={i} position={[wx, winY, halfD + 0.01]}>
+          <mesh material={matFrame} castShadow>
+            <boxGeometry args={[winW + fb * 2, winH + fb * 2, 0.06]} />
+          </mesh>
+          <mesh position={[0, 0, 0.02]} material={matGlass}>
+            <boxGeometry args={[winW, winH, 0.01]} />
+          </mesh>
+          {/* Sill */}
+          <mesh position={[0, -(winH / 2 + 0.025), 0.04]} material={matSill}>
+            <boxGeometry args={[winW + fb * 3, 0.05, 0.14]} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Front door */}
+      <mesh position={[w * 0.28, 1.05 * scale, halfD + 0.01]} material={matDoor} castShadow>
+        <boxGeometry args={[0.92 * scale, 2.1 * scale, 0.06]} />
+      </mesh>
+      <mesh position={[w * 0.28, 1.05 * scale, halfD + 0.03]} material={matFrame} castShadow>
+        <boxGeometry args={[0.92 * scale + fb * 2, 2.1 * scale + fb * 2, 0.02]} />
+      </mesh>
+    </group>
+  );
+}
+
 class GltfErrorBoundary extends Component<
   { children: ReactNode; onError: (msg: string) => void },
   { failed: boolean }
@@ -475,6 +549,9 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
   }, []);
 
   const [realisticBg, setRealisticBg] = useState(false);
+  const [houseX,     setHouseX]     = useState(10);
+  const [houseZ,     setHouseZ]     = useState(-8);
+  const [houseScale, setHouseScale] = useState(1.0);
 
   const hasFlatGarage = roofType === "flattak" && buildingType !== "carport";
   const portOffsetX = hasFlatGarage
@@ -483,6 +560,31 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
 
   return (
     <div className="relative h-full w-full">
+
+      {/* House position controls — only visible in realistic mode */}
+      {realisticBg && (
+        <div className="absolute bottom-12 right-3 z-10 w-44 rounded-xl border border-gray-200 bg-white/92 backdrop-blur-sm shadow-lg p-3 space-y-2.5">
+          <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">Hus i bakgrunn</p>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-gray-500">Side ({houseX > 0 ? "+" : ""}{houseX} m)</span>
+            <input type="range" min={-20} max={20} step={1} value={houseX}
+              onChange={e => setHouseX(+e.target.value)}
+              className="w-full accent-orange-500" />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-gray-500">Avstand ({Math.abs(houseZ)} m bak)</span>
+            <input type="range" min={-25} max={-2} step={1} value={houseZ}
+              onChange={e => setHouseZ(+e.target.value)}
+              className="w-full accent-orange-500" />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-gray-500">Størrelse (×{houseScale.toFixed(1)})</span>
+            <input type="range" min={0.5} max={2.0} step={0.1} value={houseScale}
+              onChange={e => setHouseScale(+e.target.value)}
+              className="w-full accent-orange-500" />
+          </label>
+        </div>
+      )}
 
       {/* Realistic background toggle */}
       <button
@@ -507,14 +609,28 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
       >
         {realisticBg ? (
           <>
-            <Sky distance={450000} sunPosition={[100, 30, 100]} inclination={0.5} azimuth={0.25} />
-            <ambientLight intensity={0.5} />
-            <directionalLight position={[100, 30, 100]} intensity={2.0} castShadow shadow-mapSize={[2048, 2048]} />
-            {/* Ground plane */}
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.021, 0]} receiveShadow>
-              <planeGeometry args={[80, 80]} />
-              <meshStandardMaterial color="#4a7c4e" roughness={0.9} />
+            <Sky distance={450000} sunPosition={[60, 35, 40]} turbidity={4} rayleigh={0.8} />
+            <fog attach="fog" args={["#c8dff0", 30, 90]} />
+            <hemisphereLight args={["#87ceeb", "#4a6741", 0.55]} />
+            <directionalLight
+              position={[60, 35, 40]} intensity={2.3} castShadow
+              shadow-mapSize={[4096, 4096]}
+              shadow-camera-left={-28} shadow-camera-right={28}
+              shadow-camera-top={28}  shadow-camera-bottom={-28}
+              shadow-bias={-0.0005}
+            />
+            {/* Grass */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.022, 0]} receiveShadow>
+              <planeGeometry args={[120, 120]} />
+              <meshStandardMaterial color="#4a7c4e" roughness={0.95} />
             </mesh>
+            {/* Concrete driveway strip */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.018, (lengthMm / 2000) + 4]} receiveShadow>
+              <planeGeometry args={[(widthMm / 1000) + 4, 10]} />
+              <meshStandardMaterial color="#b5ad9f" roughness={0.88} />
+            </mesh>
+            {/* House */}
+            <SimpleHouse px={houseX} pz={houseZ} scale={houseScale} />
           </>
         ) : (
           <>
