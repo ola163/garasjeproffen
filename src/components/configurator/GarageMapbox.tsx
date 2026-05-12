@@ -226,15 +226,24 @@ function buildingToGroup(
   return group;
 }
 
-function buildHipRoof(pts: [number, number][], wallHeight: number, roofHeight: number): THREE.BufferGeometry {
+function clampToSegment(
+  px: number, py: number,
+  [ax, ay]: [number, number], [bx, by]: [number, number]
+): [number, number] {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-9) return [ax, ay];
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+  return [ax + t * dx, ay + t * dy];
+}
+
+function buildHipRoof(pts: [number, number][], wallH: number, roofH: number): THREE.BufferGeometry {
   const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
   const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
   const verts: number[] = [];
   for (let i = 0; i < pts.length; i++) {
     const j = (i + 1) % pts.length;
-    verts.push(pts[i][0], wallHeight,       -pts[i][1]);
-    verts.push(pts[j][0], wallHeight,       -pts[j][1]);
-    verts.push(cx,        wallHeight + roofHeight, -cy);
+    verts.push(pts[i][0], wallH, -pts[i][1], pts[j][0], wallH, -pts[j][1], cx, wallH + roofH, -cy);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
@@ -242,11 +251,36 @@ function buildHipRoof(pts: [number, number][], wallHeight: number, roofHeight: n
   return geo;
 }
 
+function buildGableRoof(pts: [number, number][], wallH: number, roofH: number): THREE.BufferGeometry {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  pts.forEach(([x, y]) => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); });
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const ra: [number, number] = maxX - minX >= maxY - minY ? [minX, cy] : [cx, minY];
+  const rb: [number, number] = maxX - minX >= maxY - minY ? [maxX, cy] : [cx, maxY];
+  const verts: number[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    const [ax, ay] = pts[i], [bx, by] = pts[j];
+    const [rax, ray] = clampToSegment(ax, ay, ra, rb);
+    const [rbx, rby] = clampToSegment(bx, by, ra, rb);
+    const apex = wallH + roofH;
+    verts.push(ax, wallH, -ay, bx, wallH, -by, rbx, apex, -rby);
+    verts.push(ax, wallH, -ay, rbx, apex, -rby, rax, apex, -ray);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+type BldRoofType = "hip" | "gable" | "flat";
+
 function buildingToRealisticGroup(
   { nodes, height }: OSMBuildingData,
   garMc: mapboxgl.MercatorCoordinate,
   s: number,
-  index: number
+  index: number,
+  roofType: BldRoofType
 ): THREE.Group | null {
   if (nodes.length < 3) return null;
 
@@ -261,39 +295,117 @@ function buildingToRealisticGroup(
   shape.closePath();
 
   const group = new THREE.Group();
-  const jitter = ((index * 37) % 20) - 10;
-  const wallR = Math.max(0, Math.min(255, 190 + jitter)) / 255;
-  const wallG = Math.max(0, Math.min(255, 183 + jitter)) / 255;
-  const wallB = Math.max(0, Math.min(255, 170 + jitter)) / 255;
 
-  const wallGeo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
-  const wallMesh = new THREE.Mesh(
-    wallGeo,
-    new THREE.MeshStandardMaterial({ color: new THREE.Color(wallR, wallG, wallB), roughness: 0.85, metalness: 0.02 })
+  // ─── Wall colour (per-building jitter for variety) ───────────────────────
+  const jitter = ((index * 37) % 24) - 12;
+  const palette: [number, number, number][] = [
+    [192, 182, 168], [208, 196, 178], [176, 168, 158],
+    [200, 188, 172], [185, 175, 160], [212, 200, 186],
+  ];
+  const [pr, pg, pb] = palette[index % palette.length].map((c) => Math.max(0, Math.min(255, c + jitter)));
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(pr / 255, pg / 255, pb / 255),
+    roughness: 0.85, metalness: 0.02,
+  });
+
+  // ─── Sokkel ──────────────────────────────────────────────────────────────
+  const sokkelH = 0.35;
+  const sokkelGeo = new THREE.ExtrudeGeometry(shape, { depth: sokkelH, bevelEnabled: false });
+  const sokkelMesh = new THREE.Mesh(
+    sokkelGeo,
+    new THREE.MeshStandardMaterial({ color: 0x7a7268, roughness: 0.93 }),
   );
+  sokkelMesh.rotation.x = -Math.PI / 2;
+  group.add(sokkelMesh);
+
+  // ─── Walls ───────────────────────────────────────────────────────────────
+  const wallGeo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
+  const wallMesh = new THREE.Mesh(wallGeo, wallMat);
   wallMesh.rotation.x = -Math.PI / 2;
   group.add(wallMesh);
 
-  if (height < 12) {
-    const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
-    const cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
-    const radius = pts.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cy), 0) / pts.length;
-    const roofH = Math.min(radius * 0.55, height * 0.45);
-    const hipGeo = buildHipRoof(pts, height, roofH);
-    const hipMesh = new THREE.Mesh(
-      hipGeo,
-      new THREE.MeshStandardMaterial({ color: 0x3a2e28, roughness: 0.9, metalness: 0.02, side: THREE.DoubleSide })
-    );
-    group.add(hipMesh);
+  // ─── Edge outlines ("vectorize") ─────────────────────────────────────────
+  const edgesGeo = new THREE.EdgesGeometry(wallGeo, 15);
+  const edgesMesh = new THREE.LineSegments(
+    edgesGeo,
+    new THREE.LineBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.55 }),
+  );
+  edgesMesh.rotation.x = -Math.PI / 2;
+  group.add(edgesMesh);
+
+  // ─── Windows ─────────────────────────────────────────────────────────────
+  const winMat = new THREE.MeshStandardMaterial({
+    color: 0x8ab8d4, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.72,
+  });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0xeeeae4, roughness: 0.6 });
+  const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+  const cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+  const floors = Math.max(1, Math.round(height / 3.0));
+
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    const [x1, y1] = pts[i], [x2, y2] = pts[j];
+    const edgeLen = Math.hypot(x2 - x1, y2 - y1);
+    if (edgeLen < 2.0) continue;
+    const numW = Math.max(1, Math.floor(edgeLen / 2.8));
+    const rotY = Math.atan2(y1 - y2, x2 - x1);
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const outLen = Math.hypot(mx - cx, my - cy);
+    const ox = outLen > 0.01 ? (mx - cx) / outLen * 0.07 : 0;
+    const oy = outLen > 0.01 ? (my - cy) / outLen * 0.07 : 0;
+
+    for (let f = 0; f < floors; f++) {
+      const baseY = sokkelH + f * 3.0;
+      if (baseY + 2.2 > height) continue;
+      const winY = baseY + 1.3;
+
+      for (let w = 0; w < numW; w++) {
+        const t = (w + 0.5) / numW;
+        const wx = x1 + t * (x2 - x1) + ox;
+        const wy = y1 + t * (y2 - y1) + oy;
+        // Frame
+        const frameGeo = new THREE.BoxGeometry(1.05, 1.35, 0.06);
+        const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+        frameMesh.position.set(wx, winY, -wy);
+        frameMesh.rotation.y = rotY;
+        group.add(frameMesh);
+        // Glass
+        const glassGeo = new THREE.BoxGeometry(0.88, 1.18, 0.03);
+        const glassMesh = new THREE.Mesh(glassGeo, winMat);
+        glassMesh.position.set(wx, winY, -wy);
+        glassMesh.rotation.y = rotY;
+        group.add(glassMesh);
+      }
+    }
+  }
+
+  // ─── Roof ─────────────────────────────────────────────────────────────────
+  const radius = pts.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cy), 0) / pts.length;
+  const roofH  = Math.min(radius * 0.55, height * 0.45);
+  const roofColor = height < 12 ? 0x2e2520 : 0x252525;
+  const roofMat = new THREE.MeshStandardMaterial({
+    color: roofColor, roughness: 0.88, metalness: 0.03, side: THREE.DoubleSide,
+  });
+
+  if (roofType === "flat" || height >= 16) {
+    const capGeo = new THREE.ShapeGeometry(shape);
+    const capMesh = new THREE.Mesh(capGeo, roofMat);
+    capMesh.rotation.x = -Math.PI / 2;
+    capMesh.position.y = height;
+    group.add(capMesh);
+  } else if (roofType === "gable") {
+    const roofGeo = buildGableRoof(pts, height, roofH);
+    group.add(new THREE.Mesh(roofGeo, roofMat));
+    // Flat cap to cover any gaps along the ridge
+    const capGeo = new THREE.ShapeGeometry(shape);
+    const capMesh = new THREE.Mesh(capGeo, roofMat);
+    capMesh.rotation.x = -Math.PI / 2;
+    capMesh.position.y = height;
+    group.add(capMesh);
   } else {
-    const roofGeo = new THREE.ShapeGeometry(shape);
-    const roofMesh = new THREE.Mesh(
-      roofGeo,
-      new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.88, metalness: 0.04, side: THREE.DoubleSide })
-    );
-    roofMesh.rotation.x = -Math.PI / 2;
-    roofMesh.position.y = height;
-    group.add(roofMesh);
+    // hip (default)
+    const roofGeo = buildHipRoof(pts, height, roofH);
+    group.add(new THREE.Mesh(roofGeo, roofMat));
   }
 
   return group;
@@ -362,6 +474,10 @@ export default function GarageMapbox({
   const [realistic,        setRealistic]        = useState(false);
   const realisticRef       = useRef(false);
   const lastBuildingsRef   = useRef<{ buildings: OSMBuildingData[]; garCenter: [number, number] } | null>(null);
+  const [bldRoofType,      setBldRoofType]      = useState<BldRoofType>("hip");
+  const bldRoofTypeRef     = useRef<BldRoofType>("hip");
+  const hiddenBuildingsRef = useRef(new Set<number>());
+  const [hiddenCount,      setHiddenCount]      = useState(0);
   const [boundaryWarning,  setBoundaryWarning]  = useState<null | "safe" | "nabovarsel" | "danger" | "on-building">(null);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [boundaryVersion,  setBoundaryVersion]  = useState(0);
@@ -463,11 +579,14 @@ export default function GarageMapbox({
     const group = buildingGroupRef.current;
     if (!group) return;
     const isRealistic = realisticRef.current;
+    const roofType    = bldRoofTypeRef.current;
+    const hidden      = hiddenBuildingsRef.current;
     const garMc = mapboxgl.MercatorCoordinate.fromLngLat({ lng: garCenter[0], lat: garCenter[1] }, 0);
     const s     = garMc.meterInMercatorCoordinateUnits();
     buildings.forEach((bld, idx) => {
+      if (hidden.has(idx)) return;
       const g = isRealistic
-        ? buildingToRealisticGroup(bld, garMc, s, idx)
+        ? buildingToRealisticGroup(bld, garMc, s, idx, roofType)
         : buildingToGroup(bld, garMc, s, idx);
       if (g) group.add(g);
     });
@@ -482,7 +601,7 @@ export default function GarageMapbox({
     setLoadingBuildings(true);
     try {
       const [lng, lat] = garCenter;
-      const res = await fetch(`/api/osm-buildings?lat=${lat}&lng=${lng}&radius=300`);
+      const res = await fetch(`/api/osm-buildings?lat=${lat}&lng=${lng}&radius=500`);
       if (!res.ok) return;
       const data = await res.json();
       const buildings = parseOSM(data);
@@ -821,6 +940,20 @@ export default function GarageMapbox({
         map.getCanvas().style.cursor = toolModeRef.current === "rotate" ? "crosshair" : "grab";
         if (!wasDragging && savedDs?.effectiveMode === "move") {
           const c: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+          // In realistic mode: clicking a building polygon hides/shows it
+          if (realisticRef.current) {
+            const bldIdx = osmPolygonsRef.current.findIndex((poly) =>
+              pointInPolygon(c[0], c[1], poly)
+            );
+            if (bldIdx >= 0) {
+              if (hiddenBuildingsRef.current.has(bldIdx)) hiddenBuildingsRef.current.delete(bldIdx);
+              else hiddenBuildingsRef.current.add(bldIdx);
+              setHiddenCount(hiddenBuildingsRef.current.size);
+              const cached = lastBuildingsRef.current;
+              if (cached) renderBuildings(cached.buildings, cached.garCenter);
+              return;
+            }
+          }
           setInternalCenter(c);
           onCenterChange?.(c);
           if (markerRef.current) markerRef.current.remove();
@@ -1135,12 +1268,22 @@ export default function GarageMapbox({
   useEffect(() => {
     realisticRef.current = realistic;
     if (realistic && !is3D) setIs3D(true);
+    if (!realistic) { hiddenBuildingsRef.current.clear(); setHiddenCount(0); }
     const cached = lastBuildingsRef.current;
     if (cached) renderBuildings(cached.buildings, cached.garCenter);
     else if (realistic && center) fetchBuildings(center);
     mapRef.current?.triggerRepaint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realistic]);
+
+  // Re-render when roof type for nearby buildings changes
+  useEffect(() => {
+    bldRoofTypeRef.current = bldRoofType;
+    const cached = lastBuildingsRef.current;
+    if (cached && realisticRef.current) renderBuildings(cached.buildings, cached.garCenter);
+    mapRef.current?.triggerRepaint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bldRoofType]);
 
   // Toggle cadastral (situasjonsplan) layer visibility
   useEffect(() => {
@@ -1342,27 +1485,59 @@ export default function GarageMapbox({
 
       {/* 3D + Realistisk toggles */}
       {!readOnly && (
-        <div className="absolute bottom-24 left-16 z-10 flex gap-2">
-          <button
-            onClick={() => setIs3D((v) => !v)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
-              is3D
-                ? "bg-orange-500 text-white border-transparent"
-                : "bg-white/95 text-gray-700 border-gray-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600"
-            }`}
-          >
-            {is3D ? "3D på" : "3D av"}
-          </button>
-          <button
-            onClick={() => setRealistic((v) => !v)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
-              realistic
-                ? "bg-sky-500 text-white border-transparent"
-                : "bg-white/95 text-gray-700 border-gray-200 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600"
-            }`}
-          >
-            Realistisk
-          </button>
+        <div className="absolute bottom-24 left-16 z-10 flex flex-col gap-2 items-start">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIs3D((v) => !v)}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
+                is3D
+                  ? "bg-orange-500 text-white border-transparent"
+                  : "bg-white/95 text-gray-700 border-gray-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600"
+              }`}
+            >
+              {is3D ? "3D på" : "3D av"}
+            </button>
+            <button
+              onClick={() => setRealistic((v) => !v)}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
+                realistic
+                  ? "bg-sky-500 text-white border-transparent"
+                  : "bg-white/95 text-gray-700 border-gray-200 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600"
+              }`}
+            >
+              Realistisk
+            </button>
+          </div>
+          {realistic && (
+            <div className="flex gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 p-1">
+              {(["hip", "gable", "flat"] as BldRoofType[]).map((rt) => (
+                <button
+                  key={rt}
+                  onClick={() => setBldRoofType(rt)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    bldRoofType === rt
+                      ? "bg-sky-500 text-white"
+                      : "text-gray-600 hover:bg-sky-50 hover:text-sky-600"
+                  }`}
+                >
+                  {rt === "hip" ? "Valmtak" : rt === "gable" ? "Saltak" : "Flatt"}
+                </button>
+              ))}
+              {hiddenCount > 0 && (
+                <button
+                  onClick={() => {
+                    hiddenBuildingsRef.current.clear();
+                    setHiddenCount(0);
+                    const cached = lastBuildingsRef.current;
+                    if (cached) renderBuildings(cached.buildings, cached.garCenter);
+                  }}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  Vis alle
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
       {/* Cadastral toggle — admin only, stays top-right */}
