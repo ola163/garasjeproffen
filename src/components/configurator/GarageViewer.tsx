@@ -3,7 +3,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback, Suspense, Component, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitControls, Environment, Grid, Sky, useGLTF, Line, Text, GizmoHelper, GizmoViewport } from "@react-three/drei";
+import { OrbitControls, Environment, Grid, useGLTF, Line, Text, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import { Box3, Vector3, Mesh, MeshStandardMaterial } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { AddedElement, ElementCategory } from "./DoorWindowAdder";
@@ -444,123 +444,6 @@ function GarageDimensionLines({ lengthMm, widthMm, wallHalfL, wallHalfW }: {
   );
 }
 
-// ── Simple house for realistic background ─────────────────────────────────────
-function SimpleHouse({ px, pz, width, length, height, roofType }: {
-  px: number; pz: number;
-  width: number; length: number; height: number;
-  roofType: "saltak" | "flattak";
-}) {
-  const w     = width;
-  const d     = length;
-  const wH    = height;
-  const rH    = Math.max(1.2, w * 0.29);  // proportional pitch height
-  const ov    = 0.5;
-  const sokH  = 0.24;
-  const halfD = d / 2;
-  const s     = Math.max(w, d) / 9;       // relative scale for fixed elements
-
-  const roofGeo = useMemo(() => {
-    if (roofType === "flattak") return null;
-    const shape = new THREE.Shape();
-    shape.moveTo(-(w / 2 + ov), 0);
-    shape.lineTo(0, rH);
-    shape.lineTo(w / 2 + ov, 0);
-    shape.closePath();
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: d + ov * 2, bevelEnabled: false });
-    geo.computeVertexNormals();
-    return geo;
-  }, [w, d, rH, ov, roofType]);
-
-  const matWall  = useMemo(() => new THREE.MeshStandardMaterial({ color: "#cdc4b5", roughness: 0.88 }), []);
-  const matSok   = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7a7268", roughness: 0.93 }), []);
-  const matRoof  = useMemo(() => new THREE.MeshStandardMaterial({ color: "#242424", roughness: 0.94 }), []);
-  const matFrame = useMemo(() => new THREE.MeshStandardMaterial({ color: "#edeae6", roughness: 0.58 }), []);
-  const matWin   = useMemo(() => new THREE.MeshStandardMaterial({ color: "#a0c4da", roughness: 0.06, metalness: 0.35, transparent: true, opacity: 0.65 }), []);
-  const matDoor  = useMemo(() => new THREE.MeshStandardMaterial({ color: "#2e2218", roughness: 0.80 }), []);
-  const matChim  = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7a3828", roughness: 0.90 }), []);
-
-  const winW = Math.max(0.7, 0.95 * s);
-  const winH = Math.max(0.8, 1.10 * s);
-  const winY = sokH + (wH - sokH) * 0.56;
-  const fb   = 0.05;
-  const doorX = w * 0.29;
-
-  return (
-    <group position={[px, 0, pz]}>
-      {/* Sokkel */}
-      <mesh position={[0, sokH / 2, 0]} castShadow receiveShadow material={matSok}>
-        <boxGeometry args={[w + 0.14, sokH, d + 0.14]} />
-      </mesh>
-
-      {/* Walls */}
-      <mesh position={[0, sokH + (wH - sokH) / 2, 0]} castShadow receiveShadow material={matWall}>
-        <boxGeometry args={[w, wH - sokH, d]} />
-      </mesh>
-
-      {/* Saltak roof */}
-      {roofType === "saltak" && roofGeo && (
-        <>
-          <mesh position={[0, wH, -(halfD + ov)]} geometry={roofGeo} castShadow material={matRoof} />
-          {/* Chimney */}
-          <mesh position={[-w * 0.14, wH + rH * 0.42, -d * 0.17]} castShadow material={matChim}>
-            <boxGeometry args={[0.36 * s, rH * 0.72, 0.36 * s]} />
-          </mesh>
-          <mesh position={[-w * 0.14, wH + rH * 0.42 + rH * 0.72 / 2 + 0.045, -d * 0.17]} material={matSok}>
-            <boxGeometry args={[0.48 * s, 0.07, 0.48 * s]} />
-          </mesh>
-        </>
-      )}
-
-      {/* Flattak roof */}
-      {roofType === "flattak" && (
-        <>
-          <mesh position={[0, wH + 0.12, 0]} castShadow receiveShadow material={matRoof}>
-            <boxGeometry args={[w + ov * 2, 0.24, d + ov * 2]} />
-          </mesh>
-          {/* Parapet */}
-          {[
-            { pos: [0,           wH + 0.26, -(halfD + ov)] as [number,number,number], args: [w + ov * 2, 0.4, 0.14] as [number,number,number] },
-            { pos: [0,           wH + 0.26,  (halfD + ov)] as [number,number,number], args: [w + ov * 2, 0.4, 0.14] as [number,number,number] },
-            { pos: [-(w/2 + ov), wH + 0.26,  0           ] as [number,number,number], args: [0.14, 0.4, d + ov * 2] as [number,number,number] },
-            { pos: [ (w/2 + ov), wH + 0.26,  0           ] as [number,number,number], args: [0.14, 0.4, d + ov * 2] as [number,number,number] },
-          ].map(({ pos, args }, i) => (
-            <mesh key={i} position={pos} material={matRoof} castShadow>
-              <boxGeometry args={args} />
-            </mesh>
-          ))}
-        </>
-      )}
-
-      {/* Front windows × 2 */}
-      {([-w * 0.32, -w * 0.04] as number[]).map((wx, i) => (
-        <group key={i} position={[wx, winY, halfD + 0.01]}>
-          <mesh material={matFrame} castShadow>
-            <boxGeometry args={[winW + fb * 2, winH + fb * 2, 0.08]} />
-          </mesh>
-          <mesh position={[0, 0, 0.03]} material={matWin}>
-            <boxGeometry args={[winW, winH, 0.01]} />
-          </mesh>
-          <mesh position={[0, -(winH / 2 + 0.04), 0.07]} material={matFrame}>
-            <boxGeometry args={[winW + fb * 4, 0.065, 0.18]} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Front door */}
-      <mesh position={[doorX, sokH + 2.1 * Math.min(s, 1) / 2, halfD + 0.01]} material={matDoor} castShadow>
-        <boxGeometry args={[0.95 * Math.min(s, 1), 2.1 * Math.min(s, 1), 0.08]} />
-      </mesh>
-      <mesh position={[doorX, sokH + 2.1 * Math.min(s, 1) / 2, halfD + 0.045]} material={matFrame}>
-        <boxGeometry args={[0.95 * Math.min(s, 1) + fb * 2, 2.1 * Math.min(s, 1) + fb * 2, 0.02]} />
-      </mesh>
-      {/* Door step */}
-      <mesh position={[doorX, sokH / 2, halfD + 0.28]} receiveShadow material={matSok}>
-        <boxGeometry args={[1.15, sokH, 0.42]} />
-      </mesh>
-    </group>
-  );
-}
-
 class GltfErrorBoundary extends Component<
   { children: ReactNode; onError: (msg: string) => void },
   { failed: boolean }
@@ -591,15 +474,6 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
     setWallHalfW(halfW);
   }, []);
 
-  const [realisticBg,  setRealisticBg]  = useState(false);
-  const [showHouse,    setShowHouse]    = useState(true);
-  const [houseX,       setHouseX]       = useState(10);
-  const [houseZ,       setHouseZ]       = useState(-8);
-  const [houseWidth,   setHouseWidth]   = useState(7.5);
-  const [houseLength,  setHouseLength]  = useState(9.0);
-  const [houseHeight,  setHouseHeight]  = useState(3.0);
-  const [houseRoof,    setHouseRoof]    = useState<"saltak" | "flattak">("saltak");
-
   const hasFlatGarage = roofType === "flattak" && buildingType !== "carport";
   const portOffsetX = hasFlatGarage
     ? computePortOffset(addedElements.filter(e => e.side === "front"), widthMm / 1000, doorWidthMm / 1000)
@@ -607,127 +481,16 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
 
   return (
     <div className="relative h-full w-full">
-
-      {/* House controls — only visible in realistic mode */}
-      {realisticBg && (
-        <div className="absolute bottom-12 right-3 z-10 w-48 rounded-xl border border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg p-3 space-y-2">
-          {/* Header + show/hide toggle */}
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">Hus i bakgrunn</p>
-            <button
-              onClick={() => setShowHouse(v => !v)}
-              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${showHouse ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-500"}`}
-            >{showHouse ? "Vis" : "Skjul"}</button>
-          </div>
-
-          {showHouse && (
-            <>
-              {/* Position sliders */}
-              <label className="flex flex-col gap-0.5">
-                <span className="text-[10px] text-gray-500">Side ({houseX > 0 ? "+" : ""}{houseX} m)</span>
-                <input type="range" min={-20} max={20} step={1} value={houseX}
-                  onChange={e => setHouseX(+e.target.value)} className="w-full accent-orange-500" />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-[10px] text-gray-500">Avstand ({Math.abs(houseZ)} m bak)</span>
-                <input type="range" min={-25} max={-2} step={1} value={houseZ}
-                  onChange={e => setHouseZ(+e.target.value)} className="w-full accent-orange-500" />
-              </label>
-
-              <div className="border-t border-gray-100 pt-2 space-y-1.5">
-                {/* Dimension inputs */}
-                {([
-                  ["Bredde", houseWidth,  setHouseWidth,  3, 20] as const,
-                  ["Lengde", houseLength, setHouseLength, 4, 25] as const,
-                  ["Høyde",  houseHeight, setHouseHeight, 2, 6 ] as const,
-                ]).map(([label, val, setter, min, max]) => (
-                  <label key={label} className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-gray-500 w-12 shrink-0">{label}</span>
-                    <input
-                      type="number" min={min} max={max} step={0.5}
-                      value={val}
-                      onChange={e => setter(Math.max(min, Math.min(max, +e.target.value)))}
-                      className="w-16 rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-right focus:border-orange-400 focus:outline-none"
-                    />
-                    <span className="text-[10px] text-gray-400">m</span>
-                  </label>
-                ))}
-
-                {/* Roof type */}
-                <div className="flex items-center justify-between gap-2 pt-0.5">
-                  <span className="text-[10px] text-gray-500 w-12 shrink-0">Tak</span>
-                  <div className="flex rounded-lg border border-gray-200 overflow-hidden text-[10px] font-medium">
-                    {(["saltak", "flattak"] as const).map(rt => (
-                      <button key={rt} onClick={() => setHouseRoof(rt)}
-                        className={`px-2 py-1 transition-colors ${houseRoof === rt ? "bg-orange-500 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
-                        {rt === "saltak" ? "Saltak" : "Flat"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Realistic background toggle */}
-      <button
-        onClick={() => setRealisticBg(v => !v)}
-        title={realisticBg ? "Vis enkel bakgrunn" : "Vis realistisk bakgrunn"}
-        className={`absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow transition-colors ${
-          realisticBg
-            ? "bg-sky-500 text-white hover:bg-sky-600"
-            : "bg-white/80 text-gray-600 hover:bg-white border border-gray-200"
-        }`}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-        </svg>
-        {realisticBg ? "Realistisk" : "Realistisk"}
-      </button>
-
       <Canvas
         shadows
         camera={{ position: [12, 7, 12], fov: 42 }}
         gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0, stencil: true }}
       >
-        {realisticBg ? (
-          <>
-            <Sky distance={450000} sunPosition={[60, 35, 40]} turbidity={6} rayleigh={1.2} mieCoefficient={0.005} mieDirectionalG={0.8} />
-            <fog attach="fog" args={["#d0dde8", 35, 100]} />
-            <hemisphereLight args={["#9ec8e8", "#3d4a28", 0.5]} />
-            <directionalLight
-              position={[60, 35, 40]} intensity={2.1} castShadow
-              shadow-mapSize={[4096, 4096]}
-              shadow-camera-left={-30} shadow-camera-right={30}
-              shadow-camera-top={30}  shadow-camera-bottom={-30}
-              shadow-bias={-0.0005}
-            />
-            {/* Ground — muted Norwegian lawn */}
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.022, 0]} receiveShadow>
-              <planeGeometry args={[140, 140]} />
-              <meshStandardMaterial color="#6a7848" roughness={0.96} />
-            </mesh>
-            {/* Concrete driveway strip */}
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.016, (lengthMm / 2000) + 4]} receiveShadow>
-              <planeGeometry args={[(widthMm / 1000) + 4, 11]} />
-              <meshStandardMaterial color="#a8a094" roughness={0.90} />
-            </mesh>
-            {/* House */}
-            {showHouse && (
-              <SimpleHouse px={houseX} pz={houseZ}
-                width={houseWidth} length={houseLength} height={houseHeight}
-                roofType={houseRoof} />
-            )}
-          </>
-        ) : (
-          <>
-            <color attach="background" args={["#f5f5f4"]} />
-            <ambientLight intensity={0.6} />
-            <directionalLight position={[10, 15, 10]} intensity={1.2} castShadow shadow-mapSize={[2048, 2048]} />
-          </>
-        )}
+        <>
+          <color attach="background" args={["#f5f5f4"]} />
+          <ambientLight intensity={0.6} />
+          <directionalLight position={[10, 15, 10]} intensity={1.2} castShadow shadow-mapSize={[2048, 2048]} />
+        </>
 
         <GltfErrorBoundary onError={(msg) => console.error("3D-feil:", msg)}>
           <Suspense fallback={null}>
@@ -753,22 +516,20 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
         />
         <GarageDimensionLines lengthMm={lengthMm} widthMm={widthMm} wallHalfL={wallHalfL} wallHalfW={wallHalfW} />
 
-        {!realisticBg && (
-          <Grid
-            position={[0, -0.02, 0]}
-            args={[30, 30]}
-            cellSize={1}
-            cellThickness={0.5}
-            cellColor="#d1d5db"
-            sectionSize={5}
-            sectionThickness={1}
-            sectionColor="#9ca3af"
-            fadeDistance={30}
-            fadeStrength={1}
-          />
-        )}
+        <Grid
+          position={[0, -0.02, 0]}
+          args={[30, 30]}
+          cellSize={1}
+          cellThickness={0.5}
+          cellColor="#d1d5db"
+          sectionSize={5}
+          sectionThickness={1}
+          sectionColor="#9ca3af"
+          fadeDistance={30}
+          fadeStrength={1}
+        />
 
-        <Environment preset={realisticBg ? "sunset" : "city"} />
+        <Environment preset="city" />
 
         <OrbitControls
           ref={orbitRef}

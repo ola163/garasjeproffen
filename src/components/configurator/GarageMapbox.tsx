@@ -226,6 +226,79 @@ function buildingToGroup(
   return group;
 }
 
+function buildHipRoof(pts: [number, number][], wallHeight: number, roofHeight: number): THREE.BufferGeometry {
+  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+  const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  const verts: number[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    verts.push(pts[i][0], wallHeight,       -pts[i][1]);
+    verts.push(pts[j][0], wallHeight,       -pts[j][1]);
+    verts.push(cx,        wallHeight + roofHeight, -cy);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function buildingToRealisticGroup(
+  { nodes, height }: OSMBuildingData,
+  garMc: mapboxgl.MercatorCoordinate,
+  s: number,
+  index: number
+): THREE.Group | null {
+  if (nodes.length < 3) return null;
+
+  const pts: [number, number][] = nodes.map((n) => {
+    const mc = mapboxgl.MercatorCoordinate.fromLngLat({ lng: n.lon, lat: n.lat }, 0);
+    return [(mc.x - garMc.x) / s, -((mc.y - garMc.y) / s)];
+  });
+
+  const shape = new THREE.Shape();
+  shape.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1]);
+  shape.closePath();
+
+  const group = new THREE.Group();
+  const jitter = ((index * 37) % 20) - 10;
+  const wallR = Math.max(0, Math.min(255, 190 + jitter)) / 255;
+  const wallG = Math.max(0, Math.min(255, 183 + jitter)) / 255;
+  const wallB = Math.max(0, Math.min(255, 170 + jitter)) / 255;
+
+  const wallGeo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
+  const wallMesh = new THREE.Mesh(
+    wallGeo,
+    new THREE.MeshStandardMaterial({ color: new THREE.Color(wallR, wallG, wallB), roughness: 0.85, metalness: 0.02 })
+  );
+  wallMesh.rotation.x = -Math.PI / 2;
+  group.add(wallMesh);
+
+  if (height < 12) {
+    const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+    const cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    const radius = pts.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cy), 0) / pts.length;
+    const roofH = Math.min(radius * 0.55, height * 0.45);
+    const hipGeo = buildHipRoof(pts, height, roofH);
+    const hipMesh = new THREE.Mesh(
+      hipGeo,
+      new THREE.MeshStandardMaterial({ color: 0x3a2e28, roughness: 0.9, metalness: 0.02, side: THREE.DoubleSide })
+    );
+    group.add(hipMesh);
+  } else {
+    const roofGeo = new THREE.ShapeGeometry(shape);
+    const roofMesh = new THREE.Mesh(
+      roofGeo,
+      new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.88, metalness: 0.04, side: THREE.DoubleSide })
+    );
+    roofMesh.rotation.x = -Math.PI / 2;
+    roofMesh.position.y = height;
+    group.add(roofMesh);
+  }
+
+  return group;
+}
+
 const WALL_H = 3.0;
 const WALL_T = 0.12;
 
@@ -286,6 +359,9 @@ export default function GarageMapbox({
   const [suggestions,      setSuggestions]      = useState<{ place_name: string; center: [number, number] }[]>([]);
   const [searching,        setSearching]        = useState(false);
   const [is3D,             setIs3D]             = useState(forceIs3D);
+  const [realistic,        setRealistic]        = useState(false);
+  const realisticRef       = useRef(false);
+  const lastBuildingsRef   = useRef<{ buildings: OSMBuildingData[]; garCenter: [number, number] } | null>(null);
   const [boundaryWarning,  setBoundaryWarning]  = useState<null | "safe" | "nabovarsel" | "danger" | "on-building">(null);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [boundaryVersion,  setBoundaryVersion]  = useState(0);
@@ -386,16 +462,19 @@ export default function GarageMapbox({
     clearBuildings();
     const group = buildingGroupRef.current;
     if (!group) return;
+    const isRealistic = realisticRef.current;
     const garMc = mapboxgl.MercatorCoordinate.fromLngLat({ lng: garCenter[0], lat: garCenter[1] }, 0);
     const s     = garMc.meterInMercatorCoordinateUnits();
     buildings.forEach((bld, idx) => {
-      const g = buildingToGroup(bld, garMc, s, idx);
+      const g = isRealistic
+        ? buildingToRealisticGroup(bld, garMc, s, idx)
+        : buildingToGroup(bld, garMc, s, idx);
       if (g) group.add(g);
     });
-    // Store polygons for on-building check
     osmPolygonsRef.current = buildings.map((b) =>
       b.nodes.map((n) => [n.lon, n.lat] as [number, number])
     );
+    lastBuildingsRef.current = { buildings, garCenter };
     mapRef.current?.triggerRepaint();
   }
 
@@ -1044,13 +1123,24 @@ export default function GarageMapbox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center?.[0], center?.[1]]);
 
-  // Fetch OSM 3D buildings only in 3D mode
+  // Fetch OSM 3D buildings in 3D or realistic mode
   useEffect(() => {
-    if (!center || !is3D) return;
+    if (!center || (!is3D && !realistic)) return;
     const id = setTimeout(() => fetchBuildings(center), 600);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [center?.[0], center?.[1], is3D]);
+  }, [center?.[0], center?.[1], is3D, realistic]);
+
+  // Re-render buildings when realistic toggle changes
+  useEffect(() => {
+    realisticRef.current = realistic;
+    if (realistic && !is3D) setIs3D(true);
+    const cached = lastBuildingsRef.current;
+    if (cached) renderBuildings(cached.buildings, cached.garCenter);
+    else if (realistic && center) fetchBuildings(center);
+    mapRef.current?.triggerRepaint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realistic]);
 
   // Toggle cadastral (situasjonsplan) layer visibility
   useEffect(() => {
@@ -1250,18 +1340,30 @@ export default function GarageMapbox({
         </div>
       )}
 
-      {/* 3D toggle — sits above the rotation panel */}
+      {/* 3D + Realistisk toggles */}
       {!readOnly && (
-        <button
-          onClick={() => setIs3D((v) => !v)}
-          className={`absolute bottom-24 left-16 z-10 rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
-            is3D
-              ? "bg-orange-500 text-white border-transparent"
-              : "bg-white/95 text-gray-700 border-gray-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600"
-          }`}
-        >
-          {is3D ? "3D på" : "3D av"}
-        </button>
+        <div className="absolute bottom-24 left-16 z-10 flex gap-2">
+          <button
+            onClick={() => setIs3D((v) => !v)}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
+              is3D
+                ? "bg-orange-500 text-white border-transparent"
+                : "bg-white/95 text-gray-700 border-gray-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600"
+            }`}
+          >
+            {is3D ? "3D på" : "3D av"}
+          </button>
+          <button
+            onClick={() => setRealistic((v) => !v)}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
+              realistic
+                ? "bg-sky-500 text-white border-transparent"
+                : "bg-white/95 text-gray-700 border-gray-200 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600"
+            }`}
+          >
+            Realistisk
+          </button>
+        </div>
       )}
       {/* Cadastral toggle — admin only, stays top-right */}
       {!readOnly && showCadastralToggle && (
