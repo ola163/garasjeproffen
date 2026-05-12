@@ -671,6 +671,150 @@ export default function GarageMapbox({
     }
   }
 
+  // ─── Fasadetegning SVG export ─────────────────────────────────────────────
+
+  function downloadFasadeSVG() {
+    const wM = widthMm / 1000;
+    const lM = lengthMm / 1000;
+    const isSloped = roofType === "saltak";
+    const wallH = 3.0;
+    const roofH = isSloped ? 2.2 : 0.3;
+    const totalH = wallH + roofH;
+    const S = 40; // px per meter
+    const PAD = 58, GAP = 80, DIMH = 50, LBLH = 30;
+
+    const gW = wM * S;
+    const sW = lM * S;
+    const hPx = totalH * S;
+    const wHpx = wallH * S;
+    const rHpx = roofH * S;
+    const colA = PAD + gW + PAD;
+    const colB = PAD + sW + PAD;
+    const rowH = PAD + hPx + DIMH + LBLH;
+    const svgW = colA + GAP + colB;
+    const svgH = 82 + rowH + GAP + rowH + 38;
+
+    function elev(
+      ox: number, oy: number, viewW: number,
+      gable: boolean, label: string, hasDoor: boolean,
+    ): string {
+      const x   = ox + PAD;
+      const gnd = oy + PAD + hPx;
+      const wallTop = gnd - wHpx;
+      const apex    = gnd - hPx;
+      const sokPx   = 0.45 * S;
+      const parts: string[] = [];
+
+      // Ground hatch
+      parts.push(`<rect x="${ox}" y="${gnd}" width="${PAD + viewW + PAD}" height="5" fill="#ccc"/>`);
+
+      // Sokkel
+      parts.push(`<rect x="${x}" y="${gnd - sokPx}" width="${viewW}" height="${sokPx}" fill="#b0a898" stroke="#444" stroke-width="1.2"/>`);
+
+      // Wall
+      parts.push(`<rect x="${x}" y="${wallTop}" width="${viewW}" height="${wHpx - sokPx}" fill="#ede8e0" stroke="#333" stroke-width="1.5"/>`);
+
+      // Roof
+      if (isSloped) {
+        if (gable) {
+          parts.push(`<polygon points="${x},${wallTop} ${x + viewW / 2},${apex} ${x + viewW},${wallTop}" fill="#201610" stroke="#333" stroke-width="1.5"/>`);
+        } else {
+          parts.push(`<rect x="${x}" y="${apex}" width="${viewW}" height="${rHpx}" fill="#201610" stroke="#333" stroke-width="1.5"/>`);
+          parts.push(`<line x1="${x}" y1="${apex}" x2="${x + viewW}" y2="${apex}" stroke="#555" stroke-width="2"/>`);
+        }
+      } else {
+        parts.push(`<rect x="${x}" y="${apex}" width="${viewW}" height="${rHpx}" fill="#3a3028" stroke="#333" stroke-width="1.5"/>`);
+      }
+
+      // Door
+      if (hasDoor && buildingType !== "carport") {
+        const dW = Math.min(2.5, wM - 0.4) * S;
+        const dH = 2.1 * S;
+        const dX = x + viewW / 2 - dW / 2;
+        const dY = gnd - sokPx - dH;
+        parts.push(`<rect x="${dX.toFixed(1)}" y="${dY.toFixed(1)}" width="${dW.toFixed(1)}" height="${dH.toFixed(1)}" fill="#c4a882" stroke="#444" stroke-width="1.2"/>`);
+        for (let p = 1; p <= 3; p++) {
+          const py = dY + (dH / 4) * p;
+          parts.push(`<line x1="${dX.toFixed(1)}" y1="${py.toFixed(1)}" x2="${(dX + dW).toFixed(1)}" y2="${py.toFixed(1)}" stroke="#888" stroke-width="0.7"/>`);
+        }
+      }
+
+      // Windows (only if no door, or side facade)
+      if (!hasDoor || buildingType === "carport") {
+        const numW = viewW / S >= 3.2 ? Math.max(1, Math.floor((viewW / S - 0.8) / 2.6)) : 0;
+        const winW = 0.92 * S, winH = 1.12 * S;
+        const winY = gnd - sokPx - 0.9 * S - winH;
+        for (let w = 0; w < numW; w++) {
+          const wx = x + ((w + 1) / (numW + 1)) * viewW;
+          parts.push(`<rect x="${(wx - winW / 2).toFixed(1)}" y="${winY.toFixed(1)}" width="${winW.toFixed(1)}" height="${winH.toFixed(1)}" fill="#b8d4e8" stroke="#444" stroke-width="1"/>`);
+          parts.push(`<line x1="${(wx - winW/2).toFixed(1)}" y1="${(winY + winH/2).toFixed(1)}" x2="${(wx + winW/2).toFixed(1)}" y2="${(winY + winH/2).toFixed(1)}" stroke="#888" stroke-width="0.5"/>`);
+          parts.push(`<line x1="${wx.toFixed(1)}" y1="${winY.toFixed(1)}" x2="${wx.toFixed(1)}" y2="${(winY + winH).toFixed(1)}" stroke="#888" stroke-width="0.5"/>`);
+        }
+      }
+
+      // Horizontal dimension
+      const dY2 = gnd + 16;
+      parts.push(`<line x1="${x}" y1="${gnd}" x2="${x}" y2="${dY2 + 10}" stroke="#777" stroke-width="0.8"/>`);
+      parts.push(`<line x1="${x + viewW}" y1="${gnd}" x2="${x + viewW}" y2="${dY2 + 10}" stroke="#777" stroke-width="0.8"/>`);
+      parts.push(`<line x1="${x}" y1="${dY2}" x2="${x + viewW}" y2="${dY2}" stroke="#777" stroke-width="1"/>`);
+      parts.push(`<text x="${(x + viewW / 2).toFixed(1)}" y="${(dY2 + 16).toFixed(1)}" text-anchor="middle" font-size="11" fill="#555">${(viewW / S).toFixed(2)} m</text>`);
+
+      // Vertical dim: wall height
+      const vX = x - 24;
+      parts.push(`<line x1="${x}" y1="${wallTop}" x2="${vX - 6}" y2="${wallTop}" stroke="#777" stroke-width="0.8"/>`);
+      parts.push(`<line x1="${x}" y1="${gnd}" x2="${vX - 6}" y2="${gnd}" stroke="#777" stroke-width="0.8"/>`);
+      parts.push(`<line x1="${vX}" y1="${wallTop}" x2="${vX}" y2="${gnd}" stroke="#777" stroke-width="1"/>`);
+      parts.push(`<text x="${(vX - 7).toFixed(1)}" y="${(wallTop + wHpx / 2).toFixed(1)}" text-anchor="middle" font-size="11" fill="#555" transform="rotate(-90 ${(vX - 7).toFixed(1)} ${(wallTop + wHpx / 2).toFixed(1)})">${wallH.toFixed(1)} m</text>`);
+
+      // Vertical dim: total height (gable only, right side)
+      if (gable && isSloped) {
+        const vX2 = x + viewW + 24;
+        parts.push(`<line x1="${x + viewW}" y1="${apex}" x2="${vX2 + 6}" y2="${apex}" stroke="#777" stroke-width="0.8"/>`);
+        parts.push(`<line x1="${x + viewW}" y1="${gnd}" x2="${vX2 + 6}" y2="${gnd}" stroke="#777" stroke-width="0.8"/>`);
+        parts.push(`<line x1="${vX2}" y1="${apex}" x2="${vX2}" y2="${gnd}" stroke="#777" stroke-width="1"/>`);
+        parts.push(`<text x="${(vX2 + 7).toFixed(1)}" y="${(apex + hPx / 2).toFixed(1)}" text-anchor="middle" font-size="11" fill="#555" transform="rotate(-90 ${(vX2 + 7).toFixed(1)} ${(apex + hPx / 2).toFixed(1)})">${totalH.toFixed(1)} m</text>`);
+      }
+
+      // Label
+      parts.push(`<text x="${(x + viewW / 2).toFixed(1)}" y="${(gnd + DIMH + LBLH - 8).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="bold" letter-spacing="0.5" fill="#222">${label}</text>`);
+
+      return parts.join("\n");
+    }
+
+    const btype = buildingType === "carport" ? "Carport" : "Garasje";
+    const rtype = isSloped ? "Saltak" : "Flattak";
+    const scale = Math.round(1000 / S);
+    const date  = new Date().toLocaleDateString("no-NO");
+
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
+<style>text{font-family:Arial,Helvetica,sans-serif}</style>
+<rect width="${svgW}" height="${svgH}" fill="white"/>
+<rect x="1" y="1" width="${svgW - 2}" height="${svgH - 2}" fill="none" stroke="#ccc" stroke-width="1.5"/>
+<text x="${svgW / 2}" y="28" text-anchor="middle" font-size="17" font-weight="bold" fill="#1a1a1a">${btype} – Fasadetegninger</text>
+<text x="${svgW / 2}" y="48" text-anchor="middle" font-size="12" fill="#666">${rtype} · Bredde ${wM.toFixed(2)} m × Lengde ${lM.toFixed(2)} m · Målestokk 1:${scale}</text>
+<line x1="20" y1="60" x2="${svgW - 20}" y2="60" stroke="#e0e0e0" stroke-width="1"/>
+<text x="${(PAD + gW / 2).toFixed(1)}" y="75" text-anchor="middle" font-size="10" fill="#999" letter-spacing="1">GAVLFASADER</text>
+<text x="${(colA + GAP + PAD + sW / 2).toFixed(1)}" y="75" text-anchor="middle" font-size="10" fill="#999" letter-spacing="1">LANGSIDEFASADER</text>
+${elev(0, 82, gW, true, "FASADE 1 – GAVL (dørside)", true)}
+${elev(colA + GAP, 82, sW, false, "FASADE 2 – LANGSIDE", false)}
+${elev(0, 82 + rowH + GAP, gW, true, "FASADE 3 – GAVL (bakside)", false)}
+${elev(colA + GAP, 82 + rowH + GAP, sW, false, "FASADE 4 – LANGSIDE", false)}
+<line x1="20" y1="${svgH - 26}" x2="${svgW - 20}" y2="${svgH - 26}" stroke="#e0e0e0" stroke-width="1"/>
+<text x="25" y="${svgH - 10}" font-size="10" fill="#aaa">GarasjeProffen AS</text>
+<text x="${svgW / 2}" y="${svgH - 10}" text-anchor="middle" font-size="10" fill="#aaa">${date}</text>
+<text x="${svgW - 25}" y="${svgH - 10}" text-anchor="end" font-size="10" fill="#aaa">1:${scale}</text>
+</svg>`;
+
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    a.download = `fasadetegning_${wM.toFixed(1)}x${lM.toFixed(1)}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function addBoundaryLayer(map: mapboxgl.Map, geoJSON: GeoJSON.Feature<GeoJSON.Polygon>) {
     const existing = map.getSource("boundary") as mapboxgl.GeoJSONSource | undefined;
     if (existing) {
@@ -1567,31 +1711,46 @@ export default function GarageMapbox({
             </button>
           </div>
           {realistic && (
-            <div className="flex gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 p-1">
-              {(["hip", "gable", "shed", "flat"] as BldRoofType[]).map((rt) => (
+            <div className="flex flex-col gap-1 items-start">
+              <div className="flex gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 p-1">
+                {(["hip", "gable", "shed", "flat"] as BldRoofType[]).map((rt) => (
+                  <button
+                    key={rt}
+                    onClick={() => {
+                      setBldRoofType(rt);
+                      bldRoofTypeRef.current = rt;
+                      const cached = lastBuildingsRef.current;
+                      if (cached) renderBuildings(cached.buildings, cached.garCenter);
+                    }}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      bldRoofType === rt
+                        ? "bg-sky-500 text-white"
+                        : "text-gray-600 hover:bg-sky-50 hover:text-sky-600"
+                    }`}
+                  >
+                    {rt === "hip" ? "Valmtak" : rt === "gable" ? "Saltak" : rt === "shed" ? "Pulttak" : "Flatt"}
+                  </button>
+                ))}
+                {hiddenCount > 0 && (
+                  <button
+                    onClick={() => {
+                      hiddenBuildingsRef.current.clear();
+                      setHiddenCount(0);
+                      const cached = lastBuildingsRef.current;
+                      if (cached) renderBuildings(cached.buildings, cached.garCenter);
+                    }}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    Vis alle
+                  </button>
+                )}
+              </div>
+              {center && (
                 <button
-                  key={rt}
-                  onClick={() => setBldRoofType(rt)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    bldRoofType === rt
-                      ? "bg-sky-500 text-white"
-                      : "text-gray-600 hover:bg-sky-50 hover:text-sky-600"
-                  }`}
+                  onClick={downloadFasadeSVG}
+                  className="rounded-xl px-4 py-2 text-xs font-semibold shadow-lg border bg-white/95 text-gray-700 border-gray-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600 transition-colors"
                 >
-                  {rt === "hip" ? "Valmtak" : rt === "gable" ? "Saltak" : rt === "shed" ? "Pulttak" : "Flatt"}
-                </button>
-              ))}
-              {hiddenCount > 0 && (
-                <button
-                  onClick={() => {
-                    hiddenBuildingsRef.current.clear();
-                    setHiddenCount(0);
-                    const cached = lastBuildingsRef.current;
-                    if (cached) renderBuildings(cached.buildings, cached.garCenter);
-                  }}
-                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  Vis alle
+                  Fasadetegning ↓
                 </button>
               )}
             </div>
