@@ -74,60 +74,126 @@ function vDim(
   ctx.restore();
 }
 
+// ── OSM building type ────────────────────────────────────────────────────
+type OsmBld = { nodes: { lat: number; lon: number }[]; height: number };
+
+function parseOSMBld(data: unknown): OsmBld[] {
+  const els = (data as { elements?: unknown[] })?.elements;
+  if (!Array.isArray(els)) return [];
+  type E = { type: string; id: number; lat?: number; lon?: number; nodes?: number[]; tags?: Record<string, string> };
+  const e = els as E[];
+  const nm = new Map<number, { lat: number; lon: number }>();
+  for (const el of e) if (el.type === "node" && el.lat !== undefined) nm.set(el.id, { lat: el.lat!, lon: el.lon! });
+  const out: OsmBld[] = [];
+  for (const el of e) {
+    if (el.type !== "way" || !el.nodes || !el.tags?.building) continue;
+    const rawH = el.tags.height ? parseFloat(el.tags.height)
+      : el.tags["building:levels"] ? parseFloat(el.tags["building:levels"]) * 3.2 : NaN;
+    const height = isNaN(rawH) ? 7 : Math.max(3, rawH);
+    const nodes = el.nodes.map(id => nm.get(id)).filter(Boolean) as { lat: number; lon: number }[];
+    if (nodes.length >= 3) out.push({ nodes, height });
+  }
+  return out;
+}
+
 // ── Background buildings ─────────────────────────────────────────────────
+// viewDirDeg: compass bearing (0=N,90=E,180=S,270=W) the viewer looks TOWARDS
+// to see this facade. Buildings behind the garage (in that direction) are shown.
 function drawBgBuildings(
   ctx: CanvasRenderingContext2D,
   wallLeft: number, wallRight: number,
   groundY: number, sc: number,
+  cellCX: number,
+  buildings: OsmBld[], gLat: number, gLng: number,
+  viewDirDeg: number,
 ) {
-  const gap   = 1500 * sc;
-  const bldgs = [
-    // left side (closest → furthest)
-    { x: wallLeft - gap - 5400 * sc, w: 5400 * sc, h: 2300 * sc, rH: 820 * sc },
-    { x: wallLeft - gap - 5400 * sc - gap - 6800 * sc, w: 6800 * sc, h: 2600 * sc, rH: 0  },
-    // right side
-    { x: wallRight + gap, w: 6200 * sc, h: 2400 * sc, rH: 880 * sc },
-    { x: wallRight + gap + 6200 * sc + gap, w: 5000 * sc, h: 2100 * sc, rH: 700 * sc },
-  ];
+  if (!buildings.length || isNaN(gLat) || isNaN(gLng)) {
+    // Fallback: hardcoded placeholder silhouettes
+    const gap = 1500 * sc;
+    const bldgs = [
+      { x: wallLeft - gap - 5400 * sc, w: 5400 * sc, h: 2300 * sc, rH: 820 * sc },
+      { x: wallLeft - gap - 5400 * sc - gap - 6800 * sc, w: 6800 * sc, h: 2600 * sc, rH: 0 },
+      { x: wallRight + gap, w: 6200 * sc, h: 2400 * sc, rH: 880 * sc },
+      { x: wallRight + gap + 6200 * sc + gap, w: 5000 * sc, h: 2100 * sc, rH: 700 * sc },
+    ];
+    ctx.save();
+    for (const b of bldgs) {
+      const top = groundY - b.h;
+      ctx.fillStyle = "#c9d4e0"; ctx.fillRect(b.x, top, b.w, b.h);
+      if (b.rH > 0) {
+        ctx.fillStyle = "#b5c3d2"; ctx.beginPath();
+        ctx.moveTo(b.x - 4, top); ctx.lineTo(b.x + b.w / 2, top - b.rH); ctx.lineTo(b.x + b.w + 4, top); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1; ctx.beginPath();
+        ctx.moveTo(b.x - 4, top); ctx.lineTo(b.x + b.w / 2, top - b.rH); ctx.lineTo(b.x + b.w + 4, top); ctx.stroke();
+      } else {
+        ctx.fillStyle = "#b5c3d2"; ctx.fillRect(b.x - 4, top - 12, b.w + 8, 12);
+        ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1; ctx.strokeRect(b.x - 4, top - 12, b.w + 8, 12);
+      }
+      ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1; ctx.strokeRect(b.x, top, b.w, b.h);
+      ctx.fillStyle = "#dde8f4"; ctx.fillRect(b.x + b.w * 0.25, groundY - b.h * 0.55, b.w * 0.18, b.h * 0.22);
+    }
+    ctx.restore();
+    return;
+  }
+
+  // Project real OSM buildings onto this facade plane
+  const mPerLat = 111320;
+  const mPerLng = 111320 * Math.cos(gLat * Math.PI / 180);
+  const φ = viewDirDeg * Math.PI / 180;
+  const S = sc * 1000; // metres → px (sc is mm→px, so ×1000)
+
+  // Sort by depth descending (furthest first = painters algorithm)
+  type Proj = { xL: number; xR: number; h: number; dist: number };
+  const projected: Proj[] = [];
+  for (const bld of buildings) {
+    const pts = bld.nodes.map(n => {
+      const Δe = (n.lon - gLng) * mPerLng;
+      const Δn = (n.lat - gLat) * mPerLat;
+      // x = lateral (right is positive), z = depth toward view direction
+      return {
+        x: Δe * Math.cos(φ) - Δn * Math.sin(φ),
+        z: Δe * Math.sin(φ) + Δn * Math.cos(φ),
+      };
+    });
+    const minZ = Math.min(...pts.map(p => p.z));
+    const maxZ = Math.max(...pts.map(p => p.z));
+    // Only show buildings in front (z > 4m to skip garage itself) and within 200m
+    if (maxZ < 4 || minZ > 200) continue;
+    const xs = pts.map(p => p.x);
+    projected.push({
+      xL: Math.min(...xs),
+      xR: Math.max(...xs),
+      h: bld.height,
+      dist: Math.max(4, minZ),
+    });
+  }
+  projected.sort((a, b) => b.dist - a.dist);
 
   ctx.save();
-  for (const b of bldgs) {
-    const top = groundY - b.h;
-    // wall
-    ctx.fillStyle = "#c9d4e0";
-    ctx.fillRect(b.x, top, b.w, b.h);
-    // roof
-    if (b.rH > 0) {
-      ctx.fillStyle = "#b5c3d2";
-      ctx.beginPath();
-      ctx.moveTo(b.x - 4, top);
-      ctx.lineTo(b.x + b.w / 2, top - b.rH);
-      ctx.lineTo(b.x + b.w + 4, top);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(b.x - 4, top);
-      ctx.lineTo(b.x + b.w / 2, top - b.rH);
-      ctx.lineTo(b.x + b.w + 4, top);
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = "#b5c3d2";
-      ctx.fillRect(b.x - 4, top - 12, b.w + 8, 12);
-      ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1;
-      ctx.strokeRect(b.x - 4, top - 12, b.w + 8, 12);
+  for (const b of projected) {
+    const pxL = cellCX + b.xL * S;
+    const pxR = cellCX + b.xR * S;
+    const w   = pxR - pxL;
+    if (w < 1) continue;
+    const bH  = b.h * S;
+    const top = groundY - bH;
+    // Depth-based fade: farther = lighter/more transparent
+    const fade = Math.max(0.25, 1 - (b.dist - 4) / 140);
+    ctx.fillStyle = `rgba(190,204,218,${(fade * 0.88).toFixed(2)})`;
+    ctx.fillRect(pxL, top, w, bH);
+    // Flat roof cap
+    ctx.fillStyle = `rgba(168,184,200,${(fade * 0.9).toFixed(2)})`;
+    ctx.fillRect(pxL - 3, top - 9, w + 6, 9);
+    ctx.strokeStyle = `rgba(148,163,184,${(fade * 0.7).toFixed(2)})`;
+    ctx.lineWidth = 0.8;
+    ctx.strokeRect(pxL - 3, top - 9, w + 6, 9);
+    ctx.strokeRect(pxL, top, w, bH);
+    // One window
+    if (w > 12) {
+      const wW = Math.min(w * 0.22, 18), wH = bH * 0.22;
+      ctx.fillStyle = `rgba(210,228,242,${(fade * 0.9).toFixed(2)})`;
+      ctx.fillRect(pxL + w * 0.25, groundY - bH * 0.6, wW, wH);
     }
-    // wall outline
-    ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1;
-    ctx.strokeRect(b.x, top, b.w, b.h);
-
-    // one window per building
-    const winW = b.w * 0.18, winH = b.h * 0.22;
-    const winX = b.x + b.w * 0.25, winY = groundY - b.h * 0.55;
-    ctx.fillStyle = "#dde8f4";
-    ctx.fillRect(winX, winY, winW, winH);
-    ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 0.7;
-    ctx.strokeRect(winX, winY, winW, winH);
   }
   ctx.restore();
 }
@@ -143,6 +209,7 @@ function drawCell(
   widthMm: number, lengthMm: number,
   roofType: string, buildingType: string,
   sc: number,
+  buildings: OsmBld[], gLat: number, gLng: number, viewDirDeg: number,
 ) {
   const rH       = ridgeMm(widthMm);
   const wallWpx  = facadeWmm * sc;
@@ -172,7 +239,7 @@ function drawCell(
   ctx.stroke();
 
   // ── Background buildings ─────────────────────────────────────────────
-  drawBgBuildings(ctx, wallL, wallR, groundY, sc);
+  drawBgBuildings(ctx, wallL, wallR, groundY, sc, cellCX, buildings, gLat, gLng, viewDirDeg);
 
   // ── Sky gradient ──────────────────────────────────────────────────────
   const skyGrad = ctx.createLinearGradient(cellX, cellY + 28, cellX, groundY);
@@ -449,9 +516,15 @@ function render(
   canvas: HTMLCanvasElement,
   widthMm: number, lengthMm: number,
   roofType: string, buildingType: string, address: string,
+  buildings: OsmBld[], gLat: number, gLng: number, rotation: number,
 ) {
   const ctx = canvas.getContext("2d")!;
   const sc  = calcScale(widthMm, lengthMm);
+  // rotation=0 → front faces south, viewer of south facade looks north (0°)
+  const vFront = rotation % 360;
+  const vBack  = (rotation + 180) % 360;
+  const vVest  = (rotation + 90)  % 360;
+  const vOst   = (rotation + 270) % 360;
 
   // Page background
   ctx.fillStyle = "#ffffff";
@@ -476,18 +549,18 @@ function render(
   ctx.stroke();
 
   // 4 elevation cells
-  // Top-left:  Sør (front, with door)
   drawCell(ctx, 0,    HDR,       "FASADE SØR  –  FRONT (med garasjeport)",
-    widthMm, true,  true,  widthMm, lengthMm, roofType, buildingType, sc);
-  // Top-right: Nord (back)
+    widthMm,  true,  true,  widthMm, lengthMm, roofType, buildingType, sc,
+    buildings, gLat, gLng, vFront);
   drawCell(ctx, CW2,  HDR,       "FASADE NORD  –  BAK",
-    widthMm, true,  false, widthMm, lengthMm, roofType, buildingType, sc);
-  // Bottom-left: Vest (left side, eave view)
+    widthMm,  true,  false, widthMm, lengthMm, roofType, buildingType, sc,
+    buildings, gLat, gLng, vBack);
   drawCell(ctx, 0,    HDR + CH2, "FASADE VEST  –  SIDE",
-    lengthMm, false, false, widthMm, lengthMm, roofType, buildingType, sc);
-  // Bottom-right: Øst (right side, eave view)
+    lengthMm, false, false, widthMm, lengthMm, roofType, buildingType, sc,
+    buildings, gLat, gLng, vVest);
   drawCell(ctx, CW2,  HDR + CH2, "FASADE ØST  –  SIDE",
-    lengthMm, false, false, widthMm, lengthMm, roofType, buildingType, sc);
+    lengthMm, false, false, widthMm, lengthMm, roofType, buildingType, sc,
+    buildings, gLat, gLng, vOst);
 
   // Outer border
   ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 2;
@@ -514,6 +587,15 @@ function FasadetegningContent() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<"idle" | "done">("idle");
+  const [bgBuildings, setBgBuildings] = useState<OsmBld[]>([]);
+
+  useEffect(() => {
+    if (isNaN(lat) || isNaN(lng)) return;
+    fetch(`/api/osm-buildings?lat=${lat}&lng=${lng}&radius=200`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setBgBuildings(parseOSMBld(d)); })
+      .catch(() => {});
+  }, [lat, lng]);
 
   const situasjonsplanUrl = !isNaN(lat) && !isNaN(lng)
     ? `/admin/situasjonsplan?lat=${lat}&lng=${lng}&rotation=${rotation}&widthMm=${widthMm}&lengthMm=${lengthMm}&roofType=${roofType}&buildingType=${buildingType}${quoteId ? `&quote=${quoteId}` : ""}${address ? `&address=${encodeURIComponent(address)}` : ""}`
@@ -521,9 +603,10 @@ function FasadetegningContent() {
 
   const draw = useCallback(() => {
     if (!canvasRef.current) return;
-    render(canvasRef.current, widthMm, lengthMm, roofType, buildingType, address);
+    render(canvasRef.current, widthMm, lengthMm, roofType, buildingType, address,
+      bgBuildings, lat, lng, rotation);
     setStatus("done");
-  }, [widthMm, lengthMm, roofType, buildingType, address]);
+  }, [widthMm, lengthMm, roofType, buildingType, address, bgBuildings, lat, lng, rotation]);
 
   useEffect(() => { draw(); }, [draw]);
 
