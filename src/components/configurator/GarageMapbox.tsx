@@ -64,7 +64,7 @@ async function reverseGeocodeNO(lat: number, lng: number): Promise<string> {
 
 // ─── Pure helpers ────────────────────────────────────────────────────────────
 
-type OSMBuildingData = { nodes: Array<{ lat: number; lon: number }>; height: number };
+type OSMBuildingData = { nodes: Array<{ lat: number; lon: number }>; height: number; roofShape?: string; color?: string };
 
 function buildGarageGeoJSON(
   center: [number, number], lengthM: number, widthM: number, rotationDeg: number
@@ -168,8 +168,10 @@ function parseOSM(data: unknown): OSMBuildingData[] {
       ? parseFloat(el.tags["building:levels"]) * 3.2
       : NaN;
     const height = isNaN(rawH) ? 7 : Math.max(3, rawH);
+    const roofShape = el.tags["roof:shape"] ?? undefined;
+    const color = el.tags["building:colour"] ?? el.tags["building:color"] ?? undefined;
     const nodes = el.nodes.map((id) => nodeMap.get(id)).filter(Boolean) as Array<{ lat: number; lon: number }>;
-    if (nodes.length >= 3) buildings.push({ nodes, height });
+    if (nodes.length >= 3) buildings.push({ nodes, height, roofShape, color });
   }
   return buildings;
 }
@@ -325,11 +327,10 @@ function buildShedRoof(pts: [number, number][], wallH: number, roofH: number): T
 }
 
 function buildingToRealisticGroup(
-  { nodes, height }: OSMBuildingData,
+  { nodes, height, roofShape, color }: OSMBuildingData,
   garMc: mapboxgl.MercatorCoordinate,
   s: number,
-  index: number,
-  roofType: BldRoofType
+  index: number
 ): THREE.Group | null {
   if (nodes.length < 3) return null;
 
@@ -340,16 +341,25 @@ function buildingToRealisticGroup(
 
   const group = new THREE.Group();
 
-  // Per-building Norwegian wall palette
+  // Per-building Norwegian wall palette (overridden by OSM colour tag if present)
   const jitter = ((index * 37) % 28) - 14;
   const norwPalette: [number, number, number][] = [
     [238, 228, 208], [218, 205, 190], [232, 220, 198],
     [208, 198, 185], [244, 232, 212], [200, 190, 178],
     [224, 210, 192], [212, 202, 188],
   ];
-  const [pr, pg, pb] = norwPalette[index % norwPalette.length].map((c) =>
+  let [pr, pg, pb] = norwPalette[index % norwPalette.length].map((c) =>
     Math.max(0, Math.min(255, c + jitter))
   );
+  if (color) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(color.trim());
+    if (m) {
+      const hex = parseInt(m[1], 16);
+      pr = (hex >> 16) & 0xff;
+      pg = (hex >> 8) & 0xff;
+      pb = hex & 0xff;
+    }
+  }
 
   const sokkelMat = new THREE.MeshStandardMaterial({ color: 0x8c8278, roughness: 0.92 });
   const glassMat = new THREE.MeshStandardMaterial({
@@ -456,11 +466,18 @@ function buildingToRealisticGroup(
   const radius = pts.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cy), 0) / pts.length;
   const roofH  = Math.max(1.2, Math.min(radius * 0.7, height * 0.6));
 
-  if (roofType === "flat" || height >= 16) {
+  const derivedRoof: BldRoofType =
+    height >= 16 ? "flat"
+    : roofShape === "flat" ? "flat"
+    : roofShape === "gabled" ? "gable"
+    : roofShape === "shed" || roofShape === "lean_to" ? "shed"
+    : "hip";
+
+  if (derivedRoof === "flat") {
     // ceiling cap serves as flat roof
-  } else if (roofType === "gable") {
+  } else if (derivedRoof === "gable") {
     group.add(new THREE.Mesh(buildGableRoof(pts, height, roofH), roofMat));
-  } else if (roofType === "shed") {
+  } else if (derivedRoof === "shed") {
     group.add(new THREE.Mesh(buildShedRoof(pts, height, roofH), roofMat));
   } else {
     group.add(new THREE.Mesh(buildHipRoof(pts, height, roofH), roofMat));
@@ -532,8 +549,6 @@ export default function GarageMapbox({
   const [realistic,        setRealistic]        = useState(false);
   const realisticRef       = useRef(false);
   const lastBuildingsRef   = useRef<{ buildings: OSMBuildingData[]; garCenter: [number, number] } | null>(null);
-  const [bldRoofType,      setBldRoofType]      = useState<BldRoofType>("hip");
-  const bldRoofTypeRef     = useRef<BldRoofType>("hip");
   const hiddenBuildingsRef = useRef(new Set<number>());
   const [hiddenCount,      setHiddenCount]      = useState(0);
   const [boundaryWarning,  setBoundaryWarning]  = useState<null | "safe" | "nabovarsel" | "danger" | "on-building">(null);
@@ -544,6 +559,7 @@ export default function GarageMapbox({
   const [geoError,        setGeoError]        = useState<string | null>(null);
   const [geoDenied,       setGeoDenied]       = useState(false);
   const [showGeoPrompt,   setShowGeoPrompt]   = useState(false);
+  const [mapBearing,      setMapBearing]      = useState(0);
 
   type ToolMode = "pan" | "move" | "rotate";
   const [toolMode,  setToolMode]  = useState<ToolMode>("move");
@@ -637,14 +653,13 @@ export default function GarageMapbox({
     const group = buildingGroupRef.current;
     if (!group) return;
     const isRealistic = realisticRef.current;
-    const roofType    = bldRoofTypeRef.current;
     const hidden      = hiddenBuildingsRef.current;
     const garMc = mapboxgl.MercatorCoordinate.fromLngLat({ lng: garCenter[0], lat: garCenter[1] }, 0);
     const s     = garMc.meterInMercatorCoordinateUnits();
     buildings.forEach((bld, idx) => {
       if (hidden.has(idx)) return;
       const g = isRealistic
-        ? buildingToRealisticGroup(bld, garMc, s, idx, roofType)
+        ? buildingToRealisticGroup(bld, garMc, s, idx)
         : buildingToGroup(bld, garMc, s, idx);
       if (g) group.add(g);
     });
@@ -781,11 +796,20 @@ export default function GarageMapbox({
       pitch:   streetView ? 72  : forceIs3D ? 60 : 0,
       bearing: streetView ? initRot : forceIs3D ? -20 : 0,
       preserveDrawingBuffer: true,
+      logoPosition: "bottom-left",
     });
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     map.on("load", () => {
+      // Mapbox terrain DEM — enables 3D terrain when is3D/realistic
+      map.addSource("mapbox-dem", {
+        type: "raster-dem",
+        url: "mapbox://mapbox.mapbox-terrain-dem-v1",
+        tileSize: 512,
+        maxzoom: 14,
+      });
+
       // Kartverket Matrikkel WMS — property boundaries, addresses, parcel IDs (all Norway, free, no auth)
       map.addSource("cadastral", {
         type: "raster",
@@ -848,10 +872,13 @@ export default function GarageMapbox({
           renderer.autoClear = false;
 
           const scene = new THREE.Scene();
-          scene.add(new THREE.AmbientLight(0xffffff, 2.5));
-          const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-          sun.position.set(1, 3, 2).normalize();
+          scene.add(new THREE.HemisphereLight(0xc8dff0, 0x7a6a50, 1.2));
+          const sun = new THREE.DirectionalLight(0xfff5e0, 2.2);
+          sun.position.set(2, 5, 3).normalize();
           scene.add(sun);
+          const fill = new THREE.DirectionalLight(0xd0e8ff, 0.5);
+          fill.position.set(-2, 1, -1).normalize();
+          scene.add(fill);
 
           // Building group — populated by fetchBuildings
           const buildingGroup = new THREE.Group();
@@ -912,6 +939,10 @@ export default function GarageMapbox({
       }
 
       onMapReady?.(map);
+
+      // Sync bearing state for compass
+      map.on("rotate", () => setMapBearing(map.getBearing()));
+      setMapBearing(map.getBearing());
     });
 
     if (!readOnly) {
@@ -1287,7 +1318,7 @@ export default function GarageMapbox({
 
   useEffect(() => { rebuildElements(); }, [rebuildElements]);
 
-  // 3D toggle: camera angle and neighbor visibility only
+  // 3D toggle: camera angle, neighbor visibility, and terrain
   // (fill layer is managed by updateGarage — hidden whenever a center is placed)
   useEffect(() => {
     const map = mapRef.current;
@@ -1295,6 +1326,13 @@ export default function GarageMapbox({
     if (map.getLayer(EXTRUSION_LAYER)) map.setLayoutProperty(EXTRUSION_LAYER, "visibility", "none");
     if (showNeighbors && map.getLayer("neighbors-3d"))
       map.setLayoutProperty("neighbors-3d", "visibility", is3D ? "visible" : "none");
+    if (map.getSource("mapbox-dem")) {
+      if (is3D) {
+        map.setTerrain({ source: "mapbox-dem", exaggeration: 1.0 });
+      } else {
+        map.setTerrain(null);
+      }
+    }
     map.easeTo({ pitch: is3D ? 60 : 0, bearing: is3D ? -20 : 0, duration: 600 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [is3D]);
@@ -1333,15 +1371,6 @@ export default function GarageMapbox({
     mapRef.current?.triggerRepaint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realistic]);
-
-  // Re-render when roof type for nearby buildings changes
-  useEffect(() => {
-    bldRoofTypeRef.current = bldRoofType;
-    const cached = lastBuildingsRef.current;
-    if (cached && realisticRef.current) renderBuildings(cached.buildings, cached.garCenter);
-    mapRef.current?.triggerRepaint();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bldRoofType]);
 
   // Toggle cadastral (situasjonsplan) layer visibility
   useEffect(() => {
@@ -1443,6 +1472,7 @@ export default function GarageMapbox({
 
   return (
     <div className="relative h-full w-full flex flex-col">
+      <style>{`.mapboxgl-ctrl-logo { display: none !important; }`}</style>
       {/* Warning badge */}
       {warningConfig && (
         <div className={`absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-md whitespace-nowrap pointer-events-none ${warningConfig.bg}`}>
@@ -1566,41 +1596,19 @@ export default function GarageMapbox({
               Realistisk
             </button>
           </div>
-          {realistic && (
-            <div className="flex flex-col gap-1 items-start">
-              <div className="flex gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 p-1">
-                {(["hip", "gable", "shed", "flat"] as BldRoofType[]).map((rt) => (
-                  <button
-                    key={rt}
-                    onClick={() => {
-                      setBldRoofType(rt);
-                      bldRoofTypeRef.current = rt;
-                      const cached = lastBuildingsRef.current;
-                      if (cached) renderBuildings(cached.buildings, cached.garCenter);
-                    }}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      bldRoofType === rt
-                        ? "bg-sky-500 text-white"
-                        : "text-gray-600 hover:bg-sky-50 hover:text-sky-600"
-                    }`}
-                  >
-                    {rt === "hip" ? "Valmtak" : rt === "gable" ? "Saltak" : rt === "shed" ? "Pulttak" : "Flatt"}
-                  </button>
-                ))}
-                {hiddenCount > 0 && (
-                  <button
-                    onClick={() => {
-                      hiddenBuildingsRef.current.clear();
-                      setHiddenCount(0);
-                      const cached = lastBuildingsRef.current;
-                      if (cached) renderBuildings(cached.buildings, cached.garCenter);
-                    }}
-                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
-                  >
-                    Vis alle
-                  </button>
-                )}
-              </div>
+          {realistic && hiddenCount > 0 && (
+            <div className="flex gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 p-1">
+              <button
+                onClick={() => {
+                  hiddenBuildingsRef.current.clear();
+                  setHiddenCount(0);
+                  const cached = lastBuildingsRef.current;
+                  if (cached) renderBuildings(cached.buildings, cached.garCenter);
+                }}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
+              >
+                Vis alle
+              </button>
             </div>
           )}
         </div>
@@ -1622,6 +1630,48 @@ export default function GarageMapbox({
 
       {/* Map */}
       <div ref={containerRef} className="flex-1 w-full" />
+
+      {/* Compass rose */}
+      <div
+        className="absolute right-3 z-10 pointer-events-none select-none"
+        style={{ bottom: 90 }}
+      >
+        <div
+          className="relative flex items-center justify-center w-14 h-14"
+          style={{ transform: `rotate(${-mapBearing}deg)` }}
+        >
+          {/* Ring */}
+          <svg viewBox="0 0 56 56" width="56" height="56" className="absolute inset-0">
+            <circle cx="28" cy="28" r="26" fill="white" fillOpacity="0.92" stroke="#d1d5db" strokeWidth="1.5" />
+          </svg>
+          {/* N needle — red */}
+          <svg viewBox="0 0 56 56" width="56" height="56" className="absolute inset-0">
+            <polygon points="28,6 32,28 28,24 24,28" fill="#e2520a" />
+            <polygon points="28,50 32,28 28,32 24,28" fill="#6b7280" />
+          </svg>
+          {/* Cardinal labels — counter-rotate to stay upright */}
+          {([["N", 0], ["Ø", 90], ["S", 180], ["V", 270]] as [string, number][]).map(([lbl, deg]) => {
+            const rad = (deg * Math.PI) / 180;
+            const r = 18;
+            const x = 28 + r * Math.sin(rad);
+            const y = 28 - r * Math.cos(rad);
+            return (
+              <div
+                key={lbl}
+                className="absolute text-[9px] font-bold leading-none"
+                style={{
+                  left: x,
+                  top: y,
+                  transform: `translate(-50%, -50%) rotate(${mapBearing}deg)`,
+                  color: lbl === "N" ? "#e2520a" : "#374151",
+                }}
+              >
+                {lbl}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Tool toolbar */}
       {!readOnly && (
