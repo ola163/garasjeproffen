@@ -289,123 +289,131 @@ function buildingToRealisticGroup(
     return [(mc.x - garMc.x) / s, -((mc.y - garMc.y) / s)];
   });
 
-  const shape = new THREE.Shape();
-  shape.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1]);
-  shape.closePath();
-
   const group = new THREE.Group();
 
-  // ─── Wall colour (per-building jitter for variety) ───────────────────────
-  const jitter = ((index * 37) % 24) - 12;
-  const palette: [number, number, number][] = [
-    [192, 182, 168], [208, 196, 178], [176, 168, 158],
-    [200, 188, 172], [185, 175, 160], [212, 200, 186],
+  // ─── Per-building materials ───────────────────────────────────────────────
+  const jitter = ((index * 37) % 28) - 14;
+  const norwPalette: [number, number, number][] = [
+    [238, 228, 208], [218, 205, 190], [232, 220, 198],
+    [208, 198, 185], [244, 232, 212], [200, 190, 178],
+    [224, 210, 192], [212, 202, 188],
   ];
-  const [pr, pg, pb] = palette[index % palette.length].map((c) => Math.max(0, Math.min(255, c + jitter)));
+  const [pr, pg, pb] = norwPalette[index % norwPalette.length].map((c) =>
+    Math.max(0, Math.min(255, c + jitter))
+  );
   const wallMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color(pr / 255, pg / 255, pb / 255),
-    roughness: 0.85, metalness: 0.02,
+    roughness: 0.88, metalness: 0.01, side: THREE.DoubleSide,
+  });
+  const sokkelMat = new THREE.MeshStandardMaterial({
+    color: 0x8c8278, roughness: 0.92, side: THREE.DoubleSide,
+  });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x5a9ab8, roughness: 0.04, metalness: 0.15,
+    transparent: true, opacity: 0.82, side: THREE.DoubleSide,
+  });
+  const roofTones = [0x221a10, 0x1e1a14, 0x2a201a, 0x282020, 0x1c1c1c];
+  const roofMat = new THREE.MeshStandardMaterial({
+    color: roofTones[index % roofTones.length],
+    roughness: 0.88, metalness: 0.02, side: THREE.DoubleSide,
   });
 
-  // ─── Sokkel ──────────────────────────────────────────────────────────────
-  const sokkelH = 0.35;
-  const sokkelGeo = new THREE.ExtrudeGeometry(shape, { depth: sokkelH, bevelEnabled: false });
-  const sokkelMesh = new THREE.Mesh(
-    sokkelGeo,
-    new THREE.MeshStandardMaterial({ color: 0x7a7268, roughness: 0.93 }),
-  );
-  sokkelMesh.rotation.x = -Math.PI / 2;
-  group.add(sokkelMesh);
-
-  // ─── Walls ───────────────────────────────────────────────────────────────
-  const wallGeo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
-  const wallMesh = new THREE.Mesh(wallGeo, wallMat);
-  wallMesh.rotation.x = -Math.PI / 2;
-  group.add(wallMesh);
-
-  // ─── Edge outlines ("vectorize") ─────────────────────────────────────────
-  const edgesGeo = new THREE.EdgesGeometry(wallGeo, 15);
-  const edgesMesh = new THREE.LineSegments(
-    edgesGeo,
-    new THREE.LineBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.55 }),
-  );
-  edgesMesh.rotation.x = -Math.PI / 2;
-  group.add(edgesMesh);
-
-  // ─── Windows ─────────────────────────────────────────────────────────────
-  const winMat = new THREE.MeshStandardMaterial({
-    color: 0x8ab8d4, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.72,
-  });
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0xeeeae4, roughness: 0.6 });
   const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
   const cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
-  const floors = Math.max(1, Math.round(height / 3.0));
+  const sokkelH = 0.45;
+  const floorH  = 3.0;
+  const floors  = Math.max(1, Math.round(height / floorH));
+  const winW = 0.92, winH = 1.12;
 
+  // ─── Individual wall-face panels with window holes ────────────────────────
   for (let i = 0; i < pts.length; i++) {
     const j = (i + 1) % pts.length;
     const [x1, y1] = pts[i], [x2, y2] = pts[j];
-    const edgeLen = Math.hypot(x2 - x1, y2 - y1);
-    if (edgeLen < 2.0) continue;
-    const numW = Math.max(1, Math.floor(edgeLen / 2.8));
-    const rotY = Math.atan2(y1 - y2, x2 - x1);
+    const ex = x2 - x1, ey = y2 - y1;
+    const L = Math.hypot(ex, ey);
+    if (L < 0.8) continue;
+
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    const outLen = Math.hypot(mx - cx, my - cy);
-    const ox = outLen > 0.01 ? (mx - cx) / outLen * 0.07 : 0;
-    const oy = outLen > 0.01 ? (my - cy) / outLen * 0.07 : 0;
+    // Correct rotation: aligns local X with edge direction in world space
+    const rotY = Math.atan2(ey, ex);
+
+    // ── Sokkel strip ──────────────────────────────────────────────────────
+    const sokS = new THREE.Shape();
+    sokS.moveTo(-L / 2, 0); sokS.lineTo(L / 2, 0);
+    sokS.lineTo(L / 2, sokkelH); sokS.lineTo(-L / 2, sokkelH);
+    sokS.closePath();
+    const sokMesh = new THREE.Mesh(new THREE.ShapeGeometry(sokS), sokkelMat);
+    sokMesh.position.set(mx, 0, -my);
+    sokMesh.rotation.y = rotY;
+    group.add(sokMesh);
+
+    // ── Wall panel with window holes ──────────────────────────────────────
+    const wallS = new THREE.Shape();
+    wallS.moveTo(-L / 2, sokkelH); wallS.lineTo(L / 2, sokkelH);
+    wallS.lineTo(L / 2, height); wallS.lineTo(-L / 2, height);
+    wallS.closePath();
+
+    const numW = L >= 3.2 ? Math.max(1, Math.floor((L - 0.8) / 2.6)) : 0;
+    const glassPositions: [number, number][] = [];
 
     for (let f = 0; f < floors; f++) {
-      const baseY = sokkelH + f * 3.0;
-      if (baseY + 2.2 > height) continue;
-      const winY = baseY + 1.3;
-
+      const floorBase = sokkelH + f * floorH;
+      if (floorBase + winH + 0.9 > height) continue;
+      const winBottom = floorBase + 0.9;
       for (let w = 0; w < numW; w++) {
-        const t = (w + 0.5) / numW;
-        const wx = x1 + t * (x2 - x1) + ox;
-        const wy = y1 + t * (y2 - y1) + oy;
-        // Frame
-        const frameGeo = new THREE.BoxGeometry(1.05, 1.35, 0.06);
-        const frameMesh = new THREE.Mesh(frameGeo, frameMat);
-        frameMesh.position.set(wx, winY, -wy);
-        frameMesh.rotation.y = rotY;
-        group.add(frameMesh);
-        // Glass
-        const glassGeo = new THREE.BoxGeometry(0.88, 1.18, 0.03);
-        const glassMesh = new THREE.Mesh(glassGeo, winMat);
-        glassMesh.position.set(wx, winY, -wy);
-        glassMesh.rotation.y = rotY;
-        group.add(glassMesh);
+        const t = (w + 1) / (numW + 1);
+        const lx = -L / 2 + t * L;
+        const hole = new THREE.Path();
+        hole.moveTo(lx - winW / 2, winBottom);
+        hole.lineTo(lx + winW / 2, winBottom);
+        hole.lineTo(lx + winW / 2, winBottom + winH);
+        hole.lineTo(lx - winW / 2, winBottom + winH);
+        hole.closePath();
+        wallS.holes.push(hole);
+        glassPositions.push([lx, winBottom + winH / 2]);
       }
+    }
+
+    const wallFace = new THREE.Mesh(new THREE.ShapeGeometry(wallS), wallMat);
+    wallFace.position.set(mx, 0, -my);
+    wallFace.rotation.y = rotY;
+    group.add(wallFace);
+
+    // Edge outline on this face (child → inherits transform)
+    const outlineMesh = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.ShapeGeometry(wallS)),
+      new THREE.LineBasicMaterial({ color: 0x383830, transparent: true, opacity: 0.65 }),
+    );
+    wallFace.add(outlineMesh);
+
+    // Glass panes — children of wallFace (local Z = depth into wall)
+    for (const [lx, winCY] of glassPositions) {
+      const glass = new THREE.Mesh(new THREE.PlaneGeometry(winW, winH), glassMat);
+      glass.position.set(lx, winCY, -0.07);
+      wallFace.add(glass);
     }
   }
 
+  // ─── Top ceiling cap (closes building from above) ─────────────────────────
+  const footShape = new THREE.Shape();
+  footShape.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) footShape.lineTo(pts[i][0], pts[i][1]);
+  footShape.closePath();
+  const ceilMesh = new THREE.Mesh(new THREE.ShapeGeometry(footShape), roofMat);
+  ceilMesh.rotation.x = -Math.PI / 2;
+  ceilMesh.position.y = height - 0.01;
+  group.add(ceilMesh);
+
   // ─── Roof ─────────────────────────────────────────────────────────────────
   const radius = pts.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cy), 0) / pts.length;
-  const roofH  = Math.min(radius * 0.55, height * 0.45);
-  const roofColor = height < 12 ? 0x2e2520 : 0x252525;
-  const roofMat = new THREE.MeshStandardMaterial({
-    color: roofColor, roughness: 0.88, metalness: 0.03, side: THREE.DoubleSide,
-  });
+  const roofH  = Math.max(1.2, Math.min(radius * 0.7, height * 0.6));
 
   if (roofType === "flat" || height >= 16) {
-    const capGeo = new THREE.ShapeGeometry(shape);
-    const capMesh = new THREE.Mesh(capGeo, roofMat);
-    capMesh.rotation.x = -Math.PI / 2;
-    capMesh.position.y = height;
-    group.add(capMesh);
+    // ceiling is the roof — no extra geometry
   } else if (roofType === "gable") {
-    const roofGeo = buildGableRoof(pts, height, roofH);
-    group.add(new THREE.Mesh(roofGeo, roofMat));
-    // Flat cap to cover any gaps along the ridge
-    const capGeo = new THREE.ShapeGeometry(shape);
-    const capMesh = new THREE.Mesh(capGeo, roofMat);
-    capMesh.rotation.x = -Math.PI / 2;
-    capMesh.position.y = height;
-    group.add(capMesh);
+    group.add(new THREE.Mesh(buildGableRoof(pts, height, roofH), roofMat));
   } else {
-    // hip (default)
-    const roofGeo = buildHipRoof(pts, height, roofH);
-    group.add(new THREE.Mesh(roofGeo, roofMat));
+    group.add(new THREE.Mesh(buildHipRoof(pts, height, roofH), roofMat));
   }
 
   return group;
