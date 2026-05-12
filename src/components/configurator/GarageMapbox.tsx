@@ -273,7 +273,56 @@ function buildGableRoof(pts: [number, number][], wallH: number, roofH: number): 
   return geo;
 }
 
-type BldRoofType = "hip" | "gable" | "flat";
+type BldRoofType = "hip" | "gable" | "flat" | "shed";
+
+// Canvas-based horizontal kledning texture — one plank-row tile
+function makeCladTexture(r: number, g: number, b: number): THREE.CanvasTexture {
+  const W = 512, plankPx = 24, rows = 4;
+  const H = plankPx * rows;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  for (let row = 0; row < rows; row++) {
+    const y0 = row * plankPx;
+    const v = ((row * 17) % 20) - 10;
+    ctx.fillStyle = `rgb(${Math.min(255,Math.max(0,r+v))},${Math.min(255,Math.max(0,g+v))},${Math.min(255,Math.max(0,b+v))})`;
+    ctx.fillRect(0, y0, W, plankPx - 2);
+    ctx.fillStyle = "rgba(0,0,0,0.42)";
+    ctx.fillRect(0, y0 + plankPx - 2, W, 2);
+  }
+  for (let x = 0; x < W; x += 10) {
+    const a = 0.03 + Math.abs(Math.sin(x * 0.27)) * 0.05;
+    ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
+    ctx.fillRect(x, 0, 1, H);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+// Mono-pitch (pulttak) roof — footprint fan with per-vertex height along short axis
+function buildShedRoof(pts: [number, number][], wallH: number, roofH: number): THREE.BufferGeometry {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  pts.forEach(([x, y]) => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); });
+  const isWide = (maxX - minX) >= (maxY - minY);
+  const getH = ([x, y]: [number, number]) => {
+    const t = isWide ? (y - minY) / Math.max(0.001, maxY - minY) : (x - minX) / Math.max(0.001, maxX - minX);
+    return wallH + t * roofH;
+  };
+  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+  const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  const ch = pts.reduce((s, p) => s + getH(p), 0) / pts.length;
+  const verts: number[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    verts.push(pts[i][0], getH(pts[i]), -pts[i][1], pts[j][0], getH(pts[j]), -pts[j][1], cx, ch, -cy);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
 
 function buildingToRealisticGroup(
   { nodes, height }: OSMBuildingData,
@@ -291,7 +340,7 @@ function buildingToRealisticGroup(
 
   const group = new THREE.Group();
 
-  // ─── Per-building materials ───────────────────────────────────────────────
+  // Per-building Norwegian wall palette
   const jitter = ((index * 37) % 28) - 14;
   const norwPalette: [number, number, number][] = [
     [238, 228, 208], [218, 205, 190], [232, 220, 198],
@@ -301,10 +350,7 @@ function buildingToRealisticGroup(
   const [pr, pg, pb] = norwPalette[index % norwPalette.length].map((c) =>
     Math.max(0, Math.min(255, c + jitter))
   );
-  const wallMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(pr / 255, pg / 255, pb / 255),
-    roughness: 0.88, metalness: 0.01,
-  });
+
   const sokkelMat = new THREE.MeshStandardMaterial({ color: 0x8c8278, roughness: 0.92 });
   const glassMat = new THREE.MeshStandardMaterial({
     color: 0x5a9ab8, roughness: 0.04, metalness: 0.15,
@@ -323,6 +369,8 @@ function buildingToRealisticGroup(
   const floorH  = 3.0;
   const floors  = Math.max(1, Math.round(height / floorH));
   const winW = 0.92, winH = 1.12;
+  // canvas tile: 4 planks × 24px, each plank = 0.22m → tile covers 0.88m
+  const plankTileH = 0.88;
 
   // ─── Sokkel — footprint extruded to sokkelH ───────────────────────────────
   const footShape = new THREE.Shape();
@@ -333,11 +381,10 @@ function buildingToRealisticGroup(
     new THREE.ExtrudeGeometry(footShape, { depth: sokkelH, bevelEnabled: false }),
     sokkelMat,
   );
-  // ExtrudeGeometry extrudes in local +Z; rotate so that becomes world +Y
   sokkelMesh.rotation.x = -Math.PI / 2;
   group.add(sokkelMesh);
 
-  // ─── Per-wall ExtrudeGeometry panels with window holes ───────────────────
+  // ─── Per-wall panels: ExtrudeGeometry + canvas kledning texture ──────────
   for (let i = 0; i < pts.length; i++) {
     const j = (i + 1) % pts.length;
     const [x1, y1] = pts[i], [x2, y2] = pts[j];
@@ -348,7 +395,7 @@ function buildingToRealisticGroup(
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
     const rotY = Math.atan2(ey, ex);
 
-    // Outer wall profile — CCW (standard Three.js Shape winding)
+    // Outer wall profile — CCW
     const wallProfile = new THREE.Shape();
     wallProfile.moveTo(-L / 2, sokkelH);
     wallProfile.lineTo( L / 2, sokkelH);
@@ -365,19 +412,25 @@ function buildingToRealisticGroup(
       const winBottom = floorBase + 0.9;
       for (let w = 0; w < numW; w++) {
         const lx = -L / 2 + ((w + 1) / (numW + 1)) * L;
-        // CW winding for holes (opposite of outer CCW shape — required by Earcut)
+        // CW winding (opposite of outer CCW shape — required by Earcut for holes)
         const hole = new THREE.Path();
         hole.moveTo(lx - winW / 2, winBottom);
-        hole.lineTo(lx - winW / 2, winBottom + winH); // up (CW)
-        hole.lineTo(lx + winW / 2, winBottom + winH); // right
-        hole.lineTo(lx + winW / 2, winBottom);         // down
+        hole.lineTo(lx - winW / 2, winBottom + winH);
+        hole.lineTo(lx + winW / 2, winBottom + winH);
+        hole.lineTo(lx + winW / 2, winBottom);
         hole.closePath();
         wallProfile.holes.push(hole);
         glassPositions.push([lx, winBottom + winH / 2]);
       }
     }
 
-    // ExtrudeGeometry extrudes in local +Z (= into the building)
+    // Per-wall canvas kledning texture scaled to real-world plank size
+    const cladTex = makeCladTexture(pr, pg, pb);
+    cladTex.repeat.set(L / 0.6, (height - sokkelH) / plankTileH);
+    const wallMat = new THREE.MeshStandardMaterial({
+      map: cladTex, roughness: 0.88, metalness: 0.01,
+    });
+
     const wallMesh = new THREE.Mesh(
       new THREE.ExtrudeGeometry(wallProfile, { depth: wallThk, bevelEnabled: false }),
       wallMat,
@@ -386,7 +439,6 @@ function buildingToRealisticGroup(
     wallMesh.rotation.y = rotY;
     group.add(wallMesh);
 
-    // Glass panes sit 10cm inside the window tunnel (local Z axis = into wall)
     for (const [lx, winCY] of glassPositions) {
       const glass = new THREE.Mesh(new THREE.PlaneGeometry(winW, winH), glassMat);
       glass.position.set(lx, winCY, 0.10);
@@ -405,9 +457,11 @@ function buildingToRealisticGroup(
   const roofH  = Math.max(1.2, Math.min(radius * 0.7, height * 0.6));
 
   if (roofType === "flat" || height >= 16) {
-    // flat roof — ceiling cap is sufficient
+    // ceiling cap serves as flat roof
   } else if (roofType === "gable") {
     group.add(new THREE.Mesh(buildGableRoof(pts, height, roofH), roofMat));
+  } else if (roofType === "shed") {
+    group.add(new THREE.Mesh(buildShedRoof(pts, height, roofH), roofMat));
   } else {
     group.add(new THREE.Mesh(buildHipRoof(pts, height, roofH), roofMat));
   }
@@ -1514,7 +1568,7 @@ export default function GarageMapbox({
           </div>
           {realistic && (
             <div className="flex gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 p-1">
-              {(["hip", "gable", "flat"] as BldRoofType[]).map((rt) => (
+              {(["hip", "gable", "shed", "flat"] as BldRoofType[]).map((rt) => (
                 <button
                   key={rt}
                   onClick={() => setBldRoofType(rt)}
@@ -1524,7 +1578,7 @@ export default function GarageMapbox({
                       : "text-gray-600 hover:bg-sky-50 hover:text-sky-600"
                   }`}
                 >
-                  {rt === "hip" ? "Valmtak" : rt === "gable" ? "Saltak" : "Flatt"}
+                  {rt === "hip" ? "Valmtak" : rt === "gable" ? "Saltak" : rt === "shed" ? "Pulttak" : "Flatt"}
                 </button>
               ))}
               {hiddenCount > 0 && (
