@@ -800,6 +800,7 @@ export default function GarageMapbox({
     });
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
+    map.doubleClickZoom.disable();
 
     map.on("load", () => {
       // Mapbox terrain DEM — enables 3D terrain when is3D/realistic
@@ -908,7 +909,8 @@ export default function GarageMapbox({
           if (!three || !centerRenderRef.current) return;
 
           const [lng, lat] = centerRenderRef.current;
-          const mc = mapboxgl.MercatorCoordinate.fromLngLat({ lng, lat }, 0);
+          const elevation = mapRef.current?.queryTerrainElevation([lng, lat]) ?? 0;
+          const mc = mapboxgl.MercatorCoordinate.fromLngLat({ lng, lat }, elevation);
           const s  = mc.meterInMercatorCoordinateUnits();
           const rotRad = (rotationRenderRef.current * Math.PI) / 180;
 
@@ -1571,12 +1573,12 @@ export default function GarageMapbox({
         </div>
       )}
 
-      {/* 3D + Realistisk toggles */}
+      {/* 3D toggle (also enables realistic buildings) */}
       {!readOnly && (
         <div className="absolute bottom-24 left-16 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
             <button
-              onClick={() => setIs3D((v) => !v)}
+              onClick={() => { const next = !is3D; setIs3D(next); setRealistic(next); }}
               className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
                 is3D
                   ? "bg-orange-500 text-white border-transparent"
@@ -1585,18 +1587,8 @@ export default function GarageMapbox({
             >
               {is3D ? "3D på" : "3D av"}
             </button>
-            <button
-              onClick={() => setRealistic((v) => !v)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
-                realistic
-                  ? "bg-sky-500 text-white border-transparent"
-                  : "bg-white/95 text-gray-700 border-gray-200 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600"
-              }`}
-            >
-              Realistisk
-            </button>
           </div>
-          {realistic && hiddenCount > 0 && (
+          {is3D && hiddenCount > 0 && (
             <div className="flex gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 p-1">
               <button
                 onClick={() => {
