@@ -303,11 +303,9 @@ function buildingToRealisticGroup(
   );
   const wallMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color(pr / 255, pg / 255, pb / 255),
-    roughness: 0.88, metalness: 0.01, side: THREE.DoubleSide,
+    roughness: 0.88, metalness: 0.01,
   });
-  const sokkelMat = new THREE.MeshStandardMaterial({
-    color: 0x8c8278, roughness: 0.92, side: THREE.DoubleSide,
-  });
+  const sokkelMat = new THREE.MeshStandardMaterial({ color: 0x8c8278, roughness: 0.92 });
   const glassMat = new THREE.MeshStandardMaterial({
     color: 0x5a9ab8, roughness: 0.04, metalness: 0.15,
     transparent: true, opacity: 0.82, side: THREE.DoubleSide,
@@ -321,11 +319,25 @@ function buildingToRealisticGroup(
   const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
   const cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
   const sokkelH = 0.45;
+  const wallThk = 0.25;
   const floorH  = 3.0;
   const floors  = Math.max(1, Math.round(height / floorH));
   const winW = 0.92, winH = 1.12;
 
-  // ─── Individual wall-face panels with window holes ────────────────────────
+  // ─── Sokkel — footprint extruded to sokkelH ───────────────────────────────
+  const footShape = new THREE.Shape();
+  footShape.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) footShape.lineTo(pts[i][0], pts[i][1]);
+  footShape.closePath();
+  const sokkelMesh = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(footShape, { depth: sokkelH, bevelEnabled: false }),
+    sokkelMat,
+  );
+  // ExtrudeGeometry extrudes in local +Z; rotate so that becomes world +Y
+  sokkelMesh.rotation.x = -Math.PI / 2;
+  group.add(sokkelMesh);
+
+  // ─── Per-wall ExtrudeGeometry panels with window holes ───────────────────
   for (let i = 0; i < pts.length; i++) {
     const j = (i + 1) % pts.length;
     const [x1, y1] = pts[i], [x2, y2] = pts[j];
@@ -334,24 +346,15 @@ function buildingToRealisticGroup(
     if (L < 0.8) continue;
 
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    // Correct rotation: aligns local X with edge direction in world space
     const rotY = Math.atan2(ey, ex);
 
-    // ── Sokkel strip ──────────────────────────────────────────────────────
-    const sokS = new THREE.Shape();
-    sokS.moveTo(-L / 2, 0); sokS.lineTo(L / 2, 0);
-    sokS.lineTo(L / 2, sokkelH); sokS.lineTo(-L / 2, sokkelH);
-    sokS.closePath();
-    const sokMesh = new THREE.Mesh(new THREE.ShapeGeometry(sokS), sokkelMat);
-    sokMesh.position.set(mx, 0, -my);
-    sokMesh.rotation.y = rotY;
-    group.add(sokMesh);
-
-    // ── Wall panel with window holes ──────────────────────────────────────
-    const wallS = new THREE.Shape();
-    wallS.moveTo(-L / 2, sokkelH); wallS.lineTo(L / 2, sokkelH);
-    wallS.lineTo(L / 2, height); wallS.lineTo(-L / 2, height);
-    wallS.closePath();
+    // Outer wall profile — CCW (standard Three.js Shape winding)
+    const wallProfile = new THREE.Shape();
+    wallProfile.moveTo(-L / 2, sokkelH);
+    wallProfile.lineTo( L / 2, sokkelH);
+    wallProfile.lineTo( L / 2, height);
+    wallProfile.lineTo(-L / 2, height);
+    wallProfile.closePath();
 
     const numW = L >= 3.2 ? Math.max(1, Math.floor((L - 0.8) / 2.6)) : 0;
     const glassPositions: [number, number][] = [];
@@ -361,44 +364,37 @@ function buildingToRealisticGroup(
       if (floorBase + winH + 0.9 > height) continue;
       const winBottom = floorBase + 0.9;
       for (let w = 0; w < numW; w++) {
-        const t = (w + 1) / (numW + 1);
-        const lx = -L / 2 + t * L;
+        const lx = -L / 2 + ((w + 1) / (numW + 1)) * L;
+        // CW winding for holes (opposite of outer CCW shape — required by Earcut)
         const hole = new THREE.Path();
         hole.moveTo(lx - winW / 2, winBottom);
-        hole.lineTo(lx + winW / 2, winBottom);
-        hole.lineTo(lx + winW / 2, winBottom + winH);
-        hole.lineTo(lx - winW / 2, winBottom + winH);
+        hole.lineTo(lx - winW / 2, winBottom + winH); // up (CW)
+        hole.lineTo(lx + winW / 2, winBottom + winH); // right
+        hole.lineTo(lx + winW / 2, winBottom);         // down
         hole.closePath();
-        wallS.holes.push(hole);
+        wallProfile.holes.push(hole);
         glassPositions.push([lx, winBottom + winH / 2]);
       }
     }
 
-    const wallFace = new THREE.Mesh(new THREE.ShapeGeometry(wallS), wallMat);
-    wallFace.position.set(mx, 0, -my);
-    wallFace.rotation.y = rotY;
-    group.add(wallFace);
-
-    // Edge outline on this face (child → inherits transform)
-    const outlineMesh = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.ShapeGeometry(wallS)),
-      new THREE.LineBasicMaterial({ color: 0x383830, transparent: true, opacity: 0.65 }),
+    // ExtrudeGeometry extrudes in local +Z (= into the building)
+    const wallMesh = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(wallProfile, { depth: wallThk, bevelEnabled: false }),
+      wallMat,
     );
-    wallFace.add(outlineMesh);
+    wallMesh.position.set(mx, 0, -my);
+    wallMesh.rotation.y = rotY;
+    group.add(wallMesh);
 
-    // Glass panes — children of wallFace (local Z = depth into wall)
+    // Glass panes sit 10cm inside the window tunnel (local Z axis = into wall)
     for (const [lx, winCY] of glassPositions) {
       const glass = new THREE.Mesh(new THREE.PlaneGeometry(winW, winH), glassMat);
-      glass.position.set(lx, winCY, -0.07);
-      wallFace.add(glass);
+      glass.position.set(lx, winCY, 0.10);
+      wallMesh.add(glass);
     }
   }
 
-  // ─── Top ceiling cap (closes building from above) ─────────────────────────
-  const footShape = new THREE.Shape();
-  footShape.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) footShape.lineTo(pts[i][0], pts[i][1]);
-  footShape.closePath();
+  // ─── Ceiling cap ──────────────────────────────────────────────────────────
   const ceilMesh = new THREE.Mesh(new THREE.ShapeGeometry(footShape), roofMat);
   ceilMesh.rotation.x = -Math.PI / 2;
   ceilMesh.position.y = height - 0.01;
@@ -409,7 +405,7 @@ function buildingToRealisticGroup(
   const roofH  = Math.max(1.2, Math.min(radius * 0.7, height * 0.6));
 
   if (roofType === "flat" || height >= 16) {
-    // ceiling is the roof — no extra geometry
+    // flat roof — ceiling cap is sufficient
   } else if (roofType === "gable") {
     group.add(new THREE.Mesh(buildGableRoof(pts, height, roofH), roofMat));
   } else {
