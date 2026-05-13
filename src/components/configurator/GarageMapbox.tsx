@@ -1013,6 +1013,7 @@ export default function GarageMapbox({
           }
 
           three.renderer.resetState();
+          if (tilesRendererRef.current) three.renderer.clearDepth();
           three.renderer.render(three.scene, three.camera);
         },
       };
