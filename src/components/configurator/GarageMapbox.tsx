@@ -1606,28 +1606,36 @@ export default function GarageMapbox({
             </button>
           </div>
           {is3D && (
-            <div className="flex items-center gap-1.5 bg-white/95 rounded-xl shadow-lg border border-gray-200 px-2.5 py-1.5">
-              <span className="text-xs text-gray-500 font-medium">Høyde</span>
-              <input
-                type="number"
-                min={-5}
-                max={5}
-                step={0.05}
-                value={terrainOffset}
-                onChange={(e) => {
-                  const val = Math.max(-5, Math.min(5, Number(e.target.value)));
-                  setTerrainOffset(val);
-                }}
-                className="w-16 text-xs border border-gray-200 rounded px-1.5 py-0.5 text-gray-800 font-semibold focus:outline-none focus:border-orange-400 text-right"
-              />
-              <span className="text-xs text-gray-400">m</span>
-              {terrainOffset !== 0 && (
-                <button
-                  onClick={() => setTerrainOffset(0)}
-                  className="text-xs text-orange-500 hover:text-orange-700"
-                  title="Nullstill"
-                >↺</button>
-              )}
+            <div className="flex flex-col gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 px-2.5 py-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500 font-medium">Høyde</span>
+                <input
+                  type="range"
+                  min={-5}
+                  max={5}
+                  step={0.05}
+                  value={terrainOffset}
+                  onChange={(e) => setTerrainOffset(Number(e.target.value))}
+                  className="w-24 accent-orange-500"
+                />
+                <input
+                  type="number"
+                  min={-5}
+                  max={5}
+                  step={0.05}
+                  value={terrainOffset}
+                  onChange={(e) => setTerrainOffset(Math.max(-5, Math.min(5, Number(e.target.value))))}
+                  className="w-14 text-xs border border-gray-200 rounded px-1.5 py-0.5 text-gray-800 font-semibold focus:outline-none focus:border-orange-400 text-right"
+                />
+                <span className="text-xs text-gray-400">m</span>
+                {terrainOffset !== 0 && (
+                  <button
+                    onClick={() => setTerrainOffset(0)}
+                    className="text-xs text-orange-500 hover:text-orange-700"
+                    title="Nullstill"
+                  >↺</button>
+                )}
+              </div>
             </div>
           )}
           {is3D && hiddenCount > 0 && (
@@ -1754,6 +1762,20 @@ export default function GarageMapbox({
           <div className="flex items-center gap-1.5">
             <span className="text-gray-500">Rotasjon</span>
             <input
+              type="range"
+              min={0}
+              max={359}
+              step={1}
+              value={rotation}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setInternalRotation(val);
+                onRotationChange?.(val);
+                mapRef.current?.triggerRepaint();
+              }}
+              className="w-24 accent-orange-500"
+            />
+            <input
               type="number"
               min={0}
               max={359}
@@ -1765,11 +1787,11 @@ export default function GarageMapbox({
                 onRotationChange?.(val);
                 mapRef.current?.triggerRepaint();
               }}
-              className="w-16 text-xs border border-gray-200 rounded px-1.5 py-0.5 text-gray-800 font-semibold focus:outline-none focus:border-orange-400 text-right"
+              className="w-14 text-xs border border-gray-200 rounded px-1.5 py-0.5 text-gray-800 font-semibold focus:outline-none focus:border-orange-400 text-right"
             />
             <span className="text-gray-400">°</span>
-            <span className="text-gray-400 ml-1">{lengthM.toFixed(1)}×{widthM.toFixed(1)} m</span>
           </div>
+          <span className="text-gray-400">{lengthM.toFixed(1)}×{widthM.toFixed(1)} m</span>
         </div>
       )}
       {/* Placement hint + instructions */}
