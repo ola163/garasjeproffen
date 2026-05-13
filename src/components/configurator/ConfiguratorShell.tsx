@@ -208,15 +208,15 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   }, []);
 
   // Shared map placement state — lifted so it persists across view mode switches
-  const [mapCenter, setMapCenter] = useState<[number, number] | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
+  useEffect(() => {
     try {
       const lat = parseFloat(localStorage.getItem("gp-map-lat") ?? "");
       const lng = parseFloat(localStorage.getItem("gp-map-lng") ?? "");
-      if (!isNaN(lat) && !isNaN(lng)) return [lng, lat];
+      if (!isNaN(lat) && !isNaN(lng)) setMapCenter([lng, lat]);
     } catch {}
-    return null;
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [mapRotation, setMapRotation] = useState(0);
   // Whether to show the plot view instead of the 3D model in kunde/test mode
 
