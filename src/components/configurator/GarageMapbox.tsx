@@ -1010,12 +1010,6 @@ export default function GarageMapbox({
             tiles.setResolutionFromRenderer(tilesCam, three.renderer);
             tiles.update();
             mapRef.current.triggerRepaint();
-
-            // TilesGroup only propagates world matrices to children when isDifferent=true
-            // (when its own matrixWorld changed). Newly loaded tile meshes are added async
-            // and never get their world matrices computed unless we force a recompute every frame.
-            tiles.group.matrixWorld.identity();
-            tiles.group.matrixWorldNeedsUpdate = true;
           }
 
           three.renderer.resetState();
@@ -1528,6 +1522,7 @@ export default function GarageMapbox({
 
     if (wrapper) {
       wrapper.matrix.copy(makeEcefToLocalMatrix(center[0], center[1]));
+      wrapper.matrixWorldNeedsUpdate = true;
       wrapper.add(tiles.group);
     }
 
@@ -1556,6 +1551,7 @@ export default function GarageMapbox({
     const wrapper = tilesWrapperRef.current;
     if (!wrapper || !center || !googleTilesRef.current) return;
     wrapper.matrix.copy(makeEcefToLocalMatrix(center[0], center[1]));
+    wrapper.matrixWorldNeedsUpdate = true;
     mapRef.current?.triggerRepaint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center?.[0], center?.[1]]);
