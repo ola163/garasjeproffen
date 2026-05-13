@@ -489,6 +489,27 @@ function buildingToRealisticGroup(
 const WALL_H = 3.0;
 const WALL_T = 0.12;
 
+/** ECEF → local scene matrix (X=East, Y=Up, Z=-North, origin = garage centre) */
+function makeEcefToLocalMatrix(lng: number, lat: number): THREE.Matrix4 {
+  const rad = Math.PI / 180;
+  const φ = lat * rad, λ = lng * rad;
+  const sinφ = Math.sin(φ), cosφ = Math.cos(φ), sinλ = Math.sin(λ), cosλ = Math.cos(λ);
+  const a = 6378137.0, e2 = 0.00669437999014;
+  const N = a / Math.sqrt(1 - e2 * sinφ * sinφ);
+  const ex = N * cosφ * cosλ, ey = N * cosφ * sinλ, ez = N * (1 - e2) * sinφ;
+  // ENU basis in ECEF
+  const eX = -sinλ,       eY = cosλ,        eZ = 0;
+  const nX = -sinφ*cosλ,  nY = -sinφ*sinλ,  nZ = cosφ;
+  const uX = cosφ*cosλ,   uY = cosφ*sinλ,   uZ = sinφ;
+  // Row order: East(X), Up(Y), −North(Z)
+  return new THREE.Matrix4().set(
+    eX,   eY,   eZ,  -(eX*ex + eY*ey + eZ*ez),
+    uX,   uY,   uZ,  -(uX*ex + uY*ey + uZ*ez),
+   -nX,  -nY,  -nZ,   (nX*ex + nY*ey + nZ*ez),
+    0,    0,    0,    1,
+  );
+}
+
 /** Bearing (degrees) from a geographic center to a lngLat point; 0=North, 90=East */
 function lngLatBearing(lngLat: { lng: number; lat: number }, center: [number, number]): number {
   const mPerLng = 111320 * Math.cos((center[1] * Math.PI) / 180);
@@ -552,6 +573,13 @@ export default function GarageMapbox({
   const hiddenBuildingsRef = useRef(new Set<number>());
   const [terrainOffset,    setTerrainOffset]    = useState(0);
   const terrainOffsetRef   = useRef(0);
+  const [googleTiles,      setGoogleTiles]      = useState(false);
+  const googleTilesRef     = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tilesRendererRef   = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const TilesRendererClass = useRef<any>(null);
+  const tilesWrapperRef    = useRef<THREE.Group | null>(null);
   const [hiddenCount,      setHiddenCount]      = useState(0);
   const [boundaryWarning,  setBoundaryWarning]  = useState<null | "safe" | "nabovarsel" | "danger" | "on-building">(null);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
@@ -578,6 +606,11 @@ export default function GarageMapbox({
 
   useEffect(() => { toolModeRef.current = toolMode; }, [toolMode]);
   useEffect(() => { terrainOffsetRef.current = terrainOffset; mapRef.current?.triggerRepaint(); }, [terrainOffset]);
+
+  // Dynamically load 3d-tiles-renderer (optional dependency)
+  useEffect(() => {
+    import("3d-tiles-renderer").then((m) => { TilesRendererClass.current = m.TilesRenderer; }).catch(() => null);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -889,6 +922,12 @@ export default function GarageMapbox({
           scene.add(buildingGroup);
           buildingGroupRef.current = buildingGroup;
 
+          // Google 3D Tiles wrapper — matrix set to ECEF→local when tiles are enabled
+          const tilesWrapper = new THREE.Group();
+          tilesWrapper.matrixAutoUpdate = false;
+          scene.add(tilesWrapper);
+          tilesWrapperRef.current = tilesWrapper;
+
           threeRef.current = {
             scene, camera: new THREE.Camera(), renderer,
             model: null, origSize: null, origCenter: null, origMinY: 0,
@@ -929,6 +968,15 @@ export default function GarageMapbox({
             .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
 
           three.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
+
+          // Tick Google 3D Tiles renderer (loads/unloads tiles, no-op if inactive)
+          const tiles = tilesRendererRef.current;
+          if (tiles) {
+            tiles.setCamera(three.camera);
+            tiles.setResolutionFromRenderer(three.camera, three.renderer);
+            tiles.update();
+          }
+
           three.renderer.resetState();
           three.renderer.render(three.scene, three.camera);
         },
@@ -1154,11 +1202,13 @@ export default function GarageMapbox({
     }
 
     return () => {
+      if (tilesRendererRef.current) { tilesRendererRef.current.dispose(); tilesRendererRef.current = null; }
       map.remove();
       mapRef.current        = null;
       threeRef.current      = null;
       buildingGroupRef.current = null;
       addedGroupRef.current = null;
+      tilesWrapperRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1399,6 +1449,62 @@ export default function GarageMapbox({
       map.setLayoutProperty("cadastral-layer", "visibility", showCadastral ? "visible" : "none");
   }, [showCadastral]);
 
+  // Google Photorealistic 3D Tiles — create/destroy renderer on toggle
+  useEffect(() => {
+    googleTilesRef.current = googleTiles;
+    const wrapper = tilesWrapperRef.current;
+
+    // Tear down existing renderer
+    if (tilesRendererRef.current) {
+      tilesRendererRef.current.dispose();
+      tilesRendererRef.current = null;
+      if (wrapper) while (wrapper.children.length) wrapper.remove(wrapper.children[0]);
+    }
+
+    if (!googleTiles || !center) return;
+
+    const Cls = TilesRendererClass.current;
+    if (!Cls) { console.warn("3d-tiles-renderer not loaded yet"); return; }
+
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+    if (!apiKey) { console.warn("NEXT_PUBLIC_GOOGLE_MAPS_KEY not set"); return; }
+
+    const tiles = new Cls(`https://tile.googleapis.com/v1/3dtiles/root.json?key=${apiKey}`);
+
+    // Append API key to every tile/texture request
+    tiles.preprocessURL = (url: string) => {
+      try {
+        const u = new URL(url);
+        u.searchParams.set("key", apiKey);
+        return u.toString();
+      } catch { return url; }
+    };
+
+    // Trigger a repaint when new tiles finish loading
+    tiles.addEventListener("tiles-load-end", () => mapRef.current?.triggerRepaint());
+
+    if (wrapper) {
+      wrapper.matrix.copy(makeEcefToLocalMatrix(center[0], center[1]));
+      wrapper.add(tiles.group);
+    }
+
+    tilesRendererRef.current = tiles;
+
+    // Hide OSM buildings — Google tiles include their own buildings
+    clearBuildings();
+    mapRef.current?.triggerRepaint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleTiles]);
+
+  // Keep ECEF→local matrix fresh when garage is moved
+  useEffect(() => {
+    const wrapper = tilesWrapperRef.current;
+    if (!wrapper || !center || !googleTilesRef.current) return;
+    wrapper.matrix.copy(makeEcefToLocalMatrix(center[0], center[1]));
+    mapRef.current?.triggerRepaint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center?.[0], center?.[1]]);
+
   // ─── Geolocation ─────────────────────────────────────────────────────────
 
   function geolocate() {
@@ -1595,7 +1701,7 @@ export default function GarageMapbox({
         <div className="absolute bottom-24 left-16 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
             <button
-              onClick={() => { const next = !is3D; setIs3D(next); setRealistic(next); }}
+              onClick={() => { const next = !is3D; setIs3D(next); setRealistic(next); if (!next) setGoogleTiles(false); }}
               className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
                 is3D
                   ? "bg-orange-500 text-white border-transparent"
@@ -1604,6 +1710,19 @@ export default function GarageMapbox({
             >
               {is3D ? "3D på" : "3D av"}
             </button>
+            {is3D && (
+              <button
+                onClick={() => setGoogleTiles((v) => !v)}
+                title="Google Photorealistic 3D Tiles — krever Google API-nøkkel"
+                className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
+                  googleTiles
+                    ? "bg-blue-600 text-white border-transparent"
+                    : "bg-white/95 text-gray-700 border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
+                }`}
+              >
+                {googleTiles ? "Google 3D på" : "Google 3D"}
+              </button>
+            )}
           </div>
           {is3D && (
             <div className="flex flex-col gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 px-2.5 py-1.5">
