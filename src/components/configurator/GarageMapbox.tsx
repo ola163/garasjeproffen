@@ -1471,8 +1471,9 @@ export default function GarageMapbox({
 
     const tiles = new Cls(`https://tile.googleapis.com/v1/3dtiles/root.json?key=${apiKey}`);
 
-    // Append API key to every tile/texture request
+    // Append API key to tile/texture requests — skip blob: and data: URLs
     tiles.preprocessURL = (url: string) => {
+      if (url.startsWith("blob:") || url.startsWith("data:")) return url;
       try {
         const u = new URL(url);
         u.searchParams.set("key", apiKey);
