@@ -575,11 +575,15 @@ export default function GarageMapbox({
   const terrainOffsetRef   = useRef(0);
   const [googleTiles,      setGoogleTiles]      = useState(false);
   const googleTilesRef     = useRef(false);
+  const [tilesStatus,      setTilesStatus]      = useState("");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tilesRendererRef   = useRef<any>(null);
+  const tilesRendererRef      = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const TilesRendererClass = useRef<any>(null);
-  const tilesWrapperRef    = useRef<THREE.Group | null>(null);
+  const TilesRendererClass    = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const GoogleCloudAuthClass  = useRef<any>(null);
+  const tilesWrapperRef       = useRef<THREE.Group | null>(null);
+  const tilesCamRef        = useRef<THREE.PerspectiveCamera | null>(null);
   const [hiddenCount,      setHiddenCount]      = useState(0);
   const [boundaryWarning,  setBoundaryWarning]  = useState<null | "safe" | "nabovarsel" | "danger" | "on-building">(null);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
@@ -610,6 +614,7 @@ export default function GarageMapbox({
   // Dynamically load 3d-tiles-renderer (optional dependency)
   useEffect(() => {
     import("3d-tiles-renderer").then((m) => { TilesRendererClass.current = m.TilesRenderer; }).catch(() => null);
+    import("3d-tiles-renderer/plugins").then((m) => { GoogleCloudAuthClass.current = m.GoogleCloudAuthPlugin; }).catch(() => null);
   }, []);
 
   useEffect(() => {
@@ -969,12 +974,47 @@ export default function GarageMapbox({
 
           three.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
 
-          // Tick Google 3D Tiles renderer (loads/unloads tiles, no-op if inactive)
+          // Tick Google 3D Tiles renderer — use a proper PerspectiveCamera so that
+          // sseDenominator is computed from a standard FOV, not the combined Mapbox VP matrix.
           const tiles = tilesRendererRef.current;
-          if (tiles) {
-            tiles.setCamera(three.camera);
-            tiles.setResolutionFromRenderer(three.camera, three.renderer);
+          const tilesCam = tilesCamRef.current;
+          if (tiles && tilesCam && mapRef.current) {
+            // Derive camera position from Mapbox's free-camera state, convert to local ENU.
+            const freeCam = mapRef.current.getFreeCameraOptions();
+            if (freeCam.position) {
+              const lngLat = freeCam.position.toLngLat();
+              const alt    = freeCam.position.toAltitude();
+              const rad    = Math.PI / 180;
+              const clat   = lngLat.lat * rad, clng = lngLat.lng * rad;
+              const ea     = 6378137.0, ee2 = 0.00669437999014;
+              const Nv     = ea / Math.sqrt(1 - ee2 * Math.sin(clat) * Math.sin(clat));
+              const ecefToLocal = makeEcefToLocalMatrix(lng, lat);
+              const camPos = new THREE.Vector3(
+                (Nv + alt) * Math.cos(clat) * Math.cos(clng),
+                (Nv + alt) * Math.cos(clat) * Math.sin(clng),
+                (Nv * (1 - ee2) + alt) * Math.sin(clat),
+              ).applyMatrix4(ecefToLocal);
+              tilesCam.position.copy(camPos);
+            } else {
+              tilesCam.position.set(0, 500, 0); // fallback: 500 m above garage
+            }
+            const canvas = three.renderer.domElement;
+            tilesCam.aspect = canvas.width / canvas.height;
+            tilesCam.fov   = 60;
+            tilesCam.near  = 1;
+            tilesCam.far   = 2e6;
+            tilesCam.lookAt(0, 0, 0);
+            tilesCam.updateProjectionMatrix();
+            tilesCam.updateMatrixWorld();
+            tiles.setCamera(tilesCam);
+            tiles.setResolutionFromRenderer(tilesCam, three.renderer);
             tiles.update();
+
+            // TilesGroup only propagates world matrices to children when isDifferent=true
+            // (when its own matrixWorld changed). Newly loaded tile meshes are added async
+            // and never get their world matrices computed unless we force a recompute every frame.
+            tiles.group.matrixWorld.identity();
+            tiles.group.matrixWorldNeedsUpdate = true;
           }
 
           three.renderer.resetState();
@@ -1458,42 +1498,55 @@ export default function GarageMapbox({
     if (tilesRendererRef.current) {
       tilesRendererRef.current.dispose();
       tilesRendererRef.current = null;
+      tilesCamRef.current = null;
       if (wrapper) while (wrapper.children.length) wrapper.remove(wrapper.children[0]);
     }
 
     if (!googleTiles || !center) return;
 
     const Cls = TilesRendererClass.current;
-    if (!Cls) { console.warn("3d-tiles-renderer not loaded yet"); return; }
+    if (!Cls) { setTilesStatus("ERR: 3d-tiles-renderer ikke lastet"); return; }
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
-    if (!apiKey) { console.warn("NEXT_PUBLIC_GOOGLE_MAPS_KEY not set"); return; }
+    if (!apiKey) { setTilesStatus("ERR: API-nøkkel mangler"); return; }
 
-    const tiles = new Cls(`https://tile.googleapis.com/v1/3dtiles/root.json?key=${apiKey}`);
+    setTilesStatus("Starter…");
 
-    // Append API key to tile/texture requests — skip blob: and data: URLs
-    tiles.preprocessURL = (url: string) => {
-      if (url.startsWith("blob:") || url.startsWith("data:")) return url;
-      try {
-        const u = new URL(url);
-        u.searchParams.set("key", apiKey);
-        return u.toString();
-      } catch { return url; }
-    };
+    const AuthCls = GoogleCloudAuthClass.current;
+    if (!AuthCls) { setTilesStatus("ERR: GoogleCloudAuthPlugin ikke lastet"); return; }
 
-    // Trigger a repaint when new tiles finish loading
-    tiles.addEventListener("tiles-load-end", () => mapRef.current?.triggerRepaint());
+    const tiles = new Cls();
+    tiles.registerPlugin(new AuthCls({ apiToken: apiKey, useRecommendedSettings: true }));
+
+    tiles.addEventListener("load-tile-set", () => setTilesStatus("Root lastet ✓"));
+    tiles.addEventListener("tiles-load-end", () => {
+      setTilesStatus(`Tiles: ${(tiles.visibleTiles?.size ?? 0)} synlige`);
+      mapRef.current?.triggerRepaint();
+    });
+    tiles.addEventListener("load-error", (e: any) => setTilesStatus(`Feil: ${e?.message ?? "ukjent"}`));
 
     if (wrapper) {
       wrapper.matrix.copy(makeEcefToLocalMatrix(center[0], center[1]));
       wrapper.add(tiles.group);
     }
 
+    // Dedicated perspective camera for tiles LOD/culling — avoids passing the
+    // combined Mapbox VP matrix which breaks sseDenominator calculation.
+    tilesCamRef.current = new THREE.PerspectiveCamera(60, 1, 1, 2e6);
+
     tilesRendererRef.current = tiles;
+
+    // DEBUG: red box at garage center — visible = Three.js rendering works in Google 3D mode
+    const debugBox = new THREE.Mesh(
+      new THREE.BoxGeometry(5, 10, 5),
+      new THREE.MeshBasicMaterial({ color: 0xff0000, depthTest: false }),
+    );
+    threeRef.current?.scene.add(debugBox);
 
     // Hide OSM buildings — Google tiles include their own buildings
     clearBuildings();
     mapRef.current?.triggerRepaint();
+    return () => { threeRef.current?.scene.remove(debugBox); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleTiles]);
 
@@ -1712,17 +1765,22 @@ export default function GarageMapbox({
               {is3D ? "3D på" : "3D av"}
             </button>
             {is3D && (
-              <button
-                onClick={() => setGoogleTiles((v) => !v)}
-                title="Google Photorealistic 3D Tiles — krever Google API-nøkkel"
-                className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
-                  googleTiles
-                    ? "bg-blue-600 text-white border-transparent"
-                    : "bg-white/95 text-gray-700 border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
-                }`}
-              >
-                {googleTiles ? "Google 3D på" : "Google 3D"}
-              </button>
+              <>
+                <button
+                  onClick={() => setGoogleTiles((v) => !v)}
+                  title="Google Photorealistic 3D Tiles — krever Google API-nøkkel"
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-lg border transition-colors ${
+                    googleTiles
+                      ? "bg-blue-600 text-white border-transparent"
+                      : "bg-white/95 text-gray-700 border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
+                  }`}
+                >
+                  {googleTiles ? "Google 3D på" : "Google 3D"}
+                </button>
+                {googleTiles && tilesStatus && (
+                  <span className="text-xs text-gray-500 px-1">{tilesStatus}</span>
+                )}
+              </>
             )}
           </div>
           {is3D && (
