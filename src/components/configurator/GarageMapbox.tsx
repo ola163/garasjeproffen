@@ -550,6 +550,8 @@ export default function GarageMapbox({
   const realisticRef       = useRef(false);
   const lastBuildingsRef   = useRef<{ buildings: OSMBuildingData[]; garCenter: [number, number] } | null>(null);
   const hiddenBuildingsRef = useRef(new Set<number>());
+  const [terrainOffset,    setTerrainOffset]    = useState(0);
+  const terrainOffsetRef   = useRef(0);
   const [hiddenCount,      setHiddenCount]      = useState(0);
   const [boundaryWarning,  setBoundaryWarning]  = useState<null | "safe" | "nabovarsel" | "danger" | "on-building">(null);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
@@ -575,6 +577,7 @@ export default function GarageMapbox({
 
 
   useEffect(() => { toolModeRef.current = toolMode; }, [toolMode]);
+  useEffect(() => { terrainOffsetRef.current = terrainOffset; mapRef.current?.triggerRepaint(); }, [terrainOffset]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -909,7 +912,7 @@ export default function GarageMapbox({
           if (!three || !centerRenderRef.current) return;
 
           const [lng, lat] = centerRenderRef.current;
-          const elevation = mapRef.current?.queryTerrainElevation([lng, lat]) ?? 0;
+          const elevation = (mapRef.current?.queryTerrainElevation([lng, lat]) ?? 0) + terrainOffsetRef.current;
           const mc = mapboxgl.MercatorCoordinate.fromLngLat({ lng, lat }, elevation);
           const s  = mc.meterInMercatorCoordinateUnits();
           const rotRad = (rotationRenderRef.current * Math.PI) / 180;
@@ -1588,6 +1591,29 @@ export default function GarageMapbox({
               {is3D ? "3D på" : "3D av"}
             </button>
           </div>
+          {is3D && (
+            <div className="flex items-center gap-1.5 bg-white/95 rounded-xl shadow-lg border border-gray-200 px-2.5 py-1.5">
+              <span className="text-xs text-gray-500 font-medium">Høyde</span>
+              <button
+                onClick={() => setTerrainOffset((v) => Math.max(-5, +(v - 0.25).toFixed(2)))}
+                className="w-6 h-6 rounded flex items-center justify-center text-gray-600 hover:bg-gray-100 text-base leading-none font-bold"
+              >−</button>
+              <span className="text-xs font-semibold text-gray-800 w-10 text-center">
+                {terrainOffset >= 0 ? "+" : ""}{terrainOffset.toFixed(2)} m
+              </span>
+              <button
+                onClick={() => setTerrainOffset((v) => Math.min(5, +(v + 0.25).toFixed(2)))}
+                className="w-6 h-6 rounded flex items-center justify-center text-gray-600 hover:bg-gray-100 text-base leading-none font-bold"
+              >+</button>
+              {terrainOffset !== 0 && (
+                <button
+                  onClick={() => setTerrainOffset(0)}
+                  className="text-xs text-orange-500 hover:text-orange-700 ml-0.5"
+                  title="Nullstill"
+                >↺</button>
+              )}
+            </div>
+          )}
           {is3D && hiddenCount > 0 && (
             <div className="flex gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 p-1">
               <button
