@@ -1606,29 +1606,28 @@ export default function GarageMapbox({
             </button>
           </div>
           {is3D && (
-            <div className="flex flex-col gap-1 bg-white/95 rounded-xl shadow-lg border border-gray-200 px-2.5 py-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-gray-500 font-medium">Høyde</span>
-                <span className="text-xs font-semibold text-gray-800">
-                  {terrainOffset >= 0 ? "+" : ""}{terrainOffset.toFixed(2)} m
-                </span>
-                {terrainOffset !== 0 && (
-                  <button
-                    onClick={() => setTerrainOffset(0)}
-                    className="text-xs text-orange-500 hover:text-orange-700"
-                    title="Nullstill"
-                  >↺</button>
-                )}
-              </div>
+            <div className="flex items-center gap-1.5 bg-white/95 rounded-xl shadow-lg border border-gray-200 px-2.5 py-1.5">
+              <span className="text-xs text-gray-500 font-medium">Høyde</span>
               <input
-                type="range"
+                type="number"
                 min={-5}
                 max={5}
-                step={0.02}
+                step={0.05}
                 value={terrainOffset}
-                onChange={(e) => setTerrainOffset(Number(e.target.value))}
-                className="w-32 accent-orange-500"
+                onChange={(e) => {
+                  const val = Math.max(-5, Math.min(5, Number(e.target.value)));
+                  setTerrainOffset(val);
+                }}
+                className="w-16 text-xs border border-gray-200 rounded px-1.5 py-0.5 text-gray-800 font-semibold focus:outline-none focus:border-orange-400 text-right"
               />
+              <span className="text-xs text-gray-400">m</span>
+              {terrainOffset !== 0 && (
+                <button
+                  onClick={() => setTerrainOffset(0)}
+                  className="text-xs text-orange-500 hover:text-orange-700"
+                  title="Nullstill"
+                >↺</button>
+              )}
             </div>
           )}
           {is3D && hiddenCount > 0 && (
@@ -1749,33 +1748,41 @@ export default function GarageMapbox({
           </button>
         </div>
       )}
-      {/* Rotation / size readout + slider */}
+      {/* Rotation / size readout + input */}
       {!readOnly && center && (
         <div className="absolute bottom-4 left-16 z-10 bg-white/95 rounded-lg shadow-md px-2.5 py-2 text-xs text-gray-600 backdrop-blur-sm leading-tight flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-gray-800">{rotation}°</span>
-            <span className="text-gray-400">{lengthM.toFixed(1)}×{widthM.toFixed(1)} m{is3D ? ` ×${heightM.toFixed(1)}` : ""}</span>
+            <span className="text-gray-500">Rotasjon</span>
+            <input
+              type="number"
+              min={0}
+              max={359}
+              step={1}
+              value={rotation}
+              onChange={(e) => {
+                const val = ((Number(e.target.value) % 360) + 360) % 360;
+                setInternalRotation(val);
+                onRotationChange?.(val);
+                mapRef.current?.triggerRepaint();
+              }}
+              className="w-16 text-xs border border-gray-200 rounded px-1.5 py-0.5 text-gray-800 font-semibold focus:outline-none focus:border-orange-400 text-right"
+            />
+            <span className="text-gray-400">°</span>
+            <span className="text-gray-400 ml-1">{lengthM.toFixed(1)}×{widthM.toFixed(1)} m</span>
           </div>
-          <input
-            type="range"
-            min={0}
-            max={359}
-            value={rotation}
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              setInternalRotation(val);
-              onRotationChange?.(val);
-              mapRef.current?.triggerRepaint();
-            }}
-            className="w-28 accent-orange-500"
-          />
         </div>
       )}
-      {/* Placement hint */}
+      {/* Placement hint + instructions */}
       {!readOnly && !center && (
-        <div className="absolute bottom-4 left-16 right-3 z-10">
-          <div className="rounded-xl bg-white/95 shadow-lg backdrop-blur-sm px-4 py-2.5 text-center">
-            <p className="text-xs text-gray-500">Klikk i kartet for å plassere garasjen</p>
+        <div className="absolute bottom-4 left-16 right-16 z-10">
+          <div className="rounded-xl bg-white/95 shadow-lg backdrop-blur-sm px-4 py-3">
+            <p className="text-xs font-semibold text-gray-700 mb-1.5">Slik plasserer du garasjen</p>
+            <ul className="space-y-1 text-xs text-gray-500">
+              <li className="flex gap-2"><span>👆</span><span>Dobbeltklikk i kartet for å plassere garasjen</span></li>
+              <li className="flex gap-2"><span>✋</span><span>Dra garasjen for å flytte den presist</span></li>
+              <li className="flex gap-2"><span>🔄</span><span>Velg roter-knappen og dra for å endre retning</span></li>
+              <li className="flex gap-2"><span>🔢</span><span>Skriv inn grader i feltet nede til venstre for nøyaktig vinkel</span></li>
+            </ul>
           </div>
         </div>
       )}
