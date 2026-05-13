@@ -1059,6 +1059,20 @@ export default function GarageMapbox({
         }
       });
 
+      // Double-click always places / moves garage to that position
+      map.on("dblclick", (e) => {
+        if (toolModeRef.current === "pan") return;
+        const c: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+        setInternalCenter(c);
+        onCenterChange?.(c);
+        if (markerRef.current) markerRef.current.remove();
+        markerRef.current = new mapboxgl.Marker({ color: "#e2520a" }).setLngLat(c).addTo(map);
+        reverseGeocodeNO(e.lngLat.lat, e.lngLat.lng).then((name) => {
+          setQuery(name);
+          onAddressSelect?.(name, c);
+        });
+      });
+
       // ── Touch equivalents (mobile) ───────────────────────────────────────
       map.on("touchstart", (e) => {
         if (e.originalEvent.touches.length !== 1) { ds = null; return; }
