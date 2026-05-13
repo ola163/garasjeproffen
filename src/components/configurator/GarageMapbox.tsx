@@ -1009,6 +1009,7 @@ export default function GarageMapbox({
             tiles.setCamera(tilesCam);
             tiles.setResolutionFromRenderer(tilesCam, three.renderer);
             tiles.update();
+            mapRef.current.triggerRepaint();
 
             // TilesGroup only propagates world matrices to children when isDifferent=true
             // (when its own matrixWorld changed). Newly loaded tile meshes are added async
