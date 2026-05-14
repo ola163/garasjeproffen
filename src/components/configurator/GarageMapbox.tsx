@@ -1533,6 +1533,9 @@ export default function GarageMapbox({
 
     const tiles = new Cls();
     tiles.registerPlugin(new AuthCls({ apiToken: apiKey, useRecommendedSettings: true }));
+    // useRecommendedSettings sets errorTarget=40 (for global views). Override to 6 so
+    // the renderer refines down to street-level building geometry.
+    tiles.errorTarget = 6;
 
     tiles.addEventListener("load-tile-set", () => setTilesStatus("Laster…"));
     tiles.addEventListener("load-model", (e: any) => {
