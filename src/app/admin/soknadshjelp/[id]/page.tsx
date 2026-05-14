@@ -116,7 +116,10 @@ export default function SoknadshjelDetailPage() {
         setExtraCosts(data.extra_costs ?? []);
         const md = data.manual_dispensasjoner ?? [];
         setManualDisps(md);
-        setNewDispAmount(md.length > 0 ? "2000" : "8000");
+        const dibkCount = data.dibk
+          ? Object.entries(data.dibk as Record<string, string>).filter(([k, v]) => isDispensasjon(k, v)).length
+          : 0;
+        setNewDispAmount(dibkCount > 0 || md.length > 0 ? "2000" : "8000");
       }
       setLoading(false);
     });
@@ -145,7 +148,10 @@ export default function SoknadshjelDetailPage() {
   function removeManualDisp(i: number) {
     setManualDisps((prev) => {
       const next = prev.filter((_, idx) => idx !== i);
-      setNewDispAmount(next.length > 0 ? "2000" : "8000");
+      const dibkCount = row?.dibk
+        ? Object.entries(row.dibk).filter(([k, v]) => isDispensasjon(k, v)).length
+        : 0;
+      setNewDispAmount(dibkCount > 0 || next.length > 0 ? "2000" : "8000");
       return next;
     });
   }
@@ -304,7 +310,7 @@ export default function SoknadshjelDetailPage() {
                 + Legg til
               </button>
             </div>
-            <p className="mt-1.5 text-xs text-gray-400">Foreslått pris: {manualDisps.length === 0 ? "8 000" : "2 000"} kr — kan overstyres i beløpsfeltet.</p>
+            <p className="mt-1.5 text-xs text-gray-400">Foreslått pris: {dibkDispCount > 0 || manualDisps.length > 0 ? "2 000" : "8 000"} kr — kan overstyres i beløpsfeltet.</p>
           </div>
 
           {/* Pris */}
