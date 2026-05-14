@@ -7,12 +7,14 @@ interface MapPickerProps {
   lat: number;
   lng: number;
   onMove: (lat: number, lng: number) => void;
+  boundary?: [number, number][];
 }
 
-export default function MapPicker({ lat, lng, onMove }: MapPickerProps) {
+export default function MapPicker({ lat, lng, onMove, boundary }: MapPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const markerRef = useRef<import("leaflet").Marker | null>(null);
+  const boundaryRef = useRef<import("leaflet").Polygon | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -52,6 +54,7 @@ export default function MapPicker({ lat, lng, onMove }: MapPickerProps) {
     return () => {
       mapRef.current?.remove();
       mapRef.current = null;
+      boundaryRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -61,6 +64,24 @@ export default function MapPicker({ lat, lng, onMove }: MapPickerProps) {
     markerRef.current.setLatLng([lat, lng]);
     mapRef.current.setView([lat, lng], 15);
   }, [lat, lng]);
+
+  useEffect(() => {
+    if (!mapRef.current || !boundary?.length) return;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (boundaryRef.current) {
+        boundaryRef.current.setLatLngs(boundary);
+      } else {
+        boundaryRef.current = L.polygon(boundary, {
+          color: "#3b82f6",
+          fillColor: "#3b82f6",
+          fillOpacity: 0.08,
+          weight: 2.5,
+          dashArray: "6 4",
+        }).addTo(mapRef.current!);
+      }
+    })();
+  }, [boundary]);
 
   return <div ref={containerRef} className="h-full w-full rounded-xl" />;
 }

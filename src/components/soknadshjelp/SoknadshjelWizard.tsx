@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
@@ -309,55 +309,98 @@ function StepBuildingType({ selected, onNext }: {
 }
 
 // ── Step 1: Map ───────────────────────────────────────────────────────────────
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+
 function StepMap({ onNext, onBack, garageConfig }: {
   onNext: (lat: number, lng: number, address: string) => void;
   onBack: () => void;
   garageConfig?: GarageConfig;
 }) {
   const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<{ place_name: string; center: [number, number] }[]>([]);
+  const [searching, setSearching] = useState(false);
   const [lat, setLat] = useState(58.7441);
   const [lng, setLng] = useState(5.5339);
   const [address, setAddress] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [error, setError] = useState("");
+  const [boundary, setBoundary] = useState<[number, number][] | undefined>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  async function search() {
-    if (!query.trim()) return;
+  async function fetchSuggestions(q: string) {
+    if (!q.trim()) { setSuggestions([]); return; }
     setSearching(true);
-    setError("");
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ", Norge")}&format=json&limit=1`,
-        { headers: { "Accept-Language": "nb" } }
-      );
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${MAPBOX_TOKEN}&country=no&types=address,place&language=no&limit=6`;
+      const res = await fetch(url);
       const data = await res.json();
-      if (!data.length) { setError("Fant ikke adressen. Prøv igjen."); return; }
-      setLat(parseFloat(data[0].lat));
-      setLng(parseFloat(data[0].lon));
-      setAddress(data[0].display_name);
-    } catch {
-      setError("Nettverksfeil. Prøv igjen.");
+      setSuggestions(data.features ?? []);
     } finally {
       setSearching(false);
     }
   }
 
+  function handleQueryChange(v: string) {
+    setQuery(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(v), 300);
+  }
+
+  async function pickAddress(placeName: string, center: [number, number]) {
+    const [pLng, pLat] = center;
+    setQuery(placeName);
+    setAddress(placeName);
+    setLat(pLat);
+    setLng(pLng);
+    setSuggestions([]);
+    setBoundary(undefined);
+    try {
+      const res = await fetch(`/api/tomtegrenser?lat=${pLat}&lng=${pLng}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const coords = data?.teiger?.[0]?.geometri?.coordinates?.[0] as [number, number][] | undefined;
+      if (coords?.length) {
+        // GeoJSON is [lng, lat] – Leaflet needs [lat, lng]
+        setBoundary(coords.map(([cLng, cLat]) => [cLat, cLng]));
+      }
+    } catch { /* boundary optional */ }
+  }
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-900">Finn din tomt</h2>
-      <p className="mt-1 text-sm text-gray-500">Skriv inn adressen og bekreft plasseringen på kartet.</p>
-      <div className="mt-4 flex gap-2">
-        <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && search()}
+      <p className="mt-1 text-sm text-gray-500">Skriv inn adressen så finner vi tomten din automatisk.</p>
+      <div className="relative mt-4">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => handleQueryChange(e.target.value)}
           placeholder="F.eks. Tjødnavegen 8b, Bryne"
-          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-        <button onClick={search} disabled={searching}
-          className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
-          {searching ? "Søker…" : "Søk"}
-        </button>
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+        {searching && (
+          <span className="absolute right-3 top-2.5 text-xs text-gray-400">Søker…</span>
+        )}
+        {suggestions.length > 0 && (
+          <ul className="absolute z-10 mt-1 w-full rounded-xl border border-gray-200 bg-white shadow-lg">
+            {suggestions.map((s) => (
+              <li key={s.place_name}>
+                <button
+                  type="button"
+                  onClick={() => pickAddress(s.place_name, s.center)}
+                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 first:rounded-t-xl last:rounded-b-xl"
+                >
+                  {s.place_name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-      {address && <p className="mt-1 text-xs text-gray-400 truncate">📍 {address}</p>}
+      {address && (
+        <p className="mt-1 text-xs text-gray-400 truncate">
+          📍 {address}
+          {boundary && <span className="ml-2 text-blue-500">· Tomt funnet</span>}
+        </p>
+      )}
       <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
         {garageConfig ? (
           <GaragePlacementMap
@@ -365,10 +408,11 @@ function StepMap({ onNext, onBack, garageConfig }: {
             widthMm={garageConfig.widthMm}
             lengthMm={garageConfig.lengthMm}
             onMove={(la, ln) => { setLat(la); setLng(ln); }}
+            boundary={boundary}
           />
         ) : (
           <div className="h-72">
-            <MapPicker lat={lat} lng={lng} onMove={(la, ln) => { setLat(la); setLng(ln); }} />
+            <MapPicker lat={lat} lng={lng} onMove={(la, ln) => { setLat(la); setLng(ln); }} boundary={boundary} />
           </div>
         )}
       </div>
@@ -486,7 +530,7 @@ function StepDibk({ dibk, setDibk, autoFilled, onNext, onBack }: {
         </button>
         <button onClick={onNext}
           className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600">
-          Se prisestimat →
+          Videre til tegninger →
         </button>
       </div>
     </div>

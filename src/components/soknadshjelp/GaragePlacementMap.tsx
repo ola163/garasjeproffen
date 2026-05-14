@@ -10,6 +10,7 @@ interface Props {
   lengthMm: number;
   onMove: (lat: number, lng: number) => void;
   onRotationChange?: (deg: number) => void;
+  boundary?: [number, number][];
 }
 
 // Convert meters offset to lat/lng offset from a center point
@@ -38,10 +39,11 @@ function rotatedCorners(
   });
 }
 
-export default function GaragePlacementMap({ lat, lng, widthMm, lengthMm, onMove, onRotationChange }: Props) {
+export default function GaragePlacementMap({ lat, lng, widthMm, lengthMm, onMove, onRotationChange, boundary }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const polygonRef = useRef<import("leaflet").Polygon | null>(null);
+  const boundaryRef = useRef<import("leaflet").Polygon | null>(null);
   const centerMarkerRef = useRef<import("leaflet").CircleMarker | null>(null);
   const labelRef = useRef<import("leaflet").Marker | null>(null);
   const [rotation, setRotation] = useState(0);
@@ -128,11 +130,31 @@ export default function GaragePlacementMap({ lat, lng, widthMm, lengthMm, onMove
       mapRef.current?.remove();
       mapRef.current = null;
       polygonRef.current = null;
+      boundaryRef.current = null;
       centerMarkerRef.current = null;
       labelRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Draw/update property boundary when it changes
+  useEffect(() => {
+    if (!mapRef.current || !boundary?.length) return;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (boundaryRef.current) {
+        boundaryRef.current.setLatLngs(boundary);
+      } else {
+        boundaryRef.current = L.polygon(boundary, {
+          color: "#3b82f6",
+          fillColor: "#3b82f6",
+          fillOpacity: 0.08,
+          weight: 2.5,
+          dashArray: "6 4",
+        }).addTo(mapRef.current!);
+      }
+    })();
+  }, [boundary]);
 
   // Redraw when parent changes lat/lng (address search)
   useEffect(() => {
