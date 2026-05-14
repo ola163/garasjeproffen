@@ -243,8 +243,8 @@ function PermitBanner({ result }: { result: PermitResult }) {
 }
 
 // ── Step bar ──────────────────────────────────────────────────────────────────
-const STEPS_FULL   = ["Velg type", "Finn tomt", "Søknadskrav", "Prisestimat", "Tegninger"];
-const STEPS_SKIP   = ["Finn tomt", "Søknadskrav", "Prisestimat", "Tegninger"];
+const STEPS_FULL   = ["Velg type", "Finn tomt", "Søknadskrav", "Tegninger", "Prisestimat"];
+const STEPS_SKIP   = ["Finn tomt", "Søknadskrav", "Tegninger", "Prisestimat"];
 
 function StepBar({ step, skipType }: { step: number; skipType: boolean }) {
   const steps = skipType ? STEPS_SKIP : STEPS_FULL;
@@ -493,19 +493,19 @@ function StepDibk({ dibk, setDibk, autoFilled, onNext, onBack }: {
   );
 }
 
-// ── Step 3: Estimate + contact ────────────────────────────────────────────────
-function StepEstimate({ dibk, address, garageConfig, buildingType, onBack, onNext }: {
+// ── Step 4: Estimate + contact ────────────────────────────────────────────────
+function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, onBack }: {
   dibk: DibkAnswers;
   address: string;
   garageConfig?: GarageConfig;
   buildingType: BuildingType | null;
+  drawingCost: number;
   onBack: () => void;
-  onNext: () => void;
 }) {
   const result = permitResult(dibk);
   const permit = permitCost(dibk);
   const garage = garageConfig ? buildingCost(garageConfig) : null;
-  const total = (garage ? garage.build + garage.door : 0) + permit;
+  const total = (garage ? garage.build + garage.door : 0) + permit + drawingCost;
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -564,6 +564,12 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, onBack, onNex
           <div className="flex justify-between text-sm text-gray-600">
             <span>Søknadshjelp</span>
             <span className="text-green-700 font-medium">Ikke nødvendig</span>
+          </div>
+        )}
+        {drawingCost > 0 && (
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Tegninger</span>
+            <span>{fmt(drawingCost)}</span>
           </div>
         )}
         <div className="border-t border-gray-200 pt-2 flex justify-between">
@@ -629,20 +635,12 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, onBack, onNex
           </form>
         </>
       )}
-      <div className="mt-6 border-t border-gray-100 pt-5">
-        <button
-          onClick={onNext}
-          className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600"
-        >
-          Videre til tegninger →
-        </button>
-        <button onClick={onBack} className="mt-3 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
-      </div>
+      <button onClick={onBack} className="mt-4 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
     </div>
   );
 }
 
-// ── Step 4: Drawings ──────────────────────────────────────────────────────────
+// ── Step 3: Drawings ──────────────────────────────────────────────────────────
 const DRAWING_TIPS = [
   { title: "Målestokk", body: "Alle tegninger må være i målestokk, typisk 1:100 eller 1:200. Angi tydelig hvilken målestokk som er brukt." },
   { title: "Situasjonsplan", body: "Viser tomtegrenser, eksisterende bebyggelse, veier, avstand til nabogrense og avstand til annen bebyggelse. Gjerne lastet ned fra kommunens kartportal og påtegnet med tiltakets plassering." },
@@ -652,8 +650,17 @@ const DRAWING_TIPS = [
   { title: "Snittegning", body: "Tverrsnitt gjennom bygget som viser etasjehøyder, etasjeskiller og takkonstruksjon." },
 ];
 
-function StepDrawings({ onBack }: { onBack: () => void }) {
+type GarasjeType = "kun-garasje" | "garasje-eksisterende" | null;
+
+function calcDrawingCost(garasjeType: GarasjeType, withSituasjonsplan: boolean) {
+  const base = garasjeType === "kun-garasje" ? 5_000 : garasjeType === "garasje-eksisterende" ? 10_000 : 0;
+  return base + (withSituasjonsplan ? 1_500 : 0);
+}
+
+function StepDrawings({ onBack, onNext }: { onBack: () => void; onNext: (drawingCost: number) => void }) {
   const [choice, setChoice] = useState<"need-help" | "have-drawings" | null>(null);
+  const [garasjeType, setGarasjeType] = useState<GarasjeType>(null);
+  const [withSituasjonsplan, setWithSituasjonsplan] = useState(false);
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -692,6 +699,8 @@ function StepDrawings({ onBack }: { onBack: () => void }) {
     }
   }
 
+  const drawingCost = calcDrawingCost(garasjeType, withSituasjonsplan);
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-900">Tegninger til søknaden</h2>
@@ -709,12 +718,13 @@ function StepDrawings({ onBack }: { onBack: () => void }) {
             <span className="text-sm text-gray-500">Vi lager fagmessige tegninger som kommunen godkjenner</span>
           </button>
           <button
-            onClick={() => setChoice("have-drawings")}
+            onClick={() => { setChoice("have-drawings"); }}
             className="flex flex-col items-start gap-1 rounded-xl border-2 border-gray-200 bg-white px-5 py-4 text-left hover:border-gray-400 transition-colors"
           >
             <span className="font-semibold text-gray-900">Jeg har tegninger fra før</span>
             <span className="text-sm text-gray-500">Se hva kommunen krever av tegningsunderlag</span>
           </button>
+          <button onClick={onBack} className="mt-2 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
         </div>
       )}
 
@@ -733,85 +743,127 @@ function StepDrawings({ onBack }: { onBack: () => void }) {
           </ul>
           <div className="mt-5 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-800">
             Usikker på om tegningene dine holder?{" "}
-            <button
-              onClick={() => setChoice("need-help")}
-              className="font-semibold underline hover:text-orange-700"
-            >
+            <button onClick={() => setChoice("need-help")} className="font-semibold underline hover:text-orange-700">
               Vi kan ta en titt
             </button>
             .
           </div>
-          <button onClick={() => setChoice(null)} className="mt-4 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
+          <div className="mt-5 border-t border-gray-100 pt-4 flex gap-3">
+            <button onClick={() => setChoice(null)} className="text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
+            <button
+              onClick={() => onNext(0)}
+              className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
+            >
+              Videre til prisestimat →
+            </button>
+          </div>
         </div>
       )}
 
       {choice === "need-help" && (
-        <div className="mt-5">
-          {user === undefined && (
-            <div className="py-4 text-center text-sm text-gray-400">Laster…</div>
-          )}
-
-          {user && (
-            <div className="rounded-xl border border-green-100 bg-green-50 px-5 py-4">
-              <p className="text-sm font-semibold text-green-900">Du er logget inn</p>
-              <p className="mt-1 text-sm text-green-700">
-                Gå til konfiguratoren og bruk <span className="font-medium">«Tomteplassering»</span>-knappen for å plassere garasjen på kartet. Vi henter tomteinformasjonen derfra.
-              </p>
-              <a
-                href="/configurator"
-                className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
-              >
-                Gå til konfiguratoren →
-              </a>
-            </div>
-          )}
-
-          {user === null && (
-            <div>
-              <p className="text-sm text-gray-600 mb-4">
-                Logg inn slik at vi kan koble tegningsoppdrag til tomteplasseringen din i konfiguratoren.
-              </p>
-              <form onSubmit={handleLogin} className="space-y-3">
-                <input
-                  type="email"
-                  required
-                  placeholder="E-post"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
-                <input
-                  type="password"
-                  required
-                  placeholder="Passord"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
-                {loginError && <p className="text-sm text-red-600">{loginError}</p>}
-                <button
-                  type="submit"
-                  disabled={loginLoading}
-                  className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+        <div className="mt-5 space-y-5">
+          {/* Drawing type selection */}
+          <div>
+            <p className="text-sm font-semibold text-gray-800 mb-2">Hva trenger du tegnet?</p>
+            <div className="space-y-2">
+              {([
+                { value: "kun-garasje", label: "Kun garasjen", sub: "Fasade-, plan- og snittegning av ny garasje", price: "5 000 kr" },
+                { value: "garasje-eksisterende", label: "Garasje + eksisterende bebyggelse", sub: "Inkluderer alle bygg på tomten", price: "10 000 kr" },
+              ] as { value: GarasjeType; label: string; sub: string; price: string }[]).map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-4 py-3 transition-colors ${garasjeType === opt.value ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-white hover:border-gray-300"}`}
                 >
-                  {loginLoading ? "Logger inn…" : "Logg inn"}
-                </button>
-              </form>
-              <p className="mt-3 text-center text-sm text-gray-400">
-                Har du ikke konto?{" "}
-                <a href="/configurator" className="text-orange-500 hover:underline font-medium">
-                  Registrer deg i konfiguratoren
-                </a>
-              </p>
+                  <input
+                    type="radio"
+                    name="garasjeType"
+                    value={opt.value ?? ""}
+                    checked={garasjeType === opt.value}
+                    onChange={() => setGarasjeType(opt.value)}
+                    className="mt-0.5 accent-orange-500"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-900">{opt.label}</span>
+                    <p className="text-xs text-gray-500 mt-0.5">{opt.sub}</p>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold text-gray-700">{opt.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Situasjonsplan */}
+          <label className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-4 py-3 transition-colors ${withSituasjonsplan ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+            <input
+              type="checkbox"
+              checked={withSituasjonsplan}
+              onChange={(e) => setWithSituasjonsplan(e.target.checked)}
+              className="mt-0.5 accent-orange-500"
+            />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-gray-900">Situasjonsplan</span>
+              <p className="text-xs text-gray-500 mt-0.5">Kart med tomtegrenser, naboavstand og plassering av nytt bygg</p>
+            </div>
+            <span className="shrink-0 text-sm font-semibold text-gray-700">1 500 kr</span>
+          </label>
+
+          {/* Total */}
+          {drawingCost > 0 && (
+            <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 flex justify-between items-center">
+              <span className="text-sm text-gray-600">Tegninger totalt</span>
+              <span className="text-base font-bold text-orange-500">{fmt(drawingCost)}</span>
             </div>
           )}
 
-          <button onClick={() => setChoice(null)} className="mt-5 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
-        </div>
-      )}
+          {/* Login section */}
+          <div className="border-t border-gray-100 pt-4">
+            {user === undefined && <div className="py-2 text-center text-sm text-gray-400">Laster…</div>}
+            {user && (
+              <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3">
+                <p className="text-sm font-semibold text-green-900">Du er logget inn</p>
+                <p className="mt-1 text-sm text-green-700">
+                  Bruk <span className="font-medium">«Tomteplassering»</span>-funksjonen i konfiguratoren for å koble tegningsoppdraget til riktig tomt.
+                </p>
+                <a href="/configurator" className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-green-600 py-2 text-sm font-semibold text-white hover:bg-green-700">
+                  Åpne konfiguratoren →
+                </a>
+              </div>
+            )}
+            {user === null && (
+              <div>
+                <p className="text-sm text-gray-600 mb-3">
+                  <span className="font-medium">Valgfritt:</span> Logg inn for å koble tegningsoppdraget til tomteplasseringen din.
+                </p>
+                <form onSubmit={handleLogin} className="space-y-2">
+                  <input type="email" required placeholder="E-post" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  <input type="password" required placeholder="Passord" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  {loginError && <p className="text-sm text-red-600">{loginError}</p>}
+                  <button type="submit" disabled={loginLoading}
+                    className="w-full rounded-lg bg-gray-700 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+                    {loginLoading ? "Logger inn…" : "Logg inn"}
+                  </button>
+                </form>
+                <p className="mt-2 text-center text-xs text-gray-400">
+                  Har du ikke konto?{" "}
+                  <a href="/configurator" className="text-orange-500 hover:underline">Registrer deg i konfiguratoren</a>
+                </p>
+              </div>
+            )}
+          </div>
 
-      {!choice && (
-        <button onClick={onBack} className="mt-5 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
+          <div className="flex gap-3 pt-1">
+            <button onClick={() => setChoice(null)} className="text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
+            <button
+              onClick={() => onNext(drawingCost)}
+              disabled={garasjeType === null && !withSituasjonsplan}
+              className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Videre til prisestimat →
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -837,6 +889,7 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
   const [address, setAddress] = useState(savedAddress);
   const autoFilled = garageConfig ? autoFillDibk(garageConfig) : {};
   const [dibk, setDibk] = useState<DibkAnswers>({ ...defaultDibk, ...autoFilled });
+  const [drawingCost, setDrawingCost] = useState(0);
 
   return (
     <div className="mx-auto max-w-xl px-6 py-12 sm:py-16">
@@ -867,10 +920,10 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
         <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} onNext={() => setStep(3)} onBack={() => setStep(hasPlacedOnMap ? 0 : 1)} />
       )}
       {step === 3 && (
-        <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} onBack={() => setStep(2)} onNext={() => setStep(4)} />
+        <StepDrawings onBack={() => setStep(2)} onNext={(cost) => { setDrawingCost(cost); setStep(4); }} />
       )}
       {step === 4 && (
-        <StepDrawings onBack={() => setStep(3)} />
+        <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} drawingCost={drawingCost} onBack={() => setStep(3)} />
       )}
     </div>
   );
