@@ -51,6 +51,13 @@ const DIBK_LABELS: Record<string, string> = {
   kjeller: "Kjeller",
 };
 
+const DISP_KEYS = ["frittstående", "bya50", "enEtasje", "monehoyde", "nabogrense", "avstandBygg", "ikkeVernet", "ikkeFlom"];
+
+function isDispensasjon(key: string, value: string): boolean {
+  if (key === "lnf") return value === "Ja";
+  return DISP_KEYS.includes(key) && value === "Nei";
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("nb-NO", {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
@@ -168,19 +175,35 @@ export default function SoknadshjelDetailPage() {
           )}
 
           {/* DIBK */}
-          {row.dibk && Object.keys(row.dibk).length > 0 && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold text-gray-700">DIBK-svar</h2>
-              <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
-                {Object.entries(row.dibk).map(([k, v]) => (
-                  <div key={k} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5">
-                    <dt className="text-xs text-gray-500">{DIBK_LABELS[k] ?? k}</dt>
-                    <dd className={`text-xs font-semibold ${v === "Ja" ? "text-green-600" : "text-red-500"}`}>{v}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          )}
+          {row.dibk && Object.keys(row.dibk).length > 0 && (() => {
+            const dispCount = Object.entries(row.dibk).filter(([k, v]) => isDispensasjon(k, v)).length;
+            return (
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="mb-3 flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-gray-700">DIBK-svar</h2>
+                  {dispCount > 0 && (
+                    <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                      {dispCount} dispensasjon{dispCount > 1 ? "er" : ""}
+                    </span>
+                  )}
+                </div>
+                <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
+                  {Object.entries(row.dibk).map(([k, v]) => {
+                    const isDisp = isDispensasjon(k, v);
+                    return (
+                      <div key={k} className={`flex items-center justify-between rounded-lg px-3 py-1.5 ${isDisp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"}`}>
+                        <dt className="text-xs text-gray-500">
+                          {DIBK_LABELS[k] ?? k}
+                          {isDisp && <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">disp.</span>}
+                        </dt>
+                        <dd className={`text-xs font-semibold ${v === "Ja" ? "text-green-600" : "text-red-500"}`}>{v}</dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              </div>
+            );
+          })()}
 
           {/* Permit result & price */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

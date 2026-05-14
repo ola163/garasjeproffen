@@ -212,6 +212,24 @@ export default function AdminQuotesPage() {
     XLSX.writeFile(wb, `forespørsler-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
+  const DISP_KEYS = ["frittstående", "bya50", "enEtasje", "monehoyde", "nabogrense", "avstandBygg", "ikkeVernet", "ikkeFlom"];
+  const DISP_LABELS: Record<string, string> = {
+    frittstående: "Ikke frittstående",
+    bya50: "BYA > 50 m²",
+    enEtasje: "> én etasje",
+    monehoyde: "Mønehøyde",
+    nabogrense: "Nabogrense",
+    avstandBygg: "Avstand bygg",
+    ikkeVernet: "Vernede omgivelser",
+    ikkeFlom: "Flomutsatt",
+    lnf: "LNF-område",
+  };
+  function getDispensasjoner(dibk: Record<string, string>): string[] {
+    const result = DISP_KEYS.filter((k) => dibk[k] === "Nei").map((k) => DISP_LABELS[k] ?? k);
+    if (dibk.lnf === "Ja") result.push(DISP_LABELS.lnf);
+    return result;
+  }
+
   const filteredQuotes = typeFilter === "soknadshjelp"
     ? []
     : (activeFilter === "all" ? quotes : quotes.filter((q) => q.status === activeFilter));
@@ -334,6 +352,15 @@ export default function AdminQuotesPage() {
                         </td>
                         <td className="hidden px-4 py-3 text-xs text-gray-500 sm:table-cell">
                           {gc ? `${Number(gc.widthMm ?? 0) / 1000} × ${Number(gc.lengthMm ?? 0) / 1000} m` : "–"}
+                          {s.dibk && (() => {
+                            const disps = getDispensasjoner(s.dibk as Record<string, string>);
+                            if (disps.length === 0) return null;
+                            return (
+                              <span title={disps.join(", ")} className="ml-1.5 cursor-default rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                                {disps.length} disp.
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="hidden px-4 py-3 text-xs text-gray-400 md:table-cell">{formatDate(s.created_at)}</td>
                         <td className="hidden px-4 py-3 lg:table-cell">
