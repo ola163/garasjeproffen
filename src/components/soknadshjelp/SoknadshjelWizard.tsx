@@ -380,7 +380,7 @@ function StepMap({ onNext, onBack, garageConfig }: {
           <span className="absolute right-3 top-2.5 text-xs text-gray-400">Søker…</span>
         )}
         {suggestions.length > 0 && (
-          <ul className="absolute z-10 mt-1 w-full rounded-xl border border-gray-200 bg-white shadow-lg">
+          <ul className="absolute z-50 mt-1 w-full rounded-xl border border-gray-200 bg-white shadow-lg">
             {suggestions.map((s) => (
               <li key={s.place_name}>
                 <button
@@ -401,7 +401,7 @@ function StepMap({ onNext, onBack, garageConfig }: {
           {boundary && <span className="ml-2 text-blue-500">· Tomt funnet</span>}
         </p>
       )}
-      <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
+      <div className="relative z-0 mt-4 overflow-hidden rounded-xl border border-gray-200">
         {garageConfig ? (
           <GaragePlacementMap
             lat={lat} lng={lng}
