@@ -1523,25 +1523,9 @@ export default function GarageMapbox({
     const tiles = new Cls();
     tiles.registerPlugin(new AuthCls({ apiToken: apiKey, useRecommendedSettings: true }));
 
-    tiles.addEventListener("load-tile-set", () => setTilesStatus("Root lastet ✓"));
-    tiles.addEventListener("load-model", (e: any) => {
-      // Override tile materials with flat blue — no lighting, no depth occlusion.
-      // If tiles become visible → material/shader was the issue.
-      // If still invisible → geometry position is wrong.
-      e.scene?.traverse((child: any) => {
-        if (child.isMesh) {
-          child.material = new THREE.MeshBasicMaterial({
-            color: 0x0088ff,
-            depthTest: false,
-            side: THREE.DoubleSide,
-          });
-        }
-      });
-      setTilesStatus(`Model: ${tiles.group.children.length} scener`);
-      mapRef.current?.triggerRepaint();
-    });
+    tiles.addEventListener("load-tile-set", () => setTilesStatus("Laster…"));
     tiles.addEventListener("tiles-load-end", () => {
-      setTilesStatus(`Ferdig: ${tiles.visibleTiles?.size ?? 0} synlige, ${tiles.group.children.length} scener`);
+      setTilesStatus(`${tiles.visibleTiles?.size ?? 0} tiles`);
       mapRef.current?.triggerRepaint();
     });
     tiles.addEventListener("load-error", (e: any) => setTilesStatus(`Feil: ${e?.message ?? "ukjent"}`));
@@ -1552,43 +1536,13 @@ export default function GarageMapbox({
       wrapper.add(tiles.group);
     }
 
-    // Dedicated perspective camera for tiles LOD/culling — avoids passing the
-    // combined Mapbox VP matrix which breaks sseDenominator calculation.
     tilesCamRef.current = new THREE.PerspectiveCamera(60, 1, 1, 2e6);
-
     tilesRendererRef.current = tiles;
-
-    // DEBUG: red box at scene origin — confirms Three.js renders in this mode
-    const debugBox = new THREE.Mesh(
-      new THREE.BoxGeometry(5, 10, 5),
-      new THREE.MeshBasicMaterial({ color: 0xff0000, depthTest: false }),
-    );
-    threeRef.current?.scene.add(debugBox);
-
-    // DEBUG: green sphere at garage ECEF position inside tiles.group.
-    // If matrixWorld chain is correct → sphere appears at garage center (same as red box).
-    // If matrixWorld = identity → sphere appears in Africa or far off-screen.
-    const φ = center[1] * Math.PI / 180, λ = center[0] * Math.PI / 180;
-    const a = 6378137.0, e2 = 0.00669437999014;
-    const Nv = a / Math.sqrt(1 - e2 * Math.sin(φ) ** 2);
-    const diagSphere = new THREE.Mesh(
-      new THREE.SphereGeometry(30, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0x00ff00, depthTest: false }),
-    );
-    diagSphere.position.set(
-      Nv * Math.cos(φ) * Math.cos(λ),
-      Nv * Math.cos(φ) * Math.sin(λ),
-      Nv * (1 - e2) * Math.sin(φ),
-    );
-    tiles.group.add(diagSphere);
 
     // Hide OSM buildings — Google tiles include their own buildings
     clearBuildings();
     mapRef.current?.triggerRepaint();
-    return () => {
-      threeRef.current?.scene.remove(debugBox);
-      tiles.group.remove(diagSphere);
-    };
+    return () => {};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleTiles]);
 
