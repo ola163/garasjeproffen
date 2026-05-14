@@ -548,8 +548,9 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
 }) {
   const result = permitResult(dibk);
   const permit = permitCost(dibk);
+  const naboCost = result !== "søknadsfri" ? 3_000 : 0;
   const garage = garageConfig ? buildingCost(garageConfig) : null;
-  const total = (garage ? garage.build + garage.door : 0) + permit + drawingCost;
+  const total = (garage ? garage.build + garage.door : 0) + permit + naboCost + drawingCost;
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -567,7 +568,7 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
       await fetch("/api/soknadshjelp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone, message, address, dibk, garageConfig, permitResult: result, permit, total, buildingType: buildingLabel }),
+        body: JSON.stringify({ name, email, phone, message, address, dibk, garageConfig, permitResult: result, permit, nabovarsel: naboCost, total, buildingType: buildingLabel }),
       });
       setSent(true);
     } finally {
@@ -608,6 +609,12 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
           <div className="flex justify-between text-sm text-gray-600">
             <span>Søknadshjelp</span>
             <span className="text-green-700 font-medium">Ikke nødvendig</span>
+          </div>
+        )}
+        {naboCost > 0 && (
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Nabovarsel</span>
+            <span>{fmt(naboCost)}</span>
           </div>
         )}
         {drawingCost > 0 && (
@@ -701,9 +708,9 @@ function calcDrawingCost(garasjeType: GarasjeType, withSituasjonsplan: boolean) 
   return base + (withSituasjonsplan ? 1_500 : 0);
 }
 
-function StepDrawings({ onBack, onNext }: { onBack: () => void; onNext: (drawingCost: number) => void }) {
+function StepDrawings({ onBack, onNext, hasGarageConfig }: { onBack: () => void; onNext: (drawingCost: number) => void; hasGarageConfig?: boolean }) {
   const [choice, setChoice] = useState<"need-help" | "have-drawings" | null>(null);
-  const [garasjeType, setGarasjeType] = useState<GarasjeType>(null);
+  const [garasjeType, setGarasjeType] = useState<GarasjeType>(hasGarageConfig ? "kun-garasje" : null);
   const [withSituasjonsplan, setWithSituasjonsplan] = useState(false);
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [loginEmail, setLoginEmail] = useState("");
@@ -743,61 +750,93 @@ function StepDrawings({ onBack, onNext }: { onBack: () => void; onNext: (drawing
     }
   }
 
-  const drawingCost = calcDrawingCost(garasjeType, withSituasjonsplan);
+  const drawingCost = hasGarageConfig && choice === "have-drawings"
+    ? (withSituasjonsplan ? 1_500 : 0)
+    : calcDrawingCost(garasjeType, withSituasjonsplan);
 
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-900">Tegninger til søknaden</h2>
       <p className="mt-2 text-sm text-gray-500">
-        En komplett søknad krever tegninger av bygget og situasjonsplan. Trenger du hjelp med dette?
+        {hasGarageConfig
+          ? "Garasjetegningene er klargjort fra konfiguratoren. Har du originale tegninger av eksisterende bebyggelse på tomten?"
+          : "En komplett søknad krever tegninger av bygget og situasjonsplan. Trenger du hjelp med dette?"}
       </p>
 
       {!choice && (
         <div className="mt-6 grid gap-3">
           <button
-            onClick={() => setChoice("need-help")}
+            onClick={() => setChoice(hasGarageConfig ? "have-drawings" : "need-help")}
             className="flex flex-col items-start gap-1 rounded-xl border-2 border-orange-200 bg-orange-50 px-5 py-4 text-left hover:border-orange-400 transition-colors"
           >
-            <span className="font-semibold text-gray-900">Jeg trenger hjelp med tegninger</span>
-            <span className="text-sm text-gray-500">Vi lager fagmessige tegninger som kommunen godkjenner</span>
+            {hasGarageConfig ? (
+              <>
+                <span className="font-semibold text-gray-900">Ja, jeg har originale tegninger av huset</span>
+                <span className="text-sm text-gray-500">Garasjetegningene er allerede klare fra konfiguratoren</span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-gray-900">Jeg trenger hjelp med tegninger</span>
+                <span className="text-sm text-gray-500">Vi lager fagmessige tegninger som kommunen godkjenner</span>
+              </>
+            )}
           </button>
           <button
-            onClick={() => { setChoice("have-drawings"); }}
+            onClick={() => setChoice(hasGarageConfig ? "need-help" : "have-drawings")}
             className="flex flex-col items-start gap-1 rounded-xl border-2 border-gray-200 bg-white px-5 py-4 text-left hover:border-gray-400 transition-colors"
           >
-            <span className="font-semibold text-gray-900">Jeg har tegninger fra før</span>
-            <span className="text-sm text-gray-500">Se hva kommunen krever av tegningsunderlag</span>
+            {hasGarageConfig ? (
+              <>
+                <span className="font-semibold text-gray-900">Nei, jeg trenger hjelp med tegninger av huset</span>
+                <span className="text-sm text-gray-500">Vi lager tegninger av eksisterende bebyggelse på tomten</span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-gray-900">Jeg har tegninger fra før</span>
+                <span className="text-sm text-gray-500">Se hva kommunen krever av tegningsunderlag</span>
+              </>
+            )}
           </button>
           <button onClick={onBack} className="mt-2 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
         </div>
       )}
 
       {choice === "have-drawings" && (
-        <div className="mt-5">
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800 mb-4">
-            Husk at ufullstendige tegninger er den vanligste årsaken til at søknader blir returnert.
-          </div>
-          <ul className="space-y-3">
-            {DRAWING_TIPS.map((tip) => (
-              <li key={tip.title} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-                <p className="text-sm font-semibold text-gray-900">{tip.title}</p>
-                <p className="mt-0.5 text-sm text-gray-600">{tip.body}</p>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-5 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-800">
-            Usikker på om tegningene dine holder?{" "}
-            <button onClick={() => setChoice("need-help")} className="font-semibold underline hover:text-orange-700">
-              Vi kan ta en titt
-            </button>
-            .
-          </div>
-          <div className="mt-5 border-t border-gray-100 pt-4 flex gap-3">
+        <div className="mt-5 space-y-4">
+          {hasGarageConfig ? (
+            <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800">
+              Garasjetegningene er klare fra konfiguratoren, og du har tegninger av eksisterende bebyggelse. Trenger du situasjonsplan?
+            </div>
+          ) : (
+            <>
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                Husk at ufullstendige tegninger er den vanligste årsaken til at søknader blir returnert.
+              </div>
+              <ul className="space-y-3">
+                {DRAWING_TIPS.map((tip) => (
+                  <li key={tip.title} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{tip.title}</p>
+                    <p className="mt-0.5 text-sm text-gray-600">{tip.body}</p>
+                  </li>
+                ))}
+              </ul>
+              <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+                Usikker på om tegningene dine holder?{" "}
+                <button onClick={() => setChoice("need-help")} className="font-semibold underline hover:text-orange-700">Vi kan ta en titt</button>.
+              </div>
+            </>
+          )}
+          <label className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-4 py-3 transition-colors ${withSituasjonsplan ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+            <input type="checkbox" checked={withSituasjonsplan} onChange={(e) => setWithSituasjonsplan(e.target.checked)} className="mt-0.5 accent-orange-500" />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-gray-900">Situasjonsplan</span>
+              <p className="text-xs text-gray-500 mt-0.5">Kart med tomtegrenser, naboavstand og plassering av nytt bygg</p>
+            </div>
+            <span className="shrink-0 text-sm font-semibold text-gray-700">1 500 kr</span>
+          </label>
+          <div className="border-t border-gray-100 pt-4 flex gap-3">
             <button onClick={() => setChoice(null)} className="text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
-            <button
-              onClick={() => onNext(0)}
-              className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
-            >
+            <button onClick={() => onNext(drawingCost)} className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600">
               Videre til prisestimat →
             </button>
           </div>
@@ -964,7 +1003,7 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
         <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} onNext={() => setStep(3)} onBack={() => setStep(hasPlacedOnMap ? 0 : 1)} />
       )}
       {step === 3 && (
-        <StepDrawings onBack={() => setStep(2)} onNext={(cost) => { setDrawingCost(cost); setStep(4); }} />
+        <StepDrawings hasGarageConfig={!!garageConfig} onBack={() => setStep(2)} onNext={(cost) => { setDrawingCost(cost); setStep(4); }} />
       )}
       {step === 4 && (
         <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} drawingCost={drawingCost} onBack={() => setStep(3)} />
