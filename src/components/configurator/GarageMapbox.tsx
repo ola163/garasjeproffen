@@ -995,15 +995,25 @@ export default function GarageMapbox({
                 (Nv * (1 - ee2) + alt) * Math.sin(clat),
               ).applyMatrix4(ecefToLocal);
               tilesCam.position.copy(camPos);
+              // Point at the current map centre (not always at the garage).
+              const mc = mapRef.current.getCenter();
+              const mcLat = mc.lat * rad, mcLng = mc.lng * rad;
+              const NvMc = ea / Math.sqrt(1 - ee2 * Math.sin(mcLat) * Math.sin(mcLat));
+              const lookTarget = new THREE.Vector3(
+                NvMc * Math.cos(mcLat) * Math.cos(mcLng),
+                NvMc * Math.cos(mcLat) * Math.sin(mcLng),
+                NvMc * (1 - ee2) * Math.sin(mcLat),
+              ).applyMatrix4(ecefToLocal);
+              tilesCam.lookAt(lookTarget);
             } else {
               tilesCam.position.set(0, 500, 0); // fallback: 500 m above garage
+              tilesCam.lookAt(0, 0, 0);
             }
             const canvas = three.renderer.domElement;
             tilesCam.aspect = canvas.width / canvas.height;
             tilesCam.fov   = 60;
             tilesCam.near  = 1;
             tilesCam.far   = 2e6;
-            tilesCam.lookAt(0, 0, 0);
             tilesCam.updateProjectionMatrix();
             tilesCam.updateMatrixWorld();
             // tilesWrapper.matrixAutoUpdate=false so scene.updateMatrixWorld() never
