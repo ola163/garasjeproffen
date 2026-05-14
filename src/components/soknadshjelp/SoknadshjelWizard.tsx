@@ -675,7 +675,7 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
         )}
         {naboCost > 0 && (
           <div className="flex justify-between text-sm text-gray-600">
-            <span>Nabovarsel</span>
+            <span>Nabovarsel <span className="text-gray-400">(obligatorisk)</span></span>
             <span>{fmt(naboCost)}</span>
           </div>
         )}
