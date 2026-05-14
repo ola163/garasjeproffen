@@ -1006,11 +1006,13 @@ export default function GarageMapbox({
             tilesCam.lookAt(0, 0, 0);
             tilesCam.updateProjectionMatrix();
             tilesCam.updateMatrixWorld();
-            // Sync tiles.group.matrixWorld before tiles.update() so that setTileVisible's
-            // scene.updateMatrixWorld(true) uses the correct parent transform.
-            // renderer.render() hasn't run yet this frame so scene.updateMatrixWorld()
-            // hasn't propagated tilesWrapper.matrix → tiles.group yet.
+            // tilesWrapper.matrixAutoUpdate=false so scene.updateMatrixWorld() never
+            // traverses it; tilesWrapper.matrixWorld stays identity unless we set it.
+            // TilesGroup.updateMatrixWorld() computes tempMat from parent.matrixWorld
+            // and overwrites tiles.group.matrixWorld when isDifferent=true.
+            // Setting both matrixWorlds to ecefToLocal prevents the overwrite.
             if (tilesWrapperRef.current) {
+              tilesWrapperRef.current.matrixWorld.copy(tilesWrapperRef.current.matrix);
               tiles.group.matrixWorld.copy(tilesWrapperRef.current.matrix);
             }
             tiles.setCamera(tilesCam);
@@ -1522,8 +1524,20 @@ export default function GarageMapbox({
     tiles.registerPlugin(new AuthCls({ apiToken: apiKey, useRecommendedSettings: true }));
 
     tiles.addEventListener("load-tile-set", () => setTilesStatus("Root lastet ✓"));
-    tiles.addEventListener("load-model", () => {
-      setTilesStatus(`Model: ${tiles.group.children.length} scener | ${tiles.visibleTiles?.size ?? 0} synlige`);
+    tiles.addEventListener("load-model", (e: any) => {
+      // Override tile materials with flat blue — no lighting, no depth occlusion.
+      // If tiles become visible → material/shader was the issue.
+      // If still invisible → geometry position is wrong.
+      e.scene?.traverse((child: any) => {
+        if (child.isMesh) {
+          child.material = new THREE.MeshBasicMaterial({
+            color: 0x0088ff,
+            depthTest: false,
+            side: THREE.DoubleSide,
+          });
+        }
+      });
+      setTilesStatus(`Model: ${tiles.group.children.length} scener`);
       mapRef.current?.triggerRepaint();
     });
     tiles.addEventListener("tiles-load-end", () => {
