@@ -10,6 +10,7 @@ import { adminName } from "@/lib/admin-names";
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
 interface ExtraCost { description: string; amount: number }
+interface ManualDisp { description: string; amount: number }
 
 interface SoknadshjelRow {
   id: string;
@@ -24,7 +25,7 @@ interface SoknadshjelRow {
   permit_price: number | null;
   total_price: number | null;
   extra_costs: ExtraCost[] | null;
-  manual_dispensasjoner: string[] | null;
+  manual_dispensasjoner: ManualDisp[] | null;
   status: string;
   assigned_to: string | null;
   notes: string | null;
@@ -92,8 +93,9 @@ export default function SoknadshjelDetailPage() {
   const [newCostAmount, setNewCostAmount] = useState("");
 
   // Manual dispensasjoner
-  const [manualDisps, setManualDisps] = useState<string[]>([]);
+  const [manualDisps, setManualDisps] = useState<ManualDisp[]>([]);
   const [newDispDesc, setNewDispDesc] = useState("");
+  const [newDispAmount, setNewDispAmount] = useState("8000");
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -112,7 +114,9 @@ export default function SoknadshjelDetailPage() {
         setStatus(data.status ?? "new");
         setAssignedTo(data.assigned_to ?? "");
         setExtraCosts(data.extra_costs ?? []);
-        setManualDisps(data.manual_dispensasjoner ?? []);
+        const md = data.manual_dispensasjoner ?? [];
+        setManualDisps(md);
+        setNewDispAmount(md.length > 0 ? "2000" : "8000");
       }
       setLoading(false);
     });
@@ -131,19 +135,25 @@ export default function SoknadshjelDetailPage() {
   }
 
   function addManualDisp() {
-    if (!newDispDesc.trim()) return;
-    setManualDisps((prev) => [...prev, newDispDesc.trim()]);
+    const amount = parseFloat(newDispAmount.replace(/\s/g, "").replace(",", "."));
+    if (!newDispDesc.trim() || isNaN(amount)) return;
+    setManualDisps((prev) => [...prev, { description: newDispDesc.trim(), amount }]);
     setNewDispDesc("");
+    setNewDispAmount("2000");
   }
 
   function removeManualDisp(i: number) {
-    setManualDisps((prev) => prev.filter((_, idx) => idx !== i));
+    setManualDisps((prev) => {
+      const next = prev.filter((_, idx) => idx !== i);
+      setNewDispAmount(next.length > 0 ? "2000" : "8000");
+      return next;
+    });
   }
 
   async function handleSave() {
     if (!supabase || !row) return;
     setSaving(true);
-    const newTotal = (row.permit_price ?? 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
+    const newTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
     await supabase.from("soknadshjelp").update({
       status,
       assigned_to: assignedTo || null,
@@ -171,7 +181,7 @@ export default function SoknadshjelDetailPage() {
   const gc = row.garage_config as { lengthMm?: number; widthMm?: number; doorWidthMm?: number; doorHeightMm?: number } | null;
   const dibkDispCount = row.dibk ? Object.entries(row.dibk).filter(([k, v]) => isDispensasjon(k, v)).length : 0;
   const totalDispCount = dibkDispCount + manualDisps.length;
-  const computedTotal = (row.permit_price ?? 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
+  const computedTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -258,11 +268,13 @@ export default function SoknadshjelDetailPage() {
               <ul className="mb-3 space-y-1.5">
                 {manualDisps.map((d, i) => (
                   <li key={i} className="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 ring-1 ring-red-200">
-                    <span className="text-sm text-gray-800">{d}</span>
-                    <button onClick={() => removeManualDisp(i)}
-                      className="ml-3 text-red-400 hover:text-red-600" title="Fjern">
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+                    <span className="text-sm text-gray-800">{d.description}</span>
+                    <div className="ml-3 flex items-center gap-2">
+                      <span className="text-xs font-semibold text-gray-700">{fmt(d.amount)}</span>
+                      <button onClick={() => removeManualDisp(i)} className="text-red-400 hover:text-red-600" title="Fjern">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -276,11 +288,23 @@ export default function SoknadshjelDetailPage() {
                 onKeyDown={(e) => e.key === "Enter" && addManualDisp()}
                 className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
-              <button onClick={addManualDisp} disabled={!newDispDesc.trim()}
+              <div className="relative">
+                <input
+                  type="number"
+                  value={newDispAmount}
+                  onChange={(e) => setNewDispAmount(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addManualDisp()}
+                  className="w-28 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  title="Foreslått pris — kan overstyres"
+                />
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">kr</span>
+              </div>
+              <button onClick={addManualDisp} disabled={!newDispDesc.trim() || !newDispAmount}
                 className="rounded-lg bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-40">
                 + Legg til
               </button>
             </div>
+            <p className="mt-1.5 text-xs text-gray-400">Foreslått pris: {manualDisps.length === 0 ? "8 000" : "2 000"} kr — kan overstyres i beløpsfeltet.</p>
           </div>
 
           {/* Pris */}
@@ -290,10 +314,19 @@ export default function SoknadshjelDetailPage() {
               <div className="flex justify-between text-gray-600">
                 <span>
                   Søknadshjelp
-                  {totalDispCount > 0 && <span className="ml-1 text-xs text-gray-400">(inkl. {totalDispCount} dispensasjon{totalDispCount > 1 ? "er" : ""})</span>}
+                  {dibkDispCount > 0 && <span className="ml-1 text-xs text-gray-400">(inkl. {dibkDispCount} DIBK-dispensasjon{dibkDispCount > 1 ? "er" : ""})</span>}
                 </span>
                 <span>{row.permit_price != null ? fmt(row.permit_price) : "–"}</span>
               </div>
+              {manualDisps.map((d, i) => (
+                <div key={`disp-${i}`} className="flex items-center justify-between text-gray-600">
+                  <span className="flex items-center gap-1.5">
+                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">Disp.</span>
+                    {d.description}
+                  </span>
+                  <span>{fmt(d.amount)}</span>
+                </div>
+              ))}
               {extraCosts.map((c, i) => (
                 <div key={i} className="flex items-center justify-between text-gray-600">
                   <span>{c.description}</span>
