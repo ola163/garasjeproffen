@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 const MapPicker = dynamic(() => import("./MapPicker"), { ssr: false });
 const GaragePlacementMap = dynamic(() => import("./GaragePlacementMap"), { ssr: false });
@@ -241,8 +243,8 @@ function PermitBanner({ result }: { result: PermitResult }) {
 }
 
 // ── Step bar ──────────────────────────────────────────────────────────────────
-const STEPS_FULL   = ["Velg type", "Finn tomt", "Søknadskrav", "Prisestimat"];
-const STEPS_SKIP   = ["Finn tomt", "Søknadskrav", "Prisestimat"];
+const STEPS_FULL   = ["Velg type", "Finn tomt", "Søknadskrav", "Prisestimat", "Tegninger"];
+const STEPS_SKIP   = ["Finn tomt", "Søknadskrav", "Prisestimat", "Tegninger"];
 
 function StepBar({ step, skipType }: { step: number; skipType: boolean }) {
   const steps = skipType ? STEPS_SKIP : STEPS_FULL;
@@ -492,12 +494,13 @@ function StepDibk({ dibk, setDibk, autoFilled, onNext, onBack }: {
 }
 
 // ── Step 3: Estimate + contact ────────────────────────────────────────────────
-function StepEstimate({ dibk, address, garageConfig, buildingType, onBack }: {
+function StepEstimate({ dibk, address, garageConfig, buildingType, onBack, onNext }: {
   dibk: DibkAnswers;
   address: string;
   garageConfig?: GarageConfig;
   buildingType: BuildingType | null;
   onBack: () => void;
+  onNext: () => void;
 }) {
   const result = permitResult(dibk);
   const permit = permitCost(dibk);
@@ -626,7 +629,190 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, onBack }: {
           </form>
         </>
       )}
-      <button onClick={onBack} className="mt-4 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
+      <div className="mt-6 border-t border-gray-100 pt-5">
+        <button
+          onClick={onNext}
+          className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600"
+        >
+          Videre til tegninger →
+        </button>
+        <button onClick={onBack} className="mt-3 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 4: Drawings ──────────────────────────────────────────────────────────
+const DRAWING_TIPS = [
+  { title: "Målestokk", body: "Alle tegninger må være i målestokk, typisk 1:100 eller 1:200. Angi tydelig hvilken målestokk som er brukt." },
+  { title: "Situasjonsplan", body: "Viser tomtegrenser, eksisterende bebyggelse, veier, avstand til nabogrense og avstand til annen bebyggelse. Gjerne lastet ned fra kommunens kartportal og påtegnet med tiltakets plassering." },
+  { title: "Eksisterende bebyggelse", body: "All eksisterende bebyggelse på tomten må tegnes inn – ikke bare det nye bygget. Kommunen trenger helhetsbildet for å vurdere bebygd areal (BYA)." },
+  { title: "Fasadetegninger", body: "Alle fire fasader (nord, sør, øst, vest) skal tegnes. Vis mønehøyde, gesimshøyde og terreng rundt bygget." },
+  { title: "Plantegning", body: "Tegning ovenfra som viser rommets innredning, dører og vinduers plassering med mål." },
+  { title: "Snittegning", body: "Tverrsnitt gjennom bygget som viser etasjehøyder, etasjeskiller og takkonstruksjon." },
+];
+
+function StepDrawings({ onBack }: { onBack: () => void }) {
+  const [choice, setChoice] = useState<"need-help" | "have-drawings" | null>(null);
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) { setUser(null); return; }
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) return;
+    setLoginError("");
+    setLoginLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
+      if (error) throw error;
+      if (data.session?.access_token) {
+        await fetch("/api/auth/email-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: data.session.access_token }),
+        });
+      }
+      setUser(data.user);
+    } catch {
+      setLoginError("Feil e-post eller passord.");
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  return (
+    <div>
+      <h2 className="text-xl font-semibold text-gray-900">Tegninger til søknaden</h2>
+      <p className="mt-2 text-sm text-gray-500">
+        En komplett søknad krever tegninger av bygget og situasjonsplan. Trenger du hjelp med dette?
+      </p>
+
+      {!choice && (
+        <div className="mt-6 grid gap-3">
+          <button
+            onClick={() => setChoice("need-help")}
+            className="flex flex-col items-start gap-1 rounded-xl border-2 border-orange-200 bg-orange-50 px-5 py-4 text-left hover:border-orange-400 transition-colors"
+          >
+            <span className="font-semibold text-gray-900">Jeg trenger hjelp med tegninger</span>
+            <span className="text-sm text-gray-500">Vi lager fagmessige tegninger som kommunen godkjenner</span>
+          </button>
+          <button
+            onClick={() => setChoice("have-drawings")}
+            className="flex flex-col items-start gap-1 rounded-xl border-2 border-gray-200 bg-white px-5 py-4 text-left hover:border-gray-400 transition-colors"
+          >
+            <span className="font-semibold text-gray-900">Jeg har tegninger fra før</span>
+            <span className="text-sm text-gray-500">Se hva kommunen krever av tegningsunderlag</span>
+          </button>
+        </div>
+      )}
+
+      {choice === "have-drawings" && (
+        <div className="mt-5">
+          <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800 mb-4">
+            Husk at ufullstendige tegninger er den vanligste årsaken til at søknader blir returnert.
+          </div>
+          <ul className="space-y-3">
+            {DRAWING_TIPS.map((tip) => (
+              <li key={tip.title} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                <p className="text-sm font-semibold text-gray-900">{tip.title}</p>
+                <p className="mt-0.5 text-sm text-gray-600">{tip.body}</p>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+            Usikker på om tegningene dine holder?{" "}
+            <button
+              onClick={() => setChoice("need-help")}
+              className="font-semibold underline hover:text-orange-700"
+            >
+              Vi kan ta en titt
+            </button>
+            .
+          </div>
+          <button onClick={() => setChoice(null)} className="mt-4 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
+        </div>
+      )}
+
+      {choice === "need-help" && (
+        <div className="mt-5">
+          {user === undefined && (
+            <div className="py-4 text-center text-sm text-gray-400">Laster…</div>
+          )}
+
+          {user && (
+            <div className="rounded-xl border border-green-100 bg-green-50 px-5 py-4">
+              <p className="text-sm font-semibold text-green-900">Du er logget inn</p>
+              <p className="mt-1 text-sm text-green-700">
+                Gå til konfiguratoren og bruk <span className="font-medium">«Tomteplassering»</span>-knappen for å plassere garasjen på kartet. Vi henter tomteinformasjonen derfra.
+              </p>
+              <a
+                href="/configurator"
+                className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
+              >
+                Gå til konfiguratoren →
+              </a>
+            </div>
+          )}
+
+          {user === null && (
+            <div>
+              <p className="text-sm text-gray-600 mb-4">
+                Logg inn slik at vi kan koble tegningsoppdrag til tomteplasseringen din i konfiguratoren.
+              </p>
+              <form onSubmit={handleLogin} className="space-y-3">
+                <input
+                  type="email"
+                  required
+                  placeholder="E-post"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                <input
+                  type="password"
+                  required
+                  placeholder="Passord"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                {loginError && <p className="text-sm text-red-600">{loginError}</p>}
+                <button
+                  type="submit"
+                  disabled={loginLoading}
+                  className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {loginLoading ? "Logger inn…" : "Logg inn"}
+                </button>
+              </form>
+              <p className="mt-3 text-center text-sm text-gray-400">
+                Har du ikke konto?{" "}
+                <a href="/configurator" className="text-orange-500 hover:underline font-medium">
+                  Registrer deg i konfiguratoren
+                </a>
+              </p>
+            </div>
+          )}
+
+          <button onClick={() => setChoice(null)} className="mt-5 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
+        </div>
+      )}
+
+      {!choice && (
+        <button onClick={onBack} className="mt-5 text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
+      )}
     </div>
   );
 }
@@ -634,11 +820,17 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, onBack }: {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 export default function SoknadshjelWizard({ garageConfig, initialBuildingType }: { garageConfig?: GarageConfig; initialBuildingType?: BuildingType }) {
   const skipType = !!initialBuildingType;
-  const savedAddress = typeof window !== "undefined" ? (localStorage.getItem("gp-map-address") ?? "") : "";
-  const hasAddress = !!savedAddress;
+
+  // Only auto-fill address if user came from the configurator (garageConfig present)
+  // AND has already placed the garage in tomteplassering (saved in localStorage)
+  const savedAddress =
+    garageConfig && typeof window !== "undefined"
+      ? (localStorage.getItem("gp-map-address") ?? "")
+      : "";
+  const hasPlacedOnMap = !!savedAddress;
 
   const [step, setStep] = useState(() => {
-    if (skipType) return hasAddress ? 2 : 1;
+    if (skipType) return hasPlacedOnMap ? 2 : 1;
     return 0;
   });
   const [buildingType, setBuildingType] = useState<BuildingType | null>(initialBuildingType ?? null);
@@ -659,23 +851,26 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
           – port {garageConfig.doorWidthMm} mm
         </div>
       )}
-      {hasAddress && step >= 2 && (
+      {hasPlacedOnMap && step >= 2 && (
         <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           📍 Adresse hentet fra tomteplassering: <span className="font-medium">{address}</span>
         </div>
       )}
       <StepBar step={step} skipType={skipType} />
       {step === 0 && (
-        <StepBuildingType selected={buildingType} onNext={(t) => { setBuildingType(t); setStep(hasAddress ? 2 : 1); }} />
+        <StepBuildingType selected={buildingType} onNext={(t) => { setBuildingType(t); setStep(1); }} />
       )}
       {step === 1 && (
         <StepMap garageConfig={garageConfig} onNext={(_, __, addr) => { setAddress(addr); setStep(2); }} onBack={() => setStep(skipType ? 1 : 0)} />
       )}
       {step === 2 && (
-        <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} onNext={() => setStep(3)} onBack={() => setStep(!skipType && hasAddress ? 0 : 1)} />
+        <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} onNext={() => setStep(3)} onBack={() => setStep(hasPlacedOnMap ? 0 : 1)} />
       )}
       {step === 3 && (
-        <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} onBack={() => setStep(2)} />
+        <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} onBack={() => setStep(2)} onNext={() => setStep(4)} />
+      )}
+      {step === 4 && (
+        <StepDrawings onBack={() => setStep(3)} />
       )}
     </div>
   );
