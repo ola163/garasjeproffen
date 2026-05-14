@@ -1537,6 +1537,25 @@ export default function GarageMapbox({
     // the renderer refines down to street-level building geometry.
     tiles.errorTarget = 6;
 
+    // TilesGroup.updateMatrixWorld only propagates matrixWorld to children when
+    // isDifferent=true. Because we keep tiles.group.matrixWorld = ECEF→local each frame,
+    // isDifferent is always false, so newly loaded tile scenes never get their matrixWorld
+    // set — their geometry renders at wrong positions. Patch the instance to also
+    // propagate to any child that has matrixWorldNeedsUpdate=true (newly added tiles).
+    {
+      const grp = tiles.group as any;
+      const _orig = grp.updateMatrixWorld;
+      grp.updateMatrixWorld = function(this: THREE.Object3D, force?: boolean) {
+        _orig.call(this, force);
+        for (let i = 0; i < this.children.length; i++) {
+          const child = this.children[i];
+          if (child.matrixWorldNeedsUpdate || force) {
+            child.updateMatrixWorld(true);
+          }
+        }
+      };
+    }
+
     tiles.addEventListener("load-tile-set", () => setTilesStatus("Laster…"));
     tiles.addEventListener("load-model", (e: any) => {
       // GLTF tiles can have alphaMode=BLEND — force opaque so they don't
