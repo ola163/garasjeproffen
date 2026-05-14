@@ -691,6 +691,7 @@ export default function GarageMapbox({
 
   function renderBuildings(buildings: OSMBuildingData[], garCenter: [number, number]) {
     clearBuildings();
+    if (googleTilesRef.current) return; // Google 3D tiles include their own buildings
     const group = buildingGroupRef.current;
     if (!group) return;
     const isRealistic = realisticRef.current;
@@ -1524,6 +1525,17 @@ export default function GarageMapbox({
     tiles.registerPlugin(new AuthCls({ apiToken: apiKey, useRecommendedSettings: true }));
 
     tiles.addEventListener("load-tile-set", () => setTilesStatus("Laster…"));
+    tiles.addEventListener("load-model", (e: any) => {
+      // GLTF tiles can have alphaMode=BLEND which makes them semi-transparent.
+      // Force opaque so they don't blend with the Mapbox layer underneath.
+      e.scene?.traverse((child: any) => {
+        if (child.isMesh) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach((m: THREE.Material) => { m.transparent = false; m.opacity = 1; });
+        }
+      });
+      mapRef.current?.triggerRepaint();
+    });
     tiles.addEventListener("tiles-load-end", () => {
       setTilesStatus(`${tiles.visibleTiles?.size ?? 0} tiles`);
       mapRef.current?.triggerRepaint();
@@ -1542,7 +1554,11 @@ export default function GarageMapbox({
     // Hide OSM buildings — Google tiles include their own buildings
     clearBuildings();
     mapRef.current?.triggerRepaint();
-    return () => {};
+    return () => {
+      // Restore OSM buildings when Google tiles are disabled
+      const cached = lastBuildingsRef.current;
+      if (cached) renderBuildings(cached.buildings, cached.garCenter);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleTiles]);
 
