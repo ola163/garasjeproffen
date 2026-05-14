@@ -323,6 +323,8 @@ function StepMap({ onNext, onBack, garageConfig }: {
   const [lng, setLng] = useState(5.5339);
   const [address, setAddress] = useState("");
   const [boundary, setBoundary] = useState<[number, number][] | undefined>();
+  const [detectingPos, setDetectingPos] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function fetchSuggestions(q: string) {
@@ -364,11 +366,71 @@ function StepMap({ onNext, onBack, garageConfig }: {
     } catch { /* boundary optional */ }
   }
 
+  async function detectPosition() {
+    if (!navigator.geolocation) { setGeoError("Nettleseren støtter ikke posisjonstjenester."); return; }
+    setDetectingPos(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude: lat, longitude: lng } }) => {
+        let name = "Min posisjon";
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 5000);
+          const res = await fetch(
+            `https://ws.geonorge.no/adresser/v1/punktsok?lat=${lat}&lon=${lng}&radius=100&utkoordsys=4258&treffPerSide=1`,
+            { signal: ctrl.signal },
+          );
+          clearTimeout(t);
+          const data = await res.json();
+          const a = data.adresser?.[0];
+          if (a?.adressetekst) {
+            const poststed = (a.poststed as string).charAt(0) + (a.poststed as string).slice(1).toLowerCase();
+            name = `${a.adressetekst}, ${a.postnummer} ${poststed}`;
+          }
+        } catch { /* fall through */ }
+        await pickAddress(name, [lng, lat]);
+        setDetectingPos(false);
+      },
+      (err) => {
+        setDetectingPos(false);
+        setGeoError(err.code === 1
+          ? "Posisjon ikke tillatt – skriv inn adressen din under."
+          : "Kunne ikke hente posisjon. Prøv å skrive inn adressen.");
+      },
+      { timeout: 10000 },
+    );
+  }
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-900">Finn din tomt</h2>
       <p className="mt-1 text-sm text-gray-500">Skriv inn adressen så finner vi tomten din automatisk.</p>
-      <div className="relative mt-4">
+
+      <button
+        type="button"
+        onClick={detectPosition}
+        disabled={detectingPos}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
+      >
+        {detectingPos ? (
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+        ) : (
+          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+          </svg>
+        )}
+        {detectingPos ? "Henter posisjon…" : "Finn min posisjon"}
+      </button>
+
+      {geoError && <p className="mt-1.5 text-xs text-red-500">{geoError}</p>}
+
+      <div className="mt-3 flex items-center gap-2">
+        <div className="flex-1 border-t border-gray-200" />
+        <span className="text-xs text-gray-400">eller søk</span>
+        <div className="flex-1 border-t border-gray-200" />
+      </div>
+
+      <div className="relative mt-3">
         <input
           type="text"
           value={query}
