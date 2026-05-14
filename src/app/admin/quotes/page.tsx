@@ -16,6 +16,7 @@ interface SoknadshjelRow {
   customer_email: string;
   customer_phone: string | null;
   address: string | null;
+  dibk: Record<string, string> | null;
   garage_config: { lengthMm?: number; widthMm?: number } | null;
   permit_result: string | null;
   permit_price: number | null;
