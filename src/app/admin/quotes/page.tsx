@@ -18,6 +18,7 @@ interface SoknadshjelRow {
   address: string | null;
   dibk: Record<string, string> | null;
   garage_config: { lengthMm?: number; widthMm?: number } | null;
+  manual_dispensasjoner: string[] | null;
   permit_result: string | null;
   permit_price: number | null;
   total_price: number | null;
@@ -353,12 +354,15 @@ export default function AdminQuotesPage() {
                         </td>
                         <td className="hidden px-4 py-3 text-xs text-gray-500 sm:table-cell">
                           {gc ? `${Number(gc.widthMm ?? 0) / 1000} × ${Number(gc.lengthMm ?? 0) / 1000} m` : "–"}
-                          {s.dibk && (() => {
-                            const disps = getDispensasjoner(s.dibk as Record<string, string>);
-                            if (disps.length === 0) return null;
+                          {(() => {
+                            const dibkDisps = s.dibk ? getDispensasjoner(s.dibk) : [];
+                            const manualCount = s.manual_dispensasjoner?.length ?? 0;
+                            const total = dibkDisps.length + manualCount;
+                            if (total === 0) return null;
+                            const allNames = [...dibkDisps, ...(s.manual_dispensasjoner ?? [])];
                             return (
-                              <span title={disps.join(", ")} className="ml-1.5 cursor-default rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
-                                {disps.length} disp.
+                              <span title={allNames.join(", ")} className="ml-1.5 cursor-default rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                                {total} disp.
                               </span>
                             );
                           })()}
