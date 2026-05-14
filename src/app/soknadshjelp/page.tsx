@@ -14,7 +14,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "Hva inkluderer søknadshjelpen fra GarasjeProffen?",
-    a: "Vi hjelper deg med å vurdere om du trenger søknad, utarbeider situasjonsplan og tegninger, og kan sende inn søknaden til kommunen på dine vegne. Vi bistår også med nabovarsel der det er påkrevd.",
+    a: "Vi hjelper deg med å vurdere om du trenger søknad, og kan sende inn søknaden til kommunen på dine vegne. Vi bistår også med nabovarsel der det er påkrevd. Situasjonsplan og tegninger kommer som en ekstra kostnad dersom du ikke har dette fra før.",
   },
   {
     q: "Kan dere sende byggesøknaden på mine vegne?",
