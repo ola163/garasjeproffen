@@ -352,7 +352,10 @@ export default function AdminQuotesPage() {
                           })()}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-xs text-gray-400">–</span>
+                          <Link href={`/admin/soknadshjelp/${s.id}`}
+                            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
+                            Åpne
+                          </Link>
                         </td>
                       </tr>
                     );
