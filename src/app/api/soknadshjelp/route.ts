@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: Request) {
   try {
@@ -77,6 +78,26 @@ export async function POST(request: Request) {
       });
     } else {
       console.error("RESEND_API_KEY is not set – soknadshjelp email not sent");
+    }
+
+    const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (sbUrl && sbKey) {
+      const sb = createClient(sbUrl, sbKey);
+      const ticketNumber = `SH-${Date.now()}`;
+      await sb.from("soknadshjelp").insert({
+        ticket_number: ticketNumber,
+        customer_name: name.trim(),
+        customer_email: email.trim(),
+        customer_phone: phone || null,
+        address: address || null,
+        dibk: dibk || null,
+        garage_config: garageConfig || null,
+        permit_result: permitResult || null,
+        permit_price: permit ?? null,
+        total_price: total ?? null,
+        status: "new",
+      });
     }
 
     return NextResponse.json({ success: true });

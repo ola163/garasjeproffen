@@ -9,6 +9,22 @@ import Link from "next/link";
 import { adminName } from "@/lib/admin-names";
 import * as XLSX from "xlsx";
 
+interface SoknadshjelRow {
+  id: string;
+  ticket_number: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string | null;
+  address: string | null;
+  garage_config: { lengthMm?: number; widthMm?: number } | null;
+  permit_result: string | null;
+  permit_price: number | null;
+  total_price: number | null;
+  status: string;
+  assigned_to: string | null;
+  created_at: string;
+}
+
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
 const STATUS_LABELS: Record<QuoteStatus, string> = {
@@ -57,8 +73,10 @@ export default function AdminQuotesPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
+  const [soknadshjelp, setSoknadshjelp] = useState<SoknadshjelRow[]>([]);
   const [loadingQuotes, setLoadingQuotes] = useState(false);
   const [activeFilter, setActiveFilter] = useState<QuoteStatus | "all">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "quotes" | "soknadshjelp">("all");
 
   // New manual quote
   const [newOpen, setNewOpen] = useState(false);
@@ -83,11 +101,12 @@ export default function AdminQuotesPage() {
   async function loadQuotes() {
     if (!supabase) return;
     setLoadingQuotes(true);
-    const { data } = await supabase
-      .from("quotes")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (data) setQuotes(data as QuoteRow[]);
+    const [quotesRes, soknadsRes] = await Promise.all([
+      supabase.from("quotes").select("*").order("created_at", { ascending: false }),
+      supabase.from("soknadshjelp").select("*").order("created_at", { ascending: false }),
+    ]);
+    if (quotesRes.data) setQuotes(quotesRes.data as QuoteRow[]);
+    if (soknadsRes.data) setSoknadshjelp(soknadsRes.data as SoknadshjelRow[]);
     setLoadingQuotes(false);
   }
 
@@ -193,7 +212,20 @@ export default function AdminQuotesPage() {
     XLSX.writeFile(wb, `forespørsler-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
-  const filtered = activeFilter === "all" ? quotes : quotes.filter((q) => q.status === activeFilter);
+  const filteredQuotes = typeFilter === "soknadshjelp"
+    ? []
+    : (activeFilter === "all" ? quotes : quotes.filter((q) => q.status === activeFilter));
+
+  const filteredSoknadshjelp = typeFilter === "quotes" ? [] : soknadshjelp;
+
+  type CombinedRow =
+    | { _type: "quote"; row: QuoteRow }
+    | { _type: "soknadshjelp"; row: SoknadshjelRow };
+
+  const combined: CombinedRow[] = [
+    ...filteredQuotes.map((r): CombinedRow => ({ _type: "quote", row: r })),
+    ...filteredSoknadshjelp.map((r): CombinedRow => ({ _type: "soknadshjelp", row: r })),
+  ].sort((a, b) => new Date(b.row.created_at).getTime() - new Date(a.row.created_at).getTime());
 
   const counts = quotes.reduce((acc, q) => {
     acc[q.status] = (acc[q.status] ?? 0) + 1;
@@ -238,7 +270,23 @@ export default function AdminQuotesPage() {
           ))}
         </div>
 
-        {/* Filter tabs */}
+        {/* Type filter */}
+        <div className="mb-3 flex gap-2">
+          {([
+            { id: "all", label: `Alle (${quotes.length + soknadshjelp.length})` },
+            { id: "quotes", label: `Tilbud (${quotes.length})` },
+            { id: "soknadshjelp", label: `Søknadshjelp (${soknadshjelp.length})` },
+          ] as { id: "all" | "quotes" | "soknadshjelp"; label: string }[]).map((f) => (
+            <button key={f.id} onClick={() => setTypeFilter(f.id)}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                typeFilter === f.id ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Status filter tabs */}
         <div className="mb-4 flex flex-wrap gap-2">
           {FILTERS.map((f) => (
             <button key={f.id} onClick={() => setActiveFilter(f.id)}
@@ -254,7 +302,7 @@ export default function AdminQuotesPage() {
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
           {loadingQuotes ? (
             <div className="p-8 text-center text-sm text-gray-400">Laster...</div>
-          ) : filtered.length === 0 ? (
+          ) : combined.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-400">Ingen forespørsler.</div>
           ) : (
             <table className="w-full text-sm">
@@ -270,7 +318,46 @@ export default function AdminQuotesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((q) => {
+                {combined.map((item) => {
+                  if (item._type === "soknadshjelp") {
+                    const s = item.row;
+                    const gc = s.garage_config;
+                    return (
+                      <tr key={`sh-${s.id}`} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-xs font-semibold text-gray-700">{s.ticket_number}</span>
+                          <span className="ml-1.5 rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">Søknadshjelp</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900">{s.customer_name}</p>
+                          <p className="text-xs text-gray-400">{s.customer_email}</p>
+                        </td>
+                        <td className="hidden px-4 py-3 text-xs text-gray-500 sm:table-cell">
+                          {gc ? `${Number(gc.widthMm ?? 0) / 1000} × ${Number(gc.lengthMm ?? 0) / 1000} m` : "–"}
+                        </td>
+                        <td className="hidden px-4 py-3 text-xs text-gray-400 md:table-cell">{formatDate(s.created_at)}</td>
+                        <td className="hidden px-4 py-3 lg:table-cell">
+                          {s.assigned_to
+                            ? <span className="text-xs font-medium text-gray-800">{adminName(s.assigned_to)}</span>
+                            : <span className="text-xs text-gray-400 italic">Ikke tildelt</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const sk = (s.status in STATUS_COLORS ? s.status : "new") as QuoteStatus;
+                            return (
+                              <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[sk]}`}>
+                                {STATUS_LABELS[sk]}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="text-xs text-gray-400">–</span>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const q = item.row;
                   const p = (q.configuration as { parameters?: Record<string, number> } | null)?.parameters;
                   return (
                     <tr key={q.id} className="hover:bg-gray-50">
