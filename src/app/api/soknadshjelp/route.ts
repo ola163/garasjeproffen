@@ -84,7 +84,8 @@ export async function POST(request: Request) {
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey);
-      const ticketNumber = `SH-${Date.now()}`;
+      const { data: ticketData } = await sb.rpc("next_ticket_number");
+      const ticketNumber = (ticketData as string) ?? `Q-${Date.now()}`;
       await sb.from("soknadshjelp").insert({
         ticket_number: ticketNumber,
         customer_name: name.trim(),
