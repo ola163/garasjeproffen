@@ -691,7 +691,6 @@ export default function GarageMapbox({
 
   function renderBuildings(buildings: OSMBuildingData[], garCenter: [number, number]) {
     clearBuildings();
-    if (googleTilesRef.current) return; // Google 3D tiles include their own buildings
     const group = buildingGroupRef.current;
     if (!group) return;
     const isRealistic = realisticRef.current;
@@ -1499,6 +1498,7 @@ export default function GarageMapbox({
   useEffect(() => {
     googleTilesRef.current = googleTiles;
     const wrapper = tilesWrapperRef.current;
+    const map     = mapRef.current;
 
     // Tear down existing renderer
     if (tilesRendererRef.current) {
@@ -1506,6 +1506,16 @@ export default function GarageMapbox({
       tilesRendererRef.current = null;
       tilesCamRef.current = null;
       if (wrapper) while (wrapper.children.length) wrapper.remove(wrapper.children[0]);
+    }
+
+    // Hide or restore Three.js OSM buildings and Mapbox style extrusions
+    const buildingGroup = buildingGroupRef.current;
+    if (buildingGroup) buildingGroup.visible = !googleTiles;
+    if (map?.isStyleLoaded()) {
+      map.getStyle().layers?.forEach((l: any) => {
+        if (l.type === "fill-extrusion")
+          map.setLayoutProperty(l.id, "visibility", googleTiles ? "none" : "visible");
+      });
     }
 
     if (!googleTiles || !center) return;
@@ -1526,12 +1536,12 @@ export default function GarageMapbox({
 
     tiles.addEventListener("load-tile-set", () => setTilesStatus("Laster…"));
     tiles.addEventListener("load-model", (e: any) => {
-      // GLTF tiles can have alphaMode=BLEND which makes them semi-transparent.
-      // Force opaque so they don't blend with the Mapbox layer underneath.
+      // GLTF tiles can have alphaMode=BLEND — force opaque so they don't
+      // alpha-blend with the Mapbox layer underneath.
       e.scene?.traverse((child: any) => {
         if (child.isMesh) {
-          const mats = Array.isArray(child.material) ? child.material : [child.material];
-          mats.forEach((m: THREE.Material) => { m.transparent = false; m.opacity = 1; });
+          const mats: THREE.Material[] = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach((m) => { m.transparent = false; m.opacity = 1; });
         }
       });
       mapRef.current?.triggerRepaint();
@@ -1551,14 +1561,8 @@ export default function GarageMapbox({
     tilesCamRef.current = new THREE.PerspectiveCamera(60, 1, 1, 2e6);
     tilesRendererRef.current = tiles;
 
-    // Hide OSM buildings — Google tiles include their own buildings
-    clearBuildings();
     mapRef.current?.triggerRepaint();
-    return () => {
-      // Restore OSM buildings when Google tiles are disabled
-      const cached = lastBuildingsRef.current;
-      if (cached) renderBuildings(cached.buildings, cached.garCenter);
-    };
+    return () => {};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleTiles]);
 
