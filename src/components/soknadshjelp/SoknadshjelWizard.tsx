@@ -548,7 +548,7 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
 }) {
   const result = permitResult(dibk);
   const permit = permitCost(dibk);
-  const naboCost = result !== "søknadsfri" ? 3_000 : 0;
+  const naboCost = countDisp(dibk) > 0 ? 3_000 : 0;
   const garage = garageConfig ? buildingCost(garageConfig) : null;
   const total = (garage ? garage.build + garage.door : 0) + permit + naboCost + drawingCost;
 
