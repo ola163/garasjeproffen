@@ -1006,6 +1006,13 @@ export default function GarageMapbox({
             tilesCam.lookAt(0, 0, 0);
             tilesCam.updateProjectionMatrix();
             tilesCam.updateMatrixWorld();
+            // Sync tiles.group.matrixWorld before tiles.update() so that setTileVisible's
+            // scene.updateMatrixWorld(true) uses the correct parent transform.
+            // renderer.render() hasn't run yet this frame so scene.updateMatrixWorld()
+            // hasn't propagated tilesWrapper.matrix → tiles.group yet.
+            if (tilesWrapperRef.current) {
+              tiles.group.matrixWorld.copy(tilesWrapperRef.current.matrix);
+            }
             tiles.setCamera(tilesCam);
             tiles.setResolutionFromRenderer(tilesCam, three.renderer);
             tiles.update();
