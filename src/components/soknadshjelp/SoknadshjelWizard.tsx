@@ -712,7 +712,7 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
             <ol className="mt-3 space-y-2">
               {[
                 "Vi gjennomgår søknadsgrunnlaget og tomteinformasjonen din",
-                "Christian eller Ola tar kontakt – som regel innen noen timer",
+                "Christian eller Ola tar kontakt – så fort de har sett gjennom forespørselen",
                 "Vi sender deg en plan for søknadsprosessen og et tilbud",
               ].map((step, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-green-800">

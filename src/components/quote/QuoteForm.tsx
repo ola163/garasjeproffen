@@ -411,7 +411,7 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
           <ol className="mt-3 space-y-2">
             {[
               "Vi gjennomgår konfigurasjonen og prisestimatet ditt",
-              "Christian eller Ola tar kontakt – som regel innen noen timer",
+              "Christian eller Ola tar kontakt – så fort de har sett gjennom forespørselen",
               "Vi sender et konkret tilbud tilpasset din tomt og dine ønsker",
             ].map((step, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-green-800">

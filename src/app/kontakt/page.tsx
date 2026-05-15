@@ -202,7 +202,7 @@ export default function Kontakt() {
               <ol className="mt-3 space-y-2">
                 {[
                   "Vi gjennomgår henvendelsen din og forbereder svar",
-                  "Christian eller Ola tar kontakt – som regel innen noen timer",
+                  "Christian eller Ola tar kontakt – så fort de har sett gjennom forespørselen",
                   "Vi setter opp et uforpliktende møte eller sender et tilbud",
                 ].map((step, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-green-800">
