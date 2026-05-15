@@ -1028,6 +1028,10 @@ export default function GarageMapbox({
             tiles.setCamera(tilesCam);
             tiles.setResolutionFromRenderer(tilesCam, three.renderer);
             tiles.update();
+            // Force matrixWorld propagation to all tile children — scene.updateMatrixWorld()
+            // won't traverse into tilesWrapper (matrixAutoUpdate=false, not dirty), so newly
+            // added tile scenes never get their matrixWorld set without this explicit call.
+            tiles.group.updateMatrixWorld(true);
             mapRef.current.triggerRepaint();
           }
 
@@ -1541,7 +1545,7 @@ export default function GarageMapbox({
     const AuthCls = GoogleCloudAuthClass.current;
     if (!AuthCls) { setTilesStatus("ERR: GoogleCloudAuthPlugin ikke lastet"); return; }
 
-    const tiles = new Cls();
+    const tiles = new Cls("https://tile.googleapis.com/v1/3dtiles/root.json");
     tiles.registerPlugin(new AuthCls({ apiToken: apiKey, useRecommendedSettings: true }));
     // useRecommendedSettings sets errorTarget=40 (for global views). Override to 6 so
     // the renderer refines down to street-level building geometry.
