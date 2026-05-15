@@ -4,7 +4,6 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const nr   = searchParams.get("nr");
   const navn = searchParams.get("navn");
 
   if (!navn) {
@@ -12,19 +11,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Try Wikimedia Commons with predictable filename: {nr}_{TitleCase}_komm.svg
-    if (nr) {
-      const commonsUrl = await fetchCommonsUrl(nr, navn);
-      if (commonsUrl) {
-        const res = await proxyImage(commonsUrl);
-        if (res) return res;
-      }
-    }
-
-    // 2. Fallback: Norwegian Wikipedia pageimages (infobox image)
-    const wikiUrl = await fetchWikipediaPageimage(navn);
-    if (wikiUrl) {
-      const res = await proxyImage(wikiUrl);
+    // Wikimedia Commons pattern: {TitleCaseName}_komm.svg  (no kommunenummer prefix)
+    // e.g. Stavanger_komm.svg, Sandnes_komm.svg, Ålesund_komm.svg
+    const commonsUrl = await fetchCommonsUrl(navn);
+    if (commonsUrl) {
+      const res = await proxyImage(commonsUrl);
       if (res) return res;
     }
 
@@ -34,23 +25,23 @@ export async function GET(request: Request) {
   }
 }
 
-async function fetchCommonsUrl(nr: string, navn: string): Promise<string | null> {
+async function fetchCommonsUrl(navn: string): Promise<string | null> {
+  // Title-case each word and join with underscores: "os og omegn" → "Os_Og_Omegn"
+  const titleCase = navn
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join("_");
+  const filename = `${titleCase}_komm.svg`;
+
+  const apiUrl =
+    `https://commons.wikimedia.org/w/api.php?action=query` +
+    `&titles=File:${encodeURIComponent(filename)}` +
+    `&prop=imageinfo&iiprop=url&iiurlwidth=300&format=json&origin=*`;
+
   try {
-    // Wikimedia Commons filename pattern: {kommunenummer}_{TitleCaseName}_komm.svg
-    const titleCase = navn
-      .split(/\s+/)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join("_");
-    const filename = `${nr}_${titleCase}_komm.svg`;
-
-    const apiUrl =
-      `https://commons.wikimedia.org/w/api.php?action=query` +
-      `&titles=File:${encodeURIComponent(filename)}` +
-      `&prop=imageinfo&iiprop=url&iiurlwidth=300&format=json&origin=*`;
-
     const res = await fetch(apiUrl, {
       headers: { "User-Agent": "GarasjeProffen/1.0 (post@garasjeproffen.no)" },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return null;
 
@@ -61,7 +52,7 @@ async function fetchCommonsUrl(nr: string, navn: string): Promise<string | null>
     };
     const pages = data.query?.pages ?? {};
     const page  = Object.values(pages)[0];
-    // pageid === -1 means file not found
+    // pageid === -1 means the file does not exist on Commons
     if (page && page.pageid !== -1 && page.imageinfo?.[0]?.thumburl) {
       return page.imageinfo[0].thumburl;
     }
@@ -71,35 +62,11 @@ async function fetchCommonsUrl(nr: string, navn: string): Promise<string | null>
   }
 }
 
-async function fetchWikipediaPageimage(navn: string): Promise<string | null> {
-  try {
-    const title = `${navn} kommune`;
-    const apiUrl =
-      `https://no.wikipedia.org/w/api.php?action=query&prop=pageimages` +
-      `&titles=${encodeURIComponent(title)}&pithumbsize=300&pilimit=1&format=json&origin=*`;
-
-    const res = await fetch(apiUrl, {
-      headers: { "User-Agent": "GarasjeProffen/1.0 (post@garasjeproffen.no)" },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return null;
-
-    const data = (await res.json()) as {
-      query?: { pages?: Record<string, { thumbnail?: { source: string } }> };
-    };
-    const pages = data.query?.pages ?? {};
-    const page  = Object.values(pages)[0];
-    return page?.thumbnail?.source ?? null;
-  } catch {
-    return null;
-  }
-}
-
 async function proxyImage(url: string): Promise<Response | null> {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "GarasjeProffen/1.0 (post@garasjeproffen.no)" },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return null;
     const buffer = await res.arrayBuffer();

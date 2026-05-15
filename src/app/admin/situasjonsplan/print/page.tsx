@@ -166,7 +166,9 @@ function drawGarageFootprint(
   const wallLpx = wallM / mPerPixLat;
   const ovhWpx  = ovhM  / mPerPixLon;
   const ovhLpx  = ovhM  / mPerPixLat;
-  const ang = rotationDeg * Math.PI / 180;
+  // Negate: canvas Y grows downward (south), geographic Y grows upward (north),
+  // so the same rotation formula spins the opposite way — invert to match the map.
+  const ang = -rotationDeg * Math.PI / 180;
 
   // Build a rotated rectangle centered on (cx, cy)
   function makeRect(hw: number, hl: number): [number, number][] {
