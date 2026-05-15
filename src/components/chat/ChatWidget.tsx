@@ -49,7 +49,7 @@ const DISMISS_COMMENTS = [
 ];
 const WELCOME: Record<Lang, string> = {
   bokmal: "Hei! Jeg er GarasjeDrøsaren, assistenten til GarasjeProffen. Hva ønsker du å bygge – garasje, carport, eller noe annet?",
-  jaersk: "Hei! Eg er GarasjeDrøsaren hjå GarasjeProffen. Kva vil du byggje – garasje, carport, eller noko anna?",
+  jaersk: "Hei! Æg er GarasjeDrøsaren hjå GarasjeProffen. Kæ vil du bygga – garasje, carport, eller noge anna?",
 };
 
 const BTN_W = 68;
@@ -87,11 +87,12 @@ export default function ChatWidget() {
   const [comment,    setComment]    = useState<string | null>(null);
   const [pos,        setPos]        = useState<{ left: number; top: number } | null>(null);
 
-  const [lang,     setLang]     = useState<Lang>("jaersk");
-  const [messages, setMessages] = useState<AiMessage[]>([{ role: "assistant", content: WELCOME.jaersk }]);
-  const [input,    setInput]    = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [ctaData,  setCtaData]  = useState<GpPayload | null>(null);
+  const [lang,       setLang]       = useState<Lang>("jaersk");
+  const [langPicked, setLangPicked] = useState(false);
+  const [messages,   setMessages]   = useState<AiMessage[]>([]);
+  const [input,      setInput]      = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [ctaData,    setCtaData]    = useState<GpPayload | null>(null);
 
   const pathname   = usePathname();
   const router     = useRouter();
@@ -126,6 +127,7 @@ export default function ChatWidget() {
     function onOpen() {
       setDismissed(false); setDismissing(false); setAnimating(false);
       setPos({ left: window.innerWidth - BTN_W - 24, top: window.innerHeight - BTN_H - 24 });
+      setLangPicked(false); setMessages([]); setCtaData(null);
       setOpen(true);
     }
     window.addEventListener("gd-visibility", onV);
@@ -219,7 +221,7 @@ export default function ChatWidget() {
   function handleBtnClick() {
     if (justDragged.current) { justDragged.current = false; return; }
     setComment(null);
-    setOpen((v) => !v);
+    if (open) { closeChat(); } else { setOpen(true); }
   }
 
   useEffect(() => {
@@ -232,6 +234,14 @@ export default function ChatWidget() {
   function selectLang(l: Lang) {
     setLang(l);
     setMessages([{ role: "assistant", content: WELCOME[l] }]);
+    setCtaData(null);
+    setLangPicked(true);
+  }
+
+  function closeChat() {
+    setOpen(false);
+    setLangPicked(false);
+    setMessages([]);
     setCtaData(null);
   }
 
@@ -397,7 +407,7 @@ export default function ChatWidget() {
                 Jærsk
               </button>
             </div>
-            <button onClick={() => setOpen(false)} aria-label="Lukk"
+            <button onClick={closeChat} aria-label="Lukk"
               className="ml-1 shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-black/20 text-white hover:bg-black/40 transition-colors">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -413,66 +423,94 @@ export default function ChatWidget() {
             </p>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-            {messages.map((m, i) => (
-              <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                {m.role === "assistant" && (
-                  <div className="relative h-7 w-7 shrink-0 rounded-full overflow-hidden mt-1">
-                    <Image src="/GarajseDrøsaren.png" alt="" fill className="object-cover" />
-                  </div>
-                )}
-                <div className={`max-w-[85%] ${m.role === "user" ? "" : "flex flex-col gap-2"}`}>
-                  <div className={`rounded-2xl px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
-                    m.role === "user"
-                      ? "bg-orange-500 text-white rounded-br-sm"
-                      : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"
-                  }`}>
-                    {m.content}
-                    {loading && i === messages.length - 1 && m.role === "assistant" && m.content === "" && (
-                      <span className="inline-flex gap-1 py-1">
-                        <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" />
-                        <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:0.15s]" />
-                        <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:0.3s]" />
-                      </span>
-                    )}
-                  </div>
-                  {/* CTA button — shown after the last assistant message that has a GP payload */}
-                  {ctaData && !loading && i === messages.length - 1 && m.role === "assistant" && (
-                    <button
-                      onClick={() => { router.push(buildUrl(ctaData)); setOpen(false); }}
-                      className="w-full rounded-xl bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors shadow-sm"
-                    >
-                      {ctaData.service === "søknadshjelp" ? "Gå til søknadshjelp →" : ctaData.snapOnly ? "Åpne konfiguratoren med standard mål →" : "Åpne konfiguratoren →"}
-                    </button>
-                  )}
-                </div>
+          {/* Language picker — shown on first open */}
+          {!langPicked ? (
+            <div className="flex flex-col items-center justify-center flex-1 gap-5 p-6 bg-gray-50">
+              <div className="text-center">
+                <p className="text-base font-semibold text-gray-800">Velg språk</p>
+                <p className="text-sm text-gray-400 mt-0.5">Choose language</p>
               </div>
-            ))}
-            <div ref={bottomRef} />
-          </div>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => selectLang("bokmal")}
+                  className="flex-1 rounded-2xl border-2 border-gray-200 bg-white px-4 py-5 text-center hover:border-orange-400 hover:bg-orange-50 transition-colors shadow-sm"
+                >
+                  <p className="font-semibold text-gray-800 text-base">Bokmål</p>
+                  <p className="text-xs text-gray-400 mt-1">Standard norsk</p>
+                </button>
+                <button
+                  onClick={() => selectLang("jaersk")}
+                  className="flex-1 rounded-2xl border-2 border-gray-200 bg-white px-4 py-5 text-center hover:border-orange-400 hover:bg-orange-50 transition-colors shadow-sm"
+                >
+                  <p className="font-semibold text-gray-800 text-base">Jærsk</p>
+                  <p className="text-xs text-gray-400 mt-1">Slik me drøse på Jæren</p>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                {messages.map((m, i) => (
+                  <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                    {m.role === "assistant" && (
+                      <div className="relative h-7 w-7 shrink-0 rounded-full overflow-hidden mt-1">
+                        <Image src="/GarajseDrøsaren.png" alt="" fill className="object-cover" />
+                      </div>
+                    )}
+                    <div className={`max-w-[85%] ${m.role === "user" ? "" : "flex flex-col gap-2"}`}>
+                      <div className={`rounded-2xl px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                        m.role === "user"
+                          ? "bg-orange-500 text-white rounded-br-sm"
+                          : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"
+                      }`}>
+                        {m.content}
+                        {loading && i === messages.length - 1 && m.role === "assistant" && m.content === "" && (
+                          <span className="inline-flex gap-1 py-1">
+                            <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" />
+                            <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:0.15s]" />
+                            <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:0.3s]" />
+                          </span>
+                        )}
+                      </div>
+                      {/* CTA button — shown after the last assistant message that has a GP payload */}
+                      {ctaData && !loading && i === messages.length - 1 && m.role === "assistant" && (
+                        <button
+                          onClick={() => { router.push(buildUrl(ctaData)); setOpen(false); }}
+                          className="w-full rounded-xl bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors shadow-sm"
+                        >
+                          {ctaData.service === "søknadshjelp" ? "Gå til søknadshjelp →" : ctaData.snapOnly ? "Åpne konfiguratoren med standard mål →" : "Åpne konfiguratoren →"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div ref={bottomRef} />
+              </div>
 
-          {/* Input */}
-          <div className="border-t border-gray-100 bg-white p-3 flex gap-2 items-end shrink-0">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder={lang === "jaersk" ? "Skriv noko…" : "Skriv en melding…"}
-              rows={2}
-              className="flex-1 resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 max-h-32 overflow-y-auto"
-            />
-            <button
-              onClick={send}
-              disabled={loading || !input.trim()}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 transition-colors"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
-          </div>
+              {/* Input */}
+              <div className="border-t border-gray-100 bg-white p-3 flex gap-2 items-end shrink-0">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKey}
+                  placeholder={lang === "jaersk" ? "Skriv noko…" : "Skriv en melding…"}
+                  rows={2}
+                  className="flex-1 resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 max-h-32 overflow-y-auto"
+                />
+                <button
+                  onClick={send}
+                  disabled={loading || !input.trim()}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </>
