@@ -308,9 +308,14 @@ export default function AdminQuotesPage() {
         </div>
 
         {/* Lead kilde statistikk */}
-        {leadKnownTotal > 0 && (
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Lead kilde</p>
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Lead kilde</p>
+            <p className="text-xs text-gray-400">{allRows.length} totalt · {leadKnownTotal} med kilde · {leadCounts[""] ?? 0} ukjent</p>
+          </div>
+          {leadKnownTotal === 0 ? (
+            <p className="text-xs text-gray-400 italic">Ingen leads har fått tildelt kilde ennå.</p>
+          ) : (
             <div className="space-y-2">
               {Object.entries(LEAD_SOURCE_LABELS).map(([key, label]) => {
                 const n = leadCounts[key] ?? 0;
@@ -318,24 +323,24 @@ export default function AdminQuotesPage() {
                 const pct = Math.round((n / leadKnownTotal) * 100);
                 return (
                   <div key={key} className="flex items-center gap-3">
-                    <span className="w-32 shrink-0 text-xs text-gray-600">{label}</span>
+                    <span className="w-36 shrink-0 text-xs text-gray-600">{label}</span>
                     <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
                       <div className="h-full rounded-full bg-orange-400 transition-all" style={{ width: `${pct}%` }} />
                     </div>
-                    <span className="w-12 shrink-0 text-right text-xs font-semibold text-gray-700">{n} <span className="font-normal text-gray-400">({pct}%)</span></span>
+                    <span className="w-16 shrink-0 text-right text-xs font-semibold text-gray-700">{n} <span className="font-normal text-gray-400">({pct}%)</span></span>
                   </div>
                 );
               })}
               {(leadCounts[""] ?? 0) > 0 && (
                 <div className="flex items-center gap-3">
-                  <span className="w-32 shrink-0 text-xs text-gray-400 italic">Ukjent</span>
+                  <span className="w-36 shrink-0 text-xs text-gray-400 italic">Ukjent</span>
                   <div className="flex-1 h-2 rounded-full bg-gray-100" />
-                  <span className="w-12 shrink-0 text-right text-xs text-gray-400">{leadCounts[""]}</span>
+                  <span className="w-16 shrink-0 text-right text-xs text-gray-400">{leadCounts[""]}</span>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Type filter */}
         <div className="mb-3 flex gap-2">
