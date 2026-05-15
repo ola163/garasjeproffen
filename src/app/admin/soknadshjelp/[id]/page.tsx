@@ -194,9 +194,9 @@ export default function SoknadshjelDetailPage() {
 
     // Detect DIBK changes for logging
     const origDibk = row.dibk ?? {};
-    const dibkChanges: { field: string; old_value: string; new_value: string }[] = [];
+    const dibkChanges: { key: string; field: string; old_value: string; new_value: string }[] = [];
     Object.entries(localDibk).forEach(([k, v]) => {
-      if (origDibk[k] !== v) dibkChanges.push({ field: DIBK_LABELS[k] ?? k, old_value: origDibk[k] ?? "", new_value: v });
+      if (origDibk[k] !== v) dibkChanges.push({ key: k, field: DIBK_LABELS[k] ?? k, old_value: origDibk[k] ?? "", new_value: v });
     });
 
     await supabase.from("soknadshjelp").update({
@@ -255,6 +255,20 @@ export default function SoknadshjelDetailPage() {
     JSON.stringify(localDibk) !== JSON.stringify(row.dibk ?? {}) ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
     JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? []);
+
+  // Keys that have been manually overridden (from activity log)
+  const manuallyChangedKeys = new Set<string>();
+  activityLog
+    .filter((e) => e.action_type === "dibk_edit")
+    .forEach((e) => {
+      const p = e.payload as { key?: string; field?: string };
+      if (p.key) {
+        manuallyChangedKeys.add(p.key);
+      } else if (p.field) {
+        const found = Object.entries(DIBK_LABELS).find(([, label]) => label === p.field)?.[0];
+        if (found) manuallyChangedKeys.add(found);
+      }
+    });
   const totalDispCount = dibkDispCount + manualDisps.length;
   const computedTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
@@ -318,13 +332,15 @@ export default function SoknadshjelDetailPage() {
               <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
                 {Object.entries(localDibk).map(([k, v]) => {
                   const isDisp = isDispensasjon(k, v);
-                  const changed = row.dibk?.[k] !== v;
+                  const unsaved = row.dibk?.[k] !== v;
+                  const manualOverride = manuallyChangedKeys.has(k);
+                  const showBadge = unsaved || manualOverride;
                   return (
-                    <div key={k} className={`flex items-center justify-between rounded-lg px-3 py-1.5 ${isDisp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"} ${changed ? "ring-2 ring-yellow-300" : ""}`}>
+                    <div key={k} className={`flex items-center justify-between rounded-lg px-3 py-1.5 ${isDisp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"} ${unsaved ? "ring-2 ring-yellow-300" : ""}`}>
                       <dt className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
                         {DIBK_LABELS[k] ?? k}
                         {isDisp && <span className="rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">disp.</span>}
-                        {changed && <span className="rounded bg-yellow-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-yellow-700">manuelt endret</span>}
+                        {showBadge && <span className="rounded bg-yellow-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-yellow-700">manuelt endret</span>}
                       </dt>
                       <select
                         value={v}
