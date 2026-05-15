@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import EmailLogin from "@/components/auth/EmailLogin";
 import ProfileEditor from "@/components/auth/ProfileEditor";
+import MessePasswordEditor from "@/components/auth/MessePasswordEditor";
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Ny",
@@ -195,6 +196,13 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
         <p className="mt-1 text-sm text-gray-400">Administrer kontaktinformasjonen din.</p>
         <ProfileEditor isAdmin={isAdmin} />
       </div>
+
+      {/* Messe password — admin only */}
+      {effectiveAdmin && (
+        <div className="mt-6">
+          <MessePasswordEditor />
+        </div>
+      )}
 
       <div className="mt-8 text-center">
         <p className="text-xs text-gray-400">
