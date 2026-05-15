@@ -98,6 +98,8 @@ export default function SoknadshjelDetailPage() {
 
   // Admin fields
   const [notes, setNotes] = useState("");
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
   const [status, setStatus] = useState("new");
   const [assignedTo, setAssignedTo] = useState("");
 
@@ -122,6 +124,7 @@ export default function SoknadshjelDetailPage() {
   // Attachments
   const [attachments, setAttachments] = useState<{ name: string }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -188,6 +191,15 @@ export default function SoknadshjelDetailPage() {
     });
   }
 
+  async function handleSaveNotes() {
+    if (!supabase || !row) return;
+    setSavingNotes(true);
+    await supabase.from("soknadshjelp").update({ notes: notes || null }).eq("id", row.id);
+    setRow((prev) => prev ? { ...prev, notes: notes || null } : null);
+    setSavingNotes(false);
+    setEditingNotes(false);
+  }
+
   async function handleAddComment() {
     if (!supabase || !row || !newComment.trim()) return;
     setAddingComment(true);
@@ -207,16 +219,28 @@ export default function SoknadshjelDetailPage() {
     setAddingComment(false);
   }
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !supabase) return;
+  async function uploadFile(file: File) {
+    if (!supabase) return;
     setUploading(true);
     const path = `${id}/${file.name}`;
     const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
     if (!error) setAttachments((prev) => [...prev.filter((a) => a.name !== file.name), { name: file.name }]);
     else console.error("Upload failed:", error);
     setUploading(false);
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadFile(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) await uploadFile(file);
   }
 
   async function downloadAttachment(name: string) {
@@ -248,7 +272,6 @@ export default function SoknadshjelDetailPage() {
     await supabase.from("soknadshjelp").update({
       status,
       assigned_to: assignedTo || null,
-      notes: notes || null,
       extra_costs: extraCosts,
       manual_dispensasjoner: manualDisps,
       total_price: newTotal,
@@ -285,7 +308,7 @@ export default function SoknadshjelDetailPage() {
       if (newEntries.length > 0) setActivityLog((prev) => [...newEntries.reverse(), ...prev]);
     }
 
-    setRow((prev) => prev ? { ...prev, dibk: localDibk, lead_source: leadSource || null, status, assigned_to: assignedTo || null, notes: notes || null } : null);
+    setRow((prev) => prev ? { ...prev, dibk: localDibk, lead_source: leadSource || null, status, assigned_to: assignedTo || null } : null);
     setLocalDibkReasons({});
     setSaving(false);
     setSaveOk(true);
@@ -314,7 +337,6 @@ export default function SoknadshjelDetailPage() {
   const hasChanges =
     (status !== row.status ||
     assignedTo !== (row.assigned_to ?? "") ||
-    notes !== (row.notes ?? "") ||
     leadSource !== (row.lead_source ?? "") ||
     changedDibkKeys.length > 0 ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
@@ -590,10 +612,43 @@ export default function SoknadshjelDetailPage() {
               </div>
             </div>
             <div className="mt-3">
-              <label className="mb-1 block text-xs font-medium text-gray-600">Notater</label>
-              <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
-                placeholder="Interne notater..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs font-medium text-gray-600">Notater</label>
+                {!editingNotes && (
+                  <button onClick={() => setEditingNotes(true)} className="text-xs text-orange-600 hover:text-orange-800 font-medium">Endre</button>
+                )}
+              </div>
+              {editingNotes ? (
+                <div>
+                  <textarea
+                    rows={4}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    autoFocus
+                    placeholder="Interne notater..."
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={handleSaveNotes}
+                      disabled={savingNotes}
+                      className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+                    >
+                      {savingNotes ? "Lagrer…" : "Lagre notat"}
+                    </button>
+                    <button
+                      onClick={() => { setNotes(row.notes ?? ""); setEditingNotes(false); }}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                    >
+                      Avbryt
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="min-h-[2.5rem] rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">
+                  {row.notes ? row.notes : <span className="text-gray-400 italic">Ingen notater</span>}
+                </div>
+              )}
             </div>
             <div className="mt-3 flex items-center gap-3 flex-wrap">
               <button onClick={handleSave} disabled={saving || !hasChanges}
@@ -627,6 +682,18 @@ export default function SoknadshjelDetailPage() {
               </button>
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} />
             </div>
+
+            {/* Drop zone */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`mb-3 flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed px-4 py-4 transition-colors ${dragOver ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-gray-50 hover:border-orange-300"}`}
+            >
+              <p className="text-xs text-gray-400">{uploading ? "Laster opp…" : "Slipp fil her, eller klikk for å velge"}</p>
+            </div>
+
             {attachments.length === 0 ? (
               <p className="text-xs text-gray-400 italic">Ingen vedlegg lastet opp ennå.</p>
             ) : (
