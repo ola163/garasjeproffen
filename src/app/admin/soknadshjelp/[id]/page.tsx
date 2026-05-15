@@ -32,6 +32,7 @@ interface SoknadshjelRow {
   assigned_to: string | null;
   notes: string | null;
   lead_source: string | null;
+  quote_id: string | null;
   created_at: string;
 }
 
@@ -116,6 +117,10 @@ export default function SoknadshjelDetailPage() {
   const [leadSource, setLeadSource] = useState<string>("");
   const [savingLeadSource, setSavingLeadSource] = useState(false);
   const [leadSources, setLeadSources] = useState<{ label: string; value: string }[]>([]);
+  const [statusConfirm, setStatusConfirm] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [updatingAssigned, setUpdatingAssigned] = useState(false);
+  const [convertingToQuote, setConvertingToQuote] = useState(false);
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
   const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
   const [localManualKeys, setLocalManualKeys] = useState<Set<string>>(new Set());
@@ -241,6 +246,68 @@ export default function SoknadshjelDetailPage() {
     setSavingLeadSource(false);
   }
 
+  async function handleStatusChange(newStatus: string) {
+    if (!supabase || !row || newStatus === row.status) return;
+    setUpdatingStatus(true);
+    const old = status;
+    setStatus(newStatus);
+    const { error } = await supabase.from("soknadshjelp").update({ status: newStatus }).eq("id", row.id);
+    if (error) {
+      setStatus(old);
+      setUpdatingStatus(false);
+      return;
+    }
+    const { data: logEntry } = await supabase.from("activity_log").insert({
+      entity_type: "soknadshjelp",
+      entity_id: row.id,
+      action_type: "status_change",
+      actor_email: user?.email ?? "ukjent",
+      payload: { from_status: old, to_status: newStatus },
+    }).select().single();
+    if (logEntry) setActivityLog((prev) => [logEntry as ActivityEntry, ...prev]);
+    setRow((prev) => prev ? { ...prev, status: newStatus } : null);
+    setUpdatingStatus(false);
+  }
+
+  async function handleAssignedToChange(email: string) {
+    if (!supabase || !row) return;
+    setUpdatingAssigned(true);
+    const old = assignedTo;
+    setAssignedTo(email);
+    const { error } = await supabase.from("soknadshjelp").update({ assigned_to: email || null }).eq("id", row.id);
+    if (error) {
+      setAssignedTo(old);
+    } else {
+      setRow((prev) => prev ? { ...prev, assigned_to: email || null } : null);
+    }
+    setUpdatingAssigned(false);
+  }
+
+  async function handleConvertToQuote() {
+    if (!supabase || !row || row.quote_id) return;
+    setConvertingToQuote(true);
+    const { data: ticketData } = await supabase.rpc("next_ticket_number");
+    const ticketNumber = (ticketData as string) ?? `Q-${Date.now()}`;
+    const { data: inserted, error } = await supabase.from("quotes").insert({
+      ticket_number: ticketNumber,
+      customer_name: row.customer_name,
+      customer_email: row.customer_email,
+      customer_phone: row.customer_phone || null,
+      category: "søknadshjelp",
+      status: "new",
+      created_manually: true,
+      lead_source: row.lead_source || null,
+    }).select("id, ticket_number").single();
+    if (error || !inserted) {
+      setConvertingToQuote(false);
+      return;
+    }
+    await supabase.from("soknadshjelp").update({ quote_id: inserted.id }).eq("id", row.id);
+    setRow((prev) => prev ? { ...prev, quote_id: inserted.id } : null);
+    setConvertingToQuote(false);
+    router.push(`/admin/quotes/${inserted.id}`);
+  }
+
   async function handleSaveNotes() {
     if (!supabase || !row) return;
     setSavingNotes(true);
@@ -284,7 +351,8 @@ export default function SoknadshjelDetailPage() {
     for (let i = 0; i < pendingFiles.length; i++) {
       const file = pendingFiles[i];
       const label = pendingLabels[i]?.trim() || file.name;
-      const path = `${id}/${Date.now()}_${file.name}`;
+      const safeName = file.name.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `${id}/${Date.now()}_${safeName}`;
       const { error: storageErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
       if (storageErr) {
         setUploadError(`Opplasting feilet: ${storageErr.message}`);
@@ -370,24 +438,11 @@ export default function SoknadshjelDetailPage() {
     });
 
     await supabase.from("soknadshjelp").update({
-      status,
-      assigned_to: assignedTo || null,
       extra_costs: extraCosts,
       manual_dispensasjoner: manualDisps,
       total_price: newTotal,
       dibk: localDibk,
     }).eq("id", row.id);
-
-    if (status !== row.status) {
-      const { data: statusEntry } = await supabase.from("activity_log").insert({
-        entity_type: "soknadshjelp",
-        entity_id: row.id,
-        action_type: "status_change",
-        actor_email: user?.email ?? "ukjent",
-        payload: { from_status: row.status, to_status: status },
-      }).select().single();
-      if (statusEntry) setActivityLog((prev) => [statusEntry as ActivityEntry, ...prev]);
-    }
 
     if (dibkChanges.length > 0) {
       const changedKeys = dibkChanges.map((c) => c.key);
@@ -407,7 +462,7 @@ export default function SoknadshjelDetailPage() {
       if (newEntries.length > 0) setActivityLog((prev) => [...newEntries.reverse(), ...prev]);
     }
 
-    setRow((prev) => prev ? { ...prev, dibk: localDibk, status, assigned_to: assignedTo || null } : null);
+    setRow((prev) => prev ? { ...prev, dibk: localDibk } : null);
     setLocalDibkReasons({});
     setSaving(false);
     setSaveOk(true);
@@ -434,9 +489,7 @@ export default function SoknadshjelDetailPage() {
     .map(([k]) => k);
   const dibkReasonsMissing = changedDibkKeys.some((k) => !localDibkReasons[k]?.trim());
   const hasChanges =
-    (status !== row.status ||
-    assignedTo !== (row.assigned_to ?? "") ||
-    changedDibkKeys.length > 0 ||
+    (changedDibkKeys.length > 0 ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
     JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? [])) &&
     !dibkReasonsMissing;
@@ -461,18 +514,70 @@ export default function SoknadshjelDetailPage() {
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
 
         {/* Header */}
-        <div className="mb-6">
-          <Link href="/admin/quotes" className="text-sm text-orange-600 hover:text-orange-800">← Forespørsler</Link>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="text-xl font-bold text-gray-900">{row.ticket_number}</h1>
-            <span className="rounded bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-700">Søknadshjelp</span>
-            {totalDispCount > 0 && (
-              <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                {totalDispCount} dispensasjon{totalDispCount > 1 ? "er" : ""}
-              </span>
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <button onClick={() => router.push("/admin/quotes")} className="mt-1 text-gray-400 hover:text-gray-600">
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+            </button>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-bold text-gray-900 font-mono">{row.ticket_number}</h1>
+                <span className="rounded bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-700">Søknadshjelp</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[status] ?? "bg-gray-100 text-gray-500"}`}>{STATUS_LABELS[status] ?? status}</span>
+                {totalDispCount > 0 && (
+                  <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                    {totalDispCount} dispensasjon{totalDispCount > 1 ? "er" : ""}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-gray-400">{formatDate(row.created_at)}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <select
+                  value={assignedTo}
+                  onChange={(e) => handleAssignedToChange(e.target.value)}
+                  disabled={updatingAssigned}
+                  className="rounded border border-gray-200 bg-transparent px-1.5 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-60"
+                >
+                  <option value="">Ikke tildelt</option>
+                  {ALLOWED_ADMINS.map((a) => (
+                    <option key={a} value={a}>{adminName(a)}</option>
+                  ))}
+                </select>
+                {updatingAssigned && <span className="text-xs text-gray-400">Lagrer…</span>}
+              </div>
+              {row.quote_id && (
+                <Link href={`/admin/quotes/${row.quote_id}`} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-orange-600 hover:text-orange-800">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                  Koblet til tilbudsforespørsel
+                </Link>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-2">
+            {/* Inline status buttons */}
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {STATUS_OPTIONS.map((s) => (
+                <button key={s} onClick={() => setStatusConfirm(s)} disabled={updatingStatus || s === status}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-all disabled:cursor-default ${
+                    s === status
+                      ? (STATUS_COLORS[s] ?? "bg-gray-100 text-gray-500") + " ring-2 ring-offset-1 ring-current opacity-100"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-100"
+                  }`}>
+                  {STATUS_LABELS[s] ?? s}
+                </button>
+              ))}
+            </div>
+            {!row.quote_id && (
+              <button
+                onClick={handleConvertToQuote}
+                disabled={convertingToQuote}
+                className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors"
+              >
+                {convertingToQuote ? "Oppretter…" : "Konverter til tilbudsforespørsel"}
+              </button>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-gray-400">{formatDate(row.created_at)}</p>
         </div>
 
         <div className="space-y-4">
@@ -685,33 +790,12 @@ export default function SoknadshjelDetailPage() {
             <p className="text-sm font-medium capitalize text-gray-700">{row.permit_result ?? "–"}</p>
           </div>
 
-          {/* Admin fields */}
+          {/* Notater + Lagre */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold text-gray-700">Behandling</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Status</label>
-                <select value={status} onChange={(e) => setStatus(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>{STATUS_LABELS[s] ?? s}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Behandler</label>
-                <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                  <option value="">Ikke tildelt</option>
-                  {ALLOWED_ADMINS.map((a) => (
-                    <option key={a} value={a}>{adminName(a)}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="mt-3">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">Notater</h2>
+            <div className="mt-0">
               <div className="mb-1 flex items-center justify-between">
-                <label className="text-xs font-medium text-gray-600">Notater</label>
+                <span className="text-xs font-medium text-gray-600">Internt notat</span>
                 {!editingNotes && (
                   <button onClick={() => setEditingNotes(true)} className="text-xs text-orange-600 hover:text-orange-800 font-medium">Endre</button>
                 )}
@@ -957,6 +1041,34 @@ export default function SoknadshjelDetailPage() {
 
         </div>
       </div>
+
+      {/* Status change confirmation modal */}
+      {statusConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-base font-bold text-gray-900">Endre status</h2>
+            <div className="mt-3 space-y-1.5 rounded-lg bg-gray-50 p-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Fra</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[status] ?? "bg-gray-100 text-gray-500"}`}>{STATUS_LABELS[status] ?? status}</span>
+              </div>
+              <div className="flex justify-between border-t border-gray-200 pt-1.5 mt-1.5">
+                <span className="text-gray-500">Til</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[statusConfirm] ?? "bg-gray-100 text-gray-500"}`}>{STATUS_LABELS[statusConfirm] ?? statusConfirm}</span>
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setStatusConfirm(null)} className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Avbryt
+              </button>
+              <button onClick={() => { const s = statusConfirm; setStatusConfirm(null); handleStatusChange(s); }} disabled={updatingStatus}
+                className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">
+                Bekreft
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

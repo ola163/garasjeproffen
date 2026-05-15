@@ -193,6 +193,8 @@ export default function QuoteDetailPage() {
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [newComment, setNewComment] = useState("");
   const [addingComment, setAddingComment] = useState(false);
+  const [linkedSoknadshjelp, setLinkedSoknadshjelp] = useState<Record<string, unknown> | null>(null);
+  const [activeTab, setActiveTab] = useState<"tilbud" | "soknadshjelp">("tilbud");
 
   // GP Catalog picker
   const [catalogModal, setCatalogModal] = useState<{ sIdx: number } | null>(null);
@@ -252,6 +254,9 @@ export default function QuoteDetailPage() {
     }
     if (logData) setStatusLog(logData);
     if (actData) setActivityLog(actData as ActivityEntry[]);
+    // Load linked soknadshjelp if any
+    const { data: sokData } = await supabase.from("soknadshjelp").select("*").eq("quote_id", id).maybeSingle();
+    if (sokData) setLinkedSoknadshjelp(sokData as Record<string, unknown>);
     setLoading(false);
   }
 
@@ -1145,7 +1150,135 @@ export default function QuoteDetailPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Tab bar — only shown when a linked søknadshjelp exists */}
+        {linkedSoknadshjelp && (
+          <div className="mb-4 flex gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm w-fit">
+            <button
+              onClick={() => setActiveTab("tilbud")}
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${activeTab === "tilbud" ? "bg-orange-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Tilbud
+            </button>
+            <button
+              onClick={() => setActiveTab("soknadshjelp")}
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${activeTab === "soknadshjelp" ? "bg-teal-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Søknadshjelp
+            </button>
+          </div>
+        )}
+
+        {/* Søknadshjelp tab content */}
+        {linkedSoknadshjelp && activeTab === "soknadshjelp" && (() => {
+          const sk = linkedSoknadshjelp as {
+            id: string; ticket_number: string; created_at: string;
+            dibk: Record<string, string> | null;
+            permit_result: string | null; permit_price: number | null; total_price: number | null;
+            manual_dispensasjoner: { description: string; amount: number }[] | null;
+            extra_costs: { description: string; amount: number }[] | null;
+            notes: string | null;
+          };
+          const dibkLabels: Record<string, string> = {
+            frittstående: "Frittstående bygg", bya50: "BYA under 50 m²", enEtasje: "Én etasje",
+            monehoyde: "Mønehøyde OK", nabogrense: "Nabogrense OK", avstandBygg: "Avstand til bygg OK",
+            ikkeVernet: "Ikke vernede omgivelser", ikkeFlom: "Ikke flomutsatt", lnf: "LNF-område", kjeller: "Kjeller",
+          };
+          const dispKeys = ["frittstående", "bya50", "enEtasje", "monehoyde", "nabogrense", "avstandBygg", "ikkeVernet", "ikkeFlom"];
+          function isDisp(key: string, value: string) { return key === "lnf" ? value === "Ja" : dispKeys.includes(key) && value === "Nei"; }
+          const dibkDispCount = sk.dibk ? Object.entries(sk.dibk).filter(([k, v]) => isDisp(k, v)).length : 0;
+          const manualDisps = sk.manual_dispensasjoner ?? [];
+          const extraCosts = sk.extra_costs ?? [];
+          const computedTotal = (sk.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
+          const fmtNok = (n: number) => n.toLocaleString("nb-NO") + " kr";
+          return (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between rounded-xl border border-teal-200 bg-teal-50 px-4 py-3">
+                <div>
+                  <p className="text-xs font-semibold text-teal-700">Koblet søknadshjelp-forespørsel</p>
+                  <p className="text-sm font-bold text-teal-900 font-mono">{sk.ticket_number}</p>
+                </div>
+                <Link href={`/admin/soknadshjelp/${sk.id}`} className="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100 transition-colors">
+                  Åpne søknadshjelp →
+                </Link>
+              </div>
+
+              {sk.dibk && Object.keys(sk.dibk).length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <div className="mb-3 flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-gray-700">DIBK-svar</h2>
+                    {dibkDispCount > 0 && <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{dibkDispCount} dispensasjon{dibkDispCount > 1 ? "er" : ""}</span>}
+                  </div>
+                  <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
+                    {Object.entries(sk.dibk).map(([k, v]) => {
+                      const disp = isDisp(k, v);
+                      return (
+                        <div key={k} className={`rounded-lg px-3 py-1.5 ${disp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"}`}>
+                          <div className="flex items-center justify-between">
+                            <dt className="text-xs text-gray-500">{dibkLabels[k] ?? k}{disp && <span className="ml-1 rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold uppercase text-red-600">disp.</span>}</dt>
+                            <dd className={`text-xs font-semibold ${v === "Ja" ? "text-green-600" : v === "Nei" ? "text-red-500" : "text-gray-500"}`}>{v}</dd>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </dl>
+                </div>
+              )}
+
+              {manualDisps.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <h2 className="mb-3 text-sm font-semibold text-gray-700">Dispensasjoner fra reguleringsplan</h2>
+                  <ul className="space-y-1.5">
+                    {manualDisps.map((d, i) => (
+                      <li key={i} className="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 ring-1 ring-red-200 text-sm">
+                        <span className="text-gray-800">{d.description}</span>
+                        <span className="ml-3 text-xs font-semibold text-gray-700">{fmtNok(d.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                {sk.permit_result && (
+                  <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                    <h2 className="mb-2 text-sm font-semibold text-gray-700">Søknadsresultat</h2>
+                    <p className="text-sm font-medium capitalize text-gray-700">{sk.permit_result}</p>
+                  </div>
+                )}
+                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <h2 className="mb-2 text-sm font-semibold text-gray-700">Pris</h2>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Søknadshjelp</span>
+                      <span>{sk.permit_price != null ? fmtNok(sk.permit_price) : "–"}</span>
+                    </div>
+                    {manualDisps.map((d, i) => (
+                      <div key={i} className="flex justify-between text-gray-600">
+                        <span className="flex items-center gap-1"><span className="rounded bg-red-100 px-1 text-[10px] font-semibold text-red-600">Disp.</span>{d.description}</span>
+                        <span>{fmtNok(d.amount)}</span>
+                      </div>
+                    ))}
+                    {extraCosts.map((c, i) => (
+                      <div key={i} className="flex justify-between text-gray-600"><span>{c.description}</span><span>{fmtNok(c.amount)}</span></div>
+                    ))}
+                    <div className="border-t border-gray-100 pt-1.5 flex justify-between font-bold text-gray-900">
+                      <span>Totalt</span><span>{fmtNok(computedTotal)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {sk.notes && (
+                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <h2 className="mb-2 text-sm font-semibold text-gray-700">Notater</h2>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{sk.notes}</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        <div className={`grid grid-cols-1 gap-6 lg:grid-cols-2${linkedSoknadshjelp && activeTab === "soknadshjelp" ? " hidden" : ""}`}>
 
           {/* Left: customer + config */}
           <div className="space-y-5">
