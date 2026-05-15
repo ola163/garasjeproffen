@@ -302,9 +302,7 @@ export default function ChatWidget() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
-  const isMobileScreen = typeof window !== "undefined" && window.innerWidth < 640;
-  const hiddenOnPath = pathname?.startsWith("/admin") ||
-    (isMobileScreen && (isConfigurator || pathname?.startsWith("/min-side")));
+  const hiddenOnPath = pathname?.startsWith("/admin");
 
   if (dismissed || hiddenOnPath || !pos) return null;
 

@@ -156,6 +156,21 @@ export default function Header() {
             </button>
           )}
 
+          {/* Open GarasjeDrøsaren – mobile only, always visible */}
+          <button
+            onClick={() => {
+              if (gdDismissed) enableGd();
+              window.dispatchEvent(new Event("gd-open"));
+              setMobileOpen(false);
+            }}
+            aria-label="GarasjeDrøsaren"
+            className="flex sm:hidden h-8 w-8 items-center justify-center rounded-full bg-orange-100 hover:bg-orange-200 transition-colors"
+          >
+            <svg className="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+          </button>
+
           {/* Kom i gang dropdown – desktop */}
           <div ref={ctaRef} className="relative hidden sm:block">
             <button
