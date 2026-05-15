@@ -830,7 +830,7 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
 
   // ── Configurator flow ────────────────────────────────────────────────────────
   if (garageConfig) {
-    const baseCost = hasExistingDrawings === null ? 0 : hasExistingDrawings ? 10_000 : 5_000;
+    const baseCost = hasExistingDrawings === null ? 0 : hasExistingDrawings ? 5_000 : 10_000;
     const totalCost = baseCost + (withSituasjonsplan ? 1_500 : 0);
 
     return (
@@ -850,7 +850,7 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
           >
             <span className="text-lg">✓</span>
             <span className="text-sm font-semibold text-gray-900">Ja, jeg har</span>
-            <span className="text-xs text-gray-500">10 000 kr</span>
+            <span className="text-xs text-gray-500">5 000 kr</span>
           </button>
           <button
             onClick={() => setHasExistingDrawings(false)}
@@ -858,7 +858,7 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
           >
             <span className="text-lg">✗</span>
             <span className="text-sm font-semibold text-gray-900">Nei, jeg har ikke</span>
-            <span className="text-xs text-gray-500">5 000 kr</span>
+            <span className="text-xs text-gray-500">10 000 kr</span>
           </button>
         </div>
 
