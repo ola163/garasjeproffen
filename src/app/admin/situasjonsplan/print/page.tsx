@@ -450,15 +450,7 @@ function drawTitleBlock(
     yl += 28;
   }
 
-  ctx.fillStyle = "#475569";
-  ctx.font      = "14px sans-serif";
-  ctx.fillText(`Rotasjon: ${rotation}°`, col1 + pad, yl);
-  yl += 22;
-  const wLabel = (widthMm  / 1000).toFixed(1).replace(".0", "");
-  const lLabel = (lengthMm / 1000).toFixed(1).replace(".0", "");
-  ctx.fillText(`${wLabel} × ${lLabel} m`, col1 + pad, yl);
-
-  // ── Column 3 (right): Scale / date / company ──
+  // ── Column 3 (right): Scale / format / date / company ──
   let y3 = y + pad + 2;
   ctx.font      = "bold 16px sans-serif";
   ctx.fillStyle = "#1e293b";
@@ -467,6 +459,8 @@ function drawTitleBlock(
   y3 += 30;
   ctx.font      = "14px sans-serif";
   ctx.fillStyle = "#475569";
+  ctx.fillText("Format: A4", col2 + pad, y3);
+  y3 += 24;
   ctx.fillText(`Dato: ${dateStr}`, col2 + pad, y3);
   y3 += 24;
   ctx.fillText("© Kartverket", col2 + pad, y3);
