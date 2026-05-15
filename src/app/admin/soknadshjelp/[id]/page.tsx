@@ -121,10 +121,15 @@ export default function SoknadshjelDetailPage() {
   const [newComment, setNewComment] = useState("");
   const [addingComment, setAddingComment] = useState(false);
 
-  // Attachments
-  const [attachments, setAttachments] = useState<{ name: string }[]>([]);
+    // Attachments
+  type Attachment = { id: string; file_path: string; label: string; uploaded_by: string; created_at: string };
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingLabels, setPendingLabels] = useState<string[]>([]);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingLabelText, setEditingLabelText] = useState("");
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -139,8 +144,8 @@ export default function SoknadshjelDetailPage() {
     Promise.all([
       supabase.from("soknadshjelp").select("*").eq("id", id).single(),
       supabase.from("activity_log").select("*").eq("entity_id", id).order("created_at", { ascending: false }),
-      supabase.storage.from(BUCKET).list(id),
-    ]).then(([{ data }, { data: actData }, { data: files }]) => {
+      supabase.from("soknadshjelp_attachments").select("*").eq("soknadshjelp_id", id).order("created_at", { ascending: true }),
+    ]).then(([{ data }, { data: actData }, { data: attData }]) => {
       if (data) {
         setRow(data as SoknadshjelRow);
         setNotes(data.notes ?? "");
@@ -157,7 +162,7 @@ export default function SoknadshjelDetailPage() {
         setNewDispAmount(dibkCount > 0 || md.length > 0 ? "2000" : "8000");
       }
       if (actData) setActivityLog(actData as ActivityEntry[]);
-      if (files) setAttachments(files.map((f) => ({ name: f.name })));
+      if (attData) setAttachments(attData as Attachment[]);
       setLoading(false);
     });
   }, [user, id]);
@@ -219,40 +224,66 @@ export default function SoknadshjelDetailPage() {
     setAddingComment(false);
   }
 
-  async function uploadFile(file: File) {
-    if (!supabase) return;
-    setUploading(true);
-    const path = `${id}/${file.name}`;
-    const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
-    if (!error) setAttachments((prev) => [...prev.filter((a) => a.name !== file.name), { name: file.name }]);
-    else console.error("Upload failed:", error);
-    setUploading(false);
+  function queueFiles(files: FileList | File[]) {
+    const arr = Array.from(files);
+    if (!arr.length) return;
+    setPendingFiles(arr);
+    setPendingLabels(arr.map((f) => f.name.replace(/\.[^.]+$/, "")));
   }
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await uploadFile(file);
+  async function confirmUpload() {
+    if (!supabase || !row || !pendingFiles.length) return;
+    setUploading(true);
+    const newEntries: Attachment[] = [];
+    for (let i = 0; i < pendingFiles.length; i++) {
+      const file = pendingFiles[i];
+      const label = pendingLabels[i]?.trim() || file.name;
+      const path = `${id}/${Date.now()}_${file.name}`;
+      const { error: storageErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
+      if (storageErr) { console.error("Upload failed:", storageErr); continue; }
+      const { data: meta } = await supabase.from("soknadshjelp_attachments").insert({
+        soknadshjelp_id: row.id,
+        file_path: path,
+        label,
+        uploaded_by: user?.email ?? "ukjent",
+      }).select().single();
+      if (meta) newEntries.push(meta as Attachment);
+    }
+    setAttachments((prev) => [...prev, ...newEntries]);
+    setPendingFiles([]);
+    setPendingLabels([]);
+    setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  async function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) await uploadFile(file);
+  function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files?.length) queueFiles(e.target.files);
   }
 
-  async function downloadAttachment(name: string) {
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files?.length) queueFiles(e.dataTransfer.files);
+  }
+
+  async function downloadAttachment(att: Attachment) {
     if (!supabase) return;
-    const { data } = await supabase.storage.from(BUCKET).createSignedUrl(`${id}/${name}`, 3600);
+    const { data } = await supabase.storage.from(BUCKET).createSignedUrl(att.file_path, 3600);
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   }
 
-  async function deleteAttachment(name: string) {
+  async function deleteAttachment(att: Attachment) {
     if (!supabase) return;
-    await supabase.storage.from(BUCKET).remove([`${id}/${name}`]);
-    setAttachments((prev) => prev.filter((a) => a.name !== name));
+    await supabase.storage.from(BUCKET).remove([att.file_path]);
+    await supabase.from("soknadshjelp_attachments").delete().eq("id", att.id);
+    setAttachments((prev) => prev.filter((a) => a.id !== att.id));
+  }
+
+  async function saveAttachmentLabel(att: Attachment, newLabel: string) {
+    if (!supabase || !newLabel.trim()) return;
+    await supabase.from("soknadshjelp_attachments").update({ label: newLabel.trim() }).eq("id", att.id);
+    setAttachments((prev) => prev.map((a) => a.id === att.id ? { ...a, label: newLabel.trim() } : a));
+    setEditingLabelId(null);
   }
 
   async function handleSave() {
@@ -675,44 +706,95 @@ export default function SoknadshjelDetailPage() {
               <h2 className="text-sm font-semibold text-gray-700">Vedlegg</h2>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
+                disabled={uploading || pendingFiles.length > 0}
                 className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
               >
-                {uploading ? "Laster opp…" : "+ Last opp"}
+                + Last opp
               </button>
-              <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} />
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleUpload} />
             </div>
 
+            {/* Pending upload — label inputs */}
+            {pendingFiles.length > 0 && (
+              <div className="mb-3 rounded-lg border border-orange-200 bg-orange-50 p-3 space-y-2">
+                <p className="text-xs font-medium text-orange-700">Gi vedleggene et navn før opplasting:</p>
+                {pendingFiles.map((file, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 truncate w-28 shrink-0">{file.name}</span>
+                    <input
+                      type="text"
+                      value={pendingLabels[i] ?? ""}
+                      onChange={(e) => setPendingLabels((prev) => { const next = [...prev]; next[i] = e.target.value; return next; })}
+                      placeholder="Navn på vedlegg"
+                      className="flex-1 rounded border border-orange-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
+                    />
+                  </div>
+                ))}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={confirmUpload}
+                    disabled={uploading}
+                    className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+                  >
+                    {uploading ? "Laster opp…" : "Last opp"}
+                  </button>
+                  <button
+                    onClick={() => { setPendingFiles([]); setPendingLabels([]); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    Avbryt
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Drop zone */}
-            <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`mb-3 flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed px-4 py-4 transition-colors ${dragOver ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-gray-50 hover:border-orange-300"}`}
-            >
-              <p className="text-xs text-gray-400">{uploading ? "Laster opp…" : "Slipp fil her, eller klikk for å velge"}</p>
-            </div>
+            {pendingFiles.length === 0 && (
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`mb-3 flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed px-4 py-4 transition-colors ${dragOver ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-gray-50 hover:border-orange-300"}`}
+              >
+                <p className="text-xs text-gray-400">Slipp filer her, eller klikk for å velge</p>
+              </div>
+            )}
 
             {attachments.length === 0 ? (
               <p className="text-xs text-gray-400 italic">Ingen vedlegg lastet opp ennå.</p>
             ) : (
               <ul className="space-y-1.5">
                 {attachments.map((a) => (
-                  <li key={a.name} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-                    <span className="text-sm text-gray-700 truncate max-w-xs">{a.name}</span>
-                    <div className="ml-3 flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => downloadAttachment(a.name)}
-                        className="text-xs text-orange-600 hover:text-orange-800 font-medium"
-                      >
-                        Last ned
-                      </button>
-                      <button
-                        onClick={() => deleteAttachment(a.name)}
-                        className="text-gray-300 hover:text-red-500"
-                        title="Slett"
-                      >
+                  <li key={a.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+                    {editingLabelId === a.id ? (
+                      <div className="flex flex-1 items-center gap-2 mr-2">
+                        <input
+                          type="text"
+                          value={editingLabelText}
+                          onChange={(e) => setEditingLabelText(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveAttachmentLabel(a, editingLabelText); if (e.key === "Escape") setEditingLabelId(null); }}
+                          autoFocus
+                          className="flex-1 rounded border border-orange-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
+                        />
+                        <button onClick={() => saveAttachmentLabel(a, editingLabelText)} className="text-xs text-orange-600 font-medium">Lagre</button>
+                        <button onClick={() => setEditingLabelId(null)} className="text-xs text-gray-400">Avbryt</button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-1 items-center gap-1.5 mr-2 min-w-0">
+                        <span className="text-sm text-gray-700 truncate">{a.label}</span>
+                        <button
+                          onClick={() => { setEditingLabelId(a.id); setEditingLabelText(a.label); }}
+                          className="shrink-0 text-gray-300 hover:text-gray-500"
+                          title="Endre navn"
+                        >
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 15H9v-3z" /></svg>
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => downloadAttachment(a)} className="text-xs text-orange-600 hover:text-orange-800 font-medium">Last ned</button>
+                      <button onClick={() => deleteAttachment(a)} className="text-gray-300 hover:text-red-500" title="Slett">
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
                     </div>
