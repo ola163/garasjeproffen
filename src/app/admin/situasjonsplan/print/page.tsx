@@ -373,9 +373,9 @@ function drawTitleBlock(
   ctx.lineTo(W, y);
   ctx.stroke();
 
-  // Column dividers
-  const col1 = Math.round(W * 0.42);
-  const col2 = Math.round(W * 0.75);
+  // Column dividers: col1 = narrow left (logo + north arrow), col2 = project info, col3 = scale/date
+  const col1 = Math.round(W * 0.20); // ~248px — kommunevåpen + north arrow
+  const col2 = Math.round(W * 0.60); // ~744px — project info
 
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -387,96 +387,93 @@ function drawTitleBlock(
   ctx.strokeRect(0, y, W, H);
 
   const pad = 18;
+  const col1CenterX = Math.round(col1 / 2);
+  const col1W = col1;
 
-  // ── Column 1: Project info ──
-  let yl = y + pad + 2;
-  ctx.font      = "bold 22px sans-serif";
-  ctx.fillStyle = "#1e293b";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  ctx.fillText("SITUASJONSPLAN", pad, yl);
-
-  yl += 34;
-  ctx.font      = "15px sans-serif";
-  ctx.fillStyle = "#334155";
-  const addrDisplay = address || "–";
-  // wrap long address across two lines
-  if (ctx.measureText(addrDisplay).width > col1 - pad * 2) {
-    const words = addrDisplay.split(" ");
-    let line1 = "", line2 = "";
-    for (const w of words) {
-      if (ctx.measureText(line1 + " " + w).width < col1 - pad * 2) {
-        line1 += (line1 ? " " : "") + w;
-      } else {
-        line2 += (line2 ? " " : "") + w;
-      }
-    }
-    ctx.fillText(line1, pad, yl);
-    yl += 20;
-    ctx.fillText(line2, pad, yl);
-    yl += 24;
-  } else {
-    ctx.fillText(addrDisplay, pad, yl);
-    yl += 28;
-  }
-
-  ctx.fillStyle = "#475569";
-  ctx.font      = "14px sans-serif";
-  ctx.fillText(`Rotasjon: ${rotation}°`, pad, yl);
-  yl += 22;
-  const wLabel = (widthMm  / 1000).toFixed(1).replace(".0", "");
-  const lLabel = (lengthMm / 1000).toFixed(1).replace(".0", "");
-  ctx.fillText(`${wLabel} × ${lLabel} m`, pad, yl);
-  yl += 22;
-
-  // ── Column 2: Scale / date + north arrow ──
-  let y2 = y + pad + 2;
-  ctx.font      = "bold 16px sans-serif";
-  ctx.fillStyle = "#1e293b";
-  ctx.textAlign = "left";
-  ctx.fillText("Målestokk 1:500", col1 + pad, y2);
-  y2 += 30;
-  ctx.font      = "14px sans-serif";
-  ctx.fillStyle = "#475569";
-  ctx.fillText(`Dato: ${dateStr}`, col1 + pad, y2);
-  y2 += 24;
-  ctx.fillText("© Kartverket", col1 + pad, y2);
-  y2 += 24;
-  ctx.font      = "bold 14px sans-serif";
-  ctx.fillStyle = "#ea580c";
-  ctx.fillText("Garasjeproffen AS", col1 + pad, y2);
-
-  // North arrow at the bottom-centre of col2
-  const col2CenterX = col1 + Math.round((col2 - col1) / 2);
-  drawNorthArrow(ctx, col2CenterX, y + H - 55, 34);
-
-  // ── Column 3: Kommune logo bottom-right ──
-  const col3CenterX = col2 + Math.round((W - col2) / 2);
-  const col3W = W - col2;
-
+  // ── Column 1 (far left): Kommunevåpen + north arrow ──
   if (kommune?.logo) {
-    const maxW = col3W - pad * 2;
-    const maxH = H - pad * 2;
-    const scale = Math.min(maxW / kommune.logo.width, maxH / kommune.logo.height, 1);
+    const maxLogoW = col1W - pad * 2;
+    const maxLogoH = Math.round(H * 0.52);
+    const scale = Math.min(maxLogoW / kommune.logo.width, maxLogoH / kommune.logo.height, 1);
     const lW = Math.round(kommune.logo.width  * scale);
     const lH = Math.round(kommune.logo.height * scale);
-    const logoX = col2 + Math.round((col3W - lW) / 2);
-    const logoY = y + H - lH - pad;
+    const logoX = Math.round((col1W - lW) / 2);
+    const logoY = y + pad;
     ctx.drawImage(kommune.logo, logoX, logoY, lW, lH);
     if (kommune.navn) {
-      ctx.font         = "bold 12px sans-serif";
+      ctx.font         = "bold 11px sans-serif";
       ctx.fillStyle    = "#64748b";
       ctx.textAlign    = "center";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(kommune.navn, col3CenterX, logoY - 4);
+      ctx.textBaseline = "top";
+      ctx.fillText(kommune.navn, col1CenterX, logoY + lH + 4);
     }
   } else if (kommune?.navn) {
     ctx.font         = "bold 13px sans-serif";
     ctx.fillStyle    = "#334155";
     ctx.textAlign    = "center";
     ctx.textBaseline = "top";
-    ctx.fillText(kommune.navn, col3CenterX, y + pad + 4);
+    ctx.fillText(kommune.navn, col1CenterX, y + pad + 4);
   }
+
+  // North arrow at bottom-centre of col1
+  drawNorthArrow(ctx, col1CenterX, y + H - 55, 34);
+
+  // ── Column 2: Project info ──
+  let yl = y + pad + 2;
+  ctx.font      = "bold 22px sans-serif";
+  ctx.fillStyle = "#1e293b";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("SITUASJONSPLAN", col1 + pad, yl);
+
+  yl += 34;
+  ctx.font      = "15px sans-serif";
+  ctx.fillStyle = "#334155";
+  const addrDisplay = address || "–";
+  const col2W = col2 - col1;
+  if (ctx.measureText(addrDisplay).width > col2W - pad * 2) {
+    const words = addrDisplay.split(" ");
+    let line1 = "", line2 = "";
+    for (const w of words) {
+      if (ctx.measureText(line1 + " " + w).width < col2W - pad * 2) {
+        line1 += (line1 ? " " : "") + w;
+      } else {
+        line2 += (line2 ? " " : "") + w;
+      }
+    }
+    ctx.fillText(line1, col1 + pad, yl);
+    yl += 20;
+    ctx.fillText(line2, col1 + pad, yl);
+    yl += 24;
+  } else {
+    ctx.fillText(addrDisplay, col1 + pad, yl);
+    yl += 28;
+  }
+
+  ctx.fillStyle = "#475569";
+  ctx.font      = "14px sans-serif";
+  ctx.fillText(`Rotasjon: ${rotation}°`, col1 + pad, yl);
+  yl += 22;
+  const wLabel = (widthMm  / 1000).toFixed(1).replace(".0", "");
+  const lLabel = (lengthMm / 1000).toFixed(1).replace(".0", "");
+  ctx.fillText(`${wLabel} × ${lLabel} m`, col1 + pad, yl);
+
+  // ── Column 3 (right): Scale / date / company ──
+  let y3 = y + pad + 2;
+  ctx.font      = "bold 16px sans-serif";
+  ctx.fillStyle = "#1e293b";
+  ctx.textAlign = "left";
+  ctx.fillText("Målestokk 1:500", col2 + pad, y3);
+  y3 += 30;
+  ctx.font      = "14px sans-serif";
+  ctx.fillStyle = "#475569";
+  ctx.fillText(`Dato: ${dateStr}`, col2 + pad, y3);
+  y3 += 24;
+  ctx.fillText("© Kartverket", col2 + pad, y3);
+  y3 += 24;
+  ctx.font      = "bold 14px sans-serif";
+  ctx.fillStyle = "#ea580c";
+  ctx.fillText("Garasjeproffen AS", col2 + pad, y3);
 }
 
 // ── Main render function ──
