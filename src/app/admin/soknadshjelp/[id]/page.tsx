@@ -114,6 +114,8 @@ export default function SoknadshjelDetailPage() {
   const [newDispAmount, setNewDispAmount] = useState("8000");
 
   const [leadSource, setLeadSource] = useState<string>("");
+  const [savingLeadSource, setSavingLeadSource] = useState(false);
+  const [leadSources, setLeadSources] = useState<{ label: string; value: string }[]>([]);
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
   const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
   const [localManualKeys, setLocalManualKeys] = useState<Set<string>>(new Set());
@@ -142,6 +144,10 @@ export default function SoknadshjelDetailPage() {
 
   useEffect(() => {
     if (!user || !supabase) return;
+    supabase.from("lead_sources").select("label, value").order("sort_order").then(({ data }) => {
+      if (data) setLeadSources(data as { label: string; value: string }[]);
+    });
+
     Promise.all([
       supabase.from("soknadshjelp").select("*").eq("id", id).single(),
       supabase.from("activity_log").select("*").eq("entity_id", id).order("created_at", { ascending: false }),
@@ -213,9 +219,26 @@ export default function SoknadshjelDetailPage() {
 
   async function handleLeadSourceChange(val: string) {
     if (!supabase || !row) return;
+    const old = leadSource;
     setLeadSource(val);
-    await supabase.from("soknadshjelp").update({ lead_source: val || null }).eq("id", row.id);
-    setRow((prev) => prev ? { ...prev, lead_source: val || null } : null);
+    setSavingLeadSource(true);
+    const { error } = await supabase.from("soknadshjelp").update({ lead_source: val || null }).eq("id", row.id);
+    if (error) {
+      console.error("Lead source save failed:", error);
+      setLeadSource(old);
+    } else {
+      setRow((prev) => prev ? { ...prev, lead_source: val || null } : null);
+      if (val !== old) {
+        await supabase.from("activity_log").insert({
+          entity_type: "soknadshjelp",
+          entity_id: row.id,
+          action_type: "lead_source_change",
+          actor_email: user?.email ?? "ukjent",
+          payload: { old, new: val },
+        });
+      }
+    }
+    setSavingLeadSource(false);
   }
 
   async function handleSaveNotes() {
@@ -461,14 +484,14 @@ export default function SoknadshjelDetailPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">Lead kilde</span>
                 <select value={leadSource} onChange={(e) => handleLeadSourceChange(e.target.value)}
-                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400">
+                  disabled={savingLeadSource}
+                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60">
                   <option value="">– Ukjent</option>
-                  <option value="messe_stand">Messe/stand</option>
-                  <option value="chatgpt">ChatGPT</option>
-                  <option value="google">Google</option>
-                  <option value="andre_soekemotorer">Andre søkemotorer</option>
-                  <option value="annet">Annet</option>
+                  {leadSources.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
                 </select>
+                {savingLeadSource && <span className="text-xs text-gray-400">Lagrer…</span>}
               </div>
             </div>
             <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">

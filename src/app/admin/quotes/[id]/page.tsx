@@ -189,6 +189,7 @@ export default function QuoteDetailPage() {
   const [customerEdit, setCustomerEdit] = useState({ name: "", email: "", phone: "", message: "", category: "", building_type: "" });
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [leadSource, setLeadSource] = useState<string>("");
+  const [leadSources, setLeadSources] = useState<{ label: string; value: string }[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [newComment, setNewComment] = useState("");
   const [addingComment, setAddingComment] = useState(false);
@@ -226,6 +227,9 @@ export default function QuoteDetailPage() {
 
   async function loadQuote() {
     if (!supabase) return;
+    supabase.from("lead_sources").select("label, value").order("sort_order").then(({ data: ls }) => {
+      if (ls) setLeadSources(ls as { label: string; value: string }[]);
+    });
     const [{ data }, { data: logData }, { data: actData }] = await Promise.all([
       supabase.from("quotes").select("*").eq("id", id).single(),
       supabase.from("quote_status_logs").select("*").eq("quote_id", id).order("changed_at", { ascending: false }),
@@ -1165,11 +1169,9 @@ export default function QuoteDetailPage() {
                   className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
                 >
                   <option value="">– Ukjent</option>
-                  <option value="messe_stand">Messe/stand</option>
-                  <option value="chatgpt">ChatGPT</option>
-                  <option value="google">Google</option>
-                  <option value="andre_soekemotorer">Andre søkemotorer</option>
-                  <option value="annet">Annet</option>
+                  {leadSources.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
                 </select>
               </div>
 

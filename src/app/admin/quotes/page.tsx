@@ -28,7 +28,7 @@ interface SoknadshjelRow {
   created_at: string;
 }
 
-const LEAD_SOURCE_LABELS: Record<string, string> = {
+const LEAD_SOURCE_LABELS_FALLBACK: Record<string, string> = {
   messe_stand: "Messe/stand",
   chatgpt: "ChatGPT",
   google: "Google",
@@ -85,6 +85,7 @@ export default function AdminQuotesPage() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
   const [soknadshjelp, setSoknadshjelp] = useState<SoknadshjelRow[]>([]);
+  const [leadSourceList, setLeadSourceList] = useState<{ label: string; value: string }[]>([]);
   const [loadingQuotes, setLoadingQuotes] = useState(false);
   const [activeFilter, setActiveFilter] = useState<QuoteStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "quotes" | "soknadshjelp">("all");
@@ -112,12 +113,14 @@ export default function AdminQuotesPage() {
   async function loadQuotes() {
     if (!supabase) return;
     setLoadingQuotes(true);
-    const [quotesRes, soknadsRes] = await Promise.all([
+    const [quotesRes, soknadsRes, lsRes] = await Promise.all([
       supabase.from("quotes").select("*").order("created_at", { ascending: false }),
       supabase.from("soknadshjelp").select("*").order("created_at", { ascending: false }),
+      supabase.from("lead_sources").select("label, value").order("sort_order"),
     ]);
     if (quotesRes.data) setQuotes(quotesRes.data as QuoteRow[]);
     if (soknadsRes.data) setSoknadshjelp(soknadsRes.data as SoknadshjelRow[]);
+    if (lsRes.data) setLeadSourceList(lsRes.data as { label: string; value: string }[]);
     setLoadingQuotes(false);
   }
 
@@ -292,6 +295,7 @@ export default function AdminQuotesPage() {
               </svg>
               Excel
             </button>
+            <Link href="/admin/lead-sources" className="hidden sm:block rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Lead kilder</Link>
             <Link href="/referanseprosjekter/admin" className="hidden sm:block rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Referanser</Link>
             <button onClick={() => supabase?.auth.signOut()} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Logg ut</button>
           </div>
@@ -317,7 +321,7 @@ export default function AdminQuotesPage() {
             <p className="text-xs text-gray-400 italic">Ingen leads har fått tildelt kilde ennå.</p>
           ) : (
             <div className="space-y-2">
-              {Object.entries(LEAD_SOURCE_LABELS).map(([key, label]) => {
+              {(leadSourceList.length > 0 ? leadSourceList : Object.entries(LEAD_SOURCE_LABELS_FALLBACK).map(([value, label]) => ({ value, label }))).map(({ value: key, label }) => {
                 const n = leadCounts[key] ?? 0;
                 if (n === 0) return null;
                 const pct = Math.round((n / leadKnownTotal) * 100);
