@@ -11,7 +11,7 @@ security definer
 set search_path = public
 as $$
 begin
-  return 'GP26-' || nextval('quote_ticket_seq')::text;
+  return 'GP' || to_char(now(), 'YY') || '-' || nextval('quote_ticket_seq')::text;
 end;
 $$;
 
