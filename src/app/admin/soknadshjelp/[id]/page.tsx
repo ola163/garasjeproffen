@@ -128,6 +128,7 @@ export default function SoknadshjelDetailPage() {
   const [dragOver, setDragOver] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingLabels, setPendingLabels] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editingLabelText, setEditingLabelText] = useState("");
 
@@ -255,20 +256,31 @@ export default function SoknadshjelDetailPage() {
   async function confirmUpload() {
     if (!supabase || !row || !pendingFiles.length) return;
     setUploading(true);
+    setUploadError(null);
     const newEntries: Attachment[] = [];
     for (let i = 0; i < pendingFiles.length; i++) {
       const file = pendingFiles[i];
       const label = pendingLabels[i]?.trim() || file.name;
       const path = `${id}/${Date.now()}_${file.name}`;
       const { error: storageErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
-      if (storageErr) { console.error("Upload failed:", storageErr); continue; }
-      const { data: meta } = await supabase.from("soknadshjelp_attachments").insert({
+      if (storageErr) {
+        setUploadError(`Opplasting feilet: ${storageErr.message}`);
+        setUploading(false);
+        return;
+      }
+      const { data: meta, error: dbErr } = await supabase.from("soknadshjelp_attachments").insert({
         soknadshjelp_id: row.id,
         file_path: path,
         label,
         uploaded_by: user?.email ?? "ukjent",
       }).select().single();
-      if (meta) newEntries.push(meta as Attachment);
+      if (dbErr) {
+        // Storage upload succeeded but DB failed — show file as orphan so it's not lost
+        setUploadError(`Vedlegg lastet opp, men kunne ikke lagre navn: ${dbErr.message}`);
+        newEntries.push({ id: `orphan_${file.name}`, file_path: path, label, uploaded_by: user?.email ?? "", created_at: new Date().toISOString() });
+      } else if (meta) {
+        newEntries.push(meta as Attachment);
+      }
     }
     setAttachments((prev) => [...prev, ...newEntries]);
     setPendingFiles([]);
@@ -771,12 +783,20 @@ export default function SoknadshjelDetailPage() {
                     {uploading ? "Laster opp…" : "Last opp"}
                   </button>
                   <button
-                    onClick={() => { setPendingFiles([]); setPendingLabels([]); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    onClick={() => { setPendingFiles([]); setPendingLabels([]); setUploadError(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                     className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
                   >
                     Avbryt
                   </button>
                 </div>
+              </div>
+            )}
+
+            {uploadError && (
+              <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 flex items-start gap-2">
+                <span className="shrink-0 font-bold">!</span>
+                <span>{uploadError}</span>
+                <button onClick={() => setUploadError(null)} className="ml-auto shrink-0 text-red-400 hover:text-red-600">✕</button>
               </div>
             )}
 
