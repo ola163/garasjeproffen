@@ -49,7 +49,7 @@ const DISMISS_COMMENTS = [
 ];
 const WELCOME: Record<Lang, string> = {
   bokmal: "Hei! Jeg er GarasjeDrøsaren, assistenten til GarasjeProffen. Hva ønsker du å bygge – garasje, carport, eller noe annet?",
-  jaersk: "Hei! Æg er GarasjeDrøsaren hjå GarasjeProffen. Kæ vil du bygga – garasje, carport, eller noge anna?",
+  jaersk: "Hei! Æg æ GarasjeDrøsaren hjå GarasjeProffen. Kæ vil du bygga – garasje, carport, eller noge aent?",
 };
 
 const BTN_W = 68;
@@ -441,7 +441,7 @@ export default function ChatWidget() {
                   className="flex-1 rounded-2xl border-2 border-gray-200 bg-white px-4 py-5 text-center hover:border-orange-400 hover:bg-orange-50 transition-colors shadow-sm"
                 >
                   <p className="font-semibold text-gray-800 text-base">Jærsk</p>
-                  <p className="text-xs text-gray-400 mt-1">Slik me drøse på Jæren</p>
+                  <p className="text-xs text-gray-400 mt-1">Sleg me drøser på Jæren</p>
                 </button>
               </div>
             </div>
