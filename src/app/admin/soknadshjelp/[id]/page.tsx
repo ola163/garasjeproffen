@@ -110,6 +110,8 @@ export default function SoknadshjelDetailPage() {
   const [newDispAmount, setNewDispAmount] = useState("8000");
   const [leadSource, setLeadSource] = useState<string>("");
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
+  const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
+  const [localManualKeys, setLocalManualKeys] = useState<Set<string>>(new Set());
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [newComment, setNewComment] = useState("");
   const [addingComment, setAddingComment] = useState(false);
@@ -203,9 +205,12 @@ export default function SoknadshjelDetailPage() {
 
     // Detect DIBK changes for logging
     const origDibk = row.dibk ?? {};
-    const dibkChanges: { key: string; field: string; old_value: string; new_value: string }[] = [];
+    const dibkChanges: { key: string; field: string; old_value: string; new_value: string; reason?: string }[] = [];
     Object.entries(localDibk).forEach(([k, v]) => {
-      if (origDibk[k] !== v) dibkChanges.push({ key: k, field: DIBK_LABELS[k] ?? k, old_value: origDibk[k] ?? "", new_value: v });
+      if (origDibk[k] !== v) {
+        const reason = localDibkReasons[k]?.trim();
+        dibkChanges.push({ key: k, field: DIBK_LABELS[k] ?? k, old_value: origDibk[k] ?? "", new_value: v, ...(reason ? { reason } : {}) });
+      }
     });
 
     await supabase.from("soknadshjelp").update({
@@ -233,21 +238,25 @@ export default function SoknadshjelDetailPage() {
 
     // Log DIBK changes
     if (dibkChanges.length > 0 && supabase) {
+      const changedKeys = dibkChanges.map((c) => c.key);
+      setLocalManualKeys((prev) => new Set([...prev, ...changedKeys]));
       const newEntries: ActivityEntry[] = [];
       for (const change of dibkChanges) {
-        const { data: logEntry } = await supabase.from("activity_log").insert({
+        const { data: logEntry, error: logErr } = await supabase.from("activity_log").insert({
           entity_type: "soknadshjelp",
           entity_id: row.id,
           action_type: "dibk_edit",
           actor_email: user?.email ?? "ukjent",
           payload: change,
         }).select().single();
+        if (logErr) console.error("activity_log insert failed:", logErr);
         if (logEntry) newEntries.push(logEntry as ActivityEntry);
       }
       if (newEntries.length > 0) setActivityLog((prev) => [...newEntries.reverse(), ...prev]);
     }
 
     setRow((prev) => prev ? { ...prev, dibk: localDibk, lead_source: leadSource || null, status, assigned_to: assignedTo || null, notes: notes || null } : null);
+    setLocalDibkReasons({});
     setSaving(false);
     setSaveOk(true);
     setTimeout(() => setSaveOk(false), 2500);
@@ -268,14 +277,19 @@ export default function SoknadshjelDetailPage() {
 
   const gc = row.garage_config as { lengthMm?: number; widthMm?: number; doorWidthMm?: number; doorHeightMm?: number } | null;
   const dibkDispCount = Object.entries(localDibk).filter(([k, v]) => isDispensasjon(k, v)).length;
+  const changedDibkKeys = Object.entries(localDibk)
+    .filter(([k, v]) => (row.dibk ?? {})[k] !== v)
+    .map(([k]) => k);
+  const dibkReasonsMissing = changedDibkKeys.some((k) => !localDibkReasons[k]?.trim());
   const hasChanges =
-    status !== row.status ||
+    (status !== row.status ||
     assignedTo !== (row.assigned_to ?? "") ||
     notes !== (row.notes ?? "") ||
     leadSource !== (row.lead_source ?? "") ||
-    JSON.stringify(localDibk) !== JSON.stringify(row.dibk ?? {}) ||
+    changedDibkKeys.length > 0 ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
-    JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? []);
+    JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? [])) &&
+    !dibkReasonsMissing;
 
   // Keys that have been manually overridden (from activity log)
   const manuallyChangedKeys = new Set<string>();
@@ -368,24 +382,35 @@ export default function SoknadshjelDetailPage() {
                 {Object.entries(localDibk).map(([k, v]) => {
                   const isDisp = isDispensasjon(k, v);
                   const unsaved = row.dibk?.[k] !== v;
-                  const manualOverride = manuallyChangedKeys.has(k);
+                  const manualOverride = manuallyChangedKeys.has(k) || localManualKeys.has(k);
                   const showBadge = unsaved || manualOverride;
                   return (
-                    <div key={k} className={`flex items-center justify-between rounded-lg px-3 py-1.5 ${isDisp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"} ${unsaved ? "ring-2 ring-yellow-300" : ""}`}>
-                      <dt className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
-                        {DIBK_LABELS[k] ?? k}
-                        {isDisp && <span className="rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">disp.</span>}
-                        {showBadge && <span className="rounded bg-yellow-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-yellow-700">manuelt endret</span>}
-                      </dt>
-                      <select
-                        value={v}
-                        onChange={(e) => setLocalDibk((prev) => ({ ...prev, [k]: e.target.value }))}
-                        className={`ml-2 rounded border px-1.5 py-0.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-orange-400 ${v === "Ja" ? "text-green-600 bg-green-50 border-green-200" : v === "Nei" ? "text-red-500 bg-red-50 border-red-200" : "text-gray-500 bg-gray-50 border-gray-200"}`}
-                      >
-                        <option value="Ja">Ja</option>
-                        <option value="Nei">Nei</option>
-                        <option value="Vet ikke">Vet ikke</option>
-                      </select>
+                    <div key={k} className={`rounded-lg px-3 py-1.5 ${isDisp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"} ${unsaved ? "ring-2 ring-yellow-300" : ""}`}>
+                      <div className="flex items-center justify-between">
+                        <dt className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
+                          {DIBK_LABELS[k] ?? k}
+                          {isDisp && <span className="rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">disp.</span>}
+                          {showBadge && <span className="rounded bg-yellow-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-yellow-700">manuelt endret</span>}
+                        </dt>
+                        <select
+                          value={v}
+                          onChange={(e) => setLocalDibk((prev) => ({ ...prev, [k]: e.target.value }))}
+                          className={`ml-2 rounded border px-1.5 py-0.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-orange-400 ${v === "Ja" ? "text-green-600 bg-green-50 border-green-200" : v === "Nei" ? "text-red-500 bg-red-50 border-red-200" : "text-gray-500 bg-gray-50 border-gray-200"}`}
+                        >
+                          <option value="Ja">Ja</option>
+                          <option value="Nei">Nei</option>
+                          <option value="Vet ikke">Vet ikke</option>
+                        </select>
+                      </div>
+                      {unsaved && (
+                        <input
+                          type="text"
+                          placeholder="Grunn til endring (påkrevd)"
+                          value={localDibkReasons[k] ?? ""}
+                          onChange={(e) => setLocalDibkReasons((prev) => ({ ...prev, [k]: e.target.value }))}
+                          className="mt-1.5 w-full rounded border border-yellow-300 bg-white px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                        />
+                      )}
                     </div>
                   );
                 })}
@@ -541,11 +566,14 @@ export default function SoknadshjelDetailPage() {
                 placeholder="Interne notater..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
-            <div className="mt-3 flex items-center gap-3">
+            <div className="mt-3 flex items-center gap-3 flex-wrap">
               <button onClick={handleSave} disabled={saving || !hasChanges}
                 className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">
                 {saving ? "Lagrer…" : "Lagre"}
               </button>
+              {dibkReasonsMissing && changedDibkKeys.length > 0 && (
+                <span className="text-xs text-yellow-600">Fyll inn grunn til DIBK-endring for å lagre</span>
+              )}
               {saveOk && (
                 <span className="flex items-center gap-1.5 text-sm font-medium text-green-600">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -621,7 +649,12 @@ export default function SoknadshjelDetailPage() {
                       ) : entry.action_type === "lead_source_change" ? (
                         <p className="text-gray-600">Lead kilde endret: <span className="font-medium">{(entry.payload as { old?: string }).old || "–"}</span> → <span className="font-medium">{(entry.payload as { new?: string }).new || "–"}</span></p>
                       ) : entry.action_type === "dibk_edit" ? (
-                        <p className="text-gray-600">DIBK endret: <span className="font-medium">{(entry.payload as { field?: string }).field}</span>: <span className="font-medium">{(entry.payload as { old_value?: string }).old_value || "–"}</span> → <span className="font-medium">{(entry.payload as { new_value?: string }).new_value}</span></p>
+                        <div>
+                          <p className="text-gray-600">DIBK endret: <span className="font-medium">{(entry.payload as { field?: string }).field}</span>: <span className="font-medium">{(entry.payload as { old_value?: string }).old_value || "–"}</span> → <span className="font-medium">{(entry.payload as { new_value?: string }).new_value}</span></p>
+                          {(entry.payload as { reason?: string }).reason && (
+                            <p className="mt-0.5 italic text-gray-500">Grunn: {(entry.payload as { reason?: string }).reason}</p>
+                          )}
+                        </div>
                       ) : (
                         <p className="text-gray-600 capitalize">{entry.action_type}</p>
                       )}
