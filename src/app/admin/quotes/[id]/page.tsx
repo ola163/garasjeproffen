@@ -1121,23 +1121,6 @@ export default function QuoteDetailPage() {
           </div>
         </div>
 
-        {/* Lead kilde */}
-        <div className="mb-4 flex items-center gap-2">
-          <span className="text-xs text-gray-500 shrink-0">Lead kilde:</span>
-          <select
-            value={leadSource}
-            onChange={(e) => handleLeadSourceChange(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
-          >
-            <option value="">– Ukjent</option>
-            <option value="messe_stand">Messe/stand</option>
-            <option value="chatgpt">ChatGPT</option>
-            <option value="google">Google</option>
-            <option value="andre_soekemotorer">Andre søkemotorer</option>
-            <option value="annet">Annet</option>
-          </select>
-        </div>
-
         {/* Address change alert */}
         {quote.address_change_note && (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
@@ -1171,6 +1154,23 @@ export default function QuoteDetailPage() {
                     Rediger
                   </button>
                 )}
+              </div>
+
+              {/* Lead kilde */}
+              <div className="mb-4 flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-500 shrink-0">Lead kilde</span>
+                <select
+                  value={leadSource}
+                  onChange={(e) => handleLeadSourceChange(e.target.value)}
+                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
+                >
+                  <option value="">– Ukjent</option>
+                  <option value="messe_stand">Messe/stand</option>
+                  <option value="chatgpt">ChatGPT</option>
+                  <option value="google">Google</option>
+                  <option value="andre_soekemotorer">Andre søkemotorer</option>
+                  <option value="annet">Annet</option>
+                </select>
               </div>
 
               {editingCustomer ? (

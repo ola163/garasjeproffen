@@ -24,8 +24,17 @@ interface SoknadshjelRow {
   total_price: number | null;
   status: string;
   assigned_to: string | null;
+  lead_source: string | null;
   created_at: string;
 }
+
+const LEAD_SOURCE_LABELS: Record<string, string> = {
+  messe_stand: "Messe/stand",
+  chatgpt: "ChatGPT",
+  google: "Google",
+  andre_soekemotorer: "Andre søkemotorer",
+  annet: "Annet",
+};
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -252,6 +261,14 @@ export default function AdminQuotesPage() {
     return acc;
   }, {} as Record<string, number>);
 
+  const allRows = [...quotes, ...soknadshjelp];
+  const leadCounts = allRows.reduce((acc, r) => {
+    const src = r.lead_source ?? "";
+    acc[src] = (acc[src] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const leadKnownTotal = Object.entries(leadCounts).filter(([k]) => k !== "").reduce((s, [, v]) => s + v, 0);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -289,6 +306,36 @@ export default function AdminQuotesPage() {
             </div>
           ))}
         </div>
+
+        {/* Lead kilde statistikk */}
+        {leadKnownTotal > 0 && (
+          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Lead kilde</p>
+            <div className="space-y-2">
+              {Object.entries(LEAD_SOURCE_LABELS).map(([key, label]) => {
+                const n = leadCounts[key] ?? 0;
+                if (n === 0) return null;
+                const pct = Math.round((n / leadKnownTotal) * 100);
+                return (
+                  <div key={key} className="flex items-center gap-3">
+                    <span className="w-32 shrink-0 text-xs text-gray-600">{label}</span>
+                    <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                      <div className="h-full rounded-full bg-orange-400 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="w-12 shrink-0 text-right text-xs font-semibold text-gray-700">{n} <span className="font-normal text-gray-400">({pct}%)</span></span>
+                  </div>
+                );
+              })}
+              {(leadCounts[""] ?? 0) > 0 && (
+                <div className="flex items-center gap-3">
+                  <span className="w-32 shrink-0 text-xs text-gray-400 italic">Ukjent</span>
+                  <div className="flex-1 h-2 rounded-full bg-gray-100" />
+                  <span className="w-12 shrink-0 text-right text-xs text-gray-400">{leadCounts[""]}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Type filter */}
         <div className="mb-3 flex gap-2">

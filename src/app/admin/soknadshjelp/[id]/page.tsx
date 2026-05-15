@@ -83,6 +83,7 @@ export default function SoknadshjelDetailPage() {
   const [row, setRow] = useState<SoknadshjelRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveOk, setSaveOk] = useState(false);
 
   // Admin fields
   const [notes, setNotes] = useState("");
@@ -225,8 +226,10 @@ export default function SoknadshjelDetailPage() {
       if (newEntries.length > 0) setActivityLog((prev) => [...newEntries.reverse(), ...prev]);
     }
 
-    setRow((prev) => prev ? { ...prev, dibk: localDibk, lead_source: leadSource || null } : null);
+    setRow((prev) => prev ? { ...prev, dibk: localDibk, lead_source: leadSource || null, status, assigned_to: assignedTo || null, notes: notes || null } : null);
     setSaving(false);
+    setSaveOk(true);
+    setTimeout(() => setSaveOk(false), 2500);
   }
 
   if (authLoading || loading) return <div className="flex min-h-screen items-center justify-center text-gray-400">Laster...</div>;
@@ -244,6 +247,14 @@ export default function SoknadshjelDetailPage() {
 
   const gc = row.garage_config as { lengthMm?: number; widthMm?: number; doorWidthMm?: number; doorHeightMm?: number } | null;
   const dibkDispCount = Object.entries(localDibk).filter(([k, v]) => isDispensasjon(k, v)).length;
+  const hasChanges =
+    status !== row.status ||
+    assignedTo !== (row.assigned_to ?? "") ||
+    notes !== (row.notes ?? "") ||
+    leadSource !== (row.lead_source ?? "") ||
+    JSON.stringify(localDibk) !== JSON.stringify(row.dibk ?? {}) ||
+    JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
+    JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? []);
   const totalDispCount = dibkDispCount + manualDisps.length;
   const computedTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
@@ -313,7 +324,7 @@ export default function SoknadshjelDetailPage() {
                       <dt className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
                         {DIBK_LABELS[k] ?? k}
                         {isDisp && <span className="rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">disp.</span>}
-                        {changed && <span className="rounded bg-yellow-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-yellow-700">endret</span>}
+                        {changed && <span className="rounded bg-yellow-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-yellow-700">manuelt endret</span>}
                       </dt>
                       <select
                         value={v}
@@ -491,10 +502,20 @@ export default function SoknadshjelDetailPage() {
                 placeholder="Interne notater..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
-            <button onClick={handleSave} disabled={saving}
-              className="mt-3 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">
-              {saving ? "Lagrer…" : "Lagre"}
-            </button>
+            <div className="mt-3 flex items-center gap-3">
+              <button onClick={handleSave} disabled={saving || !hasChanges}
+                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                {saving ? "Lagrer…" : "Lagre"}
+              </button>
+              {saveOk && (
+                <span className="flex items-center gap-1.5 text-sm font-medium text-green-600">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Lagret!
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Aktivitetslogg */}
