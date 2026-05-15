@@ -5,6 +5,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import type { AddedElement } from "./DoorWindowAdder";
 
 interface GarageMapboxProps {
@@ -582,6 +583,8 @@ export default function GarageMapbox({
   const TilesRendererClass    = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const GoogleCloudAuthClass  = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const GLTFExtensionsClass   = useRef<any>(null);
   const tilesWrapperRef       = useRef<THREE.Group | null>(null);
   const tilesCamRef        = useRef<THREE.PerspectiveCamera | null>(null);
   const [hiddenCount,      setHiddenCount]      = useState(0);
@@ -614,7 +617,10 @@ export default function GarageMapbox({
   // Dynamically load 3d-tiles-renderer (optional dependency)
   useEffect(() => {
     import("3d-tiles-renderer").then((m) => { TilesRendererClass.current = m.TilesRenderer; }).catch(() => null);
-    import("3d-tiles-renderer/plugins").then((m) => { GoogleCloudAuthClass.current = m.GoogleCloudAuthPlugin; }).catch(() => null);
+    import("3d-tiles-renderer/plugins").then((m) => {
+      GoogleCloudAuthClass.current = m.GoogleCloudAuthPlugin;
+      GLTFExtensionsClass.current  = m.GLTFExtensionsPlugin;
+    }).catch(() => null);
   }, []);
 
   useEffect(() => {
@@ -1547,6 +1553,14 @@ export default function GarageMapbox({
 
     const tiles = new Cls("https://tile.googleapis.com/v1/3dtiles/root.json");
     tiles.registerPlugin(new AuthCls({ apiToken: apiKey, useRecommendedSettings: true }));
+
+    const ExtCls = GLTFExtensionsClass.current;
+    if (ExtCls) {
+      const dracoLoader = new DRACOLoader();
+      dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");
+      tiles.registerPlugin(new ExtCls({ dracoLoader }));
+    }
+
     // useRecommendedSettings sets errorTarget=40 (for global views). Override to 6 so
     // the renderer refines down to street-level building geometry.
     tiles.errorTarget = 6;
