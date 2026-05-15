@@ -6,7 +6,7 @@ export const GARAGE_PARAMETERS: GarageParameter[] = [
     label: "Lengde på garasje",
     unit: "mm",
     min: 4000,
-    max: 9000,
+    max: 10000,
     step: 100,
     defaultValue: 7800,
     type: "slider",

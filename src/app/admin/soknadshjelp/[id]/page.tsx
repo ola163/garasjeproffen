@@ -11,6 +11,7 @@ const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
 interface ExtraCost { description: string; amount: number }
 interface ManualDisp { description: string; amount: number }
+type ActivityEntry = { id: string; action_type: string; actor_email: string; payload: Record<string, unknown>; created_at: string };
 
 interface SoknadshjelRow {
   id: string;
@@ -29,6 +30,7 @@ interface SoknadshjelRow {
   status: string;
   assigned_to: string | null;
   notes: string | null;
+  lead_source: string | null;
   created_at: string;
 }
 
@@ -96,6 +98,11 @@ export default function SoknadshjelDetailPage() {
   const [manualDisps, setManualDisps] = useState<ManualDisp[]>([]);
   const [newDispDesc, setNewDispDesc] = useState("");
   const [newDispAmount, setNewDispAmount] = useState("8000");
+  const [leadSource, setLeadSource] = useState<string>("");
+  const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [addingComment, setAddingComment] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -107,12 +114,17 @@ export default function SoknadshjelDetailPage() {
 
   useEffect(() => {
     if (!user || !supabase) return;
-    supabase.from("soknadshjelp").select("*").eq("id", id).single().then(({ data }) => {
+    Promise.all([
+      supabase.from("soknadshjelp").select("*").eq("id", id).single(),
+      supabase.from("activity_log").select("*").eq("entity_id", id).order("created_at", { ascending: false }),
+    ]).then(([{ data }, { data: actData }]) => {
       if (data) {
         setRow(data as SoknadshjelRow);
         setNotes(data.notes ?? "");
         setStatus(data.status ?? "new");
         setAssignedTo(data.assigned_to ?? "");
+        setLeadSource(data.lead_source ?? "");
+        setLocalDibk((data.dibk as Record<string, string>) ?? {});
         setExtraCosts(data.extra_costs ?? []);
         const md = data.manual_dispensasjoner ?? [];
         setManualDisps(md);
@@ -121,6 +133,7 @@ export default function SoknadshjelDetailPage() {
           : 0;
         setNewDispAmount(dibkCount > 0 || md.length > 0 ? "2000" : "8000");
       }
+      if (actData) setActivityLog(actData as ActivityEntry[]);
       setLoading(false);
     });
   }, [user, id]);
@@ -148,18 +161,43 @@ export default function SoknadshjelDetailPage() {
   function removeManualDisp(i: number) {
     setManualDisps((prev) => {
       const next = prev.filter((_, idx) => idx !== i);
-      const dibkCount = row?.dibk
-        ? Object.entries(row.dibk).filter(([k, v]) => isDispensasjon(k, v)).length
-        : 0;
+      const dibkCount = Object.entries(localDibk).filter(([k, v]) => isDispensasjon(k, v)).length;
       setNewDispAmount(dibkCount > 0 || next.length > 0 ? "2000" : "8000");
       return next;
     });
+  }
+
+  async function handleAddComment() {
+    if (!supabase || !row || !newComment.trim()) return;
+    setAddingComment(true);
+    const text = newComment.trim();
+    setNewComment("");
+    const { data } = await supabase.from("activity_log").insert({
+      entity_type: "soknadshjelp",
+      entity_id: row.id,
+      action_type: "comment",
+      actor_email: user?.email ?? "ukjent",
+      payload: { text },
+    }).select().single();
+    const entry: ActivityEntry = data
+      ? (data as ActivityEntry)
+      : { id: crypto.randomUUID(), action_type: "comment", actor_email: user?.email ?? "ukjent", payload: { text }, created_at: new Date().toISOString() };
+    setActivityLog((prev) => [entry, ...prev]);
+    setAddingComment(false);
   }
 
   async function handleSave() {
     if (!supabase || !row) return;
     setSaving(true);
     const newTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
+
+    // Detect DIBK changes for logging
+    const origDibk = row.dibk ?? {};
+    const dibkChanges: { field: string; old_value: string; new_value: string }[] = [];
+    Object.entries(localDibk).forEach(([k, v]) => {
+      if (origDibk[k] !== v) dibkChanges.push({ field: DIBK_LABELS[k] ?? k, old_value: origDibk[k] ?? "", new_value: v });
+    });
+
     await supabase.from("soknadshjelp").update({
       status,
       assigned_to: assignedTo || null,
@@ -167,7 +205,27 @@ export default function SoknadshjelDetailPage() {
       extra_costs: extraCosts,
       manual_dispensasjoner: manualDisps,
       total_price: newTotal,
+      lead_source: leadSource || null,
+      dibk: localDibk,
     }).eq("id", row.id);
+
+    // Log DIBK changes
+    if (dibkChanges.length > 0 && supabase) {
+      const newEntries: ActivityEntry[] = [];
+      for (const change of dibkChanges) {
+        const { data: logEntry } = await supabase.from("activity_log").insert({
+          entity_type: "soknadshjelp",
+          entity_id: row.id,
+          action_type: "dibk_edit",
+          actor_email: user?.email ?? "ukjent",
+          payload: change,
+        }).select().single();
+        if (logEntry) newEntries.push(logEntry as ActivityEntry);
+      }
+      if (newEntries.length > 0) setActivityLog((prev) => [...newEntries.reverse(), ...prev]);
+    }
+
+    setRow((prev) => prev ? { ...prev, dibk: localDibk, lead_source: leadSource || null } : null);
     setSaving(false);
   }
 
@@ -185,7 +243,7 @@ export default function SoknadshjelDetailPage() {
   }
 
   const gc = row.garage_config as { lengthMm?: number; widthMm?: number; doorWidthMm?: number; doorHeightMm?: number } | null;
-  const dibkDispCount = row.dibk ? Object.entries(row.dibk).filter(([k, v]) => isDispensasjon(k, v)).length : 0;
+  const dibkDispCount = Object.entries(localDibk).filter(([k, v]) => isDispensasjon(k, v)).length;
   const totalDispCount = dibkDispCount + manualDisps.length;
   const computedTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
@@ -235,7 +293,7 @@ export default function SoknadshjelDetailPage() {
           )}
 
           {/* DIBK */}
-          {row.dibk && Object.keys(row.dibk).length > 0 && (
+          {Object.keys(localDibk).length > 0 && (
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="mb-3 flex items-center gap-2">
                 <h2 className="text-sm font-semibold text-gray-700">DIBK-svar</h2>
@@ -244,17 +302,28 @@ export default function SoknadshjelDetailPage() {
                     {dibkDispCount} dispensasjon{dibkDispCount > 1 ? "er" : ""}
                   </span>
                 )}
+                <span className="ml-auto text-[10px] text-gray-400">Endringer lagres med «Lagre»-knappen</span>
               </div>
               <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
-                {Object.entries(row.dibk).map(([k, v]) => {
+                {Object.entries(localDibk).map(([k, v]) => {
                   const isDisp = isDispensasjon(k, v);
+                  const changed = row.dibk?.[k] !== v;
                   return (
-                    <div key={k} className={`flex items-center justify-between rounded-lg px-3 py-1.5 ${isDisp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"}`}>
-                      <dt className="text-xs text-gray-500">
+                    <div key={k} className={`flex items-center justify-between rounded-lg px-3 py-1.5 ${isDisp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"} ${changed ? "ring-2 ring-yellow-300" : ""}`}>
+                      <dt className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
                         {DIBK_LABELS[k] ?? k}
-                        {isDisp && <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">disp.</span>}
+                        {isDisp && <span className="rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">disp.</span>}
+                        {changed && <span className="rounded bg-yellow-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-yellow-700">endret</span>}
                       </dt>
-                      <dd className={`text-xs font-semibold ${v === "Ja" ? "text-green-600" : "text-red-500"}`}>{v}</dd>
+                      <select
+                        value={v}
+                        onChange={(e) => setLocalDibk((prev) => ({ ...prev, [k]: e.target.value }))}
+                        className={`ml-2 rounded border px-1.5 py-0.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-orange-400 ${v === "Ja" ? "text-green-600 bg-green-50 border-green-200" : v === "Nei" ? "text-red-500 bg-red-50 border-red-200" : "text-gray-500 bg-gray-50 border-gray-200"}`}
+                      >
+                        <option value="Ja">Ja</option>
+                        <option value="Nei">Nei</option>
+                        <option value="Vet ikke">Vet ikke</option>
+                      </select>
                     </div>
                   );
                 })}
@@ -403,6 +472,18 @@ export default function SoknadshjelDetailPage() {
                   ))}
                 </select>
               </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Lead kilde</label>
+                <select value={leadSource} onChange={(e) => setLeadSource(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                  <option value="">– Ukjent</option>
+                  <option value="messe_stand">Messe/stand</option>
+                  <option value="chatgpt">ChatGPT</option>
+                  <option value="google">Google</option>
+                  <option value="andre_soekemotorer">Andre søkemotorer</option>
+                  <option value="annet">Annet</option>
+                </select>
+              </div>
             </div>
             <div className="mt-3">
               <label className="mb-1 block text-xs font-medium text-gray-600">Notater</label>
@@ -414,6 +495,51 @@ export default function SoknadshjelDetailPage() {
               className="mt-3 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">
               {saving ? "Lagrer…" : "Lagre"}
             </button>
+          </div>
+
+          {/* Aktivitetslogg */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">Aktivitetslogg</h2>
+            <div className="mb-4 flex gap-2">
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
+                placeholder="Legg til kommentar..."
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <button
+                onClick={handleAddComment}
+                disabled={addingComment || !newComment.trim()}
+                className="rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40"
+              >
+                Send
+              </button>
+            </div>
+            {activityLog.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">Ingen aktivitet ennå.</p>
+            ) : (
+              <ol className="relative border-l border-gray-200 space-y-3 ml-2">
+                {activityLog.map((entry) => (
+                  <li key={entry.id} className="ml-4">
+                    <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-white bg-blue-400" />
+                    <div className="text-xs">
+                      {entry.action_type === "comment" ? (
+                        <p className="text-gray-800 font-medium">"{(entry.payload as { text?: string }).text}"</p>
+                      ) : entry.action_type === "lead_source_change" ? (
+                        <p className="text-gray-600">Lead kilde endret: <span className="font-medium">{(entry.payload as { old?: string }).old || "–"}</span> → <span className="font-medium">{(entry.payload as { new?: string }).new || "–"}</span></p>
+                      ) : entry.action_type === "dibk_edit" ? (
+                        <p className="text-gray-600">DIBK endret: <span className="font-medium">{(entry.payload as { field?: string }).field}</span>: <span className="font-medium">{(entry.payload as { old_value?: string }).old_value || "–"}</span> → <span className="font-medium">{(entry.payload as { new_value?: string }).new_value}</span></p>
+                      ) : (
+                        <p className="text-gray-600 capitalize">{entry.action_type}</p>
+                      )}
+                      <p className="mt-0.5 text-gray-400">{formatDate(entry.created_at)} · {entry.actor_email}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
 
         </div>

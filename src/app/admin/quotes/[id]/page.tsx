@@ -21,6 +21,8 @@ interface GpProduct {
   description?: string;
 }
 
+type ActivityEntry = { id: string; action_type: string; actor_email: string; payload: Record<string, unknown>; created_at: string };
+
 
 function AdjInput({ value, type, onValue, onType, color }: {
   value: number; type: "kr" | "pst" | undefined;
@@ -186,6 +188,10 @@ export default function QuoteDetailPage() {
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEdit, setCustomerEdit] = useState({ name: "", email: "", phone: "", message: "", category: "", building_type: "" });
   const [savingCustomer, setSavingCustomer] = useState(false);
+  const [leadSource, setLeadSource] = useState<string>("");
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [addingComment, setAddingComment] = useState(false);
 
   // GP Catalog picker
   const [catalogModal, setCatalogModal] = useState<{ sIdx: number } | null>(null);
@@ -220,13 +226,15 @@ export default function QuoteDetailPage() {
 
   async function loadQuote() {
     if (!supabase) return;
-    const [{ data }, { data: logData }] = await Promise.all([
+    const [{ data }, { data: logData }, { data: actData }] = await Promise.all([
       supabase.from("quotes").select("*").eq("id", id).single(),
       supabase.from("quote_status_logs").select("*").eq("quote_id", id).order("changed_at", { ascending: false }),
+      supabase.from("activity_log").select("*").eq("entity_id", id).order("created_at", { ascending: false }),
     ]);
     if (data) {
       const q = data as QuoteRow;
       setQuote(q);
+      setLeadSource(q.lead_source ?? "");
       const sections = q.offer_sections?.length
         ? q.offer_sections
         : (() => {
@@ -239,6 +247,7 @@ export default function QuoteDetailPage() {
       if (q.status === "new") setClaimOpen(true);
     }
     if (logData) setStatusLog(logData);
+    if (actData) setActivityLog(actData as ActivityEntry[]);
     setLoading(false);
   }
 
@@ -846,6 +855,43 @@ export default function QuoteDetailPage() {
     setUpdatingStatus(false);
   }
 
+  async function handleLeadSourceChange(val: string) {
+    if (!supabase || !quote) return;
+    const old = leadSource;
+    setLeadSource(val);
+    await Promise.all([
+      supabase.from("quotes").update({ lead_source: val }).eq("id", quote.id),
+      supabase.from("activity_log").insert({
+        entity_type: "quote",
+        entity_id: quote.id,
+        action_type: "lead_source_change",
+        actor_email: user?.email ?? "ukjent",
+        payload: { old, new: val },
+      }),
+    ]);
+    const entry: ActivityEntry = { id: crypto.randomUUID(), action_type: "lead_source_change", actor_email: user?.email ?? "ukjent", payload: { old, new: val }, created_at: new Date().toISOString() };
+    setActivityLog((prev) => [entry, ...prev]);
+  }
+
+  async function handleAddComment() {
+    if (!supabase || !quote || !newComment.trim()) return;
+    setAddingComment(true);
+    const text = newComment.trim();
+    setNewComment("");
+    const { data } = await supabase.from("activity_log").insert({
+      entity_type: "quote",
+      entity_id: quote.id,
+      action_type: "comment",
+      actor_email: user?.email ?? "ukjent",
+      payload: { text },
+    }).select().single();
+    const entry: ActivityEntry = data
+      ? (data as ActivityEntry)
+      : { id: crypto.randomUUID(), action_type: "comment", actor_email: user?.email ?? "ukjent", payload: { text }, created_at: new Date().toISOString() };
+    setActivityLog((prev) => [entry, ...prev]);
+    setAddingComment(false);
+  }
+
   async function handleUploadAttachment(e: React.ChangeEvent<HTMLInputElement>) {
     if (!quote || !user || !e.target.files?.length) return;
     setUploadingFile(true);
@@ -1075,6 +1121,23 @@ export default function QuoteDetailPage() {
           </div>
         </div>
 
+        {/* Lead kilde */}
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-xs text-gray-500 shrink-0">Lead kilde:</span>
+          <select
+            value={leadSource}
+            onChange={(e) => handleLeadSourceChange(e.target.value)}
+            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
+          >
+            <option value="">– Ukjent</option>
+            <option value="messe_stand">Messe/stand</option>
+            <option value="chatgpt">ChatGPT</option>
+            <option value="google">Google</option>
+            <option value="andre_soekemotorer">Andre søkemotorer</option>
+            <option value="annet">Annet</option>
+          </select>
+        </div>
+
         {/* Address change alert */}
         {quote.address_change_note && (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
@@ -1250,6 +1313,51 @@ export default function QuoteDetailPage() {
                 </ol>
               </div>
             )}
+
+            {/* Aktivitetslogg */}
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">Aktivitetslogg</h2>
+              <div className="mb-4 flex gap-2">
+                <input
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
+                  placeholder="Legg til kommentar..."
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                <button
+                  onClick={handleAddComment}
+                  disabled={addingComment || !newComment.trim()}
+                  className="rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40"
+                >
+                  Send
+                </button>
+              </div>
+              {activityLog.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Ingen aktivitet ennå.</p>
+              ) : (
+                <ol className="relative border-l border-gray-200 space-y-3 ml-2">
+                  {activityLog.map((entry) => (
+                    <li key={entry.id} className="ml-4">
+                      <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-white bg-blue-400" />
+                      <div className="text-xs">
+                        {entry.action_type === "comment" ? (
+                          <p className="text-gray-800 font-medium">"{(entry.payload as { text?: string }).text}"</p>
+                        ) : entry.action_type === "lead_source_change" ? (
+                          <p className="text-gray-600">Lead kilde endret: <span className="font-medium">{(entry.payload as { old?: string }).old || "–"}</span> → <span className="font-medium">{(entry.payload as { new?: string }).new || "–"}</span></p>
+                        ) : entry.action_type === "dibk_edit" ? (
+                          <p className="text-gray-600">DIBK endret: <span className="font-medium">{(entry.payload as { field?: string }).field}</span> → <span className="font-medium">{(entry.payload as { new_value?: string }).new_value}</span></p>
+                        ) : (
+                          <p className="text-gray-600 capitalize">{entry.action_type}</p>
+                        )}
+                        <p className="mt-0.5 text-gray-400">{formatDate(entry.created_at)} · {entry.actor_email}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
 
             {/* Configuration */}
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
