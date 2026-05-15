@@ -44,6 +44,15 @@ const STATUS_LABELS: Record<string, string> = {
   ferdigstilt: "Ferdigstilt",
   cancelled: "Kansellert",
 };
+const STATUS_COLORS: Record<string, string> = {
+  new: "bg-blue-100 text-blue-700",
+  in_review: "bg-yellow-100 text-yellow-700",
+  pending_approval: "bg-orange-100 text-orange-700",
+  offer_sent: "bg-purple-100 text-purple-700",
+  paid: "bg-green-100 text-green-700",
+  ferdigstilt: "bg-teal-100 text-teal-700",
+  cancelled: "bg-gray-100 text-gray-500",
+};
 
 const DIBK_LABELS: Record<string, string> = {
   frittstående: "Frittstående bygg",
@@ -209,6 +218,18 @@ export default function SoknadshjelDetailPage() {
       lead_source: leadSource || null,
       dibk: localDibk,
     }).eq("id", row.id);
+
+    // Log status change
+    if (status !== row.status) {
+      const { data: statusEntry } = await supabase.from("activity_log").insert({
+        entity_type: "soknadshjelp",
+        entity_id: row.id,
+        action_type: "status_change",
+        actor_email: user?.email ?? "ukjent",
+        payload: { from_status: row.status, to_status: status },
+      }).select().single();
+      if (statusEntry) setActivityLog((prev) => [statusEntry as ActivityEntry, ...prev]);
+    }
 
     // Log DIBK changes
     if (dibkChanges.length > 0 && supabase) {
@@ -533,6 +554,35 @@ export default function SoknadshjelDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Statuslogg */}
+          {activityLog.filter((e) => e.action_type === "status_change").length > 0 && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold text-gray-700">Statuslogg</h2>
+              <ol className="relative border-l border-gray-200 space-y-3 ml-2">
+                {activityLog
+                  .filter((e) => e.action_type === "status_change")
+                  .map((entry) => {
+                    const p = entry.payload as { from_status?: string; to_status?: string };
+                    return (
+                      <li key={entry.id} className="ml-4">
+                        <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-white bg-orange-400" />
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[p.from_status ?? ""] ?? "bg-gray-100 text-gray-500"}`}>
+                            {STATUS_LABELS[p.from_status ?? ""] ?? p.from_status ?? "–"}
+                          </span>
+                          <span className="text-gray-400">→</span>
+                          <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[p.to_status ?? ""] ?? "bg-gray-100 text-gray-500"}`}>
+                            {STATUS_LABELS[p.to_status ?? ""] ?? p.to_status ?? "–"}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-gray-400">{formatDate(entry.created_at)} · {entry.actor_email}</p>
+                      </li>
+                    );
+                  })}
+              </ol>
+            </div>
+          )}
 
           {/* Aktivitetslogg */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
