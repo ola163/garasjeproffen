@@ -1278,10 +1278,10 @@ export default function QuoteDetailPage() {
           );
         })()}
 
-        <div className={`grid grid-cols-1 gap-6 md:grid-cols-[1fr_480px]${linkedSoknadshjelp && activeTab === "soknadshjelp" ? " hidden" : ""}`}>
+        <div className={["flex flex-col lg:flex-row gap-6", linkedSoknadshjelp && activeTab === "soknadshjelp" ? "hidden" : ""].join(" ")}>
 
           {/* Left: customer + config */}
-          <div className="space-y-5">
+          <div className="flex-1 min-w-0 space-y-5">
             {/* Customer */}
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
@@ -1589,7 +1589,7 @@ export default function QuoteDetailPage() {
           </div>
 
           {/* Right: offer builder */}
-          <div className="space-y-5 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
+          <div className="w-full lg:w-[500px] shrink-0 space-y-5 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Tilbudsbygger</h2>
