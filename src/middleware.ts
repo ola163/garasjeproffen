@@ -20,6 +20,7 @@ function allow(ip: string, prefix: string, limit: number, windowMs: number): boo
 
 const RATE_LIMITS: Array<{ prefix: string; limit: number; windowMs: number }> = [
   { prefix: "/api/auth/email-login",           limit: 5,  windowMs: 60_000 },
+  { prefix: "/api/auth/messe-login",           limit: 10, windowMs: 60_000 },
   { prefix: "/api/chat",                       limit: 20, windowMs: 60_000 },
   { prefix: "/api/kontakt",                    limit: 5,  windowMs: 60_000 },
   { prefix: "/api/soknadshjelp",               limit: 5,  windowMs: 60_000 },
@@ -63,6 +64,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/api/auth/email-login",
+    "/api/auth/messe-login",
     "/api/chat/:path*",
     "/api/kontakt",
     "/api/soknadshjelp",
