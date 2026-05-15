@@ -316,7 +316,21 @@ export default function SoknadshjelDetailPage() {
 
           {/* Customer */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold text-gray-700">Kunde</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-700">Kunde</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Lead kilde</span>
+                <select value={leadSource} onChange={(e) => setLeadSource(e.target.value)}
+                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400">
+                  <option value="">– Ukjent</option>
+                  <option value="messe_stand">Messe/stand</option>
+                  <option value="chatgpt">ChatGPT</option>
+                  <option value="google">Google</option>
+                  <option value="andre_soekemotorer">Andre søkemotorer</option>
+                  <option value="annet">Annet</option>
+                </select>
+              </div>
+            </div>
             <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
               <div><dt className="text-xs text-gray-400">Navn</dt><dd className="font-medium text-gray-900">{row.customer_name}</dd></div>
               <div><dt className="text-xs text-gray-400">E-post</dt><dd><a href={`mailto:${row.customer_email}`} className="text-orange-600 hover:underline">{row.customer_email}</a></dd></div>
@@ -520,18 +534,6 @@ export default function SoknadshjelDetailPage() {
                   ))}
                 </select>
               </div>
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium text-gray-600">Lead kilde</label>
-                <select value={leadSource} onChange={(e) => setLeadSource(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                  <option value="">– Ukjent</option>
-                  <option value="messe_stand">Messe/stand</option>
-                  <option value="chatgpt">ChatGPT</option>
-                  <option value="google">Google</option>
-                  <option value="andre_soekemotorer">Andre søkemotorer</option>
-                  <option value="annet">Annet</option>
-                </select>
-              </div>
             </div>
             <div className="mt-3">
               <label className="mb-1 block text-xs font-medium text-gray-600">Notater</label>
@@ -556,9 +558,11 @@ export default function SoknadshjelDetailPage() {
           </div>
 
           {/* Statuslogg */}
-          {activityLog.filter((e) => e.action_type === "status_change").length > 0 && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold text-gray-700">Statuslogg</h2>
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">Statuslogg</h2>
+            {activityLog.filter((e) => e.action_type === "status_change").length === 0 ? (
+              <p className="text-xs text-gray-400 italic">Ingen statusendringer ennå.</p>
+            ) : (
               <ol className="relative border-l border-gray-200 space-y-3 ml-2">
                 {activityLog
                   .filter((e) => e.action_type === "status_change")
@@ -581,8 +585,8 @@ export default function SoknadshjelDetailPage() {
                     );
                   })}
               </ol>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Aktivitetslogg */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
