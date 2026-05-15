@@ -1015,21 +1015,15 @@ export default function GarageMapbox({
             tilesCam.far   = camDist + 400; // 400 m past garage → only load nearby buildings
             tilesCam.updateProjectionMatrix();
             tilesCam.updateMatrixWorld();
-            // tilesWrapper.matrixAutoUpdate=false so scene.updateMatrixWorld() never
-            // traverses it; tilesWrapper.matrixWorld stays identity unless we set it.
-            // TilesGroup.updateMatrixWorld() computes tempMat from parent.matrixWorld
-            // and overwrites tiles.group.matrixWorld when isDifferent=true.
-            // Setting both matrixWorlds to ecefToLocal prevents the overwrite.
-            if (tilesWrapperRef.current) {
-              tilesWrapperRef.current.matrixWorld.copy(tilesWrapperRef.current.matrix);
-              tiles.group.matrixWorld.copy(tilesWrapperRef.current.matrix);
-            }
+            // tiles.group.matrix = ecefToLocal (set at creation, matrixAutoUpdate=false).
+            // Call updateMatrixWorld(true) BEFORE tiles.update() so frustum culling in
+            // tiles.update() reads the correct group.matrixWorld.  The patch on the group
+            // also propagates any newly-loaded tile scenes that have matrixWorldNeedsUpdate=true.
+            tiles.group.updateMatrixWorld(true);
             tiles.setCamera(tilesCam);
             tiles.setResolutionFromRenderer(tilesCam, three.renderer);
             tiles.update();
-            // Force matrixWorld propagation to all tile children — scene.updateMatrixWorld()
-            // won't traverse into tilesWrapper (matrixAutoUpdate=false, not dirty), so newly
-            // added tile scenes never get their matrixWorld set without this explicit call.
+            // Second call after tiles.update() in case it added new tile scenes.
             tiles.group.updateMatrixWorld(true);
             mapRef.current.triggerRepaint();
           }
@@ -1559,10 +1553,9 @@ export default function GarageMapbox({
     tiles.errorTarget = 6;
 
     // TilesGroup.updateMatrixWorld only propagates matrixWorld to children when
-    // isDifferent=true. Because we keep tiles.group.matrixWorld = ECEF→local each frame,
-    // isDifferent is always false, so newly loaded tile scenes never get their matrixWorld
-    // set — their geometry renders at wrong positions. Patch the instance to also
-    // propagate to any child that has matrixWorldNeedsUpdate=true (newly added tiles).
+    // isDifferent=true (first frame).  After that, isDifferent is always false so newly
+    // loaded tile scenes never have their matrixWorld set.  Patch the instance to also
+    // propagate to any child that still has matrixWorldNeedsUpdate=true (freshly added tiles).
     {
       const grp = tiles.group as any;
       const _orig = grp.updateMatrixWorld;
@@ -1570,7 +1563,7 @@ export default function GarageMapbox({
         _orig.call(this, force);
         for (let i = 0; i < this.children.length; i++) {
           const child = this.children[i];
-          if (child.matrixWorldNeedsUpdate || force) {
+          if (child.matrixWorldNeedsUpdate) {
             child.updateMatrixWorld(true);
           }
         }
@@ -1596,8 +1589,11 @@ export default function GarageMapbox({
     tiles.addEventListener("load-error", (e: any) => setTilesStatus(`Feil: ${e?.message ?? "ukjent"}`));
 
     if (wrapper) {
-      wrapper.matrix.copy(makeEcefToLocalMatrix(center[0], center[1]));
-      wrapper.matrixWorldNeedsUpdate = true;
+      // Put ecefToLocal on tiles.group.matrix directly with matrixAutoUpdate=false so
+      // Three.js never resets it from position/rotation/scale.  wrapper stays at identity.
+      tiles.group.matrixAutoUpdate = false;
+      tiles.group.matrix.copy(makeEcefToLocalMatrix(center[0], center[1]));
+      tiles.group.matrixWorldNeedsUpdate = true;
       wrapper.add(tiles.group);
     }
 
@@ -1611,10 +1607,10 @@ export default function GarageMapbox({
 
   // Keep ECEF→local matrix fresh when garage is moved
   useEffect(() => {
-    const wrapper = tilesWrapperRef.current;
-    if (!wrapper || !center || !googleTilesRef.current) return;
-    wrapper.matrix.copy(makeEcefToLocalMatrix(center[0], center[1]));
-    wrapper.matrixWorldNeedsUpdate = true;
+    const tilesRenderer = tilesRendererRef.current;
+    if (!tilesRenderer || !center || !googleTilesRef.current) return;
+    tilesRenderer.group.matrix.copy(makeEcefToLocalMatrix(center[0], center[1]));
+    tilesRenderer.group.matrixWorldNeedsUpdate = true;
     mapRef.current?.triggerRepaint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center?.[0], center?.[1]]);
