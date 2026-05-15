@@ -427,7 +427,7 @@ function drawTitleBlock(
   ctx.fillText(`${wLabel} × ${lLabel} m`, pad, yl);
   yl += 22;
 
-  // ── Column 2: Scale / date ──
+  // ── Column 2: Scale / date + north arrow ──
   let y2 = y + pad + 2;
   ctx.font      = "bold 16px sans-serif";
   ctx.fillStyle = "#1e293b";
@@ -444,27 +444,36 @@ function drawTitleBlock(
   ctx.fillStyle = "#ea580c";
   ctx.fillText("Garasjeproffen AS", col1 + pad, y2);
 
-  // ── Column 3: Kommune logo + north arrow ──
+  // North arrow at the bottom-centre of col2
+  const col2CenterX = col1 + Math.round((col2 - col1) / 2);
+  drawNorthArrow(ctx, col2CenterX, y + H - 55, 34);
+
+  // ── Column 3: Kommune logo bottom-right ──
   const col3CenterX = col2 + Math.round((W - col2) / 2);
   const col3W = W - col2;
 
   if (kommune?.logo) {
     const maxW = col3W - pad * 2;
-    const maxH = 110;
+    const maxH = H - pad * 2;
     const scale = Math.min(maxW / kommune.logo.width, maxH / kommune.logo.height, 1);
     const lW = Math.round(kommune.logo.width  * scale);
     const lH = Math.round(kommune.logo.height * scale);
-    ctx.drawImage(kommune.logo, col2 + Math.round((col3W - lW) / 2), y + pad, lW, lH);
-    drawNorthArrow(ctx, col3CenterX, y + H - 68, 32);
-  } else {
-    if (kommune?.navn) {
-      ctx.font      = "bold 13px sans-serif";
-      ctx.fillStyle = "#334155";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(kommune.navn, col3CenterX, y + pad + 4);
+    const logoX = col2 + Math.round((col3W - lW) / 2);
+    const logoY = y + H - lH - pad;
+    ctx.drawImage(kommune.logo, logoX, logoY, lW, lH);
+    if (kommune.navn) {
+      ctx.font         = "bold 12px sans-serif";
+      ctx.fillStyle    = "#64748b";
+      ctx.textAlign    = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(kommune.navn, col3CenterX, logoY - 4);
     }
-    drawNorthArrow(ctx, col3CenterX, y + Math.round(H / 2) + (kommune?.navn ? 18 : 10), 38);
+  } else if (kommune?.navn) {
+    ctx.font         = "bold 13px sans-serif";
+    ctx.fillStyle    = "#334155";
+    ctx.textAlign    = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(kommune.navn, col3CenterX, y + pad + 4);
   }
 }
 
@@ -539,7 +548,7 @@ async function renderSituasjonsplan(
         ? (a.kommunenavn as string).charAt(0) + (a.kommunenavn as string).slice(1).toLowerCase()
         : "";
       let logo: HTMLImageElement | null = null;
-      try { logo = await loadImage(`/api/kommunevapen?navn=${encodeURIComponent(navn)}`); } catch { /* no logo */ }
+      try { logo = await loadImage(`/api/kommunevapen?nr=${a.kommunenummer}&navn=${encodeURIComponent(navn)}`); } catch { /* no logo */ }
       kommune = { navn, logo };
     }
   } catch { /* kommuneInfo stays null */ }
