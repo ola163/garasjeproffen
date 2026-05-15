@@ -145,7 +145,8 @@ export default function SoknadshjelDetailPage() {
       supabase.from("soknadshjelp").select("*").eq("id", id).single(),
       supabase.from("activity_log").select("*").eq("entity_id", id).order("created_at", { ascending: false }),
       supabase.from("soknadshjelp_attachments").select("*").eq("soknadshjelp_id", id).order("created_at", { ascending: true }),
-    ]).then(([{ data }, { data: actData }, { data: attData }]) => {
+      supabase.storage.from(BUCKET).list(id),
+    ]).then(([{ data }, { data: actData }, { data: attData }, { data: storageFiles }]) => {
       if (data) {
         setRow(data as SoknadshjelRow);
         setNotes(data.notes ?? "");
@@ -162,7 +163,20 @@ export default function SoknadshjelDetailPage() {
         setNewDispAmount(dibkCount > 0 || md.length > 0 ? "2000" : "8000");
       }
       if (actData) setActivityLog(actData as ActivityEntry[]);
-      if (attData) setAttachments(attData as Attachment[]);
+
+      // Merge DB records + any orphaned storage files (DB row missing)
+      const dbAtts: Attachment[] = (attData as Attachment[]) ?? [];
+      const trackedPaths = new Set(dbAtts.map((a) => a.file_path));
+      const orphans: Attachment[] = (storageFiles ?? [])
+        .filter((f) => !trackedPaths.has(`${id}/${f.name}`))
+        .map((f) => ({
+          id: `orphan_${f.name}`,
+          file_path: `${id}/${f.name}`,
+          label: f.name.replace(/^\d+_/, "").replace(/\.[^.]+$/, ""),
+          uploaded_by: "",
+          created_at: f.created_at ?? new Date().toISOString(),
+        }));
+      setAttachments([...dbAtts, ...orphans]);
       setLoading(false);
     });
   }, [user, id]);
@@ -275,14 +289,27 @@ export default function SoknadshjelDetailPage() {
   async function deleteAttachment(att: Attachment) {
     if (!supabase) return;
     await supabase.storage.from(BUCKET).remove([att.file_path]);
-    await supabase.from("soknadshjelp_attachments").delete().eq("id", att.id);
+    if (!att.id.startsWith("orphan_")) {
+      await supabase.from("soknadshjelp_attachments").delete().eq("id", att.id);
+    }
     setAttachments((prev) => prev.filter((a) => a.id !== att.id));
   }
 
   async function saveAttachmentLabel(att: Attachment, newLabel: string) {
-    if (!supabase || !newLabel.trim()) return;
-    await supabase.from("soknadshjelp_attachments").update({ label: newLabel.trim() }).eq("id", att.id);
-    setAttachments((prev) => prev.map((a) => a.id === att.id ? { ...a, label: newLabel.trim() } : a));
+    if (!supabase || !row || !newLabel.trim()) return;
+    if (att.id.startsWith("orphan_")) {
+      // Create a proper DB record for this orphaned storage file
+      const { data } = await supabase.from("soknadshjelp_attachments").insert({
+        soknadshjelp_id: row.id,
+        file_path: att.file_path,
+        label: newLabel.trim(),
+        uploaded_by: user?.email ?? "ukjent",
+      }).select().single();
+      if (data) setAttachments((prev) => prev.map((a) => a.id === att.id ? (data as Attachment) : a));
+    } else {
+      await supabase.from("soknadshjelp_attachments").update({ label: newLabel.trim() }).eq("id", att.id);
+      setAttachments((prev) => prev.map((a) => a.id === att.id ? { ...a, label: newLabel.trim() } : a));
+    }
     setEditingLabelId(null);
   }
 
