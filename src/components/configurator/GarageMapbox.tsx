@@ -490,14 +490,15 @@ function buildingToRealisticGroup(
 const WALL_H = 3.0;
 const WALL_T = 0.12;
 
-/** ECEF → local scene matrix (X=East, Y=Up, Z=-North, origin = garage centre) */
-function makeEcefToLocalMatrix(lng: number, lat: number): THREE.Matrix4 {
+/** ECEF → local scene matrix (X=East, Y=Up, Z=-North, origin = garage centre at `height` m above ellipsoid) */
+function makeEcefToLocalMatrix(lng: number, lat: number, height: number = 0): THREE.Matrix4 {
   const rad = Math.PI / 180;
   const φ = lat * rad, λ = lng * rad;
   const sinφ = Math.sin(φ), cosφ = Math.cos(φ), sinλ = Math.sin(λ), cosλ = Math.cos(λ);
   const a = 6378137.0, e2 = 0.00669437999014;
   const N = a / Math.sqrt(1 - e2 * sinφ * sinφ);
-  const ex = N * cosφ * cosλ, ey = N * cosφ * sinλ, ez = N * (1 - e2) * sinφ;
+  // Include ellipsoidal height so the local origin matches `mc` (which also uses elevation)
+  const ex = (N + height) * cosφ * cosλ, ey = (N + height) * cosφ * sinλ, ez = (N * (1 - e2) + height) * sinφ;
   // ENU basis in ECEF
   const eX = -sinλ,       eY = cosλ,        eZ = 0;
   const nX = -sinφ*cosλ,  nY = -sinφ*sinλ,  nZ = cosφ;
@@ -985,6 +986,14 @@ export default function GarageMapbox({
           const tiles = tilesRendererRef.current;
           const tilesCam = tilesCamRef.current;
           if (tiles && tilesCam && mapRef.current) {
+            // ecefToLocal origin = garage at terrain elevation so local Y=0 is ground level,
+            // matching mc.z which also uses elevation.  Without this, tiles appear elevated
+            // by one terrain-height above where they should be.
+            const ecefToLocal = makeEcefToLocalMatrix(lng, lat, elevation);
+            // Update tiles.group.matrix each frame so it tracks terrain changes.
+            tiles.group.matrix.copy(ecefToLocal);
+            tiles.group.matrixWorldNeedsUpdate = true;
+
             // Derive camera position from Mapbox's free-camera state, convert to local ENU.
             const freeCam = mapRef.current.getFreeCameraOptions();
             if (freeCam.position) {
@@ -994,7 +1003,6 @@ export default function GarageMapbox({
               const clat   = lngLat.lat * rad, clng = lngLat.lng * rad;
               const ea     = 6378137.0, ee2 = 0.00669437999014;
               const Nv     = ea / Math.sqrt(1 - ee2 * Math.sin(clat) * Math.sin(clat));
-              const ecefToLocal = makeEcefToLocalMatrix(lng, lat);
               const camPos = new THREE.Vector3(
                 (Nv + alt) * Math.cos(clat) * Math.cos(clng),
                 (Nv + alt) * Math.cos(clat) * Math.sin(clng),
@@ -1515,12 +1523,14 @@ export default function GarageMapbox({
       if (wrapper) while (wrapper.children.length) wrapper.remove(wrapper.children[0]);
     }
 
-    // Hide or restore Three.js OSM buildings and Mapbox style extrusions
+    // Hide or restore Three.js OSM buildings and Mapbox style extrusions.
+    // Exclude EXTRUSION_LAYER (orange garage block) — it is managed separately
+    // by the is3D effect and must stay hidden while the Three.js GLB model is shown.
     const buildingGroup = buildingGroupRef.current;
     if (buildingGroup) buildingGroup.visible = !googleTiles;
     if (map?.isStyleLoaded()) {
       map.getStyle().layers?.forEach((l: any) => {
-        if (l.type === "fill-extrusion")
+        if (l.type === "fill-extrusion" && l.id !== EXTRUSION_LAYER)
           map.setLayoutProperty(l.id, "visibility", googleTiles ? "none" : "visible");
       });
     }
