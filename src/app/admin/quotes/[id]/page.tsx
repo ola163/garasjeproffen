@@ -1068,7 +1068,7 @@ export default function QuoteDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
 
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
@@ -1278,7 +1278,7 @@ export default function QuoteDetailPage() {
           );
         })()}
 
-        <div className={`grid grid-cols-1 gap-6 lg:grid-cols-2${linkedSoknadshjelp && activeTab === "soknadshjelp" ? " hidden" : ""}`}>
+        <div className={`grid grid-cols-1 gap-6 md:grid-cols-[1fr_480px]${linkedSoknadshjelp && activeTab === "soknadshjelp" ? " hidden" : ""}`}>
 
           {/* Left: customer + config */}
           <div className="space-y-5">
@@ -1589,7 +1589,7 @@ export default function QuoteDetailPage() {
           </div>
 
           {/* Right: offer builder */}
-          <div className="space-y-5">
+          <div className="space-y-5 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Tilbudsbygger</h2>
