@@ -66,10 +66,14 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<QuoteResponse | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => setIsLoggedIn(d.isLoggedIn)).catch(() => {});
+    fetch("/api/auth/me").then(r => r.json()).then(d => {
+      setIsLoggedIn(d.isLoggedIn);
+      setIsAdmin(d.isAdmin ?? false);
+    }).catch(() => {});
     setMounted(true);
   }, []);
 
@@ -129,26 +133,25 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   const p = configuration.parameters;
   const soknadUrl = `/soknadshjelp?buildingType=${buildingType}&lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=${p.doorHeight ?? 2125}&roofType=${roofType}`;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitQuote(overrides?: { name: string; email: string; phone: string; message: string; address: string }) {
     setSubmitting(true);
     setResult(null);
     try {
       const formData = new FormData();
-      const resolvedAddress = selectedAddress ?? localMapAddress ?? address ?? null;
+      const resolvedAddress = overrides?.address ?? selectedAddress ?? localMapAddress ?? address ?? null;
       formData.append("data", JSON.stringify({
         configuration, pricing, packageType, roofType, addedElements, grunnarbeid,
         category, buildingType,
         address: resolvedAddress,
         mapCenter: resolvedCenter,
         mapRotation: resolvedRotation,
-        customer: { name, email, phone, message },
+        customer: overrides ?? { name, email, phone, message },
       }));
-      files.forEach((f) => formData.append("files", f));
+      if (!overrides) files.forEach((f) => formData.append("files", f));
       const res = await fetch("/api/quote", { method: "POST", body: formData });
       const data: QuoteResponse = await res.json();
       setResult(data);
-      if (data.success) {
+      if (data.success && !overrides) {
         setName(""); setEmail(""); setPhone(""); setMessage(""); setFiles([]);
       }
     } catch {
@@ -156,6 +159,21 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await submitQuote();
+  }
+
+  async function handleTestSubmit() {
+    await submitQuote({
+      name: "Test Admin",
+      email: "test@garasjeproffen.no",
+      phone: "00000000",
+      message: "Dette er en testforespørsel fra admin. Kan ignoreres.",
+      address: "Testgate 1, 4344 Bryne",
+    });
   }
 
   if (!open) return null;
@@ -539,8 +557,9 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
           </div>
           <div>
-            <label htmlFor="qf-phone" className="block text-sm font-medium text-gray-700">Telefon</label>
-            <input id="qf-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+            <label htmlFor="qf-phone" className="block text-sm font-medium text-gray-700">Mobilnr. *</label>
+            <input id="qf-phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
+              placeholder="000 00 000"
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
           </div>
           <div>
@@ -585,6 +604,12 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
           </div>
           {result?.error && (
             <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{result.error}</div>
+          )}
+          {isAdmin && (
+            <button type="button" onClick={handleTestSubmit} disabled={submitting}
+              className="w-full rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-medium text-orange-600 hover:bg-orange-100 disabled:opacity-50">
+              Send testforespørsel (admin)
+            </button>
           )}
           <button type="submit" disabled={submitting}
             className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">

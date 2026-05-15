@@ -14,11 +14,16 @@ export default function ContactForm() {
   const [sending, setSending] = useState(false);
   const [sent, setSent]       = useState(false);
   const [error, setError]     = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const mountedAt  = useRef(Date.now());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recaptchaRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.json()).then(d => setIsAdmin(d.isAdmin ?? false)).catch(() => {});
+  }, []);
 
   // Render reCAPTCHA widget when component mounts
   useEffect(() => {
@@ -37,6 +42,27 @@ export default function ContactForm() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  async function handleTestSubmit() {
+    setSending(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("name", "Test Admin");
+      formData.append("email", "test@garasjeproffen.no");
+      formData.append("phone", "00000000");
+      formData.append("message", "Dette er en testhenvendelse fra admin. Kan ignoreres.");
+      formData.append("website", "");
+      const res = await fetch("/api/kontakt", { method: "POST", body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error("api_error");
+      setSent(true);
+    } catch {
+      setError("Testforespørsel feilet – sjekk nettverket.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -129,8 +155,9 @@ export default function ContactForm() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Telefon</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Mobilnr. *</label>
           <input
+            required
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -156,6 +183,12 @@ export default function ContactForm() {
         {/* reCAPTCHA widget */}
         <div ref={containerRef} className="flex justify-center" />
 
+        {isAdmin && (
+          <button type="button" onClick={handleTestSubmit} disabled={sending}
+            className="w-full rounded-lg border border-orange-300 bg-orange-50 py-2 text-sm font-medium text-orange-600 hover:bg-orange-100 disabled:opacity-50 transition-colors">
+            Send testhenvendelse (admin)
+          </button>
+        )}
         <button
           type="submit"
           disabled={sending}

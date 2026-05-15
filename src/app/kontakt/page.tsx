@@ -14,6 +14,7 @@ export default function Kontakt() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; error?: string } | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recaptchaRef = useRef<any>(null);
@@ -24,11 +25,35 @@ export default function Kontakt() {
   const GENERIC_ERROR = "Vi kunne ikke bekrefte innsendingen. Prøv igjen, eller kontakt oss direkte på post@garasjeproffen.no.";
 
   useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => setIsLoggedIn(d.isLoggedIn)).catch(() => {});
+    fetch("/api/auth/me").then(r => r.json()).then(d => {
+      setIsLoggedIn(d.isLoggedIn);
+      setIsAdmin(d.isAdmin ?? false);
+    }).catch(() => {});
   }, []);
 
   const isLocalhost = typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
+  async function handleTestSubmit() {
+    setSubmitting(true);
+    setResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("name", "Test Admin");
+      formData.append("email", "test@garasjeproffen.no");
+      formData.append("phone", "00000000");
+      formData.append("address", "Testgate 1, 4344 Bryne");
+      formData.append("message", "Dette er en testhenvendelse fra admin. Kan ignoreres.");
+      formData.append("website", "");
+      const res = await fetch("/api/kontakt", { method: "POST", body: formData });
+      const data = await res.json();
+      setResult(data);
+    } catch {
+      setResult({ success: false, error: "Nettverksfeil ved testforespørsel." });
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
@@ -236,8 +261,8 @@ export default function Kontakt() {
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
             <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Telefon</label>
-              <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Mobilnr. *</label>
+              <input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
                 placeholder="000 00 000"
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
             </div>
@@ -291,6 +316,12 @@ export default function Kontakt() {
               <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{result.error}</div>
             )}
             <div ref={containerRef} className="flex justify-center" />
+            {isAdmin && (
+              <button type="button" onClick={handleTestSubmit} disabled={submitting}
+                className="w-full rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-medium text-orange-600 hover:bg-orange-100 disabled:opacity-50">
+                Send testhenvendelse (admin)
+              </button>
+            )}
             <button type="submit" disabled={submitting}
               className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? (files.length > 0 ? "Laster opp vedlegg…" : "Sender...") : "Send melding"}
