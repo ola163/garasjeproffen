@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
@@ -8,6 +8,7 @@ import Link from "next/link";
 import { adminName } from "@/lib/admin-names";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
+const BUCKET = "soknadshjelp-attachments";
 
 interface ExtraCost { description: string; amount: number }
 interface ManualDisp { description: string; amount: number }
@@ -87,6 +88,7 @@ function fmt(n: number) {
 export default function SoknadshjelDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [row, setRow] = useState<SoknadshjelRow | null>(null);
@@ -108,6 +110,7 @@ export default function SoknadshjelDetailPage() {
   const [manualDisps, setManualDisps] = useState<ManualDisp[]>([]);
   const [newDispDesc, setNewDispDesc] = useState("");
   const [newDispAmount, setNewDispAmount] = useState("8000");
+
   const [leadSource, setLeadSource] = useState<string>("");
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
   const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
@@ -115,6 +118,10 @@ export default function SoknadshjelDetailPage() {
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [newComment, setNewComment] = useState("");
   const [addingComment, setAddingComment] = useState(false);
+
+  // Attachments
+  const [attachments, setAttachments] = useState<{ name: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -129,7 +136,8 @@ export default function SoknadshjelDetailPage() {
     Promise.all([
       supabase.from("soknadshjelp").select("*").eq("id", id).single(),
       supabase.from("activity_log").select("*").eq("entity_id", id).order("created_at", { ascending: false }),
-    ]).then(([{ data }, { data: actData }]) => {
+      supabase.storage.from(BUCKET).list(id),
+    ]).then(([{ data }, { data: actData }, { data: files }]) => {
       if (data) {
         setRow(data as SoknadshjelRow);
         setNotes(data.notes ?? "");
@@ -146,6 +154,7 @@ export default function SoknadshjelDetailPage() {
         setNewDispAmount(dibkCount > 0 || md.length > 0 ? "2000" : "8000");
       }
       if (actData) setActivityLog(actData as ActivityEntry[]);
+      if (files) setAttachments(files.map((f) => ({ name: f.name })));
       setLoading(false);
     });
   }, [user, id]);
@@ -198,12 +207,35 @@ export default function SoknadshjelDetailPage() {
     setAddingComment(false);
   }
 
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !supabase) return;
+    setUploading(true);
+    const path = `${id}/${file.name}`;
+    const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
+    if (!error) setAttachments((prev) => [...prev.filter((a) => a.name !== file.name), { name: file.name }]);
+    else console.error("Upload failed:", error);
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function downloadAttachment(name: string) {
+    if (!supabase) return;
+    const { data } = await supabase.storage.from(BUCKET).createSignedUrl(`${id}/${name}`, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  }
+
+  async function deleteAttachment(name: string) {
+    if (!supabase) return;
+    await supabase.storage.from(BUCKET).remove([`${id}/${name}`]);
+    setAttachments((prev) => prev.filter((a) => a.name !== name));
+  }
+
   async function handleSave() {
     if (!supabase || !row) return;
     setSaving(true);
     const newTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
-    // Detect DIBK changes for logging
     const origDibk = row.dibk ?? {};
     const dibkChanges: { key: string; field: string; old_value: string; new_value: string; reason?: string }[] = [];
     Object.entries(localDibk).forEach(([k, v]) => {
@@ -224,7 +256,6 @@ export default function SoknadshjelDetailPage() {
       dibk: localDibk,
     }).eq("id", row.id);
 
-    // Log status change
     if (status !== row.status) {
       const { data: statusEntry } = await supabase.from("activity_log").insert({
         entity_type: "soknadshjelp",
@@ -236,8 +267,7 @@ export default function SoknadshjelDetailPage() {
       if (statusEntry) setActivityLog((prev) => [statusEntry as ActivityEntry, ...prev]);
     }
 
-    // Log DIBK changes
-    if (dibkChanges.length > 0 && supabase) {
+    if (dibkChanges.length > 0) {
       const changedKeys = dibkChanges.map((c) => c.key);
       setLocalManualKeys((prev) => new Set([...prev, ...changedKeys]));
       const newEntries: ActivityEntry[] = [];
@@ -291,19 +321,18 @@ export default function SoknadshjelDetailPage() {
     JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? [])) &&
     !dibkReasonsMissing;
 
-  // Keys that have been manually overridden (from activity log)
   const manuallyChangedKeys = new Set<string>();
   activityLog
     .filter((e) => e.action_type === "dibk_edit")
     .forEach((e) => {
       const p = e.payload as { key?: string; field?: string };
-      if (p.key) {
-        manuallyChangedKeys.add(p.key);
-      } else if (p.field) {
+      if (p.key) manuallyChangedKeys.add(p.key);
+      else if (p.field) {
         const found = Object.entries(DIBK_LABELS).find(([, label]) => label === p.field)?.[0];
         if (found) manuallyChangedKeys.add(found);
       }
     });
+
   const totalDispCount = dibkDispCount + manualDisps.length;
   const computedTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
@@ -385,12 +414,12 @@ export default function SoknadshjelDetailPage() {
                   const manualOverride = manuallyChangedKeys.has(k) || localManualKeys.has(k);
                   const showBadge = unsaved || manualOverride;
                   return (
-                    <div key={k} className={`rounded-lg px-3 py-1.5 ${isDisp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"} ${unsaved ? "ring-2 ring-yellow-300" : ""}`}>
+                    <div key={k} className={`rounded-lg px-3 py-1.5 ${isDisp ? "bg-red-50 ring-1 ring-red-200" : "bg-gray-50"} ${unsaved ? "ring-2 ring-blue-300" : ""}`}>
                       <div className="flex items-center justify-between">
                         <dt className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
                           {DIBK_LABELS[k] ?? k}
                           {isDisp && <span className="rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">disp.</span>}
-                          {showBadge && <span className="rounded bg-yellow-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-yellow-700">manuelt endret</span>}
+                          {showBadge && <span className="rounded bg-blue-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-600">manuelt endret</span>}
                         </dt>
                         <select
                           value={v}
@@ -408,7 +437,7 @@ export default function SoknadshjelDetailPage() {
                           placeholder="Grunn til endring (påkrevd)"
                           value={localDibkReasons[k] ?? ""}
                           onChange={(e) => setLocalDibkReasons((prev) => ({ ...prev, [k]: e.target.value }))}
-                          className="mt-1.5 w-full rounded border border-yellow-300 bg-white px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                          className="mt-1.5 w-full rounded border border-blue-300 bg-white px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
                         />
                       )}
                     </div>
@@ -572,7 +601,7 @@ export default function SoknadshjelDetailPage() {
                 {saving ? "Lagrer…" : "Lagre"}
               </button>
               {dibkReasonsMissing && changedDibkKeys.length > 0 && (
-                <span className="text-xs text-yellow-600">Fyll inn grunn til DIBK-endring for å lagre</span>
+                <span className="text-xs text-blue-600">Fyll inn grunn til DIBK-endring for å lagre</span>
               )}
               {saveOk && (
                 <span className="flex items-center gap-1.5 text-sm font-medium text-green-600">
@@ -585,40 +614,50 @@ export default function SoknadshjelDetailPage() {
             </div>
           </div>
 
-          {/* Statuslogg */}
+          {/* Vedlegg */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold text-gray-700">Statuslogg</h2>
-            {activityLog.filter((e) => e.action_type === "status_change").length === 0 ? (
-              <p className="text-xs text-gray-400 italic">Ingen statusendringer ennå.</p>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-700">Vedlegg</h2>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                {uploading ? "Laster opp…" : "+ Last opp"}
+              </button>
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} />
+            </div>
+            {attachments.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">Ingen vedlegg lastet opp ennå.</p>
             ) : (
-              <ol className="relative border-l border-gray-200 space-y-3 ml-2">
-                {activityLog
-                  .filter((e) => e.action_type === "status_change")
-                  .map((entry) => {
-                    const p = entry.payload as { from_status?: string; to_status?: string };
-                    return (
-                      <li key={entry.id} className="ml-4">
-                        <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-white bg-orange-400" />
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                          <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[p.from_status ?? ""] ?? "bg-gray-100 text-gray-500"}`}>
-                            {STATUS_LABELS[p.from_status ?? ""] ?? p.from_status ?? "–"}
-                          </span>
-                          <span className="text-gray-400">→</span>
-                          <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[p.to_status ?? ""] ?? "bg-gray-100 text-gray-500"}`}>
-                            {STATUS_LABELS[p.to_status ?? ""] ?? p.to_status ?? "–"}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-xs text-gray-400">{formatDate(entry.created_at)} · {entry.actor_email}</p>
-                      </li>
-                    );
-                  })}
-              </ol>
+              <ul className="space-y-1.5">
+                {attachments.map((a) => (
+                  <li key={a.name} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+                    <span className="text-sm text-gray-700 truncate max-w-xs">{a.name}</span>
+                    <div className="ml-3 flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => downloadAttachment(a.name)}
+                        className="text-xs text-orange-600 hover:text-orange-800 font-medium"
+                      >
+                        Last ned
+                      </button>
+                      <button
+                        onClick={() => deleteAttachment(a.name)}
+                        className="text-gray-300 hover:text-red-500"
+                        title="Slett"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
 
-          {/* Aktivitetslogg */}
+          {/* Logg */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold text-gray-700">Aktivitetslogg</h2>
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">Logg</h2>
             <div className="mb-4 flex gap-2">
               <input
                 type="text"
@@ -639,29 +678,55 @@ export default function SoknadshjelDetailPage() {
             {activityLog.length === 0 ? (
               <p className="text-xs text-gray-400 italic">Ingen aktivitet ennå.</p>
             ) : (
-              <ol className="relative border-l border-gray-200 space-y-3 ml-2">
-                {activityLog.map((entry) => (
-                  <li key={entry.id} className="ml-4">
-                    <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-white bg-blue-400" />
-                    <div className="text-xs">
-                      {entry.action_type === "comment" ? (
-                        <p className="text-gray-800 font-medium">"{(entry.payload as { text?: string }).text}"</p>
-                      ) : entry.action_type === "lead_source_change" ? (
-                        <p className="text-gray-600">Lead kilde endret: <span className="font-medium">{(entry.payload as { old?: string }).old || "–"}</span> → <span className="font-medium">{(entry.payload as { new?: string }).new || "–"}</span></p>
-                      ) : entry.action_type === "dibk_edit" ? (
-                        <div>
-                          <p className="text-gray-600">DIBK endret: <span className="font-medium">{(entry.payload as { field?: string }).field}</span>: <span className="font-medium">{(entry.payload as { old_value?: string }).old_value || "–"}</span> → <span className="font-medium">{(entry.payload as { new_value?: string }).new_value}</span></p>
-                          {(entry.payload as { reason?: string }).reason && (
-                            <p className="mt-0.5 italic text-gray-500">Grunn: {(entry.payload as { reason?: string }).reason}</p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-gray-600 capitalize">{entry.action_type}</p>
-                      )}
-                      <p className="mt-0.5 text-gray-400">{formatDate(entry.created_at)} · {entry.actor_email}</p>
-                    </div>
-                  </li>
-                ))}
+              <ol className="relative border-l border-gray-200 space-y-4 ml-2">
+                {activityLog.map((entry) => {
+                  const dotColor =
+                    entry.action_type === "status_change" ? "bg-orange-400" :
+                    entry.action_type === "dibk_edit" ? "bg-blue-400" :
+                    entry.action_type === "comment" ? "bg-gray-400" : "bg-gray-300";
+                  return (
+                    <li key={entry.id} className="ml-4">
+                      <span className={`absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-white ${dotColor}`} />
+                      <div className="text-xs">
+                        {entry.action_type === "status_change" ? (() => {
+                          const p = entry.payload as { from_status?: string; to_status?: string };
+                          return (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-gray-500 font-medium">Statusendring:</span>
+                              <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[p.from_status ?? ""] ?? "bg-gray-100 text-gray-500"}`}>
+                                {STATUS_LABELS[p.from_status ?? ""] ?? p.from_status ?? "–"}
+                              </span>
+                              <span className="text-gray-400">→</span>
+                              <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[p.to_status ?? ""] ?? "bg-gray-100 text-gray-500"}`}>
+                                {STATUS_LABELS[p.to_status ?? ""] ?? p.to_status ?? "–"}
+                              </span>
+                            </div>
+                          );
+                        })() : entry.action_type === "dibk_edit" ? (() => {
+                          const p = entry.payload as { field?: string; old_value?: string; new_value?: string; reason?: string };
+                          return (
+                            <div>
+                              <p className="text-gray-700">
+                                <span className="font-medium text-blue-600">DIBK endret:</span>{" "}
+                                {p.field}: <span className="font-medium">{p.old_value || "–"}</span> → <span className="font-medium">{p.new_value}</span>
+                              </p>
+                              {p.reason && (
+                                <p className="mt-0.5 text-gray-500 italic">Grunn: {p.reason}</p>
+                              )}
+                            </div>
+                          );
+                        })() : entry.action_type === "comment" ? (
+                          <p className="text-gray-800 font-medium">"{(entry.payload as { text?: string }).text}"</p>
+                        ) : entry.action_type === "lead_source_change" ? (
+                          <p className="text-gray-600">Lead kilde: <span className="font-medium">{(entry.payload as { old?: string }).old || "–"}</span> → <span className="font-medium">{(entry.payload as { new?: string }).new || "–"}</span></p>
+                        ) : (
+                          <p className="text-gray-500 capitalize">{entry.action_type}</p>
+                        )}
+                        <p className="mt-0.5 text-gray-400">{formatDate(entry.created_at)} · {entry.actor_email}</p>
+                      </div>
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </div>
