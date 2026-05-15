@@ -102,6 +102,22 @@ export default function EmailLogin() {
     setError("");
     setLoading(true);
     try {
+      // Messe user — handled by dedicated endpoint, no Supabase account needed
+      if (email.trim().toLowerCase() === "messe@garasjeproffen.no") {
+        const res = await fetch("/api/auth/messe-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+        if (!res.ok) {
+          setError("Feil e-post eller passord.");
+          return;
+        }
+        router.push("/min-side");
+        router.refresh();
+        return;
+      }
+
       if (!supabase) { setError("Tjenesten er ikke tilgjengelig."); return; }
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
