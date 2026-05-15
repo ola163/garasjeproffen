@@ -539,7 +539,7 @@ async function renderSituasjonsplan(
         ? (a.kommunenavn as string).charAt(0) + (a.kommunenavn as string).slice(1).toLowerCase()
         : "";
       let logo: HTMLImageElement | null = null;
-      try { logo = await loadImage(`/kommuner/${a.kommunenummer}.png`); } catch { /* no logo */ }
+      try { logo = await loadImage(`/api/kommunevapen?navn=${encodeURIComponent(navn)}`); } catch { /* no logo */ }
       kommune = { navn, logo };
     }
   } catch { /* kommuneInfo stays null */ }
