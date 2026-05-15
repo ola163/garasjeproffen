@@ -210,6 +210,13 @@ export default function SoknadshjelDetailPage() {
     });
   }
 
+  async function handleLeadSourceChange(val: string) {
+    if (!supabase || !row) return;
+    setLeadSource(val);
+    await supabase.from("soknadshjelp").update({ lead_source: val || null }).eq("id", row.id);
+    setRow((prev) => prev ? { ...prev, lead_source: val || null } : null);
+  }
+
   async function handleSaveNotes() {
     if (!supabase || !row) return;
     setSavingNotes(true);
@@ -333,7 +340,6 @@ export default function SoknadshjelDetailPage() {
       extra_costs: extraCosts,
       manual_dispensasjoner: manualDisps,
       total_price: newTotal,
-      lead_source: leadSource || null,
       dibk: localDibk,
     }).eq("id", row.id);
 
@@ -366,7 +372,7 @@ export default function SoknadshjelDetailPage() {
       if (newEntries.length > 0) setActivityLog((prev) => [...newEntries.reverse(), ...prev]);
     }
 
-    setRow((prev) => prev ? { ...prev, dibk: localDibk, lead_source: leadSource || null, status, assigned_to: assignedTo || null } : null);
+    setRow((prev) => prev ? { ...prev, dibk: localDibk, status, assigned_to: assignedTo || null } : null);
     setLocalDibkReasons({});
     setSaving(false);
     setSaveOk(true);
@@ -395,7 +401,6 @@ export default function SoknadshjelDetailPage() {
   const hasChanges =
     (status !== row.status ||
     assignedTo !== (row.assigned_to ?? "") ||
-    leadSource !== (row.lead_source ?? "") ||
     changedDibkKeys.length > 0 ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
     JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? [])) &&
@@ -443,7 +448,7 @@ export default function SoknadshjelDetailPage() {
               <h2 className="text-sm font-semibold text-gray-700">Kunde</h2>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">Lead kilde</span>
-                <select value={leadSource} onChange={(e) => setLeadSource(e.target.value)}
+                <select value={leadSource} onChange={(e) => handleLeadSourceChange(e.target.value)}
                   className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400">
                   <option value="">– Ukjent</option>
                   <option value="messe_stand">Messe/stand</option>
