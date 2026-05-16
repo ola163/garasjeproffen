@@ -36,6 +36,7 @@ export default function UtleggPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [amount, setAmount] = useState("");
+  const [scanning, setScanning] = useState(false);
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [ticketNumber, setTicketNumber] = useState("");
@@ -50,12 +51,26 @@ export default function UtleggPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  function handleFile(file: File | null) {
+  async function handleFile(file: File | null) {
     setImageFile(file);
     if (file) {
       const reader = new FileReader();
       reader.onload = e => setPreview(e.target?.result as string);
       reader.readAsDataURL(file);
+
+      // Auto-scan amount
+      setScanning(true);
+      try {
+        const form = new FormData();
+        form.append("image", file);
+        const res = await fetch("/api/admin/utlegg/scan", { method: "POST", body: form });
+        if (res.ok) {
+          const { amount: scanned } = await res.json();
+          if (scanned) setAmount(String(scanned));
+        }
+      } catch { /* ignore */ } finally {
+        setScanning(false);
+      }
     } else {
       setPreview(null);
     }
@@ -139,9 +154,18 @@ export default function UtleggPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Beløp (kr)*</label>
-                <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
-                  placeholder="0"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400" />
+                <div className="relative">
+                  <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
+                    placeholder={scanning ? "" : "0"}
+                    disabled={scanning}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:bg-gray-50" />
+                  {scanning && (
+                    <div className="absolute inset-0 flex items-center gap-2 px-3 pointer-events-none">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+                      <span className="text-xs text-orange-500">Skanner kvittering…</span>
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Kategori*</label>
