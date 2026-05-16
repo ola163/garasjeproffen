@@ -1350,7 +1350,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               length: lengthValue,
               width: widthValue,
               doorWidth: doorWidthValue,
-              doorHeight: doorHeightValue,
+              doorHeight: DOOR_HEIGHT_MM,
               addedElements,
             }}
             onLoadConfig={(cfg) => {
@@ -1359,7 +1359,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               setLengthValue(cfg.length);
               setWidthValue(cfg.width);
               setDoorWidthValue(cfg.doorWidth);
-              setDoorHeightValue(cfg.doorHeight);
               setAddedElements(cfg.addedElements as AddedElement[]);
             }}
           />
