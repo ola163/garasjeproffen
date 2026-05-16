@@ -27,6 +27,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
 
 export default function MessePasswordEditor() {
   const [hasCustom, setHasCustom] = useState<boolean | null>(null);
+  const [customPassword, setCustomPassword] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -36,7 +37,7 @@ export default function MessePasswordEditor() {
   useEffect(() => {
     fetch("/api/admin/messe-password")
       .then((r) => r.json())
-      .then((d) => setHasCustom(d.hasCustomPassword ?? false))
+      .then((d) => { setHasCustom(d.hasCustomPassword ?? false); setCustomPassword(d.customPassword ?? null); })
       .catch(() => setHasCustom(false));
   }, []);
 
@@ -54,7 +55,7 @@ export default function MessePasswordEditor() {
     setSaving(false);
     if (res.ok) {
       setMsg({ type: "success", text: "Messepassord oppdatert." });
-      setPassword(""); setConfirm(""); setHasCustom(true);
+      setCustomPassword(password); setPassword(""); setConfirm(""); setHasCustom(true);
     } else {
       const d = await res.json();
       setMsg({ type: "error", text: d.error ?? "Feil ved lagring." });
@@ -70,17 +71,7 @@ export default function MessePasswordEditor() {
       <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 space-y-3 mb-5">
         <CopyField label="Side" value="garasjeproffen.no/messe" />
         <CopyField label="E-post" value="messe@garasjeproffen.no" />
-        {hasCustom === false && (
-          <CopyField label="Passord" value={FALLBACK_PASSWORD} />
-        )}
-        {hasCustom === true && (
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">Passord</p>
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Tilpasset passord er satt — se det du satte sist, eller sett et nytt under.
-            </p>
-          </div>
-        )}
+        <CopyField label="Passord" value={customPassword ?? (hasCustom === false ? FALLBACK_PASSWORD : "…")} />
         {hasCustom === null && (
           <p className="text-xs text-gray-400">Laster…</p>
         )}

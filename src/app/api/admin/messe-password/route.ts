@@ -27,13 +27,22 @@ export async function GET() {
   const db = getDb();
   if (!db) return Response.json({ hasCustomPassword: false });
 
-  const { data } = await db
+  const { data: hashRow } = await db
     .from("app_settings")
     .select("value")
     .eq("key", "messe_password_hash")
     .maybeSingle();
 
-  return Response.json({ hasCustomPassword: !!data });
+  const { data: plainRow } = await db
+    .from("app_settings")
+    .select("value")
+    .eq("key", "messe_password_plain")
+    .maybeSingle();
+
+  return Response.json({
+    hasCustomPassword: !!hashRow,
+    customPassword: plainRow?.value ?? null,
+  });
 }
 
 export async function POST(request: Request) {
@@ -51,11 +60,17 @@ export async function POST(request: Request) {
   }
 
   const encoded = encodePassword(password);
+  const now = new Date().toISOString();
   const { error } = await db.from("app_settings").upsert(
-    { key: "messe_password_hash", value: encoded, updated_at: new Date().toISOString() },
+    { key: "messe_password_hash", value: encoded, updated_at: now },
+    { onConflict: "key" }
+  );
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  await db.from("app_settings").upsert(
+    { key: "messe_password_plain", value: password, updated_at: now },
     { onConflict: "key" }
   );
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ ok: true });
 }
