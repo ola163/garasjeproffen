@@ -4,11 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 const CATEGORIES = ["Drivstoff", "Materialer", "Utstyr", "Mat/servering", "Transport", "Annet"];
+const PERSONS = ["Christian", "Ola", "Bedriftskortet"];
 
 interface Utlegg {
   id: string;
   created_at: string;
   submitted_by: string;
+  paid_by: string | null;
   amount: number;
   description: string;
   category: string;
@@ -37,6 +39,7 @@ export default function UtleggPage() {
 
   const [amount, setAmount] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [paidBy, setPaidBy] = useState(PERSONS[0]);
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [ticketNumber, setTicketNumber] = useState("");
@@ -83,6 +86,7 @@ export default function UtleggPage() {
 
     const form = new FormData();
     form.append("amount", amount);
+    form.append("paid_by", paidBy);
     form.append("description", description);
     form.append("category", category);
     if (ticketNumber) form.append("ticket_number", ticketNumber);
@@ -96,7 +100,7 @@ export default function UtleggPage() {
     if (!res.ok) { setError(data.error ?? "Feil ved lagring."); return; }
     setUtlegg(prev => [data, ...prev]);
     setFormOpen(false);
-    setAmount(""); setDescription(""); setCategory(CATEGORIES[0]);
+    setAmount(""); setPaidBy(PERSONS[0]); setDescription(""); setCategory(CATEGORIES[0]);
     setTicketNumber(""); setNotes(""); setImageFile(null); setPreview(null);
   }
 
@@ -177,6 +181,18 @@ export default function UtleggPage() {
             </div>
 
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Lagt ut av*</label>
+              <div className="flex gap-2">
+                {PERSONS.map(p => (
+                  <button key={p} type="button" onClick={() => setPaidBy(p)}
+                    className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${paidBy === p ? "border-orange-400 bg-orange-50 text-orange-700" : "border-gray-200 text-gray-500 hover:border-orange-300"}`}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Beskrivelse*</label>
               <input type="text" required value={description} onChange={e => setDescription(e.target.value)}
                 placeholder="Hva gjelder utlegget?"
@@ -250,7 +266,7 @@ export default function UtleggPage() {
                       )}
                     </div>
                     <p className="mt-1 text-xs text-gray-400">
-                      {u.submitted_by} · {formatDate(u.created_at)}
+                      {u.paid_by ?? u.submitted_by} · {formatDate(u.created_at)}
                     </p>
                     {u.notes && <p className="mt-1 text-xs text-gray-500 italic">{u.notes}</p>}
                   </div>

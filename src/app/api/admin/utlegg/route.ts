@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const db = getDb();
   if (!db) return Response.json({ error: "DB ikke konfigurert" }, { status: 503 });
 
-  let amount: number, description: string, category: string,
+  let amount: number, paid_by: string, description: string, category: string,
     ticket_number: string | undefined, notes: string | undefined, image_url: string | undefined;
 
   const contentType = request.headers.get("content-type") ?? "";
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
   if (contentType.includes("multipart/form-data")) {
     const form = await request.formData();
     amount = parseFloat(form.get("amount") as string);
+    paid_by = (form.get("paid_by") as string) || email;
     description = (form.get("description") as string) ?? "";
     category = (form.get("category") as string) ?? "";
     ticket_number = (form.get("ticket_number") as string) || undefined;
@@ -60,8 +61,9 @@ export async function POST(request: Request) {
       }
     }
   } else {
-    const body = await request.json() as { amount?: number; description?: string; category?: string; ticket_number?: string; notes?: string };
+    const body = await request.json() as { amount?: number; paid_by?: string; description?: string; category?: string; ticket_number?: string; notes?: string };
     amount = body.amount ?? 0;
+    paid_by = body.paid_by || email;
     description = body.description ?? "";
     category = body.category ?? "";
     ticket_number = body.ticket_number || undefined;
@@ -73,7 +75,7 @@ export async function POST(request: Request) {
   }
 
   const { data, error } = await db.from("utlegg").insert({
-    submitted_by: email, amount, description, category, ticket_number, notes, image_url,
+    submitted_by: email, paid_by, amount, description, category, ticket_number, notes, image_url,
   }).select().single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
