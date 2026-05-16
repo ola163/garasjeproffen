@@ -32,29 +32,29 @@ const DEMO_STEPS: Array<{
   { width: 5000, length: 6000, roofType: "flattak", doorWidth: 2500, doorHeight: 2125,
     label: "Enkel garasje", desc: "5 × 6 m med flatt tak – plass til én bil og god lagringsplass",
     elements: [],
-    q: "Hva koster en garasje fra GarasjeProffen?", a: "Materialpakke fra ca. 155 000 kr – prefab fra ca. 290 000 kr" },
+    q: "Ka e skilnaden mellom flattak å saltak?", a: "Saltak tole meir snø å regn — flattak e enklast å byggje og gir meir takhøgd innvendig" },
   { width: 6200, length: 7800, roofType: "flattak", doorWidth: 2500, doorHeight: 2125,
-    label: "Populær størrelse", desc: "6,2 × 7,8 m – en av våre mest bestilte garasjer",
+    label: "Populær størrelse", desc: "6,2 × 7,8 m – ein av våre mest bestilte garasjar",
     elements: [{ side: "back", category: "window2", placement: "both" }],
-    q: "Hva er leveringstiden?", a: "Vanligvis 4–8 uker fra bestilling til montering" },
+    q: "Ka materiale e veggane laga av?", a: "Impregnert trepanel på stender — sterk å varig konstruksjon som tole jærvêret" },
   { width: 7800, length: 9600, roofType: "flattak", doorWidth: 5000, doorHeight: 2250,
-    label: "Dobbel garasje", desc: "7,8 × 9,6 m med dobbel port – plass til to biler",
+    label: "Dobbel garasje", desc: "7,8 × 9,6 m med dobbel port – plass te to bilar",
     elements: [
       { side: "back", category: "window2", placement: "both" },
       { side: "right", category: "door", placement: "right" },
     ],
-    q: "Kan jeg velge dobbel garasjeport?", a: "Ja! Opp til 5 meter bred port er inkludert i konfiguratoren" },
+    q: "Treng eg fundament før montering?", a: "Jå, du treng plate eller ringmur. Me gir deg rettleiing å kan hjelpe med grunnarbeide" },
   { width: 5600, length: 6000, roofType: "saltak", doorWidth: 2500, doorHeight: 2125,
-    label: "Saltak garasje", desc: "Tradisjonell stil som passer til de fleste hus på Jæren",
+    label: "Saltak garasje", desc: "Tradisjonell stil som høve te dei fleste hus på Jæren",
     elements: [{ side: "back", category: "window1", placement: "both" }],
-    q: "Trenger jeg byggesøknad?", a: "Nei, ikke for garasjer under 50 m² – vi hjelper deg uansett" },
+    q: "Ka takvinkel e standard på saltak?", a: "Vanlegvis 14–22 grader. Me tilpasse vinkelen te eksisterande bygg på eigedomen din" },
   { width: 7200, length: 8400, roofType: "saltak", doorWidth: 5000, doorHeight: 2250,
-    label: "Stor saltak med dobbel port", desc: "7,2 × 8,4 m – romslig løsning med plass til alt",
+    label: "Stor saltak med dobbel port", desc: "7,2 × 8,4 m – romsleg løysing med plass te alt",
     elements: [
       { side: "back", category: "window2", placement: "both" },
       { side: "left", category: "window1", placement: "left" },
     ],
-    q: "Leverer dere i hele Rogaland?", a: "Ja! Vi leverer og monterer på Jæren og i hele Rogaland" },
+    q: "Kor tjukke e veggane?", a: "Standard veggar e 148 mm inkl. kledning — solid nok for heilårsbruk å god isolasjon" },
 ];
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
@@ -231,6 +231,21 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [captionVisible, setCaptionVisible] = useState(true);
   const [qaPhase, setQaPhase] = useState<"none" | "q" | "qa">("none");
   const [storskjerm, setStorskjerm] = useState(false);
+  const storskjermRef = useRef<HTMLDivElement>(null);
+
+  function openStorskjerm() {
+    setStorskjerm(true);
+    setTimeout(() => { storskjermRef.current?.requestFullscreen?.().catch(() => {}); }, 80);
+  }
+  function closeStorskjerm() {
+    setStorskjerm(false);
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  }
+  useEffect(() => {
+    function onFSChange() { if (!document.fullscreenElement) setStorskjerm(false); }
+    document.addEventListener("fullscreenchange", onFSChange);
+    return () => document.removeEventListener("fullscreenchange", onFSChange);
+  }, []);
   const [mobileLandscape, setMobileLandscape] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(orientation: landscape) and (max-height: 500px)");
@@ -402,7 +417,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     applyHold(0);
 
     const ANIMATE_MS = 3000;
-    const HOLD_MS = 4000;
+    const HOLD_MS = 8000;
 
     const tick = setInterval(() => {
       const elapsed = Date.now() - phaseStart;
@@ -412,7 +427,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           fromLength = DEMO_STEPS[stepIndex].length;
           stepIndex = (stepIndex + 1) % DEMO_STEPS.length;
           setDemoDoorOpen(false);
-          setQaPhase("none");
           setAddedElements([]);
           setCaptionVisible(false);
           setTimeout(() => setCaptionVisible(true), 400);
@@ -541,7 +555,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             {/* Storskjerm button — top right */}
             <div className="flex justify-end p-2 pointer-events-auto">
               <button
-                onClick={() => setStorskjerm(true)}
+                onClick={openStorskjerm}
                 className="flex items-center gap-1.5 rounded-lg bg-black/40 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white hover:bg-black/60 transition-colors"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -551,32 +565,25 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               </button>
             </div>
             <div className="flex-1" />
-            {/* Bottom row: mascot left, caption right */}
+            {/* Bottom row: mascot + bubbles left, caption right */}
             <div className="flex items-end justify-between gap-2 px-3 pb-3">
-              {/* Mascot + speech bubble */}
-              <div className="flex items-end gap-2 shrink-0">
-                {/* Speech bubble column above mascot */}
-                <div className="flex flex-col gap-1.5 mb-1">
-                  {qaPhase !== "none" && (
-                    <div className={`transition-opacity duration-300 space-y-1.5 ${captionVisible ? "opacity-100" : "opacity-0"}`}>
-                      {/* Question bubble with tail */}
-                      <div className="relative max-w-[180px]">
-                        <div className="rounded-2xl rounded-bl-none bg-white/95 backdrop-blur-sm px-3 py-2 shadow-lg text-xs text-gray-800 font-medium leading-snug">
-                          {DEMO_STEPS[demoStep].q}
-                        </div>
-                      </div>
-                      {qaPhase === "qa" && (
-                        <div className="relative max-w-[180px]">
-                          <div className="rounded-2xl rounded-bl-none bg-orange-500 px-3 py-2 shadow text-xs text-white font-medium leading-snug">
-                            {DEMO_STEPS[demoStep].a}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+              {/* Mascot left, bubbles to the right of mascot */}
+              <div className="flex items-end gap-2 shrink-0 min-w-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/GarajseDrøsaren.png" alt="" className="h-20 w-auto object-contain drop-shadow-lg" />
+                <img src="/GarajseDrøsaren.png" alt="" className="h-20 w-auto object-contain drop-shadow-lg shrink-0" />
+                {/* Speech bubbles */}
+                {qaPhase !== "none" && (
+                  <div className="flex flex-col gap-1.5 mb-1 max-w-[170px]">
+                    <div className="rounded-2xl rounded-tl-none bg-white/95 backdrop-blur-sm px-3 py-2 shadow-lg text-xs text-gray-800 font-medium leading-snug">
+                      {DEMO_STEPS[demoStep].q}
+                    </div>
+                    {qaPhase === "qa" && (
+                      <div className="rounded-2xl rounded-tl-none bg-orange-500 px-3 py-2 shadow text-xs text-white font-semibold leading-snug">
+                        {DEMO_STEPS[demoStep].a}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Caption + progress dots — right */}
@@ -597,55 +604,102 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
         {/* Storskjerm fullscreen overlay */}
         {storskjerm && (
-          <div className="fixed inset-0 z-50 bg-black flex flex-col">
-            <div className="relative flex-1">
-              <GarageViewer {...viewerProps} demoDoorOpen={demoDoorOpen} autoRotate />
-              {/* Close button */}
-              <button
-                onClick={() => setStorskjerm(false)}
-                className="absolute top-4 right-4 flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-sm font-medium text-white hover:bg-white/30 transition-colors"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Lukk
-              </button>
-              {/* GarasjeProffen branding */}
-              <div className="absolute top-4 left-4 flex items-center gap-2">
-                <span className="text-lg font-bold text-white tracking-tight">GarasjeProffen</span>
+          <div ref={storskjermRef} className="fixed inset-0 z-50 bg-black flex">
+            {/* Left: 3D viewer + mascot bottom bar */}
+            <div className="flex-1 flex flex-col min-w-0">
+              <div className="relative flex-1">
+                <GarageViewer {...viewerProps} demoDoorOpen={demoDoorOpen} autoRotate />
+                <div className="absolute top-5 left-6 flex items-center gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/logo.jpg" alt="GarasjeProffen" className="h-8 w-auto object-contain rounded" />
+                </div>
+              </div>
+              {/* Mascot + Q&A bottom */}
+              <div className="flex items-end gap-4 px-6 pb-6 pt-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/GarajseDrøsaren.png" alt="" className="h-40 w-auto object-contain drop-shadow-2xl shrink-0" />
+                {qaPhase !== "none" && (
+                  <div className="flex flex-col gap-2.5 mb-3 max-w-sm">
+                    <div className="rounded-3xl rounded-tl-none bg-white/15 backdrop-blur-md px-5 py-3.5 text-base text-white font-medium shadow-lg leading-snug">
+                      {DEMO_STEPS[demoStep].q}
+                    </div>
+                    {qaPhase === "qa" && (
+                      <div className="rounded-3xl rounded-tl-none bg-orange-500 px-5 py-3.5 text-base text-white font-semibold shadow-lg leading-snug">
+                        {DEMO_STEPS[demoStep].a}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-            {/* Bottom bar: mascot left, caption right */}
-            <div className="flex items-end gap-6 px-8 pb-8 pt-2">
-              {/* Mascot + speech bubbles */}
-              <div className="shrink-0 flex items-end gap-4">
-                <div className="flex flex-col gap-2 mb-2">
-                  {qaPhase !== "none" && (
-                    <>
-                      <div className="max-w-sm rounded-3xl rounded-bl-none bg-white/15 backdrop-blur-md px-5 py-3.5 text-base text-white font-medium shadow-lg leading-snug">
-                        {DEMO_STEPS[demoStep].q}
-                      </div>
-                      {qaPhase === "qa" && (
-                        <div className="max-w-sm rounded-3xl rounded-bl-none bg-orange-500 px-5 py-3.5 text-base text-white font-medium shadow-lg leading-snug">
-                          {DEMO_STEPS[demoStep].a}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/GarajseDrøsaren.png" alt="" className="h-44 w-auto object-contain drop-shadow-2xl" />
+
+            {/* Right sidebar */}
+            <div className="w-72 bg-gray-950 border-l border-white/10 flex flex-col shrink-0">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                <p className="text-sm font-bold text-white">Konfigurator</p>
+                <button onClick={closeStorskjerm} className="flex items-center gap-1 rounded-lg bg-white/10 hover:bg-white/20 px-2.5 py-1.5 text-xs text-white transition-colors">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Lukk
+                </button>
               </div>
 
-              {/* Caption + dots — right */}
-              <div className="flex-1 flex flex-col items-end justify-end gap-2">
-                <p className="text-xl font-bold text-white">{DEMO_STEPS[demoStep].label}</p>
-                <p className="text-sm text-white/60">{DEMO_STEPS[demoStep].desc}</p>
-                <div className="flex gap-2 mt-1">
+              {/* Step info */}
+              <div className="px-5 py-4 border-b border-white/10">
+                <p className="text-base font-bold text-white leading-snug">{DEMO_STEPS[demoStep].label}</p>
+                <p className="text-xs text-white/50 mt-1 leading-relaxed">{DEMO_STEPS[demoStep].desc}</p>
+                <div className="flex gap-1.5 mt-3">
                   {DEMO_STEPS.map((_, i) => (
-                    <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i === demoStep ? "w-7 bg-orange-500" : "w-2 bg-white/30"}`} />
+                    <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i === demoStep ? "w-6 bg-orange-500" : "w-1.5 bg-white/20"}`} />
                   ))}
                 </div>
+              </div>
+
+              {/* Animated dimensions */}
+              <div className="px-5 py-5 flex-1 space-y-5 overflow-y-auto">
+                {[
+                  { label: "Bredde", value: widthValue, min: 3200, max: 8000 },
+                  { label: "Lengde", value: lengthValue, min: 4200, max: 10000 },
+                ].map(({ label, value, min, max }) => {
+                  const pct = Math.round(((value - min) / (max - min)) * 100);
+                  return (
+                    <div key={label}>
+                      <div className="flex justify-between text-xs mb-1.5">
+                        <span className="text-white/50">{label}</span>
+                        <span className="text-white font-semibold">{(value / 1000).toFixed(1)} m</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-white/10">
+                        <div className="h-1.5 rounded-full bg-orange-500 transition-all duration-100" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="pt-1 border-t border-white/10 space-y-3">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-white/50">Taktype</span>
+                    <span className="text-white font-medium">{roofType === "flattak" ? "Flatt tak" : "Saltak"}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-white/50">Garasjeport bredde</span>
+                    <span className="text-white font-medium">{(doorWidthValue / 1000).toFixed(1)} m</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-white/50">Garasjeport høgde</span>
+                    <span className="text-white font-medium">{(doorHeightValue / 1000).toFixed(2)} m</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-white/50">Areal</span>
+                    <span className="text-white font-medium">{((widthValue / 1000) * (lengthValue / 1000)).toFixed(1)} m²</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-4 border-t border-white/10">
+                <p className="text-xs text-white/30 text-center">garasjeproffen.no</p>
               </div>
             </div>
           </div>
