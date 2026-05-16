@@ -313,6 +313,18 @@ export default function AdminPage() {
             <p className="mt-4 text-xs font-medium text-teal-500 group-hover:underline">Åpne →</p>
           </Link>
 
+          {/* Proffkunder */}
+          <Link href="/proffkunder" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100">
+              <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 group-hover:text-orange-600">Proffkunder</h2>
+            <p className="mt-1 text-sm text-gray-500">Rekkegarasjer, utbyggersamarbeid og B2B-løsninger for profesjonelle kunder.</p>
+            <p className="mt-4 text-xs font-medium text-orange-500 group-hover:underline">Åpne →</p>
+          </Link>
+
           {/* Referanseprosjekter */}
           <Link href="/referanseprosjekter/admin" className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">

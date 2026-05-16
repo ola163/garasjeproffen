@@ -119,15 +119,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Recalculate price server-side (fetch markup from DB if available)
-    let doorMarkup = 0.30;
-    if (sbUrl && sbKey) {
-      const sb = createClient(sbUrl, sbKey);
-      const { data: mRow } = await sb.from("app_settings").select("value").eq("key", "door_markup").single();
-      if (mRow?.value != null) doorMarkup = Number(mRow.value);
-    }
     const doorColor = (body.doorColor === "sort" ? "sort" : "hvit") as "hvit" | "sort";
-    const pricing = calculatePrice(body.configuration, body.packageType as "materialpakke" | "prefab" ?? "materialpakke", body.roofType as "saltak" | "flattak" ?? "flattak", body.buildingType ?? "garasje", doorColor, doorMarkup);
+    const pricing = calculatePrice(body.configuration, body.packageType as "materialpakke" | "prefab" ?? "materialpakke", body.roofType as "saltak" | "flattak" ?? "flattak", body.buildingType ?? "garasje");
     const p = body.configuration.parameters;
     const elements = body.addedElements ?? [];
     const attachmentUrls = uploadedFiles.length > 0

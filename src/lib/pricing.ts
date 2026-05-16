@@ -1,6 +1,5 @@
 import type { GarageConfiguration, PricingResult } from "@/types/configurator";
 import type { DoorColor } from "./parameters";
-import { getDoorPrice } from "./door-pricing";
 
 export type PackageType = "materialpakke" | "prefab";
 export type RoofType = "saltak" | "flattak";
@@ -59,20 +58,10 @@ export function calculatePrice(
     ...(widthSurchargeRate > 0 ? [{ label: `Bredde over ${widthM > 7.2 ? "7,2" : lowerLabel} m`, amount: widthAdj }] : []),
   ];
 
-  // Door price (Hömann port m/ motor og montering)
-  const doorPrice = !isCarport ? getDoorPrice(doorWidthMm, doorColor, doorMarkup) : null;
-  if (doorPrice != null) {
-    const colorLabel = doorColor === "sort" ? "Sort" : "Hvit";
-    adjustments.push({
-      label: `Hömann port ${doorWidthMm}×2125 ${colorLabel} m/ motor og montering`,
-      amount: doorPrice,
-    });
-  }
-
   return {
     basePrice,
     adjustments,
-    totalPrice: basePrice - snapDiscount + widthAdj + (doorPrice ?? 0),
+    totalPrice: basePrice - snapDiscount + widthAdj,
     currency: CURRENCY,
     manualQuote,
   };
