@@ -67,12 +67,14 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   const [result, setResult] = useState<QuoteResponse | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isMesse, setIsMesse] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => {
       setIsLoggedIn(d.isLoggedIn);
       setIsAdmin(d.isAdmin ?? false);
+      setIsMesse(d.email === "messe@garasjeproffen.no");
     }).catch(() => {});
     setMounted(true);
   }, []);
@@ -555,6 +557,9 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
             <label htmlFor="qf-email" className="block text-sm font-medium text-gray-700">E-post *</label>
             <input id="qf-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+            {isMesse && (
+              <p className="mt-1 text-xs text-amber-600">Skriv inn din egen e-postadresse — tilbudet sendes dit.</p>
+            )}
           </div>
           <div>
             <label htmlFor="qf-phone" className="block text-sm font-medium text-gray-700">Mobilnr. *</label>

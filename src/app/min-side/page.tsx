@@ -4,6 +4,9 @@ import Link from "next/link";
 import EmailLogin from "@/components/auth/EmailLogin";
 import ProfileEditor from "@/components/auth/ProfileEditor";
 import MessePasswordEditor from "@/components/auth/MessePasswordEditor";
+import MesseNotatEditor from "@/components/auth/MesseNotatEditor";
+
+const MESSE_EMAIL = "messe@garasjeproffen.no";
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Ny",
@@ -67,6 +70,23 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
         </div>
       </div>
     );
+  }
+
+  const isMesse = email === MESSE_EMAIL;
+
+  // Fetch messe notes for messe user view
+  let messeNotater: Array<{ id: string; content: string; url: string | null; url_label: string | null }> = [];
+  if (isMesse || effectiveAdmin) {
+    const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (sbUrl && sbKey) {
+      const sb = createClient(sbUrl, sbKey);
+      const { data } = await sb
+        .from("messe_notater")
+        .select("id, content, url, url_label")
+        .order("created_at", { ascending: true });
+      if (data) messeNotater = data;
+    }
   }
 
   // Fetch quotes by email if available
@@ -197,9 +217,33 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
         <ProfileEditor isAdmin={isAdmin} />
       </div>
 
-      {/* Messe password — admin only */}
+      {/* Messe notater — vises for messebrukeren */}
+      {isMesse && messeNotater.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-gray-900">Fra GarasjeProffen</h2>
+          <div className="mt-3 space-y-3">
+            {messeNotater.map(n => (
+              <div key={n.id} className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3">
+                <p className="text-sm text-gray-800">{n.content}</p>
+                {n.url && (
+                  <a href={n.url} target="_blank" rel="noopener noreferrer"
+                    className="mt-1.5 inline-flex items-center gap-1 text-sm font-medium text-orange-600 hover:text-orange-700 hover:underline">
+                    {n.url_label || n.url}
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Messe admin — admin only */}
       {effectiveAdmin && (
-        <div className="mt-6">
+        <div className="mt-6 space-y-6">
+          <MesseNotatEditor />
           <MessePasswordEditor />
         </div>
       )}

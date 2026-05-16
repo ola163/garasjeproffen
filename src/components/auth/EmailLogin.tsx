@@ -103,7 +103,8 @@ export default function EmailLogin() {
     setLoading(true);
     try {
       // Messe user — handled by dedicated endpoint, no Supabase account needed
-      if (email.trim().toLowerCase() === "messe@garasjeproffen.no") {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (normalizedEmail === "messe" || normalizedEmail === "messe@garasjeproffen.no") {
         const res = await fetch("/api/auth/messe-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -243,8 +244,9 @@ export default function EmailLogin() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">E-post</label>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                <input type="text" required value={email} onChange={(e) => setEmail(e.target.value)}
                   placeholder="ola@eksempel.no"
+                  autoComplete="username"
                   className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
               </div>
               <div>
