@@ -150,6 +150,117 @@ function minDistToBoundary(
   return min;
 }
 
+/** Nearest point on a boundary ring from a given lng/lat point */
+function nearestBoundaryInfo(
+  pLng: number, pLat: number,
+  boundary: [number, number][],
+): { distM: number; nearLng: number; nearLat: number } | null {
+  if (boundary.length < 2) return null;
+  const mPerLat = 111320;
+  const mPerLng = 111320 * Math.cos((pLat * Math.PI) / 180);
+  let bestDist = Infinity, bestNx = 0, bestNy = 0;
+  for (let i = 0; i < boundary.length - 1; i++) {
+    const ax = (boundary[i][0] - pLng) * mPerLng;
+    const ay = (boundary[i][1] - pLat) * mPerLat;
+    const bx = (boundary[i + 1][0] - pLng) * mPerLng;
+    const by = (boundary[i + 1][1] - pLat) * mPerLat;
+    const dx = bx - ax, dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, (-ax * dx + -ay * dy) / lenSq));
+    const nx = ax + t * dx, ny = ay + t * dy;
+    const dist = Math.hypot(nx, ny);
+    if (dist < bestDist) { bestDist = dist; bestNx = nx; bestNy = ny; }
+  }
+  return {
+    distM: bestDist,
+    nearLng: pLng + bestNx / mPerLng,
+    nearLat: pLat + bestNy / mPerLat,
+  };
+}
+
+/** Build GeoJSON feature collection for boundary distance annotations */
+function buildDistanceAnnotations(
+  center: [number, number],
+  widthM: number, lengthM: number, rotDeg: number,
+  boundary: [number, number][],
+  maxDistM = 30,
+): GeoJSON.FeatureCollection {
+  const corners = garageCorners(center, widthM, lengthM, rotDeg);
+  const sides: [[number, number], [number, number]][] = [
+    [corners[0], corners[1]],
+    [corners[1], corners[2]],
+    [corners[2], corners[3]],
+    [corners[3], corners[0]],
+  ];
+  const features: GeoJSON.Feature[] = [];
+  const seenDists = new Set<number>();
+  const [cLng, cLat] = center;
+  const mPerLat = 111320;
+  const mPerLng = 111320 * Math.cos((cLat * Math.PI) / 180);
+
+  for (const [a, b] of sides) {
+    const midLng = (a[0] + b[0]) / 2;
+    const midLat = (a[1] + b[1]) / 2;
+    const info = nearestBoundaryInfo(midLng, midLat, boundary);
+    if (!info || info.distM > maxDistM) continue;
+
+    // Only draw toward boundaries on the outward side of this wall
+    const sideMx = (midLng - cLng) * mPerLng;
+    const sideMy = (midLat - cLat) * mPerLat;
+    const boundDx = (info.nearLng - midLng) * mPerLng;
+    const boundDy = (info.nearLat - midLat) * mPerLat;
+    if (sideMx * boundDx + sideMy * boundDy < 0) continue;
+
+    const distKey = Math.round(info.distM * 10);
+    if (seenDists.has(distKey)) continue;
+    seenDists.add(distKey);
+
+    features.push({
+      type: "Feature",
+      geometry: { type: "LineString", coordinates: [[midLng, midLat], [info.nearLng, info.nearLat]] },
+      properties: { kind: "line" },
+    });
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [(midLng + info.nearLng) / 2, (midLat + info.nearLat) / 2] },
+      properties: { kind: "label", label: `${info.distM.toFixed(1)} m` },
+    });
+  }
+  return { type: "FeatureCollection", features };
+}
+
+/** Add or update Mapbox layers showing distance lines + labels */
+function updateDistanceLayers(map: mapboxgl.Map, geojson: GeoJSON.FeatureCollection) {
+  if (!map.isStyleLoaded()) return;
+  const src = map.getSource("dist-annotations") as mapboxgl.GeoJSONSource | undefined;
+  if (src) { src.setData(geojson); return; }
+  map.addSource("dist-annotations", { type: "geojson", data: geojson });
+  map.addLayer({
+    id: "dist-lines",
+    type: "line",
+    source: "dist-annotations",
+    filter: ["==", ["get", "kind"], "line"],
+    paint: { "line-color": "#2563eb", "line-width": 2.5, "line-dasharray": [5, 3] },
+  });
+  map.addLayer({
+    id: "dist-labels",
+    type: "symbol",
+    source: "dist-annotations",
+    filter: ["==", ["get", "kind"], "label"],
+    layout: {
+      "text-field": ["get", "label"],
+      "text-size": 13,
+      "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+      "text-anchor": "center",
+    },
+    paint: {
+      "text-color": "#1d4ed8",
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 2.5,
+    },
+  });
+}
+
 /** Parse Overpass API response into building footprints */
 function parseOSM(data: unknown): OSMBuildingData[] {
   const elements = (data as { elements?: unknown[] })?.elements;
@@ -787,8 +898,13 @@ export default function GarageMapbox({
   // ─── Proximity recalculation ─────────────────────────────────────────────
 
   useEffect(() => {
+    const map = mapRef.current;
     if (!center || boundaryRef.current.length < 3) {
       setBoundaryWarning(null);
+      if (map?.isStyleLoaded()) {
+        const src = map.getSource("dist-annotations") as mapboxgl.GeoJSONSource | undefined;
+        src?.setData({ type: "FeatureCollection", features: [] });
+      }
       return;
     }
     // On-building check
@@ -802,6 +918,12 @@ export default function GarageMapbox({
     if (dist < 1)      setBoundaryWarning("danger");
     else if (dist < 4) setBoundaryWarning("nabovarsel");
     else               setBoundaryWarning("safe");
+
+    // Draw dimension lines from each garage side to nearest boundary
+    if (map) {
+      const geojson = buildDistanceAnnotations(center, widthM, lengthM, rotation, boundaryRef.current);
+      updateDistanceLayers(map, geojson);
+    }
   }, [center, rotation, widthM, lengthM, boundaryVersion]);
 
   // ─── Map initialisation ──────────────────────────────────────────────────
