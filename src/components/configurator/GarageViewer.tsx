@@ -375,7 +375,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false }: { halfL: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean }) {
+function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean }) {
   const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
@@ -411,7 +411,7 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm, portOffsetX = 0, dem
     return { clone, ox, oy, oz };
   }, [rawScene, targetW, targetH]);
 
-  const doorZ = halfL - WALL_T / 2;
+  const doorZ = lengthMm / 2000 - WALL_T / 2;
   const doorGroupRef = useRef<THREE.Group>(null);
   const doorYRef = useRef(0);
   const demoDoorOpenRef = useRef(demoDoorOpen);
@@ -427,7 +427,7 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm, portOffsetX = 0, dem
   return (
     <group position={[portOffsetX, 0, 0]}>
       {/* Stencil cutter — punches hole through full wall at door opening */}
-      <mesh renderOrder={-2} position={[0, targetH / 2, halfL - WALL_T / 2]} material={matCut}>
+      <mesh renderOrder={-2} position={[0, targetH / 2, lengthMm / 2000 - WALL_T / 2]} material={matCut}>
         <boxGeometry args={[targetW, targetH, WALL_T + 0.1]} />
       </mesh>
       {/* Door panel — animates in Y */}
@@ -516,8 +516,8 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
               buildingType={buildingType} rotationDeg={rotationDeg}
               onWallFaces={handleWallFaces}
             />
-            {hasFlatGarage && wallHalfL !== null && (
-              <GaragePortFlat halfL={wallHalfL} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} />
+            {hasFlatGarage && (
+              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} />
             )}
           </Suspense>
         </GltfErrorBoundary>
