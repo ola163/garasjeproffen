@@ -2,10 +2,34 @@
 
 import { useState, useEffect } from "react";
 
+const FALLBACK_PASSWORD = "Jærdagen2026";
+
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-500 mb-1">{label}</p>
+      <div className="flex items-center gap-2">
+        <span className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-sm text-gray-800 select-all">
+          {value}
+        </span>
+        <button
+          type="button"
+          onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+          className="shrink-0 rounded-lg border border-gray-200 px-2.5 py-2 text-xs text-gray-500 hover:bg-gray-100 transition-colors"
+        >
+          {copied ? "✓" : "Kopier"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function MessePasswordEditor() {
   const [hasCustom, setHasCustom] = useState<boolean | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -19,16 +43,8 @@ export default function MessePasswordEditor() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
-
-    if (password !== confirm) {
-      setMsg({ type: "error", text: "Passordene stemmer ikke overens." });
-      return;
-    }
-    if (password.length < 8) {
-      setMsg({ type: "error", text: "Passord må være minst 8 tegn." });
-      return;
-    }
-
+    if (password !== confirm) { setMsg({ type: "error", text: "Passordene stemmer ikke overens." }); return; }
+    if (password.length < 8) { setMsg({ type: "error", text: "Passord må være minst 8 tegn." }); return; }
     setSaving(true);
     const res = await fetch("/api/admin/messe-password", {
       method: "POST",
@@ -36,12 +52,9 @@ export default function MessePasswordEditor() {
       body: JSON.stringify({ password }),
     });
     setSaving(false);
-
     if (res.ok) {
       setMsg({ type: "success", text: "Messepassord oppdatert." });
-      setPassword("");
-      setConfirm("");
-      setHasCustom(true);
+      setPassword(""); setConfirm(""); setHasCustom(true);
     } else {
       const d = await res.json();
       setMsg({ type: "error", text: d.error ?? "Feil ved lagring." });
@@ -50,40 +63,53 @@ export default function MessePasswordEditor() {
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <div className="flex items-start gap-3 mb-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-100">
-          <svg className="h-5 w-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-              d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-          </svg>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Messebruker passord</h2>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Logg inn-side: <span className="font-mono text-gray-600">/messe</span>
-            {hasCustom === null ? "" : hasCustom
-              ? " · Tilpasset passord er satt"
-              : " · Bruker standardpassord (Jærdagen2026)"}
-          </p>
-        </div>
+      <h2 className="text-base font-semibold text-gray-900 mb-1">Messebruker innlogging</h2>
+      <p className="text-sm text-gray-400 mb-4">Del disse med messebrukeren.</p>
+
+      {/* Current credentials */}
+      <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 space-y-3 mb-5">
+        <CopyField label="Side" value="garasjeproffen.no/messe" />
+        <CopyField label="E-post" value="messe@garasjeproffen.no" />
+        {hasCustom === false && (
+          <CopyField label="Passord" value={FALLBACK_PASSWORD} />
+        )}
+        {hasCustom === true && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Passord</p>
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Tilpasset passord er satt — se det du satte sist, eller sett et nytt under.
+            </p>
+          </div>
+        )}
+        {hasCustom === null && (
+          <p className="text-xs text-gray-400">Laster…</p>
+        )}
       </div>
 
+      {/* Change password */}
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Endre passord</p>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Nytt passord</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Minst 8 tegn"
-            required
-            className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition"
-          />
+          <div className="relative">
+            <input
+              type={showPw ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Minst 8 tegn"
+              required
+              className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 pr-16 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition"
+            />
+            <button type="button" onClick={() => setShowPw(v => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">
+              {showPw ? "Skjul" : "Vis"}
+            </button>
+          </div>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Bekreft passord</label>
           <input
-            type="password"
+            type={showPw ? "text" : "password"}
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="Gjenta passord"
@@ -91,18 +117,13 @@ export default function MessePasswordEditor() {
             className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition"
           />
         </div>
-
         {msg && (
           <div className={`rounded-lg px-3 py-2 text-sm ${msg.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
             {msg.text}
           </div>
         )}
-
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60 transition-colors"
-        >
+        <button type="submit" disabled={saving}
+          className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60 transition-colors">
           {saving ? "Lagrer…" : "Oppdater passord"}
         </button>
       </form>
