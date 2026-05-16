@@ -20,6 +20,15 @@ const GarageMålAdmin    = dynamic(() => import("./GarageMålAdmin"),    { ssr: 
 
 /** Minimum combined side clearance: widthMm >= doorWidthMm + MIN_CLEARANCE */
 const MIN_CLEARANCE = 300;
+
+const DEMO_STEPS = [
+  { width: 5000, length: 6000, roofType: "flattak" as const, doorWidth: 2500, doorHeight: 2125 },
+  { width: 6200, length: 7800, roofType: "flattak" as const, doorWidth: 2500, doorHeight: 2125 },
+  { width: 7800, length: 9600, roofType: "flattak" as const, doorWidth: 5000, doorHeight: 2250 },
+  { width: 5600, length: 6000, roofType: "saltak" as const, doorWidth: 2500, doorHeight: 2125 },
+  { width: 7200, length: 8400, roofType: "saltak" as const, doorWidth: 5000, doorHeight: 2250 },
+];
+const DEMO_INTERVAL_MS = 5000;
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
 const lengthParam     = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
@@ -186,7 +195,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     }
   }, [quoteOpen]);
 
-  const [viewMode, setViewMode] = useState<"test" | "dev" | "kart" | "mål">("test");
+  const [viewMode, setViewMode] = useState<"test" | "dev" | "kart" | "mål" | "demo">("test");
+  const [demoStep, setDemoStep] = useState(0);
   const [mobileLandscape, setMobileLandscape] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(orientation: landscape) and (max-height: 500px)");
@@ -324,6 +334,30 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     }).catch(() => {});
   }, []);
 
+  // Demo: apply step config when step changes
+  useEffect(() => {
+    if (viewMode !== "demo") return;
+    const step = DEMO_STEPS[demoStep];
+    setWidthValue(step.width);
+    setLengthValue(step.length);
+    setRoofType(step.roofType);
+    setDoorWidthValue(step.doorWidth);
+    setDoorHeightValue(step.doorHeight);
+  }, [demoStep, viewMode]);
+
+  // Demo: advance step on interval
+  useEffect(() => {
+    if (viewMode !== "demo") return;
+    const timer = setInterval(() => setDemoStep(s => (s + 1) % DEMO_STEPS.length), DEMO_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [viewMode]);
+
+  // Demo: auto-start from ?demo=1 URL param
+  useEffect(() => {
+    if (searchParams.get("demo") === "1") { setDemoStep(0); setViewMode("demo"); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const viewerProps = {
     lengthMm:      lengthValue,
     widthMm:       widthValue,
@@ -340,6 +374,39 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
   return (
     <div className="flex flex-col">
+    {/* Fullscreen demo overlay */}
+    {viewMode === "demo" && (
+      <div className="fixed inset-0 z-50 bg-stone-100">
+        <GarageViewer {...viewerProps} />
+        <div className="absolute inset-0 pointer-events-none flex flex-col">
+          {/* Top bar */}
+          <div className="flex items-center justify-between p-4">
+            <div className="rounded-full bg-white/80 backdrop-blur-sm px-4 py-1.5 shadow text-sm font-bold text-orange-600">
+              GarasjeProffen
+            </div>
+            <button
+              className="pointer-events-auto rounded-full bg-white/80 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-gray-600 shadow hover:bg-white transition-colors"
+              onClick={() => { setViewMode("test"); setDemoStep(0); }}
+            >
+              Avslutt demo ×
+            </button>
+          </div>
+          {/* Bottom info */}
+          <div className="flex-1" />
+          <div className="flex flex-col items-center gap-3 pb-8">
+            <div className="flex gap-2">
+              {DEMO_STEPS.map((_, i) => (
+                <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i === demoStep ? "w-5 bg-orange-500" : "w-1.5 bg-white/50"}`} />
+              ))}
+            </div>
+            <div className="rounded-full bg-black/40 backdrop-blur-sm px-5 py-2.5 text-sm font-semibold text-white">
+              {(widthValue / 1000).toFixed(1)} × {(lengthValue / 1000).toFixed(1)} m · {roofType === "saltak" ? "Saltak" : "Flatt tak"}
+              {doorWidthValue >= 5000 && " · Dobbel port"}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     {showGrunnarbeidWizard && (
       <GrunnarbeidWizard
         sqm={sqm}
@@ -399,6 +466,14 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               }`}
             >
               Målsetting
+            </button>
+          )}
+          {effectiveAdmin && (
+            <button
+              onClick={() => { setDemoStep(0); setViewMode("demo"); }}
+              className="rounded px-2.5 py-1 text-xs font-medium text-white/80 hover:text-white transition-all"
+            >
+              Demo
             </button>
           )}
         </div>
