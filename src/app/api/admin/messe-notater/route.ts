@@ -19,7 +19,7 @@ export async function GET() {
   if (!db) return Response.json([], { status: 200 });
   const { data, error } = await db
     .from("messe_notater")
-    .select("id, content, url, url_label, created_at")
+    .select("id, content, url, url_label, file_url, file_name, created_at")
     .order("created_at", { ascending: true });
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json(data ?? []);
@@ -29,12 +29,18 @@ export async function POST(request: Request) {
   if (!(await requireAdmin())) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const db = getDb();
   if (!db) return Response.json({ error: "DB ikke konfigurert" }, { status: 503 });
-  const body = await request.json() as { content?: string; url?: string; url_label?: string };
+  const body = await request.json() as { content?: string; url?: string; url_label?: string; file_url?: string; file_name?: string };
   const content = body.content?.trim() ?? "";
   if (!content) return Response.json({ error: "Innhold er påkrevd." }, { status: 400 });
   const { data, error } = await db
     .from("messe_notater")
-    .insert({ content, url: body.url?.trim() || null, url_label: body.url_label?.trim() || null })
+    .insert({
+      content,
+      url: body.url?.trim() || null,
+      url_label: body.url_label?.trim() || null,
+      file_url: body.file_url?.trim() || null,
+      file_name: body.file_name?.trim() || null,
+    })
     .select()
     .single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
