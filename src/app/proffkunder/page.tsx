@@ -1,17 +1,50 @@
-import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import type { Metadata } from "next";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Proffkunder – GarasjeProffen AS",
-  robots: { index: false, follow: false },
-};
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
-export default async function ProffkunderPage() {
-  const cookieStore = await cookies();
-  const isAdmin = cookieStore.get("gp-admin")?.value === "1";
-  if (!isAdmin) notFound();
+const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
+
+export default function ProffkunderPage() {
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let resolved = false;
+
+    // Cookie-based admin check (min-side login)
+    fetch("/api/auth/me")
+      .then(r => r.json())
+      .then(({ isAdmin }: { isAdmin: boolean }) => {
+        if (isAdmin && !resolved) { resolved = true; setAuthorized(true); }
+      })
+      .catch(() => {});
+
+    // Supabase session check (admin panel login)
+    if (supabase) {
+      supabase.auth.getUser().then(({ data }: { data: { user: User | null } }) => {
+        if (!resolved) {
+          const ok = !!data.user && ALLOWED_ADMINS.includes(data.user.email?.toLowerCase() ?? "");
+          resolved = true;
+          setAuthorized(ok);
+        }
+      });
+    } else {
+      setTimeout(() => { if (!resolved) { resolved = true; setAuthorized(false); } }, 1000);
+    }
+  }, []);
+
+  if (authorized === null) {
+    return <div className="flex min-h-[60vh] items-center justify-center text-gray-400">Laster...</div>;
+  }
+
+  if (!authorized) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
+        <p className="text-gray-500">Siden finnes ikke.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
