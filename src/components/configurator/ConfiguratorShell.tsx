@@ -551,36 +551,45 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               </button>
             </div>
             <div className="flex-1" />
-            <div className="flex flex-col items-center gap-2 pb-4 px-4">
-              {/* Q&A bubbles */}
-              {qaPhase !== "none" && (
-                <div className={`w-full max-w-xs space-y-1.5 transition-opacity duration-300 ${captionVisible ? "opacity-100" : "opacity-0"}`}>
-                  <div className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">Spørsmål</span>
-                    <div className="rounded-xl rounded-tl-none bg-white/90 backdrop-blur-sm px-3 py-2 shadow text-xs text-gray-800 font-medium">
-                      {DEMO_STEPS[demoStep].q}
-                    </div>
-                  </div>
-                  {qaPhase === "qa" && (
-                    <div className="flex items-start gap-2 justify-end">
-                      <div className="rounded-xl rounded-tr-none bg-orange-500 px-3 py-2 shadow text-xs text-white font-medium">
-                        {DEMO_STEPS[demoStep].a}
+            {/* Bottom row: mascot left, caption right */}
+            <div className="flex items-end justify-between gap-2 px-3 pb-3">
+              {/* Mascot + speech bubble */}
+              <div className="flex items-end gap-2 shrink-0">
+                {/* Speech bubble column above mascot */}
+                <div className="flex flex-col gap-1.5 mb-1">
+                  {qaPhase !== "none" && (
+                    <div className={`transition-opacity duration-300 space-y-1.5 ${captionVisible ? "opacity-100" : "opacity-0"}`}>
+                      {/* Question bubble with tail */}
+                      <div className="relative max-w-[180px]">
+                        <div className="rounded-2xl rounded-bl-none bg-white/95 backdrop-blur-sm px-3 py-2 shadow-lg text-xs text-gray-800 font-medium leading-snug">
+                          {DEMO_STEPS[demoStep].q}
+                        </div>
                       </div>
-                      <span className="mt-0.5 shrink-0 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-orange-600">GP</span>
+                      {qaPhase === "qa" && (
+                        <div className="relative max-w-[180px]">
+                          <div className="rounded-2xl rounded-bl-none bg-orange-500 px-3 py-2 shadow text-xs text-white font-medium leading-snug">
+                            {DEMO_STEPS[demoStep].a}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-              {/* Caption card */}
-              <div className={`w-full max-w-xs rounded-xl bg-white/90 backdrop-blur-sm px-4 py-3 shadow-lg transition-opacity duration-400 ${captionVisible ? "opacity-100" : "opacity-0"}`}>
-                <p className="text-sm font-bold text-gray-900">{DEMO_STEPS[demoStep].label}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{DEMO_STEPS[demoStep].desc}</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/GarajseDrøsaren.png" alt="" className="h-20 w-auto object-contain drop-shadow-lg" />
               </div>
-              {/* Progress dots */}
-              <div className="flex gap-1.5">
-                {DEMO_STEPS.map((_, i) => (
-                  <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i === demoStep ? "w-5 bg-orange-500" : "w-1 bg-white/60"}`} />
-                ))}
+
+              {/* Caption + progress dots — right */}
+              <div className={`flex flex-col items-end gap-2 transition-opacity duration-400 ${captionVisible ? "opacity-100" : "opacity-0"}`}>
+                <div className="rounded-xl bg-white/90 backdrop-blur-sm px-3 py-2.5 shadow-lg text-right">
+                  <p className="text-sm font-bold text-gray-900">{DEMO_STEPS[demoStep].label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{DEMO_STEPS[demoStep].desc}</p>
+                </div>
+                <div className="flex gap-1.5">
+                  {DEMO_STEPS.map((_, i) => (
+                    <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i === demoStep ? "w-5 bg-orange-500" : "w-1 bg-white/60"}`} />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -606,34 +615,35 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 <span className="text-lg font-bold text-white tracking-tight">GarasjeProffen</span>
               </div>
             </div>
-            {/* Bottom bar with Q&A + caption */}
-            <div className="flex items-end justify-between gap-4 px-6 pb-6 pt-3">
-              <div className="flex-1 max-w-xl space-y-2">
-                {qaPhase !== "none" && (
-                  <>
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded-full bg-orange-500 px-2.5 py-0.5 text-xs font-bold text-white">Spørsmål</span>
-                      <div className="rounded-xl rounded-tl-none bg-white/15 backdrop-blur-sm px-4 py-2.5 text-sm text-white font-medium">
+            {/* Bottom bar: mascot left, caption right */}
+            <div className="flex items-end gap-6 px-8 pb-8 pt-2">
+              {/* Mascot + speech bubbles */}
+              <div className="shrink-0 flex items-end gap-4">
+                <div className="flex flex-col gap-2 mb-2">
+                  {qaPhase !== "none" && (
+                    <>
+                      <div className="max-w-sm rounded-3xl rounded-bl-none bg-white/15 backdrop-blur-md px-5 py-3.5 text-base text-white font-medium shadow-lg leading-snug">
                         {DEMO_STEPS[demoStep].q}
                       </div>
-                    </div>
-                    {qaPhase === "qa" && (
-                      <div className="flex items-start gap-2 justify-end">
-                        <div className="rounded-xl rounded-tr-none bg-orange-500 px-4 py-2.5 text-sm text-white font-medium">
+                      {qaPhase === "qa" && (
+                        <div className="max-w-sm rounded-3xl rounded-bl-none bg-orange-500 px-5 py-3.5 text-base text-white font-medium shadow-lg leading-snug">
                           {DEMO_STEPS[demoStep].a}
                         </div>
-                        <span className="mt-0.5 shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-bold text-white">GP</span>
-                      </div>
-                    )}
-                  </>
-                )}
+                      )}
+                    </>
+                  )}
+                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/GarajseDrøsaren.png" alt="" className="h-44 w-auto object-contain drop-shadow-2xl" />
               </div>
-              <div className="shrink-0 text-right">
-                <p className="text-base font-bold text-white">{DEMO_STEPS[demoStep].label}</p>
-                <p className="text-sm text-white/60 mt-0.5">{DEMO_STEPS[demoStep].desc}</p>
-                <div className="flex justify-end gap-1.5 mt-2">
+
+              {/* Caption + dots — right */}
+              <div className="flex-1 flex flex-col items-end justify-end gap-2">
+                <p className="text-xl font-bold text-white">{DEMO_STEPS[demoStep].label}</p>
+                <p className="text-sm text-white/60">{DEMO_STEPS[demoStep].desc}</p>
+                <div className="flex gap-2 mt-1">
                   {DEMO_STEPS.map((_, i) => (
-                    <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i === demoStep ? "w-6 bg-orange-500" : "w-1.5 bg-white/30"}`} />
+                    <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i === demoStep ? "w-7 bg-orange-500" : "w-2 bg-white/30"}`} />
                   ))}
                 </div>
               </div>
