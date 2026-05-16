@@ -24,6 +24,7 @@ interface GarageViewerProps {
   buildingType?: string;
   rotationDeg?: number;
   demoDoorOpen?: boolean;
+  autoRotate?: boolean;
   [key: string]: unknown;
 }
 
@@ -473,7 +474,7 @@ class GltfErrorBoundary extends Component<
   }
 }
 
-export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType, addedElements = [], buildingType, rotationDeg, demoDoorOpen = false }: GarageViewerProps) {
+export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType, addedElements = [], buildingType, rotationDeg, demoDoorOpen = false, autoRotate = false }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
   const [wallHalfL, setWallHalfL] = useState<number | null>(null);
   const [wallHalfW, setWallHalfW] = useState<number | null>(null);
@@ -555,6 +556,8 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
           maxPolarAngle={Math.PI / 2.2}
           minDistance={4}
           maxDistance={30}
+          autoRotate={autoRotate}
+          autoRotateSpeed={0.8}
         />
 
         <GizmoHelper alignment="bottom-left" margin={[50, 50]}>
