@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { wgs84ToUtm33N } from "@/lib/utm33n";
 
 // A4 portrait at 150 DPI
 const CANVAS_W = 1240;
@@ -566,6 +565,77 @@ function drawTitleBlock(
   drawNorthArrow(ctx, col3CenterX, y + H - 55, 34);
 }
 
+// ── Manual drawing types + helpers ──
+type DrawPoint = { x: number; y: number };
+type DrawItem =
+  | { type: "line"; pts: DrawPoint[] }
+  | { type: "arrow"; x: number; y: number; angleDeg: number };
+
+function drawManualLine(ctx: CanvasRenderingContext2D, pts: DrawPoint[]) {
+  if (pts.length < 2) return;
+  ctx.save();
+  ctx.strokeStyle = "#1e293b";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawEntryArrow(ctx: CanvasRenderingContext2D, x: number, y: number, angleDeg: number) {
+  const len = 100;
+  const rad = angleDeg * Math.PI / 180;
+  const dx = Math.cos(rad) * len / 2;
+  const dy = Math.sin(rad) * len / 2;
+  const headLen = 20;
+  const headAngle = 0.45;
+
+  ctx.save();
+  ctx.strokeStyle = "#1e293b";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+
+  ctx.beginPath();
+  ctx.moveTo(x - dx, y - dy);
+  ctx.lineTo(x + dx, y + dy);
+  ctx.stroke();
+
+  for (const [ax, ay, dir] of [
+    [x + dx, y + dy, rad] as [number, number, number],
+    [x - dx, y - dy, rad + Math.PI] as [number, number, number],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - headLen * Math.cos(dir - headAngle), ay - headLen * Math.sin(dir - headAngle));
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - headLen * Math.cos(dir + headAngle), ay - headLen * Math.sin(dir + headAngle));
+    ctx.stroke();
+  }
+
+  // Label "Inn/Ut" above shaft midpoint
+  const perpRad = rad - Math.PI / 2;
+  const lx = x + Math.cos(perpRad) * 22;
+  const ly = y + Math.sin(perpRad) * 22;
+  ctx.save();
+  ctx.translate(lx, ly);
+  ctx.rotate(rad);
+  ctx.font = "bold 18px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const label = "Inn/Ut";
+  const tw = ctx.measureText(label).width;
+  ctx.fillStyle = "rgba(255,255,255,0.88)";
+  ctx.fillRect(-tw / 2 - 5, -13, tw + 10, 26);
+  ctx.fillStyle = "#1e293b";
+  ctx.fillText(label, 0, 0);
+  ctx.restore();
+
+  ctx.restore();
+}
+
 // ── Main render function ──
 async function renderSituasjonsplan(
   canvas: HTMLCanvasElement,
@@ -577,7 +647,7 @@ async function renderSituasjonsplan(
   address: string,
   roofType: string = "saltak",
   buildingType: string = "garasje",
-): Promise<void> {
+): Promise<{ mPerPixLon: number }> {
   const ctx = canvas.getContext("2d")!;
 
   // 1. Fetch map images at A4 map area dimensions
@@ -659,14 +729,25 @@ async function renderSituasjonsplan(
   ctx.moveTo(0, MAP_H);
   ctx.lineTo(CANVAS_W, MAP_H);
   ctx.stroke();
+
+  return { mPerPixLon };
 }
 
 // ── Print page content ──
 function PrintContent() {
   const params     = useSearchParams();
   const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const baseImgRef = useRef<ImageData | null>(null);
   const [status,   setStatus]   = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Drawing state
+  const [drawItems,      setDrawItems]      = useState<DrawItem[]>([]);
+  const [activeTool,     setActiveTool]     = useState<"line" | "arrow" | null>(null);
+  const [currentPts,     setCurrentPts]     = useState<DrawPoint[]>([]);
+  const [mousePos,       setMousePos]       = useState<DrawPoint | null>(null);
+  const [arrowAngleDeg,  setArrowAngleDeg]  = useState(0);
 
   const lat       = parseFloat(params.get("lat")      ?? "");
   const lng       = parseFloat(params.get("lng")      ?? "");
@@ -684,12 +765,38 @@ function PrintContent() {
     ? `/admin/quotes/${quoteId}`
     : `/admin/situasjonsplan?lat=${lat}&lng=${lng}&rotation=${rotation}&widthMm=${widthMm}&lengthMm=${lengthMm}&roofType=${roofType}&buildingType=${buildingType}${address ? `&address=${encodeURIComponent(address)}` : ""}`;
 
-  const utmCoords = isValid ? wgs84ToUtm33N(lng, lat) : null;
+  // Re-draw overlays on top of saved base image
+  const applyOverlays = useCallback((items: DrawItem[]) => {
+    if (!canvasRef.current || !baseImgRef.current) return;
+    const ctx = canvasRef.current.getContext("2d")!;
+    ctx.putImageData(baseImgRef.current, 0, 0);
+    for (const item of items) {
+      if (item.type === "line") drawManualLine(ctx, item.pts);
+      else drawEntryArrow(ctx, item.x, item.y, item.angleDeg);
+    }
+  }, []);
+
+  useEffect(() => {
+    applyOverlays(drawItems);
+  }, [drawItems, applyOverlays]);
+
+  // ESC cancels active tool
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") { setActiveTool(null); setCurrentPts([]); setMousePos(null); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const render = useCallback(async () => {
     if (!canvasRef.current || !isValid) return;
     setStatus("loading");
     setErrorMsg(null);
+    setDrawItems([]);
+    setActiveTool(null);
+    setCurrentPts([]);
+    baseImgRef.current = null;
     try {
       await renderSituasjonsplan(
         canvasRef.current,
@@ -698,6 +805,8 @@ function PrintContent() {
         address,
         roofType, buildingType,
       );
+      baseImgRef.current = canvasRef.current.getContext("2d")!
+        .getImageData(0, 0, CANVAS_W, CANVAS_H);
       setStatus("done");
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Ukjent feil");
@@ -710,6 +819,56 @@ function PrintContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Convert a mouse event on the overlay div to canvas pixel coordinates
+  function toCanvas(e: React.MouseEvent<HTMLDivElement>): DrawPoint {
+    const rect = overlayRef.current!.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (CANVAS_W / rect.width),
+      y: (e.clientY - rect.top)  * (CANVAS_H / rect.height),
+    };
+  }
+
+  function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (!activeTool || status !== "done") return;
+    const pt = toCanvas(e);
+    if (activeTool === "arrow") {
+      setDrawItems(prev => [...prev, { type: "arrow", x: pt.x, y: pt.y, angleDeg: arrowAngleDeg }]);
+      setActiveTool(null);
+    } else {
+      setCurrentPts(prev => [...prev, pt]);
+    }
+  }
+
+  function handleOverlayDoubleClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (activeTool !== "line") return;
+    e.preventDefault();
+    const pt = toCanvas(e);
+    const allPts = [...currentPts, pt];
+    if (allPts.length >= 2) {
+      setDrawItems(prev => [...prev, { type: "line", pts: allPts }]);
+    }
+    setCurrentPts([]);
+    setActiveTool(null);
+    setMousePos(null);
+  }
+
+  function handleOverlayMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (activeTool === "line" && currentPts.length > 0) setMousePos(toCanvas(e));
+  }
+
+  function finishLine() {
+    if (currentPts.length >= 2) {
+      setDrawItems(prev => [...prev, { type: "line", pts: currentPts }]);
+    }
+    setCurrentPts([]);
+    setActiveTool(null);
+    setMousePos(null);
+  }
+
+  function cancelTool() { setActiveTool(null); setCurrentPts([]); setMousePos(null); }
+
+  function undoLast() { setDrawItems(prev => prev.slice(0, -1)); }
+
   function handleDownloadPng() {
     if (!canvasRef.current) return;
     const a = document.createElement("a");
@@ -718,9 +877,14 @@ function PrintContent() {
     a.click();
   }
 
-  const widthLabel  = (widthMm  / 1000).toFixed(1).replace(".0", "");
-  const lengthLabel = (lengthMm / 1000).toFixed(1).replace(".0", "");
-  const now = new Date().toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit", year: "numeric" });
+  // Build SVG preview path for in-progress line
+  const svgPreviewPts = mousePos ? [...currentPts, mousePos] : currentPts;
+  const svgPolyline = svgPreviewPts.length >= 2
+    ? svgPreviewPts.map(p => `${p.x},${p.y}`).join(" ")
+    : null;
+
+  const isDrawing = activeTool !== null && status === "done";
+  const cursorStyle = activeTool === "line" ? "crosshair" : activeTool === "arrow" ? "cell" : "default";
 
   return (
     <>
@@ -733,10 +897,70 @@ function PrintContent() {
       `}</style>
 
       {/* ── Top bar ── */}
-      <div className="no-print flex items-center gap-3 px-4 py-2.5 bg-white border-b border-gray-200 shadow-sm">
+      <div className="no-print flex flex-wrap items-center gap-2 px-4 py-2.5 bg-white border-b border-gray-200 shadow-sm">
         <Link href={backUrl} className="text-sm text-gray-400 hover:text-orange-500 transition-colors">← Tilbake</Link>
         <span className="text-gray-300">/</span>
         <h1 className="text-sm font-semibold text-gray-800">Situasjonsplan – Tegning</h1>
+
+        {/* ── Drawing tools (shown when done) ── */}
+        {status === "done" && (
+          <div className="flex items-center gap-1.5 ml-2 border-l border-gray-200 pl-3">
+            {activeTool === null ? (
+              <>
+                <button
+                  onClick={() => setActiveTool("line")}
+                  className="flex items-center gap-1 rounded-lg border border-gray-200 text-gray-600 hover:border-slate-400 hover:bg-slate-50 text-xs font-medium px-2.5 py-1.5 transition-colors"
+                  title="Tegn grense manuelt – klikk punkter, dobbeltklikk for å avslutte"
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="5" y1="19" x2="19" y2="5"/></svg>
+                  Tegn grense
+                </button>
+                <button
+                  onClick={() => setActiveTool("arrow")}
+                  className="flex items-center gap-1 rounded-lg border border-gray-200 text-gray-600 hover:border-slate-400 hover:bg-slate-50 text-xs font-medium px-2.5 py-1.5 transition-colors"
+                  title="Plasser inn/ut symbol ved å klikke på kartet"
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/><polyline points="5 12 12 5 19 12"/></svg>
+                  Inn/Ut symbol
+                </button>
+                {drawItems.length > 0 && (
+                  <button
+                    onClick={undoLast}
+                    className="flex items-center gap-1 rounded-lg border border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 text-xs font-medium px-2.5 py-1.5 transition-colors"
+                  >
+                    ↩ Angre
+                  </button>
+                )}
+              </>
+            ) : activeTool === "line" ? (
+              <>
+                <span className="text-xs text-slate-500 italic">
+                  {currentPts.length === 0 ? "Klikk for å starte linjen" : `${currentPts.length} punkt – dobbeltklikk eller`}
+                </span>
+                {currentPts.length >= 2 && (
+                  <button onClick={finishLine} className="rounded-lg bg-slate-700 text-white text-xs font-medium px-2.5 py-1.5 hover:bg-slate-800 transition-colors">
+                    Fullfør linje
+                  </button>
+                )}
+                <button onClick={cancelTool} className="rounded-lg border border-gray-200 text-gray-500 text-xs font-medium px-2.5 py-1.5 hover:bg-gray-50 transition-colors">Avbryt</button>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-slate-500 italic">Velg vinkel og klikk på kartet</span>
+                <input
+                  type="number"
+                  value={arrowAngleDeg}
+                  onChange={e => setArrowAngleDeg(Number(e.target.value))}
+                  className="w-16 rounded-lg border border-gray-200 px-2 py-1 text-xs text-center focus:border-orange-400 focus:outline-none"
+                  title="Retningsvinkel i grader"
+                />
+                <span className="text-xs text-gray-400">°</span>
+                <button onClick={cancelTool} className="rounded-lg border border-gray-200 text-gray-500 text-xs font-medium px-2.5 py-1.5 hover:bg-gray-50 transition-colors">Avbryt</button>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="flex-1" />
 
         {status === "loading" && (
@@ -815,48 +1039,37 @@ function PrintContent() {
             className="block shadow-lg print:shadow-none"
             style={{ width: "100%", height: "auto" }}
           />
-        </div>
-      </div>
 
-      {/* ── HTML title block (print-friendly supplement, hidden on screen) ── */}
-      {/* The actual title block is rendered on the canvas; this version is for
-          browsers that can't render canvas to PDF accurately at full resolution */}
-      <div
-        className="no-print hidden"
-        aria-hidden="true"
-        style={{
-          fontFamily: "sans-serif",
-          border: "1px solid #1e293b",
-          display: "grid",
-          gridTemplateColumns: "5fr 4fr 3fr",
-          fontSize: 13,
-        }}
-      >
-        <div style={{ padding: 12, borderRight: "1px solid #1e293b" }}>
-          <div style={{ fontWeight: 700, fontSize: 17 }}>SITUASJONSPLAN</div>
-          <div>{address}</div>
-          <div>Rotasjon: {rotation}°</div>
-          <div>{widthLabel} × {lengthLabel} m</div>
-        </div>
-        <div style={{ padding: 12, borderRight: "1px solid #1e293b" }}>
-          <div style={{ fontWeight: 600 }}>Målestokk 1:500</div>
-          <div>Dato: {now}</div>
-          <div>© Kartverket</div>
-          <div style={{ fontWeight: 700, color: "#ea580c" }}>Garasjeproffen AS</div>
-        </div>
-        <div style={{ padding: 12, textAlign: "center" }}>
-          {/* Mini north arrow SVG */}
-          <svg viewBox="0 0 50 70" width="50" height="70" style={{ display: "block", margin: "0 auto" }}>
-            <circle cx="25" cy="35" r="22" fill="white" stroke="#94a3b8" strokeWidth="1.5"/>
-            <polygon points="25,14 31,42 25,38" fill="#1e293b"/>
-            <polygon points="25,14 19,42 25,38" fill="#e2e8f0"/>
-            <polygon points="19,42 31,42 25,56" fill="#e2e8f0"/>
-            <polygon points="25,38 31,42 25,56" fill="#1e293b"/>
-            <text x="25" y="10" textAnchor="middle" fontWeight="bold" fontSize="11" fill="#1e293b">N</text>
-          </svg>
-          {utmCoords && (
-            <div style={{ fontSize: 10, color: "#64748b", marginTop: 6 }}>
-              UTM33N<br/>Ø {utmCoords[0]}<br/>N {utmCoords[1]}
+          {/* Interactive drawing overlay (no-print) */}
+          {isDrawing && (
+            <div
+              ref={overlayRef}
+              className="no-print absolute inset-0"
+              style={{ cursor: cursorStyle }}
+              onClick={handleOverlayClick}
+              onDoubleClick={handleOverlayDoubleClick}
+              onMouseMove={handleOverlayMouseMove}
+            >
+              <svg
+                viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
+                style={{ width: "100%", height: "100%", pointerEvents: "none" }}
+              >
+                {svgPolyline && (
+                  <polyline
+                    points={svgPolyline}
+                    fill="none"
+                    stroke="#1e293b"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="10 6"
+                    opacity="0.7"
+                  />
+                )}
+                {currentPts.map((p, i) => (
+                  <circle key={i} cx={p.x} cy={p.y} r="6" fill="#1e293b" opacity="0.8" />
+                ))}
+              </svg>
             </div>
           )}
         </div>
