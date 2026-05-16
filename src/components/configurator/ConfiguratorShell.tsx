@@ -487,14 +487,12 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         onClose={() => setShowGrunnarbeidWizard(false)}
       />
     )}
-    <div className={`flex flex-col ${mobileLandscape ? "" : "sm:flex-row sm:h-[calc(100vh-11rem)]"}`}>
+    <div className={`flex ${mobileLandscape ? "" : "flex-row h-[calc(100dvh-11rem)]"}`}>
       {/* 3D Viewer */}
       <div className={`relative bg-stone-100 ${
         mobileLandscape
           ? "h-dvh w-full"
-          : viewMode === "kart"
-            ? "h-[80vw] min-h-[320px] sm:h-auto sm:flex-1"
-            : "h-[60vw] min-h-[240px] sm:h-auto sm:flex-1"
+          : "flex-1 min-w-0"
       }`}>
 
         {/* Toggle */}
@@ -743,21 +741,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         )}
       </div>
 
-      {/* 50 m² warning — mobile only, sits between viewer and sidebar */}
-      {sqm > 50 && !mobileLandscape && (
-        <div className="sm:hidden flex items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <svg className="h-3 w-3 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          <span>Over 50 m² krever <strong>ansvarlig søker</strong> — vi hjelper deg.</span>
-        </div>
-      )}
-
       {/* Sidebar */}
-      <div className={mobileLandscape ? "hidden" : "flex w-full sm:w-[360px] shrink-0 flex-col border-t border-gray-200 sm:border-t-0 sm:border-l bg-white"}>
-        <div ref={scrollContainerRef} className="flex-1 sm:overflow-y-auto p-4 sm:p-6">
-          {/* Package illustration */}
-          <div className={`overflow-hidden transition-all duration-300 sm:max-h-[500px] sm:opacity-100 sm:mb-3 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
+      <div className={mobileLandscape ? "hidden" : "flex w-[148px] sm:w-[360px] shrink-0 flex-col border-l border-gray-200 bg-white"}>
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-6">
+          {/* Package illustration — hidden on mobile narrow sidebar */}
+          <div className={`hidden sm:block overflow-hidden transition-all duration-300 sm:max-h-[500px] sm:opacity-100 sm:mb-3 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
             {packageType === "prefab" ? (
               <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
                 <Image
@@ -782,10 +770,10 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           {/* Package selector */}
-          <div className="mt-3 flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+          <div className="mt-3 flex flex-col sm:flex-row rounded-lg border border-gray-200 p-0.5 bg-gray-50 gap-0.5 sm:gap-0">
             <button
               onClick={() => { setPackageType("materialpakke"); setImageCollapsed(false); }}
-              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
+              className={`flex-1 rounded-md py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all ${
                 packageType === "materialpakke"
                   ? "bg-orange-500 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
@@ -795,13 +783,14 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             </button>
             <button
               onClick={() => { setPackageType("prefab"); setImageCollapsed(false); }}
-              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
+              className={`flex-1 rounded-md py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all ${
                 packageType === "prefab"
                   ? "bg-orange-500 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              Prefabrikert løsning
+              Prefab
+              <span className="hidden sm:inline">rikert løsning</span>
             </button>
           </div>
 
@@ -822,10 +811,10 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           {/* Roof type selector — hidden for carport (always flattak) */}
-          {buildingType !== "carport" && <div className="mt-4 flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+          {buildingType !== "carport" && <div className="mt-3 flex flex-col sm:flex-row rounded-lg border border-gray-200 p-0.5 bg-gray-50 gap-0.5 sm:gap-0">
             <button
               onClick={() => setRoofType("flattak")}
-              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
+              className={`flex-1 rounded-md py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all ${
                 roofType === "flattak"
                   ? "bg-orange-500 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
@@ -835,7 +824,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             </button>
             <button
               onClick={() => setRoofType("saltak")}
-              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
+              className={`flex-1 rounded-md py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all ${
                 roofType === "saltak"
                   ? "bg-orange-500 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
@@ -854,8 +843,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 onChange={toggleSnapOnly}
                 className="h-4 w-4 accent-green-600 cursor-pointer"
               />
-              <span className="text-sm text-gray-700">Lås til standard mål</span>
-              <span className="text-xs font-medium text-green-600">— gir opptil 10% rabatt</span>
+              <span className="text-xs sm:text-sm text-gray-700">Standardmål</span>
+              <span className="hidden sm:inline text-xs font-medium text-green-600">— gir opptil 10% rabatt</span>
             </label>
           )}
 
@@ -890,9 +879,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             </p>
           )}
 
-          {/* 50 m² warning — desktop only */}
+          {/* 50 m² warning */}
           {sqm > 50 && (
-            <div className="hidden sm:flex mt-3 items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+            <div className="flex mt-3 items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
               <svg className="h-3 w-3 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
