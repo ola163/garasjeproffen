@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "GarasjeProffen",
+    "slug": "garasjeproffen",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "garasjeproffen",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f97316"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "no.garasjeproffen.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Brukes ikke.",
+        "NSPhotoLibraryUsageDescription": "For å laste opp bilder til tilbudsforespørselen."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f97316"
+      },
+      "package": "no.garasjeproffen.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
