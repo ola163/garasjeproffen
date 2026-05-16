@@ -1,4 +1,6 @@
 import type { GarageConfiguration, PricingResult } from "@/types/configurator";
+import type { DoorColor } from "./parameters";
+import { getDoorPrice } from "./door-pricing";
 
 export type PackageType = "materialpakke" | "prefab";
 export type RoofType = "saltak" | "flattak";
@@ -15,8 +17,14 @@ const CARPORT_PRICE_PER_SQM: Record<PackageType, number> = {
 
 const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "NOK";
 
-
-export function calculatePrice(config: GarageConfiguration, packageType: PackageType = "materialpakke", roofType: RoofType = "flattak", buildingType: string = "garasje"): PricingResult {
+export function calculatePrice(
+  config: GarageConfiguration,
+  packageType: PackageType = "materialpakke",
+  roofType: RoofType = "flattak",
+  buildingType: string = "garasje",
+  doorColor: DoorColor = "hvit",
+  doorMarkup: number = 0.30,
+): PricingResult {
   const lengthMm    =  config.parameters.length    ?? 6000;
   const widthMm     =  config.parameters.width     ?? 8400;
   const doorWidthMm =  config.parameters.doorWidth ?? 2500;
@@ -51,10 +59,20 @@ export function calculatePrice(config: GarageConfiguration, packageType: Package
     ...(widthSurchargeRate > 0 ? [{ label: `Bredde over ${widthM > 7.2 ? "7,2" : lowerLabel} m`, amount: widthAdj }] : []),
   ];
 
+  // Door price (Hömann port m/ motor og montering)
+  const doorPrice = !isCarport ? getDoorPrice(doorWidthMm, doorColor, doorMarkup) : null;
+  if (doorPrice != null) {
+    const colorLabel = doorColor === "sort" ? "Sort" : "Hvit";
+    adjustments.push({
+      label: `Hömann port ${doorWidthMm}×2125 ${colorLabel} m/ motor og montering`,
+      amount: doorPrice,
+    });
+  }
+
   return {
     basePrice,
     adjustments,
-    totalPrice: basePrice - snapDiscount + widthAdj,
+    totalPrice: basePrice - snapDiscount + widthAdj + (doorPrice ?? 0),
     currency: CURRENCY,
     manualQuote,
   };

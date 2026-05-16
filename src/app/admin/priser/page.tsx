@@ -88,7 +88,12 @@ export default function PriserPage() {
   const [savingPris, setSavingPris]       = useState<string | null>(null);
   const [prisMsg, setPrisMsg]             = useState<string | null>(null);
 
-  useEffect(() => { loadSuppliers(); loadSoknadsPriser(); }, []);
+  // Door markup state
+  const [doorMarkup, setDoorMarkup]       = useState<string>("30");
+  const [savingMarkup, setSavingMarkup]   = useState(false);
+  const [markupMsg, setMarkupMsg]         = useState<string | null>(null);
+
+  useEffect(() => { loadSuppliers(); loadSoknadsPriser(); loadDoorMarkup(); }, []);
 
   async function loadSoknadsPriser() {
     const res  = await fetch("/api/admin/soknadshjelp-priser");
@@ -97,6 +102,26 @@ export default function PriserPage() {
     const map: Record<string, string> = {};
     for (const p of data) map[p.key] = String(p.price);
     setEditingPris(map);
+  }
+
+  async function loadDoorMarkup() {
+    const res = await fetch("/api/admin/konfigurator-innstillinger").catch(() => null);
+    if (!res?.ok) return;
+    const d = await res.json();
+    if (typeof d.door_markup === "number") setDoorMarkup(String(Math.round(d.door_markup * 100)));
+  }
+
+  async function saveDoorMarkup() {
+    const pct = parseFloat(doorMarkup);
+    if (isNaN(pct) || pct < 0) return;
+    setSavingMarkup(true); setMarkupMsg(null);
+    const res = await fetch("/api/admin/konfigurator-innstillinger", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ door_markup: pct / 100 }),
+    });
+    setSavingMarkup(false);
+    setMarkupMsg(res.ok ? "✓ Lagret" : "Feil ved lagring");
   }
 
   async function savePris(key: string) {
@@ -280,6 +305,51 @@ export default function PriserPage() {
           <div className="flex items-center gap-3">
             <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-600">← Admin</Link>
             <h1 className="text-xl font-bold text-gray-900">Prisdatabase</h1>
+          </div>
+        </div>
+
+        {/* Garasjeport påslag */}
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-800">Garasjeport – påslag</h2>
+              <p className="mt-0.5 text-xs text-gray-400">Legges automatisk på innkjøpspris for Hömann porter i garasjekonfiguratoren</p>
+            </div>
+            {markupMsg && (
+              <span className={`text-xs font-medium ${markupMsg.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>
+                {markupMsg}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <input
+                type="number"
+                min={0}
+                max={500}
+                value={doorMarkup}
+                onChange={e => setDoorMarkup(e.target.value)}
+                onBlur={saveDoorMarkup}
+                onKeyDown={e => e.key === "Enter" && saveDoorMarkup()}
+                className="w-28 rounded-lg border border-gray-200 py-1.5 px-3 pr-8 text-sm font-medium text-gray-800 focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 text-right"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">%</span>
+            </div>
+            <button
+              onClick={saveDoorMarkup}
+              disabled={savingMarkup}
+              className="rounded-lg bg-orange-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
+            >
+              {savingMarkup ? "Lagrer…" : "Lagre"}
+            </button>
+          </div>
+          <div className="mt-3 rounded-lg bg-gray-50 border border-gray-100 p-3 text-xs text-gray-500 space-y-1">
+            <p className="font-medium text-gray-700">Innkjøpspriser (eks. moms og påslag):</p>
+            <p>GP-P001 · Hömann 2500×2125 Hvit — 15 111,55 kr</p>
+            <p>GP-P002 · Hömann 2500×2125 Sort — 17 267,95 kr</p>
+            <p>GP-P003 · Hömann 3000×2125 Hvit — 17 615,95 kr</p>
+            <p>GP-P004 · Hömann 5000×2125 Hvit — 24 038,90 kr</p>
+            <p>GP-P005 · Hömann 5000×2125 Sort — 28 125,50 kr</p>
           </div>
         </div>
 
@@ -510,7 +580,27 @@ export default function PriserPage() {
   );
 }
 
-const SQL_MIGRATION = `-- Søknadshjelp-priser (kjør én gang)
+const SQL_MIGRATION = `-- app_settings (kjør én gang – brukes til konfigurator-innstillinger, f.eks. portpåslag)
+CREATE TABLE IF NOT EXISTS app_settings (
+  key        text PRIMARY KEY,
+  value      text NOT NULL,
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin read" ON app_settings FOR SELECT USING (true);
+
+INSERT INTO app_settings (key, value) VALUES ('door_markup', '0.3') ON CONFLICT (key) DO NOTHING;
+
+-- gp_products: Hömann porter (kjør én gang)
+INSERT INTO gp_products (varenr, name, category, unit, description) VALUES
+  ('GP-P001', 'Hömann seksjonalsport 2500×2125 Hvit m/ motor og montering', 'port', 'stk', 'Inkl. Liftronic motor og montering'),
+  ('GP-P002', 'Hömann seksjonalsport 2500×2125 Sort m/ motor og montering',  'port', 'stk', 'Inkl. Liftronic motor og montering'),
+  ('GP-P003', 'Hömann seksjonalsport 3000×2125 Hvit m/ motor og montering', 'port', 'stk', 'Inkl. Liftronic motor og montering'),
+  ('GP-P004', 'Hömann seksjonalsport 5000×2125 Hvit m/ motor og montering', 'port', 'stk', 'Inkl. Liftronic motor og montering'),
+  ('GP-P005', 'Hömann seksjonalsport 5000×2125 Sort m/ motor og montering',  'port', 'stk', 'Inkl. Liftronic motor og montering')
+ON CONFLICT (varenr) DO NOTHING;
+
+-- Søknadshjelp-priser (kjør én gang)
 CREATE TABLE IF NOT EXISTS soknadshjelp_priser (
   key         text PRIMARY KEY,
   label       text NOT NULL,

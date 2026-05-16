@@ -21,6 +21,7 @@ interface QuoteFormProps {
   address?: string;
   mapCenter?: [number, number] | null;
   mapRotation?: number;
+  doorColor?: string;
 }
 
 const BUILDING_TYPES = [
@@ -40,7 +41,7 @@ function defaultCategory(packageType: string) {
   return "materialpakke";
 }
 
-export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, grunnarbeid, open, address, mapCenter, mapRotation }: QuoteFormProps) {
+export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, grunnarbeid, open, address, mapCenter, mapRotation, doorColor }: QuoteFormProps) {
   const [step, setStep] = useState<"soknad" | "address" | "kart" | "form">("soknad");
 
   // Address step state — pre-fill from map placement if available
@@ -133,7 +134,7 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   }
 
   const p = configuration.parameters;
-  const soknadUrl = `/soknadshjelp?buildingType=${buildingType}&lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=${p.doorHeight ?? 2125}&roofType=${roofType}`;
+  const soknadUrl = `/soknadshjelp?buildingType=${buildingType}&lengthMm=${p.length ?? 6000}&widthMm=${p.width ?? 8400}&doorWidthMm=${p.doorWidth ?? 2500}&doorHeightMm=2125&roofType=${roofType}`;
 
   async function submitQuote(overrides?: { name: string; email: string; phone: string; message: string; address: string }) {
     setSubmitting(true);
@@ -143,7 +144,7 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
       const resolvedAddress = overrides?.address ?? selectedAddress ?? localMapAddress ?? address ?? null;
       formData.append("data", JSON.stringify({
         configuration, pricing, packageType, roofType, addedElements, grunnarbeid,
-        category, buildingType,
+        category, buildingType, doorColor,
         address: resolvedAddress,
         mapCenter: resolvedCenter,
         mapRotation: resolvedRotation,

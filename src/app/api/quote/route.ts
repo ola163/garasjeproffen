@@ -57,7 +57,7 @@ async function uploadFilesServerSide(files: File[]): Promise<string[]> {
   return urls;
 }
 
-type RequestBody = QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[]; category?: string; buildingType?: string; address?: string; mapCenter?: [number, number] | null; mapRotation?: number; customer: { name: string; email: string; phone?: string; message?: string; phoneVerified?: boolean } };
+type RequestBody = QuoteRequest & { packageType?: string; roofType?: string; addedElements?: { side: string; category: string; placement: string }[]; attachmentUrls?: string[]; category?: string; buildingType?: string; address?: string; mapCenter?: [number, number] | null; mapRotation?: number; doorColor?: string; customer: { name: string; email: string; phone?: string; message?: string; phoneVerified?: boolean } };
 
 export async function POST(request: Request) {
   try {
@@ -119,8 +119,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // Recalculate price server-side
-    const pricing = calculatePrice(body.configuration, body.packageType as "materialpakke" | "prefab" ?? "materialpakke", body.roofType as "saltak" | "flattak" ?? "flattak", body.buildingType ?? "garasje");
+    // Recalculate price server-side (fetch markup from DB if available)
+    let doorMarkup = 0.30;
+    if (sbUrl && sbKey) {
+      const sb = createClient(sbUrl, sbKey);
+      const { data: mRow } = await sb.from("app_settings").select("value").eq("key", "door_markup").single();
+      if (mRow?.value != null) doorMarkup = Number(mRow.value);
+    }
+    const doorColor = (body.doorColor === "sort" ? "sort" : "hvit") as "hvit" | "sort";
+    const pricing = calculatePrice(body.configuration, body.packageType as "materialpakke" | "prefab" ?? "materialpakke", body.roofType as "saltak" | "flattak" ?? "flattak", body.buildingType ?? "garasje", doorColor, doorMarkup);
     const p = body.configuration.parameters;
     const elements = body.addedElements ?? [];
     const attachmentUrls = uploadedFiles.length > 0
@@ -145,7 +152,7 @@ export async function POST(request: Request) {
         building_type: body.buildingType ?? null,
         package_type: body.packageType ?? null,
         roof_type: body.roofType ?? null,
-        configuration: body.configuration ?? null,
+        configuration: body.configuration ? { ...body.configuration, doorColor } : null,
         added_elements: elements,
         pricing,
         attachments: attachmentUrls.length > 0 ? attachmentUrls : null,
@@ -234,8 +241,7 @@ export async function POST(request: Request) {
             <tr><td><strong>Taktype:</strong></td><td>${body.roofType === "saltak" ? "Saltak" : "Flattak"}</td></tr>
             <tr><td><strong>Lengde:</strong></td><td>${(p.length ?? 6000) / 1000} m</td></tr>
             <tr><td><strong>Bredde:</strong></td><td>${(p.width ?? 8400) / 1000} m</td></tr>
-            <tr><td><strong>Portbredde:</strong></td><td>${p.doorWidth ?? 2500} mm</td></tr>
-            <tr><td><strong>Porthøyde:</strong></td><td>${p.doorHeight ?? 2125} mm</td></tr>
+            <tr><td><strong>Port:</strong></td><td>Hömann ${p.doorWidth ?? 2500}×2125 mm – ${doorColor === "sort" ? "Sort" : "Hvit"} (inkl. motor og montering)</td></tr>
           </table>
           ${body.address || body.mapCenter ? `
           <h3>Plassering</h3>
@@ -282,6 +288,7 @@ export async function POST(request: Request) {
               <tr><td style="padding:4px 8px;color:#6b7280">Pakke:</td><td style="padding:4px 8px">${body.packageType === "prefab" ? "Prefabrikert løsning" : "Materialpakke"}</td></tr>
               <tr><td style="padding:4px 8px;color:#6b7280">Taktype:</td><td style="padding:4px 8px">${body.roofType === "saltak" ? "Saltak" : "Flattak"}</td></tr>
               <tr><td style="padding:4px 8px;color:#6b7280">Størrelse:</td><td style="padding:4px 8px">${(p.width ?? 8400) / 1000} × ${(p.length ?? 6000) / 1000} m</td></tr>
+              <tr><td style="padding:4px 8px;color:#6b7280">Port:</td><td style="padding:4px 8px">Hömann ${p.doorWidth ?? 2500}×2125 mm – ${doorColor === "sort" ? "Sort" : "Hvit"}<br><span style="font-size:12px;color:#6b7280">Inkluderer motor og montering</span></td></tr>
               ${body.address ? `<tr><td style="padding:4px 8px;color:#6b7280">Adresse:</td><td style="padding:4px 8px">${esc(body.address)}</td></tr>` : ""}
               <tr><td style="padding:4px 8px;color:#6b7280">Prisestimat:</td><td style="padding:4px 8px;font-weight:bold">${formatPrice(pricing.totalPrice, pricing.currency)}</td></tr>
             </table>

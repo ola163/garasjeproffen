@@ -19,6 +19,7 @@ interface GarageViewerProps {
   widthMm: number;
   doorWidthMm: number;
   doorHeightMm: number;
+  doorColor?: "hvit" | "sort";
   roofType?: "saltak" | "flattak";
   addedElements?: AddedElement[];
   buildingType?: string;
@@ -375,7 +376,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean }) {
+function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit" }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort" }) {
   const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
@@ -402,14 +403,26 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
     const scaleY = size.y > 0.001 ? targetH / size.y : 1;
     const scaleZ = size.z > 0.001 ? 0.05 / size.z : 1;
     clone.scale.set(scaleX, scaleY, scaleZ);
-    clone.traverse(c => { if ((c as Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+    const paintColor = doorColor === "sort" ? "#1c1c1c" : "#f2f0ed";
+    clone.traverse(c => {
+      if ((c as Mesh).isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+        const orig = (c as Mesh).material as MeshStandardMaterial;
+        const mat = orig.clone();
+        mat.color.set(paintColor);
+        mat.roughness = doorColor === "sort" ? 0.45 : 0.55;
+        mat.metalness = doorColor === "sort" ? 0.15 : 0.05;
+        (c as Mesh).material = mat;
+      }
+    });
     // Compute centering offsets — cannot set clone.position here because
     // <primitive position> would override it entirely, so pass offsets to primitive directly
     const ox = -center.x * scaleX;
     const oy = -box.min.y * scaleY;
     const oz = -center.z * scaleZ;
     return { clone, ox, oy, oz };
-  }, [rawScene, targetW, targetH]);
+  }, [rawScene, targetW, targetH, doorColor]);
 
   const doorZ = lengthMm / 2000 - WALL_T / 2;
   const doorGroupRef = useRef<THREE.Group>(null);
@@ -474,7 +487,7 @@ class GltfErrorBoundary extends Component<
   }
 }
 
-export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType, addedElements = [], buildingType, rotationDeg, demoDoorOpen = false, autoRotate = false }: GarageViewerProps) {
+export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm, doorColor = "hvit", roofType, addedElements = [], buildingType, rotationDeg, demoDoorOpen = false, autoRotate = false }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
   const [wallHalfL, setWallHalfL] = useState<number | null>(null);
   const [wallHalfW, setWallHalfW] = useState<number | null>(null);
@@ -517,7 +530,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
               onWallFaces={handleWallFaces}
             />
             {hasFlatGarage && (
-              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} />
+              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} />
             )}
           </Suspense>
         </GltfErrorBoundary>

@@ -32,20 +32,19 @@ export const GARAGE_PARAMETERS: GarageParameter[] = [
     group: "door",
     options: [
       { label: "2500 mm", value: 2500 },
-      { label: "2600 mm", value: 2600 },
+      { label: "3000 mm", value: 3000 },
       { label: "5000 mm", value: 5000 },
     ],
   },
-  {
-    id: "doorHeight",
-    label: "Høyde på garasjeport",
-    unit: "mm",
-    defaultValue: 2125,
-    type: "select",
-    group: "door",
-    options: [
-      { label: "2125 mm", value: 2125 },
-      { label: "2250 mm", value: 2250 },
-    ],
-  },
 ];
+
+// Door height is always fixed — not a user choice
+export const DOOR_HEIGHT_MM = 2125;
+
+// Door color options (handled as string state, not a numeric GarageParameter)
+export const DOOR_COLOR_OPTIONS = [
+  { label: "Hvit", value: "hvit" },
+  { label: "Sort", value: "sort" },
+] as const;
+
+export type DoorColor = "hvit" | "sort";

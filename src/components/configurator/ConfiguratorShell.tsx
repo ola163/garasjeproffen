@@ -11,7 +11,8 @@ import DoorWindowAdder, { filterValidElements, type AddedElement, type WallSide,
 import GrunnarbeidWizard, { type GrunnarbeidData, emptyGrunnarbeidData } from "./GrunnarbeidWizard";
 import AuthPanel from "../auth/AuthPanel";
 import { calculatePrice, type PackageType } from "@/lib/pricing";
-import { GARAGE_PARAMETERS } from "@/lib/parameters";
+import { GARAGE_PARAMETERS, DOOR_COLOR_OPTIONS, DOOR_HEIGHT_MM, type DoorColor } from "@/lib/parameters";
+import { isDoorColorAvailable } from "@/lib/door-pricing";
 
 const GarageViewer      = dynamic(() => import("./GarageViewer"),      { ssr: false });
 const LocalGarageViewer = dynamic(() => import("./LocalGarageViewer"), { ssr: false });
@@ -58,10 +59,9 @@ const DEMO_STEPS: Array<{
 ];
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
-const lengthParam     = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
-const widthParam      = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
-const doorWidthParam  = GARAGE_PARAMETERS.find((p) => p.id === "doorWidth")!;
-const doorHeightParam = GARAGE_PARAMETERS.find((p) => p.id === "doorHeight")!;
+const lengthParam    = GARAGE_PARAMETERS.find((p) => p.id === "length")!;
+const widthParam     = GARAGE_PARAMETERS.find((p) => p.id === "width")!;
+const doorWidthParam = GARAGE_PARAMETERS.find((p) => p.id === "doorWidth")!;
 
 export default function ConfiguratorShell({ buildingType = "garasje" }: { buildingType?: "garasje" | "carport" }) {
   const searchParams = useSearchParams();
@@ -83,13 +83,27 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [widthValue, setWidthValue] = useState(
     urlWidth >= widthParam.min! && urlWidth <= widthParam.max! ? urlWidth : widthParam.defaultValue
   );
-  const [doorWidthValue,  setDoorWidthValue]   = useState(doorWidthParam.defaultValue);
-  const [doorHeightValue, setDoorHeightValue]  = useState(doorHeightParam.defaultValue);
+  const [doorWidthValue, setDoorWidthValue] = useState(doorWidthParam.defaultValue);
+  const [doorColor, setDoorColor] = useState<DoorColor>("hvit");
+  const [doorMarkup, setDoorMarkup] = useState(0.30);
+
+  // Fetch admin-configured door markup
+  useEffect(() => {
+    fetch("/api/konfigurator-innstillinger")
+      .then(r => r.json())
+      .then(d => { if (typeof d.door_markup === "number") setDoorMarkup(d.door_markup); })
+      .catch(() => {});
+  }, []);
+
+  // If selected color is not available for this door width, fall back to hvit
+  useEffect(() => {
+    if (!isDoorColorAvailable(doorWidthValue, doorColor)) setDoorColor("hvit");
+  }, [doorWidthValue, doorColor]);
 
   const configuration = useMemo(() => ({
-    parameters: { length: lengthValue, width: widthValue, doorWidth: doorWidthValue, doorHeight: doorHeightValue },
+    parameters: { length: lengthValue, width: widthValue, doorWidth: doorWidthValue },
     timestamp: Date.now(),
-  }), [lengthValue, widthValue, doorWidthValue, doorHeightValue]);
+  }), [lengthValue, widthValue, doorWidthValue]);
 
   const validDoorWidthOptions = useMemo(
     () => (doorWidthParam.options ?? []).filter((o) => widthValue >= o.value + MIN_CLEARANCE),
@@ -181,7 +195,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const ELEMENT_LABELS: Partial<Record<string, string>> = { door: "Dør 90×210", window1: "Vindu 100×50", window2: "Vindu 100×60", window3: "Vindu 100×100" };
   const GRUNNARBEID_KR_PER_SQM = 2000;
   const pricing = useMemo(() => {
-    const base = calculatePrice(configuration, packageType, roofType, buildingType);
+    const base = calculatePrice(configuration, packageType, roofType, buildingType, doorColor, doorMarkup);
     const elementAdjustments = addedElements.flatMap((el) => {
       const unitPrice = ELEMENT_PRICES[el.category];
       if (!unitPrice) return [];
@@ -196,7 +210,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       totalPrice: base.totalPrice + elementTotal,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configuration, packageType, roofType, addedElements, grunnarbeid]);
+  }, [configuration, packageType, roofType, addedElements, grunnarbeid, doorColor, doorMarkup]);
 
   const [focusSide, setFocusSide] = useState<WallSide | null>(null);
   const [editingElement, setEditingElement] = useState<AddedElement | null>(null);
@@ -411,7 +425,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     setLengthValue(first.length);
     setRoofType(first.roofType);
     setDoorWidthValue(first.doorWidth);
-    setDoorHeightValue(first.doorHeight);
     setCaptionVisible(true);
     applyHold(0);
 
@@ -440,7 +453,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         if (t >= 1) {
           setRoofType(target.roofType);
           setDoorWidthValue(target.doorWidth);
-          setDoorHeightValue(target.doorHeight);
           applyHold(stepIndex);
           phase = "holding";
           phaseStart = Date.now();
@@ -459,10 +471,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   }, []);
 
   const viewerProps = {
-    lengthMm:      lengthValue,
-    widthMm:       widthValue,
-    doorWidthMm:   doorWidthValue,
-    doorHeightMm:  doorHeightValue,
+    lengthMm:     lengthValue,
+    widthMm:      widthValue,
+    doorWidthMm:  doorWidthValue,
+    doorHeightMm: DOOR_HEIGHT_MM,
+    doorColor,
     roofType,
     focusSide,
     addedElements,
@@ -684,7 +697,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-white/50">Garasjeport høgde</span>
-                    <span className="text-white font-medium">{(doorHeightValue / 1000).toFixed(2)} m</span>
+                    <span className="text-white font-medium">{(DOOR_HEIGHT_MM / 1000).toFixed(2)} m</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-white/50">Areal</span>
@@ -725,7 +738,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             onRotationChange={setMapRotation}
             onAddressSelect={(addr, coords) => pickAddress(addr, coords, true)}
             defaultCenter={mapCenter ?? undefined}
-            addedElements={addedElements} doorWidthMm={doorWidthValue} doorHeightMm={doorHeightValue}
+            addedElements={addedElements} doorWidthMm={doorWidthValue} doorHeightMm={DOOR_HEIGHT_MM}
             showNeighbors
           />
         )}
@@ -733,7 +746,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           <div className="absolute inset-0 overflow-y-auto bg-white z-[5]">
             <GarageMålAdmin
               widthMm={widthValue} lengthMm={lengthValue}
-              doorWidthMm={doorWidthValue} doorHeightMm={doorHeightValue}
+              doorWidthMm={doorWidthValue} doorHeightMm={DOOR_HEIGHT_MM}
               roofType={roofType} buildingType={buildingType}
               addedElements={addedElements}
             />
@@ -934,19 +947,39 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Høyde på garasjeport
+                  Farge på garasjeport
                 </label>
-                <select
-                  value={doorHeightValue}
-                  onChange={(e) => setDoorHeightValue(Number(e.target.value))}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e2520a]"
-                >
-                  {(doorHeightParam.options ?? []).map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  {DOOR_COLOR_OPTIONS.map((o) => {
+                    const available = isDoorColorAvailable(doorWidthValue, o.value);
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        disabled={!available}
+                        onClick={() => setDoorColor(o.value)}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-all ${
+                          doorColor === o.value
+                            ? "border-orange-400 bg-orange-50 text-orange-700 ring-1 ring-orange-400"
+                            : available
+                            ? "border-gray-200 text-gray-600 hover:border-gray-400"
+                            : "border-gray-100 text-gray-300 cursor-not-allowed opacity-50"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 rounded-full border ${
+                            o.value === "sort"
+                              ? "bg-gray-900 border-gray-700"
+                              : "bg-white border-gray-300"
+                          }`}
+                        />
+                        {o.label}
+                        {!available && <span className="text-xs ml-0.5">(N/A)</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-gray-400">Alle porter er Hömann m/ motor og montering. Høyde: 2125 mm.</p>
               </div>
 
               {validDoorWidthOptions.length > 0 && (
@@ -1307,7 +1340,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           <div className="mt-8" ref={quoteRef}>
-            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} roofType={roofType} addedElements={addedElements} grunnarbeid={grunnarbeid ?? undefined} open={quoteOpen} address={selectedAddress ?? undefined} mapCenter={mapCenter} mapRotation={mapRotation} />
+            <QuoteForm configuration={configuration} pricing={pricing} packageType={packageType} roofType={roofType} addedElements={addedElements} grunnarbeid={grunnarbeid ?? undefined} open={quoteOpen} address={selectedAddress ?? undefined} mapCenter={mapCenter} mapRotation={mapRotation} doorColor={doorColor} />
           </div>
 
           <AuthPanel
