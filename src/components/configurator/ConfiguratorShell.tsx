@@ -402,7 +402,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       const step = DEMO_STEPS[idx];
       setDemoStep(idx);
       setAddedElements(step.elements);
-      setDemoDoorOpen(true);
       setQaPhase("q");
       setTimeout(() => setQaPhase("qa"), 2000);
     };
@@ -426,7 +425,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           fromWidth = DEMO_STEPS[stepIndex].width;
           fromLength = DEMO_STEPS[stepIndex].length;
           stepIndex = (stepIndex + 1) % DEMO_STEPS.length;
-          setDemoDoorOpen(false);
           setAddedElements([]);
           setCaptionVisible(false);
           setTimeout(() => setCaptionVisible(true), 400);
@@ -608,7 +606,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             {/* Left: 3D viewer + mascot bottom bar */}
             <div className="flex-1 flex flex-col min-w-0">
               <div className="relative flex-1">
-                <GarageViewer {...viewerProps} demoDoorOpen={demoDoorOpen} autoRotate />
+                <GarageViewer {...viewerProps} autoRotate />
                 <div className="absolute top-5 left-6 flex items-center gap-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/logo.jpg" alt="GarasjeProffen" className="h-8 w-auto object-contain rounded" />
@@ -719,7 +717,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </button>
         )}
 
-        {(viewMode === "test" || viewMode === "demo") && <GarageViewer {...viewerProps} demoDoorOpen={viewMode === "demo" ? demoDoorOpen : false} />}
+        {(viewMode === "test" || viewMode === "demo") && <GarageViewer {...viewerProps} demoDoorOpen={false} />}
         {viewMode === "dev" && <LocalGarageViewer {...viewerProps} />}
         {viewMode === "kart" && (
           <GarageMapbox
