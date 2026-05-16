@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import * as Slider from "@radix-ui/react-slider";
 
 interface LengthSliderProps {
@@ -11,7 +11,6 @@ interface LengthSliderProps {
   step: number;
   unit: string;
   onChange: (value: number) => void;
-  debounceMs?: number;
   snapOffset?: number;
   disableSnap?: boolean;
 }
@@ -24,32 +23,14 @@ export default function LengthSlider({
   step,
   unit,
   onChange,
-  debounceMs = 500,
   snapOffset = 0,
   disableSnap = false,
 }: LengthSliderProps) {
   const [localValue, setLocalValue] = useState(value);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
-
-  const handleChange = useCallback(
-    (values: number[]) => {
-      const newValue = values[0];
-      setLocalValue(newValue);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => onChange(newValue), debounceMs);
-    },
-    [onChange, debounceMs]
-  );
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
 
   const displayValue =
     unit === "mm" ? `${(localValue / 1000).toFixed(1)} m` : `${localValue} ${unit}`;
@@ -68,7 +49,8 @@ export default function LengthSlider({
         min={min}
         max={max}
         step={step}
-        onValueChange={handleChange}
+        onValueChange={(values) => setLocalValue(values[0])}
+        onValueCommit={(values) => onChange(values[0])}
       >
         <Slider.Track className="relative h-2 w-full grow rounded-full bg-gray-200">
           <Slider.Range className="absolute h-full rounded-full bg-[#e2520a]" />

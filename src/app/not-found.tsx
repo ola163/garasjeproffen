@@ -11,7 +11,10 @@ export default function NotFound() {
     <div style={{ textAlign: "center", padding: "80px 24px" }}>
       <h1>404 – Siden finnes ikke</h1>
       <p>Vi fant ikke siden du lette etter.</p>
-      <Link href="/">Gå til forsiden</Link>
+      <div style={{ display: "flex", gap: "16px", justifyContent: "center", marginTop: "16px" }}>
+        <Link href="/garasje" style={{ background: "#e2520a", color: "#fff", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: 600 }}>Design garasje</Link>
+        <Link href="/">Gå til forsiden</Link>
+      </div>
     </div>
   );
 }
