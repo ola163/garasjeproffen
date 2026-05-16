@@ -344,7 +344,100 @@ function drawGarageFootprint(
 
   ctx.restore();
 
-  return { mPerPixLon, mPerPixLat };
+  return { mPerPixLon, mPerPixLat, outerCorners: outer };
+}
+
+type BoundaryGeoJSON = {
+  features: Array<{
+    geometry: {
+      type: "LineString" | "MultiLineString";
+      coordinates: number[][] | number[][][];
+    } | null;
+  }>;
+};
+
+function drawBoundariesAndDistances(
+  ctx: CanvasRenderingContext2D,
+  garageCorners: [number, number][],
+  boundaries: BoundaryGeoJSON,
+  bbox: BBox,
+  imgW: number,
+  imgH: number,
+  mPerPixLon: number,
+) {
+  function toPixel(lon: number, lat: number): [number, number] {
+    return [
+      (lon - bbox.minLon) / (bbox.maxLon - bbox.minLon) * imgW,
+      (1 - (lat - bbox.minLat) / (bbox.maxLat - bbox.minLat)) * imgH,
+    ];
+  }
+
+  const segments: [[number, number], [number, number]][] = [];
+  for (const f of boundaries.features) {
+    if (!f.geometry) continue;
+    const rings: number[][][] =
+      f.geometry.type === "LineString"
+        ? [f.geometry.coordinates as number[][]]
+        : (f.geometry.coordinates as number[][][]);
+    for (const ring of rings) {
+      for (let i = 0; i < ring.length - 1; i++) {
+        segments.push([toPixel(ring[i][0], ring[i][1]), toPixel(ring[i + 1][0], ring[i + 1][1])]);
+      }
+    }
+  }
+  if (segments.length === 0) return;
+
+  // Draw boundary lines
+  ctx.save();
+  ctx.strokeStyle = "#dc2626";
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([10, 5]);
+  for (const [[x1, y1], [x2, y2]] of segments) {
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  function ptToSeg(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+    const nx = x1 + t * dx, ny = y1 + t * dy;
+    return { dist: Math.hypot(px - nx, py - ny), nx, ny };
+  }
+
+  const MAX_PX = 15 / mPerPixLon; // only show distances < 15 m
+  const shown = new Set<number>(); // avoid duplicate labels per corner
+
+  for (let ci = 0; ci < garageCorners.length; ci++) {
+    const [cx, cy] = garageCorners[ci];
+    let best = { dist: Infinity, nx: 0, ny: 0 };
+    for (const [[x1, y1], [x2, y2]] of segments) {
+      const r = ptToSeg(cx, cy, x1, y1, x2, y2);
+      if (r.dist < best.dist) best = r;
+    }
+    if (best.dist > MAX_PX || shown.has(Math.round(best.dist))) continue;
+    shown.add(Math.round(best.dist));
+
+    const distM = best.dist * mPerPixLon;
+    const midX = (cx + best.nx) / 2, midY = (cy + best.ny) / 2;
+
+    // Arrow line
+    ctx.strokeStyle = "#dc2626";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(best.nx, best.ny); ctx.stroke();
+
+    // Label
+    const label = `${distM.toFixed(1)} m`;
+    ctx.font = "bold 15px sans-serif";
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillRect(midX - tw / 2 - 5, midY - 11, tw + 10, 22);
+    ctx.fillStyle = "#dc2626";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, midX, midY);
+  }
+  ctx.restore();
 }
 
 function drawTitleBlock(
@@ -373,9 +466,9 @@ function drawTitleBlock(
   ctx.lineTo(W, y);
   ctx.stroke();
 
-  // Column dividers: col1 = narrow left (logo + north arrow), col2 = project info, col3 = scale/date
-  const col1 = Math.round(W * 0.20); // ~248px — kommunevåpen + north arrow
-  const col2 = Math.round(W * 0.60); // ~744px — project info
+  // Columns: col1 = kommunevåpen (left), col2 = project info (middle), col3 = scale/nord-pil (right, narrower)
+  const col1 = Math.round(W * 0.20); // ~248px — kommunevåpen only
+  const col2 = Math.round(W * 0.68); // ~843px — project info + Format A4 + Dato
 
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -390,15 +483,15 @@ function drawTitleBlock(
   const col1CenterX = Math.round(col1 / 2);
   const col1W = col1;
 
-  // ── Column 1 (far left): Kommunevåpen + north arrow ──
+  // ── Column 1 (far left): Kommunevåpen only ──
   if (kommune?.logo) {
     const maxLogoW = col1W - pad * 2;
-    const maxLogoH = Math.round(H * 0.52);
+    const maxLogoH = Math.round(H * 0.60);
     const scale = Math.min(maxLogoW / kommune.logo.width, maxLogoH / kommune.logo.height, 1);
     const lW = Math.round(kommune.logo.width  * scale);
     const lH = Math.round(kommune.logo.height * scale);
     const logoX = Math.round((col1W - lW) / 2);
-    const logoY = y + pad;
+    const logoY = y + Math.round((H - lH) / 2);
     ctx.drawImage(kommune.logo, logoX, logoY, lW, lH);
     if (kommune.navn) {
       ctx.font         = "bold 11px sans-serif";
@@ -411,14 +504,11 @@ function drawTitleBlock(
     ctx.font         = "bold 13px sans-serif";
     ctx.fillStyle    = "#334155";
     ctx.textAlign    = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText(kommune.navn, col1CenterX, y + pad + 4);
+    ctx.textBaseline = "middle";
+    ctx.fillText(kommune.navn, col1CenterX, y + H / 2);
   }
 
-  // North arrow at bottom-centre of col1
-  drawNorthArrow(ctx, col1CenterX, y + H - 55, 34);
-
-  // ── Column 2: Project info ──
+  // ── Column 2 (middle): Project info + Format + Dato ──
   let yl = y + pad + 2;
   ctx.font      = "bold 22px sans-serif";
   ctx.fillStyle = "#1e293b";
@@ -450,24 +540,30 @@ function drawTitleBlock(
     yl += 28;
   }
 
-  // ── Column 3 (right): Scale / format / date / company ──
+  ctx.font      = "14px sans-serif";
+  ctx.fillStyle = "#475569";
+  ctx.fillText("Format: A4", col1 + pad, yl);
+  yl += 22;
+  ctx.fillText(`Dato: ${dateStr}`, col1 + pad, yl);
+
+  // ── Column 3 (right, narrower): Scale / company + nord-pil ──
+  const col3CenterX = col2 + Math.round((W - col2) / 2);
   let y3 = y + pad + 2;
-  ctx.font      = "bold 16px sans-serif";
+  ctx.font      = "bold 15px sans-serif";
   ctx.fillStyle = "#1e293b";
   ctx.textAlign = "left";
   ctx.fillText("Målestokk 1:500", col2 + pad, y3);
-  y3 += 30;
-  ctx.font      = "14px sans-serif";
+  y3 += 28;
+  ctx.font      = "13px sans-serif";
   ctx.fillStyle = "#475569";
-  ctx.fillText("Format: A4", col2 + pad, y3);
-  y3 += 24;
-  ctx.fillText(`Dato: ${dateStr}`, col2 + pad, y3);
-  y3 += 24;
   ctx.fillText("© Kartverket", col2 + pad, y3);
-  y3 += 24;
-  ctx.font      = "bold 14px sans-serif";
+  y3 += 22;
+  ctx.font      = "bold 13px sans-serif";
   ctx.fillStyle = "#ea580c";
   ctx.fillText("Garasjeproffen AS", col2 + pad, y3);
+
+  // Nord-pil at bottom-centre of col3
+  drawNorthArrow(ctx, col3CenterX, y + H - 55, 34);
 }
 
 // ── Main render function ──
@@ -493,6 +589,7 @@ async function renderSituasjonsplan(
     topo: string; matrikkel: string;
     bbox: BBox;
     width: number; height: number;
+    boundaries: BoundaryGeoJSON | null;
   };
 
   const [topoImg, matrikkelImg] = await Promise.all([
@@ -513,11 +610,16 @@ async function renderSituasjonsplan(
   const cy = (1 - (lat - bbox.minLat) / (bbox.maxLat - bbox.minLat)) * imgH;
 
   // 4. Draw garage footprint + get scale info
-  const { mPerPixLon } = drawGarageFootprint(
+  const { mPerPixLon, outerCorners } = drawGarageFootprint(
     ctx, cx, cy, bbox, imgW, imgH,
     lat, widthMm, lengthMm, rotation,
     roofType, buildingType,
   );
+
+  // 4b. Property boundaries + min distances
+  if (data.boundaries?.features?.length) {
+    drawBoundariesAndDistances(ctx, outerCorners, data.boundaries, bbox, imgW, imgH, mPerPixLon);
+  }
 
   // 5. Scale bar (bottom-left of map area)
   drawScaleBar(ctx, 40, imgH - 68, mPerPixLon);

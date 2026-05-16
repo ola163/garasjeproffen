@@ -56,9 +56,15 @@ export async function GET(req: NextRequest) {
     w, h,
   );
 
-  const [topoRes, matrikkelRes] = await Promise.all([
+  const wfsUrl =
+    `https://wfs.geonorge.no/skwms1/wfs.matrikkelen?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature` +
+    `&TYPENAMES=app:Eiendomsgrense&OUTPUTFORMAT=application/json&count=300` +
+    `&BBOX=${bbox.minLon},${bbox.minLat},${bbox.maxLon},${bbox.maxLat},EPSG:4326`;
+
+  const [topoRes, matrikkelRes, wfsRes] = await Promise.all([
     fetch(topoUrl, { next: { revalidate: 3600 } }),
     fetch(matrikkelUrl, { next: { revalidate: 3600 } }),
+    fetch(wfsUrl, { signal: AbortSignal.timeout(6000), next: { revalidate: 3600 } }).catch(() => null),
   ]);
 
   if (!topoRes.ok || !matrikkelRes.ok) {
@@ -73,11 +79,17 @@ export async function GET(req: NextRequest) {
     matrikkelRes.arrayBuffer(),
   ]);
 
+  let boundaries: object | null = null;
+  try {
+    if (wfsRes?.ok) boundaries = await wfsRes.json();
+  } catch { /* no boundaries */ }
+
   return NextResponse.json({
     topo:      Buffer.from(topoBuf).toString("base64"),
     matrikkel: Buffer.from(matrikkelBuf).toString("base64"),
     bbox,
     width: w,
     height: h,
+    boundaries,
   });
 }
