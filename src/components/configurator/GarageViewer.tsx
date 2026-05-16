@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useMemo, useState, useCallback, Suspense, Component, type ReactNode } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { OrbitControls, Environment, Grid, useGLTF, Line, Text, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import { Box3, Vector3, Mesh, MeshStandardMaterial } from "three";
@@ -23,6 +23,8 @@ interface GarageViewerProps {
   addedElements?: AddedElement[];
   buildingType?: string;
   rotationDeg?: number;
+  demoDoorOpen?: boolean;
+  [key: string]: unknown;
 }
 
 // ── Window rendering constants (mirror LocalGarageViewer) ─────────────────────
@@ -372,7 +374,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm, portOffsetX = 0 }: { halfL: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number }) {
+function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false }: { halfL: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean }) {
   const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
@@ -409,6 +411,17 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm, portOffsetX = 0 }: {
   }, [rawScene, targetW, targetH]);
 
   const doorZ = halfL - WALL_T / 2;
+  const doorGroupRef = useRef<THREE.Group>(null);
+  const doorYRef = useRef(0);
+  const demoDoorOpenRef = useRef(demoDoorOpen);
+  useEffect(() => { demoDoorOpenRef.current = demoDoorOpen; }, [demoDoorOpen]);
+
+  useFrame(() => {
+    if (!doorGroupRef.current) return;
+    const target = demoDoorOpenRef.current ? targetH * 0.95 : 0;
+    doorYRef.current += (target - doorYRef.current) * 0.055;
+    doorGroupRef.current.position.y = doorYRef.current;
+  });
 
   return (
     <group position={[portOffsetX, 0, 0]}>
@@ -416,8 +429,10 @@ function GaragePortFlat({ halfL, doorWidthMm, doorHeightMm, portOffsetX = 0 }: {
       <mesh renderOrder={-2} position={[0, targetH / 2, halfL - WALL_T / 2]} material={matCut}>
         <boxGeometry args={[targetW, targetH, WALL_T + 0.1]} />
       </mesh>
-      {/* Door panel: combine centering offsets with doorZ in one position prop */}
-      <primitive object={group.clone} position={[group.ox, group.oy, group.oz + doorZ]} dispose={null} />
+      {/* Door panel — animates in Y */}
+      <group ref={doorGroupRef}>
+        <primitive object={group.clone} position={[group.ox, group.oy, group.oz + doorZ]} dispose={null} />
+      </group>
     </group>
   );
 }
@@ -458,7 +473,7 @@ class GltfErrorBoundary extends Component<
   }
 }
 
-export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType, addedElements = [], buildingType, rotationDeg }: GarageViewerProps) {
+export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm, roofType, addedElements = [], buildingType, rotationDeg, demoDoorOpen = false }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
   const [wallHalfL, setWallHalfL] = useState<number | null>(null);
   const [wallHalfW, setWallHalfW] = useState<number | null>(null);
@@ -501,7 +516,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
               onWallFaces={handleWallFaces}
             />
             {hasFlatGarage && wallHalfL !== null && (
-              <GaragePortFlat halfL={wallHalfL} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} />
+              <GaragePortFlat halfL={wallHalfL} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} />
             )}
           </Suspense>
         </GltfErrorBoundary>

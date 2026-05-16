@@ -22,11 +22,11 @@ const GarageMålAdmin    = dynamic(() => import("./GarageMålAdmin"),    { ssr: 
 const MIN_CLEARANCE = 300;
 
 const DEMO_STEPS = [
-  { width: 5000, length: 6000, roofType: "flattak" as const, doorWidth: 2500, doorHeight: 2125 },
-  { width: 6200, length: 7800, roofType: "flattak" as const, doorWidth: 2500, doorHeight: 2125 },
-  { width: 7800, length: 9600, roofType: "flattak" as const, doorWidth: 5000, doorHeight: 2250 },
-  { width: 5600, length: 6000, roofType: "saltak" as const, doorWidth: 2500, doorHeight: 2125 },
-  { width: 7200, length: 8400, roofType: "saltak" as const, doorWidth: 5000, doorHeight: 2250 },
+  { width: 5000, length: 6000, roofType: "flattak" as const, doorWidth: 2500, doorHeight: 2125, label: "Enkel garasje", desc: "5 × 6 m med flatt tak – plass til én bil og god lagringsplass" },
+  { width: 6200, length: 7800, roofType: "flattak" as const, doorWidth: 2500, doorHeight: 2125, label: "Populær størrelse", desc: "6,2 × 7,8 m – en av våre mest bestilte garasjer" },
+  { width: 7800, length: 9600, roofType: "flattak" as const, doorWidth: 5000, doorHeight: 2250, label: "Dobbel garasje", desc: "7,8 × 9,6 m med dobbel port – plass til to biler" },
+  { width: 5600, length: 6000, roofType: "saltak" as const, doorWidth: 2500, doorHeight: 2125, label: "Saltak garasje", desc: "Tradisjonell stil som passer til de fleste hus på Jæren" },
+  { width: 7200, length: 8400, roofType: "saltak" as const, doorWidth: 5000, doorHeight: 2250, label: "Stor saltak med dobbel port", desc: "7,2 × 8,4 m – romslig løsning med plass til alt" },
 ];
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
@@ -199,6 +199,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
   const [viewMode, setViewMode] = useState<"test" | "dev" | "kart" | "mål" | "demo">("test");
   const [demoStep, setDemoStep] = useState(0);
+  const [demoDoorOpen, setDemoDoorOpen] = useState(false);
+  const [captionVisible, setCaptionVisible] = useState(true);
   const [mobileLandscape, setMobileLandscape] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(orientation: landscape) and (max-height: 500px)");
@@ -340,6 +342,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   useEffect(() => {
     if (viewMode !== "demo") {
       isDemoRef.current = false;
+      setDemoDoorOpen(false);
       return;
     }
     isDemoRef.current = true;
@@ -357,9 +360,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     setDoorWidthValue(first.doorWidth);
     setDoorHeightValue(first.doorHeight);
     setDemoStep(0);
+    setDemoDoorOpen(true);
+    setCaptionVisible(true);
 
-    const ANIMATE_MS = 3500;
-    const HOLD_MS = 1500;
+    const ANIMATE_MS = 3000;
+    const HOLD_MS = 2500;
 
     const tick = setInterval(() => {
       const elapsed = Date.now() - phaseStart;
@@ -369,6 +374,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           fromLength = DEMO_STEPS[stepIndex].length;
           stepIndex = (stepIndex + 1) % DEMO_STEPS.length;
           setDemoStep(stepIndex);
+          setDemoDoorOpen(false);
+          setCaptionVisible(false);
+          setTimeout(() => setCaptionVisible(true), 400);
           phase = "animating";
           phaseStart = Date.now();
         }
@@ -382,13 +390,14 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           setRoofType(target.roofType);
           setDoorWidthValue(target.doorWidth);
           setDoorHeightValue(target.doorHeight);
+          setDemoDoorOpen(true);
           phase = "holding";
           phaseStart = Date.now();
         }
       }
     }, 50);
 
-    return () => { clearInterval(tick); isDemoRef.current = false; };
+    return () => { clearInterval(tick); isDemoRef.current = false; setDemoDoorOpen(false); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
 
@@ -491,15 +500,17 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         {viewMode === "demo" && (
           <div className="absolute inset-0 z-10 pointer-events-none flex flex-col">
             <div className="flex-1" />
-            <div className="flex flex-col items-center gap-2 pb-4">
+            <div className="flex flex-col items-center gap-2 pb-4 px-4">
+              {/* Caption card */}
+              <div className={`w-full max-w-xs rounded-xl bg-white/90 backdrop-blur-sm px-4 py-3 shadow-lg transition-opacity duration-400 ${captionVisible ? "opacity-100" : "opacity-0"}`}>
+                <p className="text-sm font-bold text-gray-900">{DEMO_STEPS[demoStep].label}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{DEMO_STEPS[demoStep].desc}</p>
+              </div>
+              {/* Progress dots */}
               <div className="flex gap-1.5">
                 {DEMO_STEPS.map((_, i) => (
-                  <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i === demoStep ? "w-5 bg-orange-500" : "w-1 bg-white/50"}`} />
+                  <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i === demoStep ? "w-5 bg-orange-500" : "w-1 bg-white/60"}`} />
                 ))}
-              </div>
-              <div className="rounded-full bg-black/40 backdrop-blur-sm px-4 py-1.5 text-xs font-semibold text-white">
-                {(widthValue / 1000).toFixed(1)} × {(lengthValue / 1000).toFixed(1)} m · {roofType === "saltak" ? "Saltak" : "Flatt tak"}
-                {doorWidthValue >= 5000 && " · Dobbel port"}
               </div>
             </div>
           </div>
@@ -519,7 +530,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </button>
         )}
 
-        {viewMode === "test" && <GarageViewer {...viewerProps} />}
+        {(viewMode === "test" || viewMode === "demo") && <GarageViewer {...viewerProps} demoDoorOpen={viewMode === "demo" ? demoDoorOpen : false} />}
         {viewMode === "dev" && <LocalGarageViewer {...viewerProps} />}
         {viewMode === "kart" && (
           <GarageMapbox
