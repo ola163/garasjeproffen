@@ -113,10 +113,23 @@ export default function MessePasswordEditor() {
             {msg.text}
           </div>
         )}
-        <button type="submit" disabled={saving}
-          className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60 transition-colors">
-          {saving ? "Lagrer…" : "Oppdater passord"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button type="submit" disabled={saving}
+            className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60 transition-colors">
+            {saving ? "Lagrer…" : "Oppdater passord"}
+          </button>
+          {hasCustom && (
+            <button type="button" disabled={saving} onClick={async () => {
+              setSaving(true); setMsg(null);
+              const res = await fetch("/api/admin/messe-password", { method: "DELETE" });
+              setSaving(false);
+              if (res.ok) { setHasCustom(false); setCustomPassword(null); setMsg({ type: "success", text: "Tilbakestilt til standardpassord." }); }
+            }}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+              Tilbakestill til standard
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );

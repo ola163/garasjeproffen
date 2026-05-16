@@ -45,6 +45,21 @@ export async function GET() {
   });
 }
 
+export async function DELETE() {
+  const cookieStore = await cookies();
+  if (cookieStore.get("gp-admin")?.value !== "1") {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const db = getDb();
+  if (!db) return Response.json({ error: "DB ikke konfigurert" }, { status: 503 });
+
+  await db.from("app_settings").delete().eq("key", "messe_password_hash");
+  await db.from("app_settings").delete().eq("key", "messe_password_plain");
+
+  return Response.json({ ok: true });
+}
+
 export async function POST(request: Request) {
   const cookieStore = await cookies();
   if (cookieStore.get("gp-admin")?.value !== "1") {
