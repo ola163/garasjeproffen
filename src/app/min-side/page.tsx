@@ -75,7 +75,7 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
   const isMesse = email === MESSE_EMAIL;
 
   // Fetch messe notes for messe user view
-  let messeNotater: Array<{ id: string; content: string; url: string | null; url_label: string | null }> = [];
+  let messeNotater: Array<{ id: string; content: string; url: string | null; url_label: string | null; file_url: string | null; file_name: string | null }> = [];
   if (isMesse || effectiveAdmin) {
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -83,7 +83,7 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
       const sb = createClient(sbUrl, sbKey);
       const { data } = await sb
         .from("messe_notater")
-        .select("id, content, url, url_label")
+        .select("id, content, url, url_label, file_url, file_name")
         .order("created_at", { ascending: true });
       if (data) messeNotater = data;
     }
@@ -232,6 +232,16 @@ export default async function MinSidePage({ searchParams: _searchParams }: { sea
                     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
+                  </a>
+                )}
+                {n.file_url && (
+                  <a href={n.file_url} target="_blank" rel="noopener noreferrer" download={n.file_name ?? undefined}
+                    className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    {n.file_name || "Last ned vedlegg"}
                   </a>
                 )}
               </div>
