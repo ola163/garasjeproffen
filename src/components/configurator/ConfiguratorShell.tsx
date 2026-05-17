@@ -500,7 +500,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         onClose={() => setShowGrunnarbeidWizard(false)}
       />
     )}
-    <div className={`flex ${mobileLandscape ? "" : "flex-row h-[calc(100dvh-11rem)]"}`}>
+    <div className={`flex ${mobileLandscape ? "" : "flex-col sm:flex-row sm:h-[calc(100dvh-11rem)]"}`}>
       {/* 3D Viewer */}
       <div className={`relative bg-stone-100 ${
         mobileLandscape
@@ -755,7 +755,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       </div>
 
       {/* Sidebar */}
-      <div className={mobileLandscape ? "hidden" : "flex w-[148px] sm:w-[360px] shrink-0 flex-col border-l border-gray-200 bg-white"}>
+      <div className={mobileLandscape ? "hidden" : "flex w-full sm:w-[360px] shrink-0 flex-col border-t sm:border-t-0 sm:border-l border-gray-200 bg-white"}>
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-6">
           {/* Package illustration — hidden on mobile narrow sidebar */}
           <div className={`hidden sm:block overflow-hidden transition-all duration-300 sm:max-h-[500px] sm:opacity-100 sm:mb-3 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
