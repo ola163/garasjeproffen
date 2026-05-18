@@ -23,8 +23,8 @@ export async function PATCH(
   const { naboId } = await params;
   const body = await request.json();
   const allowed = [
-    "eier_navn", "eier_postadresse", "eier_epost", "eiendom_adresse",
-    "status", "svar_tekst", "svar_mottatt_at",
+    "eier_navn", "eier_postadresse", "eier_epost", "eier_personnummer",
+    "eiendom_adresse", "status", "svar_tekst", "svar_mottatt_at",
   ];
   const update = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
   const { data, error } = await sb()

@@ -106,7 +106,7 @@ export default function NabovarselPage() {
   const [purring, setPurring] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [editNabo, setEditNabo] = useState<Nabo | null>(null);
-  const [editForm, setEditForm] = useState({ eier_navn: "", eier_epost: "", eier_postadresse: "" });
+  const [editForm, setEditForm] = useState({ eier_navn: "", eier_epost: "", eier_postadresse: "", eier_personnummer: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [addMerknadId, setAddMerknadId] = useState<string | null>(null);
   const [merknadTekst, setMerknadTekst] = useState("");
@@ -505,6 +505,7 @@ export default function NabovarselPage() {
                                 eier_navn: nabo.eier_navn ?? "",
                                 eier_epost: nabo.eier_epost ?? "",
                                 eier_postadresse: nabo.eier_postadresse ?? "",
+                                eier_personnummer: (nabo as { eier_personnummer?: string }).eier_personnummer ?? "",
                               });
                             }}
                             className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
@@ -612,6 +613,7 @@ export default function NabovarselPage() {
                   { key: "eier_navn", label: "Eiers navn" },
                   { key: "eier_epost", label: "E-post", type: "email" },
                   { key: "eier_postadresse", label: "Postadresse" },
+                  { key: "eier_personnummer", label: "Personnummer (11 siffer, for Altinn)", type: "text" },
                 ].map(({ key, label, type }) => (
                   <div key={key}>
                     <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
