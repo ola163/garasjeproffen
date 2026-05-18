@@ -568,15 +568,23 @@ export default function SoknadshjelDetailPage() {
                 </button>
               ))}
             </div>
-            {!row.quote_id && (
-              <button
-                onClick={handleConvertToQuote}
-                disabled={convertingToQuote}
-                className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors"
+            <div className="flex flex-wrap justify-end gap-2">
+              <Link
+                href={`/admin/soknadshjelp/${id}/dispensasjonssoknad`}
+                className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
               >
-                {convertingToQuote ? "Oppretter…" : "Konverter til tilbudsforespørsel"}
-              </button>
-            )}
+                Generer søknadsdokument
+              </Link>
+              {!row.quote_id && (
+                <button
+                  onClick={handleConvertToQuote}
+                  disabled={convertingToQuote}
+                  className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors"
+                >
+                  {convertingToQuote ? "Oppretter…" : "Konverter til tilbudsforespørsel"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
