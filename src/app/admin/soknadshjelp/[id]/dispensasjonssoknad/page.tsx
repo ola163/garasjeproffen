@@ -1,10 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
+
+interface KartverketAdresse {
+  adressetekst: string;
+  kommunenavn: string;
+  kommunenummer: string;
+  gardsnummer: number;
+  bruksnummer: number;
+  postnummer: string;
+  poststed: string;
+  representasjonspunkt: { lat: number; lon: number };
+}
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -70,6 +81,53 @@ export default function DispensasjonssoknadPage() {
   const [generateError, setGenerateError] = useState<string | null>(null);
 
   const [fetchingProperty, setFetchingProperty] = useState(false);
+
+  // Address autocomplete
+  const [suggestions, setSuggestions] = useState<KartverketAdresse[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const addressDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement | null>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const searchAddress = useCallback(async (query: string) => {
+    if (query.length < 3) { setSuggestions([]); return; }
+    try {
+      const res = await fetch(
+        `https://ws.geonorge.no/adresser/v1/sok?sok=${encodeURIComponent(query)}&treffPerSide=6&utkoordsys=4258`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      setSuggestions(data.adresser ?? []);
+      setShowSuggestions(true);
+    } catch { /* silent */ }
+  }, []);
+
+  function handleAddressInput(value: string) {
+    setAdresse(value);
+    if (addressDebounce.current) clearTimeout(addressDebounce.current);
+    addressDebounce.current = setTimeout(() => searchAddress(value), 300);
+  }
+
+  function selectSuggestion(addr: KartverketAdresse) {
+    const fullAdresse = addr.adressetekst + (addr.poststed ? `, ${addr.poststed}` : "");
+    setAdresse(fullAdresse);
+    setGnr(String(addr.gardsnummer));
+    setBnr(String(addr.bruksnummer));
+    setKommunenavn(addr.kommunenavn);
+    setKommunenummer(addr.kommunenummer);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
 
   useEffect(() => {
     if (!supabase) { setAuthLoading(false); return; }
@@ -250,10 +308,33 @@ export default function DispensasjonssoknadPage() {
             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Eiendom</h3>
               <div className="space-y-2.5">
-                <div>
+                <div className="relative" ref={suggestionsRef}>
                   <label className="text-xs text-gray-500">Adresse</label>
-                  <input value={adresse} onChange={e => setAdresse(e.target.value)}
-                    className="mt-0.5 w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  <input
+                    value={adresse}
+                    onChange={e => handleAddressInput(e.target.value)}
+                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                    autoComplete="off"
+                    placeholder="Begynn å skrive adresse..."
+                    className="mt-0.5 w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                  {showSuggestions && suggestions.length > 0 && (
+                    <ul className="absolute left-0 right-0 top-full z-50 mt-0.5 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
+                      {suggestions.map((s, i) => (
+                        <li key={i}>
+                          <button
+                            type="button"
+                            onMouseDown={e => { e.preventDefault(); selectSuggestion(s); }}
+                            className="w-full px-3 py-2 text-left text-xs hover:bg-orange-50 transition-colors"
+                          >
+                            <span className="font-medium text-gray-900">{s.adressetekst}</span>
+                            <span className="ml-1.5 text-gray-400">{s.postnummer} {s.poststed} · {s.kommunenavn}</span>
+                            <span className="ml-1.5 text-gray-300">gnr. {s.gardsnummer} / {s.bruksnummer}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
