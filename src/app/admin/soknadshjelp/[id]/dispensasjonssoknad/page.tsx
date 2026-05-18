@@ -88,6 +88,11 @@ export default function DispensasjonssoknadPage() {
   const addressDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsRef = useRef<HTMLDivElement | null>(null);
 
+  // Matrikkel reverse-lookup state
+  const [lookingUpMatrikkel, setLookingUpMatrikkel] = useState(false);
+  const [propertyArea, setPropertyArea] = useState<number | null>(null);
+  const matrikkelDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -112,6 +117,51 @@ export default function DispensasjonssoknadPage() {
     } catch { /* silent */ }
   }, []);
 
+  // When gnr + bnr + kommunenummer are all set, look up official address + area
+  const lookupByMatrikkel = useCallback(async (gnrVal: string, bnrVal: string, kommunenrVal: string) => {
+    if (!gnrVal || !bnrVal || !kommunenrVal) return;
+    setLookingUpMatrikkel(true);
+    setPropertyArea(null);
+    try {
+      const addrRes = await fetch(
+        `https://ws.geonorge.no/adresser/v1/sok?kommunenummer=${kommunenrVal}&gardsnummer=${gnrVal}&bruksnummer=${bnrVal}&treffPerSide=1&utkoordsys=4258`
+      );
+      if (!addrRes.ok) return;
+      const addrData = await addrRes.json();
+      const first: KartverketAdresse | undefined = addrData.adresser?.[0];
+      if (first) {
+        // Only fill address if currently empty
+        setAdresse(prev => prev.trim() ? prev : `${first!.adressetekst}${first!.poststed ? `, ${first!.poststed}` : ""}`);
+        setKommunenavn(prev => prev.trim() ? prev : first!.kommunenavn);
+
+        // Fetch property area via eiendomsopplysninger punkt
+        if (first.representasjonspunkt) {
+          const { lat, lon } = first.representasjonspunkt;
+          const propRes = await fetch(
+            `https://ws.geonorge.no/eiendomsopplysninger/v1/punkt?nord=${lat}&ost=${lon}&koordsys=4258`
+          );
+          if (propRes.ok) {
+            const p = await propRes.json();
+            const area: number | undefined =
+              p.areal ??
+              p.eiendom?.areal ??
+              p.grunnforhold?.areal ??
+              undefined;
+            if (area) setPropertyArea(Math.round(area));
+          }
+        }
+      }
+    } catch { /* silent */ }
+    finally { setLookingUpMatrikkel(false); }
+  }, []);
+
+  // Trigger matrikkel lookup whenever gnr / bnr / kommunenummer change
+  useEffect(() => {
+    if (!gnr || !bnr || !kommunenummer) return;
+    if (matrikkelDebounce.current) clearTimeout(matrikkelDebounce.current);
+    matrikkelDebounce.current = setTimeout(() => lookupByMatrikkel(gnr, bnr, kommunenummer), 700);
+  }, [gnr, bnr, kommunenummer, lookupByMatrikkel]);
+
   function handleAddressInput(value: string) {
     setAdresse(value);
     if (addressDebounce.current) clearTimeout(addressDebounce.current);
@@ -119,14 +169,17 @@ export default function DispensasjonssoknadPage() {
   }
 
   function selectSuggestion(addr: KartverketAdresse) {
-    const fullAdresse = addr.adressetekst + (addr.poststed ? `, ${addr.poststed}` : "");
+    const fullAdresse = `${addr.adressetekst}${addr.poststed ? `, ${addr.poststed}` : ""}`;
     setAdresse(fullAdresse);
     setGnr(String(addr.gardsnummer));
     setBnr(String(addr.bruksnummer));
     setKommunenavn(addr.kommunenavn);
     setKommunenummer(addr.kommunenummer);
+    setPropertyArea(null);
     setSuggestions([]);
     setShowSuggestions(false);
+    // Immediately trigger matrikkel lookup for area
+    lookupByMatrikkel(String(addr.gardsnummer), String(addr.bruksnummer), addr.kommunenummer);
   }
 
   useEffect(() => {
@@ -306,7 +359,18 @@ export default function DispensasjonssoknadPage() {
           <div className="no-print w-72 shrink-0 space-y-4">
 
             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Eiendom</h3>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Eiendom</h3>
+                {lookingUpMatrikkel && (
+                  <span className="flex items-center gap-1 text-[10px] text-orange-500 animate-pulse">
+                    <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Henter data...
+                  </span>
+                )}
+              </div>
               <div className="space-y-2.5">
                 <div className="relative" ref={suggestionsRef}>
                   <label className="text-xs text-gray-500">Adresse</label>
@@ -368,6 +432,17 @@ export default function DispensasjonssoknadPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Property info from Kartverket */}
+                {propertyArea && (
+                  <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">Eiendomsdata</p>
+                    <div className="flex justify-between text-xs text-gray-700">
+                      <span>Tomtestørrelse</span>
+                      <span className="font-semibold">{propertyArea.toLocaleString("nb-NO")} m²</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -536,6 +611,9 @@ export default function DispensasjonssoknadPage() {
                     )}
                     {adresse && (
                       <div><span className="text-gray-500">Eiendom: </span><span className="text-gray-900">{adresse}{(gnr || bnr) ? `, gnr. ${gnr || "–"} bnr. ${bnr || "–"}` : ""}</span></div>
+                    )}
+                    {propertyArea && (
+                      <div><span className="text-gray-500">Tomtestørrelse: </span><span className="text-gray-900">{propertyArea.toLocaleString("nb-NO")} m²</span></div>
                     )}
                   </div>
                 </div>
