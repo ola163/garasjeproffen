@@ -757,8 +757,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       {/* Sidebar */}
       <div className={mobileLandscape ? "hidden" : "flex w-full sm:w-[360px] shrink-0 flex-col border-t sm:border-t-0 sm:border-l border-gray-200 bg-white"}>
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-6">
-          {/* Package illustration — hidden on mobile narrow sidebar */}
-          <div className={`hidden sm:block overflow-hidden transition-all duration-300 sm:max-h-[500px] sm:opacity-100 sm:mb-3 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
+          {/* Package illustration */}
+          <div className={`overflow-hidden transition-all duration-300 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
             {packageType === "prefab" ? (
               <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
                 <Image
@@ -783,7 +783,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           {/* Package selector */}
-          <div className="mt-3 flex flex-col sm:flex-row rounded-lg border border-gray-200 p-0.5 bg-gray-50 gap-0.5 sm:gap-0">
+          <div className="mt-3 flex flex-row rounded-lg border border-gray-200 p-0.5 bg-gray-50">
             <button
               onClick={() => { setPackageType("materialpakke"); setImageCollapsed(false); }}
               className={`flex-1 rounded-md py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all ${
@@ -824,7 +824,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </div>
 
           {/* Roof type selector — hidden for carport (always flattak) */}
-          {buildingType !== "carport" && <div className="mt-3 flex flex-col sm:flex-row rounded-lg border border-gray-200 p-0.5 bg-gray-50 gap-0.5 sm:gap-0">
+          {buildingType !== "carport" && <div className="mt-3 flex flex-row rounded-lg border border-gray-200 p-0.5 bg-gray-50">
             <button
               onClick={() => setRoofType("flattak")}
               className={`flex-1 rounded-md py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all ${
@@ -857,7 +857,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 className="h-4 w-4 accent-green-600 cursor-pointer"
               />
               <span className="text-xs sm:text-sm text-gray-700">Standardmål</span>
-              <span className="hidden sm:inline text-xs font-medium text-green-600">— gir opptil 10% rabatt</span>
+              <span className="text-xs font-medium text-green-600">— gir opptil 10% rabatt</span>
             </label>
           )}
 
