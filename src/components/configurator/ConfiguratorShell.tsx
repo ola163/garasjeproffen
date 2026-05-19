@@ -215,8 +215,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [focusSide, setFocusSide] = useState<WallSide | null>(null);
   const [editingElement, setEditingElement] = useState<AddedElement | null>(null);
   const [imageCollapsed, setImageCollapsed] = useState(true);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(true);
   const sheetPrevScrollY = useRef(0);
+  const touchStartY = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -504,11 +505,18 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     )}
     <div className={`flex ${mobileLandscape ? "" : "flex-col sm:flex-row sm:h-[calc(100dvh-11rem)]"}`}>
       {/* 3D Viewer */}
-      <div className={`relative bg-stone-100 ${
-        mobileLandscape
-          ? "h-dvh w-full"
-          : "h-[55dvh] sm:h-auto sm:flex-1 sm:min-w-0"
-      }`}>
+      <div
+        className={`relative bg-stone-100 ${
+          mobileLandscape
+            ? "h-dvh w-full"
+            : "h-[55dvh] sm:h-auto sm:flex-1 sm:min-w-0"
+        }`}
+        onTouchStart={(e) => { touchStartY.current = e.touches[0].clientY; }}
+        onTouchEnd={(e) => {
+          const delta = e.changedTouches[0].clientY - touchStartY.current;
+          if (delta > 40) setSheetOpen(true);
+        }}
+      >
 
         {/* Toggle */}
         <div className="absolute top-2 left-2 z-20 flex rounded-md bg-black/20 p-0.5 backdrop-blur-sm">
@@ -757,10 +765,10 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       </div>
 
       {/* Sidebar */}
-      <div className={mobileLandscape ? "hidden" : `fixed bottom-0 left-0 right-0 z-30 flex flex-col bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.12)] transition-[height] duration-300 ease-out sm:static sm:h-auto sm:w-[360px] sm:shrink-0 sm:rounded-none sm:shadow-none sm:border-l sm:border-gray-200 ${sheetOpen ? "h-[78dvh]" : "h-14"}`}>
-        {/* Mobile handle bar */}
+      <div className={mobileLandscape ? "hidden" : "flex w-full sm:w-[360px] sm:shrink-0 flex-col border-t sm:border-t-0 sm:border-l border-gray-200 bg-white"}>
+        {/* Mobile handle — sticky, trykk for å toggle */}
         <div
-          className="sm:hidden flex-shrink-0 flex h-14 cursor-pointer items-center justify-between px-5 border-b border-gray-100"
+          className="sm:hidden sticky top-0 z-10 flex-shrink-0 flex h-14 cursor-pointer items-center justify-between bg-white px-5 border-b border-gray-100 shadow-sm"
           onClick={() => setSheetOpen(v => !v)}
         >
           <div className="flex items-center gap-3">
@@ -777,9 +785,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
           </svg>
         </div>
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-6" onScroll={(e) => {
+        <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto p-2 sm:p-6 sm:block ${sheetOpen ? "block" : "hidden"}`} onScroll={(e) => {
           const y = e.currentTarget.scrollTop;
-          if (y < 5 && y < sheetPrevScrollY.current) setSheetOpen(false);
+          if (y < sheetPrevScrollY.current && y < 5) setSheetOpen(false);
           sheetPrevScrollY.current = y;
         }}>
           {/* Package illustration */}
