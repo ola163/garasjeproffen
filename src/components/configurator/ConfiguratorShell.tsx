@@ -215,9 +215,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   const [focusSide, setFocusSide] = useState<WallSide | null>(null);
   const [editingElement, setEditingElement] = useState<AddedElement | null>(null);
   const [imageCollapsed, setImageCollapsed] = useState(true);
-  const [sheetOpen, setSheetOpen] = useState(true);
-  const sheetPrevScrollY = useRef(0);
-  const touchStartY = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -505,18 +502,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     )}
     <div className={`flex ${mobileLandscape ? "" : "flex-col sm:flex-row sm:h-[calc(100dvh-11rem)]"}`}>
       {/* 3D Viewer */}
-      <div
-        className={`relative bg-stone-100 ${
-          mobileLandscape
-            ? "h-dvh w-full"
-            : "h-[55dvh] sm:h-auto sm:flex-1 sm:min-w-0"
-        }`}
-        onTouchStart={(e) => { touchStartY.current = e.touches[0].clientY; }}
-        onTouchEnd={(e) => {
-          const delta = e.changedTouches[0].clientY - touchStartY.current;
-          if (delta > 40) setSheetOpen(true);
-        }}
-      >
+      <div className={`relative bg-stone-100 ${
+        mobileLandscape
+          ? "h-dvh w-full"
+          : "h-[55dvh] sm:h-auto sm:flex-1 sm:min-w-0"
+      }`}>
 
         {/* Toggle */}
         <div className="absolute top-2 left-2 z-20 flex rounded-md bg-black/20 p-0.5 backdrop-blur-sm">
@@ -766,30 +756,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
 
       {/* Sidebar */}
       <div className={mobileLandscape ? "hidden" : "flex w-full sm:w-[360px] sm:shrink-0 flex-col border-t sm:border-t-0 sm:border-l border-gray-200 bg-white"}>
-        {/* Mobile handle — sticky, trykk for å toggle */}
-        <div
-          className="sm:hidden sticky top-0 z-10 flex-shrink-0 flex h-14 cursor-pointer items-center justify-between bg-white px-5 border-b border-gray-100 shadow-sm"
-          onClick={() => setSheetOpen(v => !v)}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-1 rounded-full bg-gray-300" />
-            {pricing.manualQuote ? (
-              <span className="text-sm text-gray-500">Manuelt tilbud</span>
-            ) : (
-              <span className="text-sm font-bold text-orange-500">
-                {pricing.totalPrice.toLocaleString("nb-NO")} kr
-              </span>
-            )}
-          </div>
-          <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${sheetOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-          </svg>
-        </div>
-        <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto p-2 sm:p-6 sm:block ${sheetOpen ? "block" : "hidden"}`} onScroll={(e) => {
-          const y = e.currentTarget.scrollTop;
-          if (y < sheetPrevScrollY.current && y < 5) setSheetOpen(false);
-          sheetPrevScrollY.current = y;
-        }}>
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-6">
           {/* Package illustration */}
           <div className={`overflow-hidden transition-all duration-300 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
             {packageType === "prefab" ? (
