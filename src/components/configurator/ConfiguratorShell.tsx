@@ -500,12 +500,12 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
         onClose={() => setShowGrunnarbeidWizard(false)}
       />
     )}
-    <div className={`flex ${mobileLandscape ? "" : "flex-col sm:flex-row sm:h-[calc(100dvh-11rem)]"}`}>
+    <div className={`flex ${mobileLandscape ? "" : "flex-col lg:flex-row lg:h-[calc(100dvh-11rem)]"}`}>
       {/* 3D Viewer */}
       <div className={`relative bg-stone-100 ${
         mobileLandscape
           ? "h-dvh w-full"
-          : "h-[55dvh] sm:h-auto sm:flex-1 sm:min-w-0"
+          : "h-[55dvh] lg:h-auto lg:flex-1 lg:min-w-0"
       }`}>
 
         {/* Toggle */}
@@ -755,8 +755,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
       </div>
 
       {/* Sidebar */}
-      <div className={mobileLandscape ? "hidden" : "flex w-full sm:w-[360px] sm:shrink-0 flex-col border-t sm:border-t-0 sm:border-l border-gray-200 bg-white"}>
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-6">
+      <div className={mobileLandscape ? "hidden" : "flex w-full lg:w-[360px] lg:shrink-0 flex-col border-t lg:border-t-0 lg:border-l border-gray-200 bg-white"}>
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2 lg:p-6">
           {/* Package illustration */}
           <div className={`overflow-hidden transition-all duration-300 ${imageCollapsed ? "max-h-0 opacity-0 mb-0" : "max-h-[500px] opacity-100 mb-3"}`}>
             {packageType === "prefab" ? (
