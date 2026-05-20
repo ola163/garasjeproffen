@@ -943,9 +943,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     ))}
                   </select>
                 )}
-                {validDoorWidthOptions.length > 0 && (
-                  <p className="mt-1.5 text-xs text-gray-500">Inkl. motor og montering</p>
-                )}
               </div>
 
               <div>
@@ -994,7 +991,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> 10 års garanti</li>
                     <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> CO₂-nøytral produksjon</li>
                     <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> Fingerklemmebeskyttelse</li>
-                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> Inkl. motor og montering</li>
                     <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> 5 års garanti på portåpner*</li>
                   </ul>
                 </div>

@@ -31,9 +31,9 @@ export const GARAGE_PARAMETERS: GarageParameter[] = [
     type: "select",
     group: "door",
     options: [
-      { label: "2500 mm", value: 2500 },
-      { label: "3000 mm", value: 3000 },
-      { label: "5000 mm", value: 5000 },
+      { label: "2500 mm – inkl. motor og montering", value: 2500 },
+      { label: "3000 mm – inkl. motor og montering", value: 3000 },
+      { label: "5000 mm – inkl. motor og montering", value: 5000 },
     ],
   },
 ];
