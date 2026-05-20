@@ -923,6 +923,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bredde på garasjeport
+                  <span className="block text-xs font-normal text-gray-500 mt-0.5">Inkl. portåpner og montering</span>
                 </label>
                 {validDoorWidthOptions.length === 0 ? (
                   <p className="text-xs text-red-500">
@@ -986,13 +987,13 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                       <span className="text-xs font-black tracking-widest text-white">HÖRMANN</span>
                     </div>
                   </div>
-                  <p className="text-xs font-medium text-gray-700 mb-1.5">RenoMatic Plan L – isolert seksjonport</p>
+                  <p className="text-xs font-medium text-gray-700 mb-1.5">RenoMatic – isolert seksjonport</p>
                   <ul className="space-y-0.5 text-xs text-gray-500">
-                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> 42 mm isolerte stålseksjoner m/ PU-skumkjerne</li>
                     <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> 10 års garanti</li>
                     <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> CO₂-nøytral produksjon</li>
                     <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> Fingerklemmebeskyttelse</li>
-                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> Inkl. motor og montering · Høyde: 2125 mm</li>
+                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> Inkl. motor og montering</li>
+                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> 5 års garanti på portåpner*</li>
                   </ul>
                 </div>
               </div>
