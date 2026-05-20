@@ -979,7 +979,34 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     );
                   })}
                 </div>
-                <p className="mt-1 text-xs text-gray-400">Alle porter er Hömann m/ motor og montering. Høyde: 2125 mm.</p>
+                {/* Hörmann / Portteknikk info */}
+                <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center justify-center rounded bg-red-600 px-2 py-0.5">
+                      <span className="text-xs font-black tracking-widest text-white">HÖRMANN</span>
+                    </div>
+                    <span className="text-xs text-gray-400">via Portteknikk</span>
+                  </div>
+                  <p className="text-xs font-medium text-gray-700 mb-1.5">RenoMatic Plan L – isolert seksjonport</p>
+                  <ul className="space-y-0.5 text-xs text-gray-500">
+                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> 42 mm isolerte stålseksjoner m/ PU-skumkjerne</li>
+                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> 10 års garanti</li>
+                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> CO₂-nøytral produksjon</li>
+                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> Fingerklemmebeskyttelse</li>
+                    <li className="flex items-center gap-1.5"><span className="text-green-500">✓</span> Inkl. motor og montering · Høyde: 2125 mm</li>
+                  </ul>
+                  <a
+                    href="https://portteknikk.no/garasjeport/garasjepor/hormann-renomatic-plan-l-planar-matt-deluxe-ch703"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-orange-500 hover:text-orange-600 font-medium"
+                  >
+                    Se produktinfo hos Portteknikk
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </div>
               </div>
 
               {validDoorWidthOptions.length > 0 && (
