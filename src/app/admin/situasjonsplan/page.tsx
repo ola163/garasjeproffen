@@ -184,6 +184,142 @@ function SituasjonsplanContent() {
     }
   }
 
+  const [generatingWm, setGeneratingWm] = useState(false);
+
+  async function handleGenerateWithWatermark() {
+    const map = mapInstanceRef.current;
+    if (!center || !map) return;
+    setGeneratingWm(true);
+    setGenError(null);
+    try {
+      map.triggerRepaint();
+      await new Promise<void>((res) => { map.once("render", res); setTimeout(res, 300); });
+
+      const mapCanvas = map.getCanvas();
+      const mW = mapCanvas.width;
+      const mH = mapCanvas.height;
+      const dpr = window.devicePixelRatio || 1;
+      const titleH = Math.round(110 * dpr);
+
+      let kommuneNavn = "";
+      let kommuneLogo: HTMLImageElement | null = null;
+      try {
+        const ctrl = new AbortController();
+        setTimeout(() => ctrl.abort(), 5000);
+        const mRes = await fetch(
+          `https://ws.geonorge.no/adresser/v1/punktsok?lat=${center[1]}&lon=${center[0]}&radius=500&utkoordsys=4258&treffPerSide=1`,
+          { signal: ctrl.signal },
+        );
+        const mData = await mRes.json();
+        const a = mData.adresser?.[0];
+        if (a?.kommunenummer) {
+          kommuneNavn = a.kommunenavn
+            ? (a.kommunenavn as string).charAt(0) + (a.kommunenavn as string).slice(1).toLowerCase()
+            : "";
+          try {
+            kommuneLogo = await new Promise<HTMLImageElement>((resolve, reject) => {
+              const img = new Image();
+              img.onload  = () => resolve(img);
+              img.onerror = reject;
+              img.src = `/kommuner/${a.kommunenummer}.png`;
+            });
+          } catch { /* no logo file */ }
+        }
+      } catch { /* skip */ }
+
+      const out = document.createElement("canvas");
+      out.width  = mW;
+      out.height = mH + titleH;
+      const ctx = out.getContext("2d")!;
+
+      ctx.drawImage(mapCanvas, 0, 0);
+
+      // Title block
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(0, mH, mW, titleH);
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = Math.round(2 * dpr);
+      ctx.beginPath(); ctx.moveTo(0, mH); ctx.lineTo(mW, mH); ctx.stroke();
+
+      const pad = Math.round(16 * dpr);
+      const fs  = Math.round(13 * dpr);
+      const now = new Date().toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const [utmE, utmN] = wgs84ToUtm33N(center[0], center[1]);
+      const wLabel = (config.widthMm  / 1000).toFixed(1).replace(".0", "");
+      const lLabel = (config.lengthMm / 1000).toFixed(1).replace(".0", "");
+
+      ctx.textBaseline = "top";
+      ctx.font = `bold ${Math.round(18 * dpr)}px sans-serif`;
+      ctx.fillStyle = "#1e293b";
+      ctx.textAlign = "left";
+      ctx.fillText("SITUASJONSPLAN", pad, mH + pad);
+      ctx.font = `${fs}px sans-serif`;
+      ctx.fillStyle = "#475569";
+      if (address) ctx.fillText(address, pad, mH + pad + Math.round(26 * dpr));
+      ctx.fillText(`${wLabel} × ${lLabel} m  ·  Rotasjon: ${rotation}°`, pad, mH + pad + Math.round(46 * dpr));
+      ctx.fillText(`UTM33N  Ø${utmE}  N${utmN}`, pad, mH + pad + Math.round(64 * dpr));
+
+      if (kommuneLogo) {
+        const maxH = titleH - pad * 2;
+        const maxW = Math.round(mW * 0.2);
+        const scale = Math.min(maxW / kommuneLogo.width, maxH / kommuneLogo.height, 1);
+        const lW = Math.round(kommuneLogo.width * scale);
+        const lH = Math.round(kommuneLogo.height * scale);
+        ctx.drawImage(kommuneLogo, Math.round((mW - lW) / 2), mH + Math.round((titleH - lH) / 2), lW, lH);
+      } else if (kommuneNavn) {
+        ctx.font = `bold ${fs}px sans-serif`;
+        ctx.fillStyle = "#334155";
+        ctx.textAlign = "center";
+        ctx.fillText(kommuneNavn, Math.round(mW / 2), mH + pad);
+      }
+
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#475569";
+      ctx.font = `${fs}px sans-serif`;
+      ctx.fillText(`Dato: ${now}`, mW - pad, mH + pad);
+      ctx.fillText("© Kartverket · © OpenStreetMap", mW - pad, mH + pad + Math.round(20 * dpr));
+      ctx.font = `bold ${fs}px sans-serif`;
+      ctx.fillStyle = "#ea580c";
+      ctx.fillText("Garasjeproffen AS", mW - pad, mH + pad + Math.round(42 * dpr));
+
+      // ── Diagonal watermark across the entire map area ──────────────────────
+      const wmText = "UTKAST · GARASJEPROFFEN.NO";
+      const wmFontSize = Math.round(mW * 0.07);
+      ctx.save();
+      ctx.translate(mW / 2, mH / 2);
+      ctx.rotate(-Math.PI / 4);
+      ctx.font = `bold ${wmFontSize}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // Shadow for readability
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = wmFontSize * 0.18;
+      ctx.lineJoin = "round";
+
+      const lineSpacing = wmFontSize * 1.6;
+      for (let i = -3; i <= 3; i++) {
+        const y = i * lineSpacing;
+        ctx.strokeText(wmText, 0, y);
+      }
+      ctx.fillStyle = "rgba(234, 88, 12, 0.22)";
+      for (let i = -3; i <= 3; i++) {
+        const y = i * lineSpacing;
+        ctx.fillText(wmText, 0, y);
+      }
+      ctx.restore();
+
+      const dl = document.createElement("a");
+      dl.href     = out.toDataURL("image/png");
+      dl.download = `situasjonsplan-utkast${address ? `-${address.replace(/[^a-zA-Z0-9]/g, "_")}` : ""}.png`;
+      dl.click();
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : "Ukjent feil");
+    } finally {
+      setGeneratingWm(false);
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
 
@@ -236,6 +372,24 @@ function SituasjonsplanContent() {
                 </svg>
               )}
               {generating ? "Genererer…" : "Last ned PNG"}
+            </button>
+            <button
+              onClick={handleGenerateWithWatermark}
+              disabled={generatingWm}
+              className="flex items-center gap-1.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50 text-xs font-medium px-3 py-1.5 transition-colors"
+            >
+              {generatingWm ? (
+                <svg className="animate-spin" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <circle cx="12" cy="12" r="10" strokeOpacity="0.3"/>
+                  <path d="M12 2a10 10 0 0 1 10 10"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              )}
+              {generatingWm ? "Genererer…" : "Last ned med vannmerke"}
             </button>
           </>
         )}
