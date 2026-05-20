@@ -641,6 +641,33 @@ export default function SoknadshjelDetailPage() {
 
         <div className="space-y-4">
 
+          {/* Statuslogg */}
+          {activityLog.filter(e => e.action_type === "status_change").length > 0 && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold text-gray-700">Statuslogg</h2>
+              <ol className="space-y-2">
+                {activityLog
+                  .filter(e => e.action_type === "status_change")
+                  .map((entry) => {
+                    const p = entry.payload as { from_status?: string; to_status?: string };
+                    return (
+                      <li key={entry.id} className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-gray-400 shrink-0 w-32">{formatDate(entry.created_at)}</span>
+                        <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[p.from_status ?? ""] ?? "bg-gray-100 text-gray-500"}`}>
+                          {STATUS_LABELS[p.from_status ?? ""] ?? p.from_status ?? "–"}
+                        </span>
+                        <span className="text-gray-400">→</span>
+                        <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[p.to_status ?? ""] ?? "bg-gray-100 text-gray-500"}`}>
+                          {STATUS_LABELS[p.to_status ?? ""] ?? p.to_status ?? "–"}
+                        </span>
+                        <span className="text-gray-400 ml-auto">{entry.actor_email}</span>
+                      </li>
+                    );
+                  })}
+              </ol>
+            </div>
+          )}
+
           {/* Customer */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
