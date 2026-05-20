@@ -15,7 +15,7 @@ const TEGNING_OPTIONS = [
   { key: "med_eksisterende", label: "Garasje + eksisterende bebyggelse", description: "Inkluderer alle bygg på tomten" },
   { key: "situasjonsplan",   label: "Situasjonsplan",                    description: "Kart med tomtegrenser og naboavstand" },
 ] as const;
-const TEGNING_LABELS = new Set(TEGNING_OPTIONS.map(o => o.label));
+const TEGNING_LABELS = new Set<string>(TEGNING_OPTIONS.map(o => o.label));
 
 interface ExtraCost { description: string; amount: number }
 interface ManualDisp { description: string; amount: number }
