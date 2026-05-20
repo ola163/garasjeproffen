@@ -10,6 +10,13 @@ import { adminName } from "@/lib/admin-names";
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 const BUCKET = "soknadshjelp-attachments";
 
+const TEGNING_OPTIONS = [
+  { key: "kun_garasje",      label: "Kun garasjen",                     description: "Fasade-, plan- og snittegning av ny garasje" },
+  { key: "med_eksisterende", label: "Garasje + eksisterende bebyggelse", description: "Inkluderer alle bygg på tomten" },
+  { key: "situasjonsplan",   label: "Situasjonsplan",                    description: "Kart med tomtegrenser og naboavstand" },
+] as const;
+const TEGNING_LABELS = new Set(TEGNING_OPTIONS.map(o => o.label));
+
 interface ExtraCost { description: string; amount: number }
 interface ManualDisp { description: string; amount: number }
 type ActivityEntry = { id: string; action_type: string; actor_email: string; payload: Record<string, unknown>; created_at: string };
@@ -114,6 +121,8 @@ export default function SoknadshjelDetailPage() {
   const [newDispDesc, setNewDispDesc] = useState("");
   const [newDispAmount, setNewDispAmount] = useState("8000");
 
+  const [tegningPriser, setTegningPriser] = useState({ kun_garasje: 5000, med_eksisterende: 10000, situasjonsplan: 1500 });
+
   const [leadSource, setLeadSource] = useState<string>("");
   const [savingLeadSource, setSavingLeadSource] = useState(false);
   const [leadSources, setLeadSources] = useState<{ label: string; value: string }[]>([]);
@@ -152,6 +161,16 @@ export default function SoknadshjelDetailPage() {
     supabase.from("lead_sources").select("label, value").order("sort_order").then(({ data }) => {
       if (data) setLeadSources(data as { label: string; value: string }[]);
     });
+
+    fetch("/api/admin/soknadshjelp-priser").then(r => r.json()).then((rows: { key: string; price: number }[]) => {
+      const m: Record<string, number> = {};
+      for (const r of rows) m[r.key] = r.price;
+      setTegningPriser({
+        kun_garasje:      m["tegning_kun_garasje"]      ?? 5000,
+        med_eksisterende: m["tegning_med_eksisterende"]  ?? 10000,
+        situasjonsplan:   m["tegning_situasjonsplan"]    ?? 1500,
+      });
+    }).catch(() => {});
 
     Promise.all([
       supabase.from("soknadshjelp").select("*").eq("id", id).single(),
@@ -203,6 +222,15 @@ export default function SoknadshjelDetailPage() {
 
   function removeExtraCost(i: number) {
     setExtraCosts((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function toggleTegningCost(label: string, price: number) {
+    const exists = extraCosts.some(c => c.description === label);
+    if (exists) {
+      setExtraCosts(prev => prev.filter(c => c.description !== label));
+    } else {
+      setExtraCosts(prev => [...prev, { description: label, amount: price }]);
+    }
   }
 
   function addManualDisp() {
@@ -734,6 +762,38 @@ export default function SoknadshjelDetailPage() {
           {/* Pris */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-gray-700">Pris</h2>
+
+            {/* Tegninger til søknaden picker */}
+            <div className="mb-4 rounded-lg border border-teal-200 bg-teal-50 p-3">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-teal-700">Tegninger til søknaden</p>
+              <div className="space-y-1.5">
+                {TEGNING_OPTIONS.map(opt => {
+                  const price = tegningPriser[opt.key];
+                  const isActive = extraCosts.some(c => c.description === opt.label);
+                  return (
+                    <div
+                      key={opt.key}
+                      onClick={() => toggleTegningCost(opt.label, price)}
+                      className={`flex cursor-pointer select-none items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${isActive ? "border-teal-400 bg-white shadow-sm" : "border-dashed border-teal-200 hover:border-teal-300"}`}
+                    >
+                      <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-colors ${isActive ? "border-teal-500 bg-teal-500" : "border-teal-300 bg-white"}`}>
+                        {isActive && (
+                          <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-gray-800">{opt.label}</p>
+                        <p className="text-[10px] text-gray-500">{opt.description}</p>
+                      </div>
+                      <span className="shrink-0 whitespace-nowrap text-xs font-bold text-teal-700">{new Intl.NumberFormat("nb-NO").format(price)} kr</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between text-gray-600">
                 <span>
@@ -751,12 +811,23 @@ export default function SoknadshjelDetailPage() {
                   <span>{fmt(d.amount)}</span>
                 </div>
               ))}
-              {extraCosts.map((c, i) => (
+              {/* Tegning items — shown in picker above, listed here for totalling */}
+              {extraCosts.filter(c => TEGNING_LABELS.has(c.description)).map((c, i) => (
+                <div key={`teg-${i}`} className="flex items-center justify-between text-teal-700">
+                  <span className="flex items-center gap-1.5">
+                    <span className="rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-600">Tegning</span>
+                    {c.description}
+                  </span>
+                  <span>{fmt(c.amount)}</span>
+                </div>
+              ))}
+              {/* Other extra costs */}
+              {extraCosts.filter(c => !TEGNING_LABELS.has(c.description)).map((c, i) => (
                 <div key={i} className="flex items-center justify-between text-gray-600">
                   <span>{c.description}</span>
                   <div className="flex items-center gap-2">
                     <span>{fmt(c.amount)}</span>
-                    <button onClick={() => removeExtraCost(i)} className="text-gray-300 hover:text-red-500" title="Fjern">
+                    <button onClick={() => removeExtraCost(extraCosts.indexOf(c))} className="text-gray-300 hover:text-red-500" title="Fjern">
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
