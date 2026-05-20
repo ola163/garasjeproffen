@@ -284,7 +284,7 @@ function SituasjonsplanContent() {
 
       // ── Diagonal watermark across the entire map area ──────────────────────
       const wmText = "UTKAST · GARASJEPROFFEN.NO";
-      const wmFontSize = Math.round(mW * 0.07);
+      const wmFontSize = Math.round(mW * 0.042);
       ctx.save();
       ctx.translate(mW / 2, mH / 2);
       ctx.rotate(-Math.PI / 4);
@@ -292,17 +292,16 @@ function SituasjonsplanContent() {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      // Shadow for readability
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.lineWidth = wmFontSize * 0.18;
+      ctx.strokeStyle = "rgba(255,255,255,0.25)";
+      ctx.lineWidth = wmFontSize * 0.12;
       ctx.lineJoin = "round";
 
-      const lineSpacing = wmFontSize * 1.6;
+      const lineSpacing = wmFontSize * 2.2;
       for (let i = -3; i <= 3; i++) {
         const y = i * lineSpacing;
         ctx.strokeText(wmText, 0, y);
       }
-      ctx.fillStyle = "rgba(234, 88, 12, 0.22)";
+      ctx.fillStyle = "rgba(234, 88, 12, 0.11)";
       for (let i = -3; i <= 3; i++) {
         const y = i * lineSpacing;
         ctx.fillText(wmText, 0, y);
