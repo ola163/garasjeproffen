@@ -38,6 +38,8 @@ interface SoknadshjelRow {
   status: string;
   assigned_to: string | null;
   notes: string | null;
+  customer_notes: string | null;
+  dibk_comments: Record<string, string> | null;
   lead_source: string | null;
   quote_id: string | null;
   created_at: string;
@@ -108,6 +110,8 @@ export default function SoknadshjelDetailPage() {
   const [notes, setNotes] = useState("");
   const [editingNotes, setEditingNotes] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [customerNotes, setCustomerNotes] = useState("");
+  const [savingCustomerNotes, setSavingCustomerNotes] = useState(false);
   const [status, setStatus] = useState("new");
   const [assignedTo, setAssignedTo] = useState("");
 
@@ -181,6 +185,7 @@ export default function SoknadshjelDetailPage() {
       if (data) {
         setRow(data as SoknadshjelRow);
         setNotes(data.notes ?? "");
+        setCustomerNotes(data.customer_notes ?? "");
         setStatus(data.status ?? "new");
         setAssignedTo(data.assigned_to ?? "");
         setLeadSource(data.lead_source ?? "");
@@ -343,6 +348,14 @@ export default function SoknadshjelDetailPage() {
     setRow((prev) => prev ? { ...prev, notes: notes || null } : null);
     setSavingNotes(false);
     setEditingNotes(false);
+  }
+
+  async function handleSaveCustomerNotes() {
+    if (!supabase || !row) return;
+    setSavingCustomerNotes(true);
+    await supabase.from("soknadshjelp").update({ customer_notes: customerNotes || null }).eq("id", row.id);
+    setRow((prev) => prev ? { ...prev, customer_notes: customerNotes || null } : null);
+    setSavingCustomerNotes(false);
   }
 
   async function handleAddComment() {
@@ -609,7 +622,7 @@ export default function SoknadshjelDetailPage() {
                   disabled={convertingToQuote}
                   className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors"
                 >
-                  {convertingToQuote ? "Oppretter…" : "Konverter til tilbudsforespørsel"}
+                  {convertingToQuote ? "Oppretter…" : "Konverter til søknadshjelp + byggpakke"}
                 </button>
               )}
             </div>
@@ -666,7 +679,7 @@ export default function SoknadshjelDetailPage() {
                     {dibkDispCount} dispensasjon{dibkDispCount > 1 ? "er" : ""}
                   </span>
                 )}
-                <span className="ml-auto text-[10px] text-gray-400">Endringer lagres med «Lagre»-knappen</span>
+                <button onClick={handleSave} disabled={saving || !hasChanges} className="ml-auto rounded-lg bg-orange-500 px-3 py-1 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
               </div>
               <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
                 {Object.entries(localDibk).map(([k, v]) => {
@@ -692,6 +705,11 @@ export default function SoknadshjelDetailPage() {
                           <option value="Vet ikke">Vet ikke</option>
                         </select>
                       </div>
+                      {row.dibk_comments?.[k] && (
+                        <p className="mt-1 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 border border-amber-200">
+                          <span className="font-semibold">Kundens kommentar:</span> {row.dibk_comments[k]}
+                        </p>
+                      )}
                       {unsaved && (
                         <input
                           type="text"
@@ -757,6 +775,9 @@ export default function SoknadshjelDetailPage() {
               </button>
             </div>
             <p className="mt-1.5 text-xs text-gray-400">Foreslått pris: {dibkDispCount > 0 || manualDisps.length > 0 ? "2 000" : "8 000"} kr — kan overstyres i beløpsfeltet.</p>
+            <div className="mt-3 flex justify-end">
+              <button onClick={handleSave} disabled={saving || !hasChanges} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
+            </div>
           </div>
 
           {/* Pris */}
@@ -861,6 +882,9 @@ export default function SoknadshjelDetailPage() {
                 + Legg til
               </button>
             </div>
+            <div className="mt-3 flex justify-end">
+              <button onClick={handleSave} disabled={saving || !hasChanges} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
+            </div>
           </div>
 
           {/* Søknadsresultat */}
@@ -872,11 +896,32 @@ export default function SoknadshjelDetailPage() {
           {/* Notater + Lagre */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-gray-700">Notater</h2>
-            <div className="mt-0">
+
+            {/* Customer notes */}
+            <div className="mb-4">
+              <p className="mb-1 text-[10px] font-medium text-gray-400">Notat til kunde (vises på tilbud)</p>
+              <textarea
+                rows={3}
+                value={customerNotes}
+                onChange={(e) => setCustomerNotes(e.target.value)}
+                placeholder="Notat som vises på tilbudet til kunden…"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <button
+                onClick={handleSaveCustomerNotes}
+                disabled={savingCustomerNotes}
+                className="mt-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                {savingCustomerNotes ? "Lagrer…" : "Lagre kundenotat"}
+              </button>
+            </div>
+
+            {/* Internal notes */}
+            <div>
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-600">Internt notat</span>
+                <p className="text-[10px] font-medium text-red-400">Internt notat (kun for oss)</p>
                 {!editingNotes && (
-                  <button onClick={() => setEditingNotes(true)} className="text-xs text-orange-600 hover:text-orange-800 font-medium">Endre</button>
+                  <button onClick={() => setEditingNotes(true)} className="text-xs text-red-400 hover:text-red-600 font-medium">Endre</button>
                 )}
               </div>
               {editingNotes ? (
@@ -887,15 +932,15 @@ export default function SoknadshjelDetailPage() {
                     onChange={(e) => setNotes(e.target.value)}
                     autoFocus
                     placeholder="Interne notater..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                    className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 placeholder:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300"
                   />
                   <div className="mt-2 flex gap-2">
                     <button
                       onClick={handleSaveNotes}
                       disabled={savingNotes}
-                      className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+                      className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600 disabled:opacity-50"
                     >
-                      {savingNotes ? "Lagrer…" : "Lagre notat"}
+                      {savingNotes ? "Lagrer…" : "Lagre internt notat"}
                     </button>
                     <button
                       onClick={() => { setNotes(row.notes ?? ""); setEditingNotes(false); }}
@@ -906,8 +951,11 @@ export default function SoknadshjelDetailPage() {
                   </div>
                 </div>
               ) : (
-                <div className="min-h-[2.5rem] rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">
-                  {row.notes ? row.notes : <span className="text-gray-400 italic">Ingen notater</span>}
+                <div
+                  onClick={() => setEditingNotes(true)}
+                  className={`min-h-[2.5rem] cursor-text rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm whitespace-pre-wrap ${row.notes ? "text-red-700" : "text-red-300 italic"}`}
+                >
+                  {row.notes ? row.notes : "Ingen interne notater — klikk for å redigere"}
                 </div>
               )}
             </div>

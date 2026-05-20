@@ -545,10 +545,18 @@ const DIBK_QUESTIONS: { key: keyof DibkAnswers; q: string; hint?: string; option
   },
 ];
 
-function StepDibk({ dibk, setDibk, autoFilled, onNext, onBack }: {
+const DISP_KEYS_SET = new Set(["frittstående", "bya50", "enEtasje", "monehoyde", "nabogrense", "avstandBygg", "ikkeVernet", "ikkeFlom"]);
+function isDispTriggered(key: keyof DibkAnswers, val: string): boolean {
+  if (key === "lnf") return val === "Ja";
+  return DISP_KEYS_SET.has(key) && val === "Nei";
+}
+
+function StepDibk({ dibk, setDibk, autoFilled, dibkComments, setDibkComments, onNext, onBack }: {
   dibk: DibkAnswers;
   setDibk: (d: DibkAnswers) => void;
   autoFilled: Partial<DibkAnswers>;
+  dibkComments: Record<string, string>;
+  setDibkComments: (c: Record<string, string>) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
@@ -581,6 +589,18 @@ function StepDibk({ dibk, setDibk, autoFilled, onNext, onBack }: {
                 <Pill key={v} label={v} active={dibk[key] === v} onClick={() => set(key, v)} />
               ))}
             </div>
+            {isDispTriggered(key, dibk[key]) && (
+              <div className="mt-2">
+                <p className="text-xs font-medium text-amber-700">Kommentar til denne dispensasjonen (valgfritt)</p>
+                <textarea
+                  rows={2}
+                  value={dibkComments[key] ?? ""}
+                  onChange={(e) => setDibkComments({ ...dibkComments, [key]: e.target.value })}
+                  placeholder="Forklar situasjonen eller legg til relevant informasjon…"
+                  className="mt-1 w-full rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-sm text-amber-800 placeholder:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -600,12 +620,13 @@ function StepDibk({ dibk, setDibk, autoFilled, onNext, onBack }: {
 }
 
 // ── Step 4: Estimate + contact ────────────────────────────────────────────────
-function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, onBack }: {
+function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, dibkComments, onBack }: {
   dibk: DibkAnswers;
   address: string;
   garageConfig?: GarageConfig;
   buildingType: BuildingType | null;
   drawingCost: number;
+  dibkComments: Record<string, string>;
   onBack: () => void;
 }) {
   const result = permitResult(dibk);
@@ -630,7 +651,7 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
       await fetch("/api/soknadshjelp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone, message, address, dibk, garageConfig, permitResult: result, permit, nabovarsel: naboCost, total, buildingType: buildingLabel }),
+        body: JSON.stringify({ name, email, phone, message, address, dibk, dibkComments, garageConfig, permitResult: result, permit, nabovarsel: naboCost, total, buildingType: buildingLabel }),
       });
       setSent(true);
     } finally {
@@ -1071,6 +1092,7 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
   const [address, setAddress] = useState(savedAddress);
   const autoFilled = garageConfig ? autoFillDibk(garageConfig) : {};
   const [dibk, setDibk] = useState<DibkAnswers>({ ...defaultDibk, ...autoFilled });
+  const [dibkComments, setDibkComments] = useState<Record<string, string>>({});
   const [drawingCost, setDrawingCost] = useState(0);
 
   return (
@@ -1099,13 +1121,13 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
         <StepMap garageConfig={garageConfig} onNext={(_, __, addr) => { setAddress(addr); setStep(2); }} onBack={() => setStep(skipType ? 1 : 0)} />
       )}
       {step === 2 && (
-        <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} onNext={() => setStep(3)} onBack={() => setStep(hasPlacedOnMap ? 0 : 1)} />
+        <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} dibkComments={dibkComments} setDibkComments={setDibkComments} onNext={() => setStep(3)} onBack={() => setStep(hasPlacedOnMap ? 0 : 1)} />
       )}
       {step === 3 && (
         <StepDrawings garageConfig={garageConfig} onBack={() => setStep(2)} onNext={(cost) => { setDrawingCost(cost); setStep(4); }} />
       )}
       {step === 4 && (
-        <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} drawingCost={drawingCost} onBack={() => setStep(3)} />
+        <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} drawingCost={drawingCost} dibkComments={dibkComments} onBack={() => setStep(3)} />
       )}
     </div>
   );

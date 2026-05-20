@@ -9,7 +9,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Ugyldig forespørsel." }, { status: 400 });
     }
 
-    const { name, email, phone, address, dibk, garageConfig, permitResult, permit, total } = body;
+    const { name, email, phone, address, dibk, dibkComments, garageConfig, permitResult, permit, total } = body;
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json({ error: "Navn er påkrevd." }, { status: 400 });
@@ -93,6 +93,7 @@ export async function POST(request: Request) {
         customer_phone: phone || null,
         address: address || null,
         dibk: dibk || null,
+        dibk_comments: dibkComments && Object.keys(dibkComments).length > 0 ? dibkComments : null,
         garage_config: garageConfig || null,
         permit_result: permitResult || null,
         permit_price: permit ?? null,
