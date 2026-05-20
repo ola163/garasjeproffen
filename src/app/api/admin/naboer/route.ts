@@ -1,30 +1,78 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-function normaliseRing(ring: number[][]): [number, number][] {
-  if (!ring.length) return [];
-  const [a] = ring[0];
-  if (a > 45) return ring.map(([y, x]) => [x, y]);
-  return ring as [number, number][];
+const LAT_M = 111320;
+function lngM(lat: number) { return 111320 * Math.cos((lat * Math.PI) / 180); }
+
+function distPointToSeg(
+  px: number, py: number,
+  ax: number, ay: number,
+  bx: number, by: number,
+): number {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
-function centroid(ring: [number, number][]): [number, number] {
-  let sx = 0, sy = 0;
-  for (const [x, y] of ring) { sx += x; sy += y; }
-  return [sx / ring.length, sy / ring.length];
+function pointInPolygon(px: number, py: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i]![0]!, yi = ring[i]![1]!;
+    const xj = ring[j]![0]!, yj = ring[j]![1]!;
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
 
-interface EigData {
-  gaardsnummer?: number;
-  bruksnummer?: number;
-  seksjonsnummer?: number;
-  festenummer?: number;
-  kommunenummer?: string;
-  adresse?: { adressetekst?: string }[];
+// Check if two rings share a boundary (any vertex within maxDist metres of the other ring's segments)
+function ringsAdjacent(
+  ringA: number[][], ringB: number[][],
+  LM: number, maxDist = 5,
+): boolean {
+  for (const [bLo, bLa] of ringB) {
+    for (let i = 0; i < ringA.length - 1; i++) {
+      const [aLo1, aLa1] = ringA[i]!;
+      const [aLo2, aLa2] = ringA[i + 1]!;
+      const px = (bLo! - aLo1!) * LM;
+      const py = (bLa! - aLa1!) * LAT_M;
+      const ex = (aLo2! - aLo1!) * LM;
+      const ey = (aLa2! - aLa1!) * LAT_M;
+      if (distPointToSeg(px, py, 0, 0, ex, ey) < maxDist) return true;
+    }
+  }
+  for (const [aLo, aLa] of ringA) {
+    for (let i = 0; i < ringB.length - 1; i++) {
+      const [bLo1, bLa1] = ringB[i]!;
+      const [bLo2, bLa2] = ringB[i + 1]!;
+      const px = (aLo! - bLo1!) * LM;
+      const py = (aLa! - bLa1!) * LAT_M;
+      const ex = (bLo2! - bLo1!) * LM;
+      const ey = (bLa2! - bLa1!) * LAT_M;
+      if (distPointToSeg(px, py, 0, 0, ex, ey) < maxDist) return true;
+    }
+  }
+  return false;
 }
 
-interface WFSFeature {
-  geometry?: { type?: string; coordinates?: unknown };
+function ringCentroid(ring: number[][]): [number, number] {
+  let sumLo = 0, sumLa = 0;
+  for (const [lo, la] of ring) { sumLo += lo!; sumLa += la!; }
+  return [sumLo / ring.length, sumLa / ring.length];
+}
+
+interface EiendomPunkt {
+  matrikkelnummer?: {
+    kommunenummer?: string;
+    gardsnummer?: number;
+    bruksnummer?: number;
+  };
+  adresser?: { adressetekst?: string; postnummer?: string; poststed?: string }[];
+  // some API versions expose these fields directly or under different keys
+  adresse?: { adressetekst?: string; postnummer?: string; poststed?: string }[];
 }
 
 export async function GET(request: Request) {
@@ -32,103 +80,133 @@ export async function GET(request: Request) {
   if (jar.get("gp-admin")?.value !== "1")
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = new URL(request.url);
-  const lat = parseFloat(searchParams.get("lat") ?? "");
-  const lng = parseFloat(searchParams.get("lng") ?? "");
+  const sp = new URL(request.url).searchParams;
+  const lat = parseFloat(sp.get("lat") ?? "");
+  const lng = parseFloat(sp.get("lng") ?? "");
+
   if (isNaN(lat) || isNaN(lng))
-    return NextResponse.json({ error: "Missing lat/lng" }, { status: 400 });
+    return NextResponse.json({ error: "lat og lng påkrevd" }, { status: 400 });
 
-  // 1. Main property info
-  let mainGnr: number | null = null;
-  let mainBnr: number | null = null;
-  let mainKommunenr: string | null = null;
-  let mainAdresse = "";
+  const LM = lngM(lat);
+  const d = 0.002; // ~220 m bbox
+  const bbox = `${lng - d},${lat - d},${lng + d},${lat + d}`;
+
+  const wfsUrl =
+    `https://wfs.geonorge.no/skwms1/wfs.matrikkelkart2` +
+    `?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature` +
+    `&TYPENAMES=app:Teig` +
+    `&CRS=urn:ogc:def:crs:EPSG::4258` +
+    `&BBOX=${bbox},urn:ogc:def:crs:EPSG::4258` +
+    `&outputFormat=application/json&COUNT=60`;
+
+  let wfsData: { features?: { geometry?: { type: string; coordinates: unknown } }[] };
   try {
-    const res = await fetch(
-      `https://ws.geonorge.no/eiendomsopplysninger/v1/punkt?nord=${lat}&ost=${lng}&koordsys=4258`,
-      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) },
-    );
-    if (res.ok) {
-      const data: EigData = await res.json();
-      mainGnr = data.gaardsnummer ?? null;
-      mainBnr = data.bruksnummer ?? null;
-      mainKommunenr = data.kommunenummer ?? null;
-      mainAdresse = data.adresse?.[0]?.adressetekst ?? "";
-    }
-  } catch { /* continue */ }
-
-  // 2. Fetch all parcels in ~400m bbox via WFS Teig
-  const d = 0.004;
-  const bbox = `${lng - d},${lat - d},${lng + d},${lat + d},EPSG:4326`;
-  let features: WFSFeature[] = [];
-  for (const typeName of ["app:Teig", "Teig"]) {
-    try {
-      const url =
-        `https://wfs.geonorge.no/skwms1/wfs.matrikkelen?SERVICE=WFS&VERSION=2.0.0` +
-        `&REQUEST=GetFeature&TYPENAMES=${encodeURIComponent(typeName)}` +
-        `&OUTPUTFORMAT=application/json&COUNT=60&BBOX=${bbox}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) continue;
-      const data = await res.json();
-      features = (data?.features ?? []) as WFSFeature[];
-      if (features.length > 0) break;
-    } catch { /* try next */ }
+    const res = await fetch(wfsUrl, {
+      next: { revalidate: 0 },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return NextResponse.json({ error: "WFS feilet" }, { status: 502 });
+    wfsData = await res.json();
+  } catch {
+    return NextResponse.json({ error: "Kartverket ikke tilgjengelig" }, { status: 502 });
   }
 
-  // 3. Extract centroid for each parcel polygon
-  const centroids: [number, number][] = [];
-  for (const f of features) {
-    const geom = f.geometry;
+  const features = wfsData.features ?? [];
+
+  // Find target ring
+  let targetRing: number[][] | null = null;
+  for (const feat of features) {
+    const geom = feat.geometry;
     if (!geom) continue;
-    const polys =
-      geom.type === "Polygon"
-        ? [geom.coordinates as number[][][]]
-        : geom.type === "MultiPolygon"
-        ? (geom.coordinates as number[][][][])
-        : [];
-    for (const poly of polys) {
-      if (Array.isArray(poly[0])) {
-        const ring = normaliseRing(poly[0] as number[][]);
-        if (ring.length >= 3) centroids.push(centroid(ring));
+    let rings: number[][][] = [];
+    if (geom.type === "Polygon") rings = geom.coordinates as number[][][];
+    else if (geom.type === "MultiPolygon")
+      rings = (geom.coordinates as number[][][][]).flat(1);
+    for (const ring of rings) {
+      if (pointInPolygon(lng, lat, ring)) {
+        targetRing = ring;
+        break;
+      }
+    }
+    if (targetRing) break;
+  }
+
+  if (!targetRing) return NextResponse.json({ naboer: [] });
+
+  // Collect centroids of rings that share a boundary with the target
+  const candidateCentroids: [number, number][] = [];
+
+  for (const feat of features) {
+    const geom = feat.geometry;
+    if (!geom) continue;
+    let rings: number[][][] = [];
+    if (geom.type === "Polygon") rings = geom.coordinates as number[][][];
+    else if (geom.type === "MultiPolygon")
+      rings = (geom.coordinates as number[][][][]).flat(1);
+
+    for (const ring of rings) {
+      if (ring === targetRing || pointInPolygon(lng, lat, ring)) continue;
+      if (ringsAdjacent(targetRing, ring, LM)) {
+        candidateCentroids.push(ringCentroid(ring));
       }
     }
   }
 
-  // 4. Resolve gnr/bnr/adresse for each centroid (parallel, best-effort)
-  interface Nabo {
-    gnr: number; bnr: number; snr: number; fnr: number;
-    kommunenr: string; eiendom_adresse: string;
-    lat: number; lng: number;
-  }
-  const naboMap = new Map<string, Nabo>();
+  if (candidateCentroids.length === 0) return NextResponse.json({ naboer: [] });
 
-  await Promise.allSettled(
-    centroids.map(async ([cLng, cLat]) => {
-      try {
-        const res = await fetch(
-          `https://ws.geonorge.no/eiendomsopplysninger/v1/punkt?nord=${cLat}&ost=${cLng}&koordsys=4258`,
-          { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(6000) },
-        );
-        if (!res.ok) return;
-        const data: EigData = await res.json();
-        const gnr = data.gaardsnummer;
-        const bnr = data.bruksnummer;
-        if (!gnr || !bnr) return;
-        if (gnr === mainGnr && bnr === mainBnr) return;
-        const snr = data.seksjonsnummer ?? 0;
-        const fnr = data.festenummer ?? 0;
-        const kommunenr = data.kommunenummer ?? "";
-        const key = `${kommunenr}-${gnr}-${bnr}-${snr}-${fnr}`;
-        if (naboMap.has(key)) return;
-        const eiendom_adresse =
-          data.adresse?.[0]?.adressetekst ?? `Gnr. ${gnr} Bnr. ${bnr}`;
-        naboMap.set(key, { gnr, bnr, snr, fnr, kommunenr, eiendom_adresse, lat: cLat, lng: cLng });
-      } catch { /* ignore */ }
+  // Deduplicate centroids < 10m apart (same polygon parsed twice)
+  const unique: [number, number][] = [];
+  for (const c of candidateCentroids) {
+    const dup = unique.some(u =>
+      Math.hypot((c[0] - u[0]) * LM, (c[1] - u[1]) * LAT_M) < 10,
+    );
+    if (!dup) unique.push(c);
+  }
+
+  // Resolve gnr/bnr/adresse for each centroid via eiendomsopplysninger/punkt
+  const results = await Promise.allSettled(
+    unique.slice(0, 14).map(async ([lo, la]) => {
+      const url =
+        `https://ws.geonorge.no/eiendomsopplysninger/v1/punkt` +
+        `?nord=${la}&ost=${lo}&koordsys=4258`;
+      const r = await fetch(url, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+        next: { revalidate: 3600 },
+      });
+      if (!r.ok) return null;
+      const data: EiendomPunkt = await r.json();
+      const mat = data.matrikkelnummer;
+      if (!mat?.gardsnummer || !mat?.bruksnummer) return null;
+      const adresseArr = data.adresser ?? data.adresse ?? [];
+      const adresseObj = adresseArr[0];
+      const adresseParts = [
+        adresseObj?.adressetekst,
+        adresseObj?.postnummer && adresseObj?.poststed
+          ? `${adresseObj.postnummer} ${adresseObj.poststed}`
+          : undefined,
+      ].filter(Boolean);
+      return {
+        gnr: mat.gardsnummer,
+        bnr: mat.bruksnummer,
+        kommunenr: mat.kommunenummer ?? "",
+        adresse: adresseParts.length > 0 ? adresseParts.join(", ") : undefined,
+      };
     }),
   );
 
-  return NextResponse.json({
-    main: { gnr: mainGnr, bnr: mainBnr, kommunenr: mainKommunenr, adresse: mainAdresse },
-    naboer: Array.from(naboMap.values()),
-  });
+  const naboer = results
+    .filter(r => r.status === "fulfilled" && r.value !== null)
+    .map(r => (r as PromiseFulfilledResult<NonNullable<unknown>>).value)
+    .filter((n, i, arr) => {
+      const nab = n as { gnr: number; bnr: number; kommunenr: string };
+      return (
+        arr.findIndex(x => {
+          const x2 = x as { gnr: number; bnr: number; kommunenr: string };
+          return x2.gnr === nab.gnr && x2.bnr === nab.bnr && x2.kommunenr === nab.kommunenr;
+        }) === i
+      );
+    });
+
+  return NextResponse.json({ naboer });
 }
