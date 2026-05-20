@@ -45,16 +45,17 @@ export async function GET(req: Request) {
     }
   } catch { /* fall through */ }
 
-  // ── Strategy 2: WFS Teig (full parcel polygon) ──────────────────────────────
-  const d = 0.003; // ~300 m
-  const bbox = `${lng - d},${lat - d},${lng + d},${lat + d},EPSG:4326`;
-  for (const typeName of ["app:Teig", "Teig"]) {
-    try {
-      const url =
-        `https://wfs.geonorge.no/skwms1/wfs.matrikkelen?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature` +
-        `&TYPENAMES=${encodeURIComponent(typeName)}&OUTPUTFORMAT=application/json&COUNT=10&BBOX=${bbox}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) continue;
+  // ── Strategy 2: WFS Matrikkelkart2 app:Teig (confirmed working endpoint) ─────
+  const d = 0.002; // ~220 m
+  const bbox4258 = `${lng - d},${lat - d},${lng + d},${lat + d}`;
+  try {
+    const url =
+      `https://wfs.geonorge.no/skwms1/wfs.matrikkelkart2?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature` +
+      `&TYPENAMES=app:Teig&CRS=urn:ogc:def:crs:EPSG::4258` +
+      `&BBOX=${bbox4258},urn:ogc:def:crs:EPSG::4258` +
+      `&outputFormat=application/json&COUNT=30`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (res.ok) {
       const data = await res.json();
       const features: unknown[] = data?.features ?? [];
       const rings: [number, number][][] = [];
@@ -65,47 +66,15 @@ export async function GET(req: Request) {
           geom.type === "Polygon"
             ? [geom.coordinates as number[][][]]
             : geom.type === "MultiPolygon"
-            ? (geom.coordinates as number[][][][])
+            ? (geom.coordinates as number[][][][]).flat(1)
             : [];
         for (const poly of polys) {
           if (Array.isArray(poly[0])) rings.push(normaliseRing(poly[0] as number[][]));
         }
       }
-      // Return the ring that contains the garage center, else the first ring
       const hit = rings.find(r => pointInRing(lng, lat, r));
       const ring = hit ?? rings[0];
       if (ring) return Response.json({ teiger: [{ geometri: { type: "Polygon", coordinates: [ring] } }] });
-    } catch { /* try next */ }
-  }
-
-  // ── Strategy 3: WFS Eiendomsgrense (boundary line segments) ─────────────────
-  try {
-    const url =
-      `https://wfs.geonorge.no/skwms1/wfs.matrikkelen?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature` +
-      `&TYPENAMES=app:Eiendomsgrense&OUTPUTFORMAT=application/json&COUNT=200&BBOX=${bbox}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      const data = await res.json();
-      const features: unknown[] = data?.features ?? [];
-      // Collect all unique coordinate points from line segments
-      const pts: [number, number][] = [];
-      for (const f of features) {
-        const geom = (f as { geometry?: { type?: string; coordinates?: unknown } })?.geometry;
-        if (!geom) continue;
-        const lines =
-          geom.type === "LineString"
-            ? [geom.coordinates as number[][]]
-            : geom.type === "MultiLineString"
-            ? (geom.coordinates as number[][][])
-            : [];
-        for (const line of lines) {
-          for (const c of line) pts.push(normaliseRing([c])[0]);
-        }
-      }
-      if (pts.length >= 3) {
-        // Return as a "ring" — the caller will use it for segment-distance checks
-        return Response.json({ teiger: [{ geometri: { type: "Polygon", coordinates: [pts] } }] });
-      }
     }
   } catch { /* ignore */ }
 
