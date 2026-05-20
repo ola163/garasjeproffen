@@ -783,6 +783,24 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
   onBack: () => void;
   onNext: (drawingCost: number) => void;
 }) {
+  // ── Drawing prices fetched from admin ────────────────────────────────────────
+  const [prices, setPrices] = useState({ kun_garasje: 5000, med_eksisterende: 10000, situasjonsplan: 1500 });
+  useEffect(() => {
+    fetch("/api/admin/soknadshjelp-priser")
+      .then(r => r.json())
+      .then((data: { key: string; price: number }[]) => {
+        const p = { ...prices };
+        for (const d of data) {
+          if (d.key === "tegning_kun_garasje")       p.kun_garasje        = d.price;
+          if (d.key === "tegning_med_eksisterende")  p.med_eksisterende   = d.price;
+          if (d.key === "tegning_situasjonsplan")    p.situasjonsplan     = d.price;
+        }
+        setPrices(p);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── From configurator: simplified flow ──────────────────────────────────────
   const [hasExistingDrawings, setHasExistingDrawings] = useState<boolean | null>(null);
   const [withSituasjonsplan, setWithSituasjonsplan] = useState(false);
@@ -830,8 +848,8 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
 
   // ── Configurator flow ────────────────────────────────────────────────────────
   if (garageConfig) {
-    const baseCost = hasExistingDrawings === null ? 0 : hasExistingDrawings ? 5_000 : 10_000;
-    const totalCost = baseCost + (withSituasjonsplan ? 1_500 : 0);
+    const baseCost = hasExistingDrawings === null ? 0 : hasExistingDrawings ? prices.kun_garasje : prices.med_eksisterende;
+    const totalCost = baseCost + (withSituasjonsplan ? prices.situasjonsplan : 0);
 
     return (
       <div>
@@ -850,7 +868,7 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
           >
             <span className="text-lg">✓</span>
             <span className="text-sm font-semibold text-gray-900">Ja, jeg har</span>
-            <span className="text-xs text-gray-500">5 000 kr</span>
+            <span className="text-xs text-gray-500">{fmt(prices.kun_garasje)}</span>
           </button>
           <button
             onClick={() => setHasExistingDrawings(false)}
@@ -858,7 +876,7 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
           >
             <span className="text-lg">✗</span>
             <span className="text-sm font-semibold text-gray-900">Nei, jeg har ikke</span>
-            <span className="text-xs text-gray-500">10 000 kr</span>
+            <span className="text-xs text-gray-500">{fmt(prices.med_eksisterende)}</span>
           </button>
         </div>
 
@@ -890,8 +908,8 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
 
   // ── Standalone flow ──────────────────────────────────────────────────────────
   const standaloneDrawingCost =
-    (garasjeType === "kun-garasje" ? 5_000 : garasjeType === "garasje-eksisterende" ? 10_000 : 0) +
-    (withSituasjonsplan ? 1_500 : 0);
+    (garasjeType === "kun-garasje" ? prices.kun_garasje : garasjeType === "garasje-eksisterende" ? prices.med_eksisterende : 0) +
+    (withSituasjonsplan ? prices.situasjonsplan : 0);
 
   return (
     <div>
@@ -954,8 +972,8 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
             <p className="text-sm font-semibold text-gray-800 mb-2">Hva trenger du tegnet?</p>
             <div className="space-y-2">
               {([
-                { value: "kun-garasje", label: "Kun garasjen", sub: "Fasade-, plan- og snittegning av ny garasje", price: "5 000 kr" },
-                { value: "garasje-eksisterende", label: "Garasje + eksisterende bebyggelse", sub: "Inkluderer alle bygg på tomten", price: "10 000 kr" },
+                { value: "kun-garasje", label: "Kun garasjen", sub: "Fasade-, plan- og snittegning av ny garasje", price: fmt(prices.kun_garasje) },
+                { value: "garasje-eksisterende", label: "Garasje + eksisterende bebyggelse", sub: "Inkluderer alle bygg på tomten", price: fmt(prices.med_eksisterende) },
               ] as { value: GarasjeType; label: string; sub: string; price: string }[]).map((opt) => (
                 <label key={opt.value}
                   className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-4 py-3 transition-colors ${garasjeType === opt.value ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>

@@ -611,10 +611,13 @@ CREATE TABLE IF NOT EXISTS soknadshjelp_priser (
 );
 
 INSERT INTO soknadshjelp_priser (key, label, price, description, sort_order) VALUES
-  ('tegning',              'Tegning',                              12500, 'Tegninger og dokumentasjon til kommunen', 1),
-  ('nabovarsel',           'Nabovarsel',                           3000,  'Varsling av naboer',                      2),
-  ('dispensasjon_1',       '1. dispensasjon',                      8000,  'Første dispensasjonssøknad',              3),
-  ('dispensasjon_ekstra',  'Ytterligere dispensasjoner (per stk)', 2000,  'Pris per ekstra dispensasjon',            4)
+  ('tegning',                    'Tegning',                              12500, 'Tegninger og dokumentasjon til kommunen', 1),
+  ('nabovarsel',                 'Nabovarsel',                           3000,  'Varsling av naboer',                      2),
+  ('dispensasjon_1',             '1. dispensasjon',                      8000,  'Første dispensasjonssøknad',              3),
+  ('dispensasjon_ekstra',        'Ytterligere dispensasjoner (per stk)', 2000,  'Pris per ekstra dispensasjon',            4),
+  ('tegning_kun_garasje',        'Kun garasjen (tegning)',               5000,  'Fasade-, plan- og snittegning av ny garasje', 5),
+  ('tegning_med_eksisterende',   'Garasje + eksisterende bebyggelse',   10000,  'Inkluderer alle bygg på tomten',          6),
+  ('tegning_situasjonsplan',     'Situasjonsplan',                       1500,  'Kart med tomtegrenser, naboavstand og plassering av nytt bygg', 7)
 ON CONFLICT (key) DO NOTHING;
 
 ALTER TABLE soknadshjelp_priser ENABLE ROW LEVEL SECURITY;
