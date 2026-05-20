@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import GarageMapbox from "@/components/configurator/GarageMapbox";
@@ -33,11 +33,31 @@ function SituasjonsplanContent() {
     roofType:     initRoofType,
     buildingType: initBuildingType,
   });
-  const [center,      setCenter]      = useState<[number, number] | null>(initCenter);
-  const [rotation,    setRotation]    = useState(initRotation);
-  const [address,     setAddress]     = useState(initAddress);
-  const [generating,  setGenerating]  = useState(false);
-  const [genError,    setGenError]    = useState<string | null>(null);
+  const [center,         setCenter]         = useState<[number, number] | null>(initCenter);
+  const [rotation,       setRotation]       = useState(initRotation);
+  const [address,        setAddress]        = useState(initAddress);
+  const [generating,     setGenerating]     = useState(false);
+  const [genError,       setGenError]       = useState<string | null>(null);
+  const [naboerPolygons, setNaboerPolygons] = useState<[number, number][][]>([]);
+  const [naboCount,      setNaboCount]      = useState(0);
+  const naboFetchedRef = useRef(false);
+
+  // Auto-fetch neighbour polygons once when center is known and a quoteId is present
+  useEffect(() => {
+    if (!center || !quoteId || naboFetchedRef.current) return;
+    naboFetchedRef.current = true;
+    const [lng, lat] = center;
+    fetch(`/api/admin/naboer?lat=${lat}&lng=${lng}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        const naboer: { polygon?: [number, number][] }[] = data.naboer ?? [];
+        setNaboerPolygons(naboer.filter(n => n.polygon).map(n => n.polygon!));
+        setNaboCount(naboer.length);
+      })
+      .catch(() => {});
+  }, [center, quoteId]);
+
   const sharedParams = center
     ? `lat=${center[1]}&lng=${center[0]}&rotation=${rotation}&widthMm=${config.widthMm}&lengthMm=${config.lengthMm}&roofType=${config.roofType}&buildingType=${config.buildingType}${quoteId ? `&quote=${quoteId}` : ""}${address ? `&address=${encodeURIComponent(address)}` : ""}`
     : null;
@@ -243,9 +263,20 @@ function SituasjonsplanContent() {
             Fasadetegning
           </Link>
         )}
+        {quoteId && center && (
+          <Link
+            href={`/admin/quotes/${quoteId}/nabovarsel`}
+            className="flex items-center gap-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-3 py-1.5 transition-colors shadow-sm"
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/>
+            </svg>
+            Nabovarsel{naboCount > 0 ? ` (${naboCount})` : ""}
+          </Link>
+        )}
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-3 py-1.5 transition-colors shadow-sm"
+          className="flex items-center gap-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-semibold px-3 py-1.5 transition-colors"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="6 9 6 2 18 2 18 9"/>
@@ -379,6 +410,7 @@ function SituasjonsplanContent() {
             onRotationChange={setRotation}
             onAddressSelect={(addr) => setAddress(addr)}
             onMapReady={(m) => { mapInstanceRef.current = m as MapLike; }}
+            naboerPolygons={naboerPolygons}
           />
         </div>
 

@@ -29,6 +29,7 @@ interface GarageMapboxProps {
   showCadastralToggle?: boolean;
   defaultShowCadastral?: boolean;
   onMapReady?: (map: mapboxgl.Map) => void;
+  naboerPolygons?: [number, number][][];
 }
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -653,7 +654,7 @@ export default function GarageMapbox({
   showNeighbors = false, defaultCenter, onAddressSelect,
   addedElements = [], doorWidthMm = 2500, doorHeightMm = 2125,
   showCadastralToggle = false, defaultShowCadastral = false,
-  onMapReady,
+  onMapReady, naboerPolygons,
 }: GarageMapboxProps) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const mapRef        = useRef<mapboxgl.Map | null>(null);
@@ -1009,6 +1010,11 @@ export default function GarageMapbox({
         layout: { visibility: "none" } });
       map.addLayer({ id: OUTLINE_LAYER, type: "line", source: SOURCE_ID,
         paint: { "line-color": "#fff", "line-width": 2 } });
+
+      // Neighbouring cadastral parcels (passed from parent)
+      map.addSource("naboer-src", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({ id: "naboer-fill", type: "fill", source: "naboer-src", paint: { "fill-color": "#f97316", "fill-opacity": 0.08 } });
+      map.addLayer({ id: "naboer-line", type: "line", source: "naboer-src", paint: { "line-color": "#f97316", "line-width": 2, "line-dasharray": [4, 2] } });
 
       // Mapbox Streets building layer for background (distant buildings)
       if (showNeighbors) {
@@ -1602,6 +1608,22 @@ export default function GarageMapbox({
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center?.[0], center?.[1]]);
+
+  // Draw neighbour cadastral polygons whenever the prop updates
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    const src = map.getSource("naboer-src") as mapboxgl.GeoJSONSource | undefined;
+    if (!src) return;
+    src.setData({
+      type: "FeatureCollection",
+      features: (naboerPolygons ?? []).map(ring => ({
+        type: "Feature" as const,
+        geometry: { type: "Polygon" as const, coordinates: [ring] },
+        properties: {},
+      })),
+    });
+  }, [naboerPolygons]);
 
   // Fetch OSM 3D buildings in 3D or realistic mode
   useEffect(() => {

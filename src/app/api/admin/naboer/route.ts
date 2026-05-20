@@ -133,8 +133,8 @@ export async function GET(request: Request) {
 
   if (!targetRing) return NextResponse.json({ naboer: [] });
 
-  // Collect centroids of rings that share a boundary with the target
-  const candidateCentroids: [number, number][] = [];
+  // Collect {ring, centroid} pairs for rings that share a boundary with the target
+  const candidatePairs: { ring: number[][]; centroid: [number, number] }[] = [];
 
   for (const feat of features) {
     const geom = feat.geometry;
@@ -147,25 +147,28 @@ export async function GET(request: Request) {
     for (const ring of rings) {
       if (ring === targetRing || pointInPolygon(lng, lat, ring)) continue;
       if (ringsAdjacent(targetRing, ring, LM)) {
-        candidateCentroids.push(ringCentroid(ring));
+        candidatePairs.push({ ring, centroid: ringCentroid(ring) });
       }
     }
   }
 
-  if (candidateCentroids.length === 0) return NextResponse.json({ naboer: [] });
+  if (candidatePairs.length === 0) return NextResponse.json({ naboer: [] });
 
-  // Deduplicate centroids < 10m apart (same polygon parsed twice)
-  const unique: [number, number][] = [];
-  for (const c of candidateCentroids) {
+  // Deduplicate pairs whose centroids are < 10m apart
+  const unique: { ring: number[][]; centroid: [number, number] }[] = [];
+  for (const pair of candidatePairs) {
     const dup = unique.some(u =>
-      Math.hypot((c[0] - u[0]) * LM, (c[1] - u[1]) * LAT_M) < 10,
+      Math.hypot(
+        (pair.centroid[0] - u.centroid[0]) * LM,
+        (pair.centroid[1] - u.centroid[1]) * LAT_M,
+      ) < 10,
     );
-    if (!dup) unique.push(c);
+    if (!dup) unique.push(pair);
   }
 
-  // Resolve gnr/bnr/adresse for each centroid via eiendomsopplysninger/punkt
+  // Resolve gnr/bnr/adresse for each centroid, keep polygon ring
   const results = await Promise.allSettled(
-    unique.slice(0, 14).map(async ([lo, la]) => {
+    unique.slice(0, 14).map(async ({ ring, centroid: [lo, la] }) => {
       const url =
         `https://ws.geonorge.no/eiendomsopplysninger/v1/punkt` +
         `?nord=${la}&ost=${lo}&koordsys=4258`;
@@ -191,6 +194,7 @@ export async function GET(request: Request) {
         bnr: mat.bruksnummer,
         kommunenr: mat.kommunenummer ?? "",
         adresse: adresseParts.length > 0 ? adresseParts.join(", ") : undefined,
+        polygon: ring as [number, number][],
       };
     }),
   );

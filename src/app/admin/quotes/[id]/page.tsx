@@ -1614,7 +1614,8 @@ export default function QuoteDetailPage() {
                           Fasadetegning
                         </Link>
                         <Link
-                          href={`/admin/quotes/${id}/nabovarsel`}
+                          href={`/admin/situasjonsplan?${baseParams}`}
+                          target="_blank"
                           className="flex items-center gap-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-3 py-2 transition-colors"
                         >
                           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
