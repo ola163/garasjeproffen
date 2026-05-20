@@ -503,8 +503,9 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
     setWallHalfW(halfW);
   }, []);
 
-  const hasFlatGarage = roofType === "flattak" && buildingType !== "carport";
-  const portOffsetX = hasFlatGarage
+  const hasGarage = buildingType !== "carport";
+  const hasFlatGarage = roofType === "flattak" && hasGarage;
+  const portOffsetX = hasGarage
     ? computePortOffset(addedElements.filter(e => e.side === "front"), widthMm / 1000, doorWidthMm / 1000)
     : 0;
 
@@ -529,7 +530,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
               buildingType={buildingType} rotationDeg={rotationDeg}
               onWallFaces={handleWallFaces}
             />
-            {hasFlatGarage && (
+            {hasGarage && (
               <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} />
             )}
           </Suspense>
