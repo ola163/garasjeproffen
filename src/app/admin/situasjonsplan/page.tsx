@@ -282,31 +282,29 @@ function SituasjonsplanContent() {
       ctx.fillStyle = "#ea580c";
       ctx.fillText("Garasjeproffen AS", mW - pad, mH + pad + Math.round(42 * dpr));
 
-      // ── Diagonal watermark across the entire map area ──────────────────────
-      const wmText = "UTKAST · GARASJEPROFFEN.NO";
-      const wmFontSize = Math.round(mW * 0.042);
-      ctx.save();
-      ctx.translate(mW / 2, mH / 2);
-      ctx.rotate(-Math.PI / 4);
-      ctx.font = `bold ${wmFontSize}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      ctx.strokeStyle = "rgba(255,255,255,0.25)";
-      ctx.lineWidth = wmFontSize * 0.12;
-      ctx.lineJoin = "round";
-
-      const lineSpacing = wmFontSize * 2.2;
-      for (let i = -3; i <= 3; i++) {
-        const y = i * lineSpacing;
-        ctx.strokeText(wmText, 0, y);
-      }
-      ctx.fillStyle = "rgba(234, 88, 12, 0.11)";
-      for (let i = -3; i <= 3; i++) {
-        const y = i * lineSpacing;
-        ctx.fillText(wmText, 0, y);
-      }
-      ctx.restore();
+      // ── Logo watermark tiled across the map area ──────────────────────────
+      try {
+        const wmLogo = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.onload  = () => resolve(img);
+          img.onerror = reject;
+          img.src = "/logo.jpg";
+        });
+        const wmW = Math.round(mW * 0.22);
+        const wmH = Math.round(wmW * (wmLogo.height / wmLogo.width));
+        const stepX = wmW * 1.8;
+        const stepY = wmH * 2.2;
+        ctx.save();
+        ctx.globalAlpha = 0.07;
+        ctx.translate(mW / 2, mH / 2);
+        ctx.rotate(-Math.PI / 5);
+        for (let row = -4; row <= 4; row++) {
+          for (let col = -4; col <= 4; col++) {
+            ctx.drawImage(wmLogo, col * stepX - wmW / 2, row * stepY - wmH / 2, wmW, wmH);
+          }
+        }
+        ctx.restore();
+      } catch { /* logo not found — skip watermark */ }
 
       const dl = document.createElement("a");
       dl.href     = out.toDataURL("image/png");
