@@ -313,6 +313,31 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
     const box0 = new Box3().setFromObject(s);
     const size0 = box0.getSize(new Vector3());
     const center0 = box0.getCenter(new Vector3());
+
+    // For saltak: find the grey roof material from one panel and apply to all roof meshes
+    const isSaltak = modelUrl.includes("saltak");
+    let roofMat: MeshStandardMaterial | null = null;
+    const roofThreshold = box0.min.y + size0.y * 0.55;
+
+    if (isSaltak) {
+      // First pass: find the grey material on a roof mesh
+      s.traverse(child => {
+        if (!(child instanceof Mesh)) return;
+        const meshBox = new Box3().setFromObject(child);
+        const meshCenterY = (meshBox.min.y + meshBox.max.y) / 2;
+        if (meshCenterY < roofThreshold) return;
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach(mat => {
+          if (roofMat) return;
+          if (mat instanceof MeshStandardMaterial) {
+            const { r, g, b } = mat.color;
+            const isGrey = Math.abs(r - g) < 0.08 && Math.abs(g - b) < 0.08 && r > 0.2 && r < 0.85;
+            if (isGrey) roofMat = mat.clone();
+          }
+        });
+      });
+    }
+
     s.traverse(child => {
       if (child instanceof Mesh) {
         child.castShadow = true;
@@ -320,6 +345,21 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
         const mats = Array.isArray(child.material) ? child.material : [child.material];
         mats.forEach(mat => {
           if (mat instanceof MeshStandardMaterial) {
+            // Apply grey roof material to all roof meshes on saltak
+            if (isSaltak && roofMat) {
+              const meshBox = new Box3().setFromObject(child);
+              const meshCenterY = (meshBox.min.y + meshBox.max.y) / 2;
+              if (meshCenterY >= roofThreshold) {
+                const newMat = roofMat.clone();
+                newMat.envMapIntensity = 0.4;
+                newMat.stencilWrite = false;
+                newMat.stencilFunc  = THREE.NotEqualStencilFunc;
+                newMat.stencilRef   = 1;
+                newMat.needsUpdate  = true;
+                (child as Mesh).material = newMat;
+                return;
+              }
+            }
             mat.envMapIntensity = 0.4;
             mat.stencilWrite = false;
             mat.stencilFunc  = THREE.NotEqualStencilFunc;
@@ -330,7 +370,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
       }
     });
     return { scene: s, sizeX: size0.x, sizeZ: size0.z, cx: center0.x, cz: center0.z, minY: box0.min.y };
-  }, [rawScene]);
+  }, [rawScene, modelUrl]);
 
   const scaleX = sizeX > 0 ? widthMm  / 1000 / sizeX : 1;
   const scaleZ = sizeZ > 0 ? lengthMm / 1000 / sizeZ : 1;
