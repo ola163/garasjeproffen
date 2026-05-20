@@ -40,6 +40,7 @@ interface SoknadshjelRow {
   notes: string | null;
   customer_notes: string | null;
   dibk_comments: Record<string, string> | null;
+  admin_dibk_comments: Record<string, string> | null;
   lead_source: string | null;
   quote_id: string | null;
   created_at: string;
@@ -136,6 +137,7 @@ export default function SoknadshjelDetailPage() {
   const [convertingToQuote, setConvertingToQuote] = useState(false);
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
   const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
+  const [dibkAdminComments, setDibkAdminComments] = useState<Record<string, string>>({});
   const [localManualKeys, setLocalManualKeys] = useState<Set<string>>(new Set());
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [newComment, setNewComment] = useState("");
@@ -190,6 +192,7 @@ export default function SoknadshjelDetailPage() {
         setAssignedTo(data.assigned_to ?? "");
         setLeadSource(data.lead_source ?? "");
         setLocalDibk((data.dibk as Record<string, string>) ?? {});
+        setDibkAdminComments((data.admin_dibk_comments as Record<string, string>) ?? {});
         setExtraCosts(data.extra_costs ?? []);
         const md = data.manual_dispensasjoner ?? [];
         setManualDisps(md);
@@ -478,11 +481,13 @@ export default function SoknadshjelDetailPage() {
       }
     });
 
+    const filteredAdminComments = Object.fromEntries(Object.entries(dibkAdminComments).filter(([, v]) => v.trim()));
     await supabase.from("soknadshjelp").update({
       extra_costs: extraCosts,
       manual_dispensasjoner: manualDisps,
       total_price: newTotal,
       dibk: localDibk,
+      admin_dibk_comments: Object.keys(filteredAdminComments).length > 0 ? filteredAdminComments : null,
     }).eq("id", row.id);
 
     if (dibkChanges.length > 0) {
@@ -710,6 +715,13 @@ export default function SoknadshjelDetailPage() {
                           <span className="font-semibold">Kundens kommentar:</span> {row.dibk_comments[k]}
                         </p>
                       )}
+                      <input
+                        type="text"
+                        placeholder="Admin-kommentar (vises i tilbudsbygger)"
+                        value={dibkAdminComments[k] ?? ""}
+                        onChange={(e) => setDibkAdminComments((prev) => ({ ...prev, [k]: e.target.value }))}
+                        className="mt-1.5 w-full rounded border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                      />
                       {unsaved && (
                         <input
                           type="text"
@@ -814,6 +826,19 @@ export default function SoknadshjelDetailPage() {
                 })}
               </div>
             </div>
+
+            {/* DIBK admin comments summary */}
+            {Object.entries(dibkAdminComments).filter(([, v]) => v.trim()).length > 0 && (
+              <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 p-3 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-orange-600 mb-1.5">DIBK-notater</p>
+                {Object.entries(dibkAdminComments).filter(([, v]) => v.trim()).map(([k, v]) => (
+                  <div key={k} className="flex gap-2 text-xs">
+                    <span className="shrink-0 font-semibold text-orange-700">{DIBK_LABELS[k] ?? k}:</span>
+                    <span className="text-orange-800">{v}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between text-gray-600">
