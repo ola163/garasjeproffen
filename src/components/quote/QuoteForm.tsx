@@ -15,6 +15,7 @@ interface QuoteFormProps {
   pricing: PricingResult;
   packageType: string;
   roofType: string;
+  buildingType: string;
   addedElements: AddedElement[];
   grunnarbeid?: GrunnarbeidData;
   open: boolean;
@@ -24,24 +25,12 @@ interface QuoteFormProps {
   doorColor?: string;
 }
 
-const BUILDING_TYPES = [
-  { id: "garasje", label: "Garasje" },
-  { id: "carport", label: "Carport" },
-  { id: "uthus", label: "Uthus" },
-  { id: "næringsbygg", label: "Næringsbygg" },
-];
-
-const CATEGORIES = [
-  { id: "materialpakke", label: "Materialpakke" },
-  { id: "prefabelement", label: "Prefabelement" },
-];
-
 function defaultCategory(packageType: string) {
   if (packageType === "prefab") return "prefabelement";
   return "materialpakke";
 }
 
-export default function QuoteForm({ configuration, pricing, packageType, roofType, addedElements, grunnarbeid, open, address, mapCenter, mapRotation, doorColor }: QuoteFormProps) {
+export default function QuoteForm({ configuration, pricing, packageType, roofType, buildingType, addedElements, grunnarbeid, open, address, mapCenter, mapRotation, doorColor }: QuoteFormProps) {
   const [step, setStep] = useState<"soknad" | "address" | "kart" | "form">("soknad");
 
   // Address step state — pre-fill from map placement if available
@@ -57,8 +46,7 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
   const [localMapRotation, setLocalMapRotation] = useState(0);
   const [localMapAddress, setLocalMapAddress]   = useState<string | null>(null);
 
-  const [buildingType, setBuildingType] = useState("garasje");
-  const [category, setCategory] = useState(() => defaultCategory(packageType));
+  const category = defaultCategory(packageType);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -452,48 +440,6 @@ export default function QuoteForm({ configuration, pricing, packageType, roofTyp
 
   return (
     <div className="space-y-5">
-      {/* Building type */}
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-700 mb-2">Type bygg</p>
-        <div className="flex flex-wrap gap-2">
-          {BUILDING_TYPES.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setBuildingType(id)}
-              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-all ${
-                buildingType === id
-                  ? "border-orange-500 bg-orange-50 text-orange-700"
-                  : "border-gray-200 text-gray-600 hover:border-orange-300"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Category */}
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-700 mb-2">Kategori</p>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setCategory(id)}
-              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-all ${
-                category === id
-                  ? "border-orange-500 bg-orange-50 text-orange-700"
-                  : "border-gray-200 text-gray-600 hover:border-orange-300"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Placement summary — show resolved placement + option to change */}
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
         <div className="flex items-center justify-between mb-2">
