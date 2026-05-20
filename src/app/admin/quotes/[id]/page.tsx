@@ -2400,9 +2400,9 @@ export default function QuoteDetailPage() {
       {deleteOpen && quote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-bold text-gray-900">Slett forespørsel?</h2>
+            <h2 className="text-lg font-bold text-gray-900">Flytt til papirkurv?</h2>
             <p className="mt-2 text-sm text-gray-500">
-              Dette kan ikke angres. Forespørselen og all tilhørende historikk slettes permanent.
+              Forespørselen flyttes til papirkurven og kan gjenopprettes innen 10 dager.
             </p>
             <div className="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-sm space-y-1">
               <div className="flex justify-between">
@@ -2421,7 +2421,7 @@ export default function QuoteDetailPage() {
               </button>
               <button onClick={handleDeleteQuote} disabled={deleting}
                 className="flex-1 rounded-lg bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50">
-                {deleting ? "Sletter…" : "Ja, slett"}
+                {deleting ? "Sletter…" : "Flytt til papirkurv"}
               </button>
             </div>
           </div>

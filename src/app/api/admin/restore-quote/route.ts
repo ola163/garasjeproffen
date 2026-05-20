@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { ADMIN_EMAILS } from "@/lib/session";
 
-export async function DELETE(request: Request) {
+export async function POST(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) return NextResponse.json({ error: "Ikke autorisert." }, { status: 401 });
 
@@ -20,8 +20,15 @@ export async function DELETE(request: Request) {
   const { quoteId } = await request.json();
   if (!quoteId) return NextResponse.json({ error: "Mangler quoteId." }, { status: 400 });
 
+  const { data: quote } = await sb.from("quotes").select("deleted_at").eq("id", quoteId).single();
+  if (!quote?.deleted_at) return NextResponse.json({ error: "Forespørselen er ikke slettet." }, { status: 400 });
+
+  const deletedAt = new Date(quote.deleted_at);
+  const daysSince = (Date.now() - deletedAt.getTime()) / (1000 * 60 * 60 * 24);
+  if (daysSince > 10) return NextResponse.json({ error: "Gjenoppretting er ikke mulig etter 10 dager." }, { status: 400 });
+
   const { error } = await sb.from("quotes")
-    .update({ deleted_at: new Date().toISOString(), deleted_by: user.email })
+    .update({ deleted_at: null, deleted_by: null })
     .eq("id", quoteId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

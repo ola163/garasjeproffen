@@ -64,4 +64,6 @@ export interface QuoteRow {
   map_rotation: number | null;
   map_address: string | null;
   lead_source: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
 }

@@ -84,11 +84,14 @@ export default function AdminQuotesPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
+  const [deletedQuotes, setDeletedQuotes] = useState<QuoteRow[]>([]);
   const [soknadshjelp, setSoknadshjelp] = useState<SoknadshjelRow[]>([]);
   const [leadSourceList, setLeadSourceList] = useState<{ label: string; value: string }[]>([]);
   const [loadingQuotes, setLoadingQuotes] = useState(false);
   const [activeFilter, setActiveFilter] = useState<QuoteStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "quotes" | "soknadshjelp">("all");
+  const [showTrash, setShowTrash] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   // New manual quote
   const [newOpen, setNewOpen] = useState(false);
@@ -113,15 +116,39 @@ export default function AdminQuotesPage() {
   async function loadQuotes() {
     if (!supabase) return;
     setLoadingQuotes(true);
-    const [quotesRes, soknadsRes, lsRes] = await Promise.all([
-      supabase.from("quotes").select("*").order("created_at", { ascending: false }),
+    const [quotesRes, deletedRes, soknadsRes, lsRes] = await Promise.all([
+      supabase.from("quotes").select("*").is("deleted_at", null).order("created_at", { ascending: false }),
+      supabase.from("quotes").select("*").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
       supabase.from("soknadshjelp").select("*").order("created_at", { ascending: false }),
       supabase.from("lead_sources").select("label, value").order("sort_order"),
     ]);
     if (quotesRes.data) setQuotes(quotesRes.data as QuoteRow[]);
+    if (deletedRes.data) setDeletedQuotes(deletedRes.data as QuoteRow[]);
     if (soknadsRes.data) setSoknadshjelp(soknadsRes.data as SoknadshjelRow[]);
     if (lsRes.data) setLeadSourceList(lsRes.data as { label: string; value: string }[]);
     setLoadingQuotes(false);
+  }
+
+  async function handleRestore(quoteId: string) {
+    if (!supabase) return;
+    setRestoringId(quoteId);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch("/api/admin/restore-quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}` },
+      body: JSON.stringify({ quoteId }),
+    });
+    setRestoringId(null);
+    if (res.ok) {
+      const restored = deletedQuotes.find(q => q.id === quoteId);
+      if (restored) {
+        setDeletedQuotes(prev => prev.filter(q => q.id !== quoteId));
+        setQuotes(prev => [{ ...restored, deleted_at: null, deleted_by: null }, ...prev]);
+      }
+    } else {
+      const data = await res.json();
+      alert(data.error ?? "Gjenoppretting feilet.");
+    }
   }
 
   async function handleCreateQuote(e: React.FormEvent) {
@@ -297,6 +324,18 @@ export default function AdminQuotesPage() {
             </button>
             <Link href="/admin/lead-sources" className="hidden sm:block rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Lead kilder</Link>
             <Link href="/referanseprosjekter/admin" className="hidden sm:block rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Referanser</Link>
+            <button
+              onClick={() => setShowTrash(v => !v)}
+              className={`relative rounded-lg border px-3 py-2 text-sm transition-colors flex items-center gap-1.5 ${showTrash ? "border-red-300 bg-red-50 text-red-700" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Papirkurv
+              {deletedQuotes.length > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">{deletedQuotes.length}</span>
+              )}
+            </button>
             <button onClick={() => supabase?.auth.signOut()} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50">Logg ut</button>
           </div>
         </div>
@@ -345,6 +384,77 @@ export default function AdminQuotesPage() {
             </div>
           )}
         </div>
+
+        {/* ── Papirkurv ─────────────────────────────────────────────────────── */}
+        {showTrash && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-white shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between bg-red-50 px-5 py-3 border-b border-red-100">
+              <div>
+                <h2 className="text-sm font-semibold text-red-800">Papirkurv</h2>
+                <p className="text-xs text-red-500 mt-0.5">Slettede forespørsler kan gjenopprettes innen 10 dager.</p>
+              </div>
+              <button onClick={() => setShowTrash(false)} className="text-xs text-red-400 hover:text-red-700">Lukk ✕</button>
+            </div>
+            {deletedQuotes.length === 0 ? (
+              <p className="px-5 py-6 text-sm text-gray-400 italic">Papirkurven er tom.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Ticket</th>
+                    <th className="px-4 py-3 text-left">Kunde</th>
+                    <th className="hidden px-4 py-3 text-left sm:table-cell">Slettet av</th>
+                    <th className="px-4 py-3 text-left">Dager igjen</th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {deletedQuotes.map(q => {
+                    const deletedAt = new Date(q.deleted_at!);
+                    const daysSince = (Date.now() - deletedAt.getTime()) / (1000 * 60 * 60 * 24);
+                    const daysLeft = Math.max(0, 10 - Math.floor(daysSince));
+                    const expired = daysSince > 10;
+                    return (
+                      <tr key={q.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-xs font-semibold text-gray-500">{q.ticket_number}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-700">{q.customer_name}</p>
+                          <p className="text-xs text-gray-400">{q.customer_email}</p>
+                        </td>
+                        <td className="hidden px-4 py-3 text-xs text-gray-500 sm:table-cell">
+                          <p>{q.deleted_by ?? "–"}</p>
+                          <p className="text-gray-400">{formatDate(q.deleted_at!)}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          {expired ? (
+                            <span className="text-xs font-medium text-red-400">Utløpt</span>
+                          ) : (
+                            <span className={`text-xs font-semibold ${daysLeft <= 2 ? "text-red-600" : daysLeft <= 5 ? "text-amber-600" : "text-green-600"}`}>
+                              {daysLeft} dag{daysLeft !== 1 ? "er" : ""}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {!expired && (
+                            <button
+                              onClick={() => handleRestore(q.id)}
+                              disabled={restoringId === q.id}
+                              className="rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                            >
+                              {restoringId === q.id ? "Gjenoppretter…" : "Gjenopprett"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
 
         {/* Type filter */}
         <div className="mb-3 flex gap-2">
