@@ -135,6 +135,7 @@ export default function SoknadshjelDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingAssigned, setUpdatingAssigned] = useState(false);
   const [convertingToQuote, setConvertingToQuote] = useState(false);
+  const [convertConfirm, setConvertConfirm] = useState(false);
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
   const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
   const [dibkAdminComments, setDibkAdminComments] = useState<Record<string, string>>({});
@@ -481,12 +482,16 @@ export default function SoknadshjelDetailPage() {
       }
     });
 
-    const filteredAdminComments = Object.fromEntries(Object.entries(dibkAdminComments).filter(([, v]) => v.trim()));
     await supabase.from("soknadshjelp").update({
       extra_costs: extraCosts,
       manual_dispensasjoner: manualDisps,
       total_price: newTotal,
       dibk: localDibk,
+    }).eq("id", row.id);
+
+    // Save admin_dibk_comments separately so a missing column doesn't break the main save
+    const filteredAdminComments = Object.fromEntries(Object.entries(dibkAdminComments).filter(([, v]) => v.trim()));
+    await supabase.from("soknadshjelp").update({
       admin_dibk_comments: Object.keys(filteredAdminComments).length > 0 ? filteredAdminComments : null,
     }).eq("id", row.id);
 
@@ -623,7 +628,7 @@ export default function SoknadshjelDetailPage() {
               </Link>
               {!row.quote_id && (
                 <button
-                  onClick={handleConvertToQuote}
+                  onClick={() => setConvertConfirm(true)}
                   disabled={convertingToQuote}
                   className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors"
                 >
@@ -1193,6 +1198,34 @@ export default function SoknadshjelDetailPage() {
 
         </div>
       </div>
+
+      {/* Convert confirmation modal */}
+      {convertConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-base font-bold text-gray-900">Konverter til søknadshjelp + byggpakke?</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Dette oppretter en ny tilbudsforespørsel koblet til denne søknadshjelp-saken.
+              Kunden og kontaktinfo kopieres over. Handlingen kan ikke angres.
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setConvertConfirm(false)}
+                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={() => { setConvertConfirm(false); handleConvertToQuote(); }}
+                disabled={convertingToQuote}
+                className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                {convertingToQuote ? "Oppretter…" : "Ja, konverter"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status change confirmation modal */}
       {statusConfirm && (
