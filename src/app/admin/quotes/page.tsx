@@ -122,7 +122,13 @@ export default function AdminQuotesPage() {
       supabase.from("soknadshjelp").select("*").order("created_at", { ascending: false }),
       supabase.from("lead_sources").select("label, value").order("sort_order"),
     ]);
-    if (quotesRes.data) setQuotes(quotesRes.data as QuoteRow[]);
+    if (quotesRes.data) {
+      setQuotes(quotesRes.data as QuoteRow[]);
+    } else if (quotesRes.error) {
+      // Fallback if deleted_at column hasn't been migrated yet
+      const fallback = await supabase.from("quotes").select("*").order("created_at", { ascending: false });
+      if (fallback.data) setQuotes(fallback.data as QuoteRow[]);
+    }
     if (deletedRes.data) setDeletedQuotes(deletedRes.data as QuoteRow[]);
     if (soknadsRes.data) setSoknadshjelp(soknadsRes.data as SoknadshjelRow[]);
     if (lsRes.data) setLeadSourceList(lsRes.data as { label: string; value: string }[]);
