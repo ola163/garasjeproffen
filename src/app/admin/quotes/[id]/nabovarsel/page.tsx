@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
@@ -49,9 +49,10 @@ interface Nabovarsel {
 }
 
 interface KartverketNabo {
-  gnr: number; bnr: number; snr: number; fnr: number;
-  kommunenr: string; eiendom_adresse: string;
-  lat: number; lng: number;
+  gnr: number;
+  bnr: number;
+  kommunenr: string;
+  adresse?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -102,6 +103,7 @@ export default function NabovarselPage() {
   const [tiltaket, setTiltaket] = useState("Oppføring av garasje");
   const [fetchingNaboer, setFetchingNaboer] = useState(false);
   const [kartverketNaboer, setKartverketNaboer] = useState<KartverketNabo[]>([]);
+  const [deselected, setDeselected] = useState<Set<number>>(new Set());
   const [sending, setSending] = useState(false);
   const [purring, setPurring] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
@@ -111,19 +113,22 @@ export default function NabovarselPage() {
   const [addMerknadId, setAddMerknadId] = useState<string | null>(null);
   const [merknadTekst, setMerknadTekst] = useState("");
 
-  // Load quote + existing nabovarsel
+  const autoFetchedRef = useRef(false);
+
+  async function loadNV() {
+    const res = await fetch(`/api/admin/nabovarsel?quote_id=${quoteId}`);
+    const data: Nabovarsel[] = await res.json();
+    if (data.length > 0) setNv(data[0]);
+    return data[0] ?? null;
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
-    const [qRes, nvRes] = await Promise.all([
+    const [qRes] = await Promise.all([
       fetch(`/api/admin/quote-detail?id=${quoteId}`).catch(() => null),
-      fetch(`/api/admin/nabovarsel?quote_id=${quoteId}`),
     ]);
 
-    // Quote info — try quotes table directly
-    try {
-      const nvData = await nvRes.json();
-      if (Array.isArray(nvData) && nvData.length > 0) setNv(nvData[0] as Nabovarsel);
-    } catch { /* ignore */ }
+    const nvData = await loadNV();
 
     if (qRes?.ok) {
       try {
@@ -133,32 +138,53 @@ export default function NabovarselPage() {
     }
 
     setLoading(false);
+    return nvData;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteId]);
 
-  useEffect(() => { load(); }, [load]);
-
-  // Fetch from Supabase quote directly
   useEffect(() => {
-    fetch(`/api/admin/nabovarsel?quote_id=${quoteId}`)
-      .then(r => r.json())
-      .then((data: Nabovarsel[]) => {
-        if (data.length > 0) setNv(data[0]);
-      })
-      .catch(() => {});
-  }, [quoteId]);
+    load().then((nvData) => {
+      // Auto-fetch naboer if case has coordinates and no naboer yet
+      if (nvData?.lat && nvData?.lng && nvData.nabovarsel_naboer.length === 0 && !autoFetchedRef.current) {
+        autoFetchedRef.current = true;
+        doFetchNaboer(nvData.lat, nvData.lng);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load]);
 
-  // Also fetch quote coordinates via a simple endpoint
-  useEffect(() => {
-    fetch(`/api/admin/nabovarsel?quote_id=${quoteId}`)
-      .then(r => r.json())
-      .catch(() => {});
-  }, [quoteId]);
-
-  async function loadNV() {
-    const res = await fetch(`/api/admin/nabovarsel?quote_id=${quoteId}`);
-    const data: Nabovarsel[] = await res.json();
-    if (data.length > 0) setNv(data[0]);
+  async function doFetchNaboer(lat: number, lng: number) {
+    setFetchingNaboer(true);
+    setSendResult(null);
+    try {
+      const res = await fetch(`/api/admin/naboer?lat=${lat}&lng=${lng}`);
+      const data = await res.json();
+      const naboer: KartverketNabo[] = data.naboer ?? [];
+      setKartverketNaboer(naboer);
+      setDeselected(new Set()); // all pre-selected
+    } catch {
+      setSendResult("Feil ved henting av naboer fra Kartverket");
+    }
+    setFetchingNaboer(false);
   }
+
+  async function fetchNaboer() {
+    if (!nv?.lat || !nv?.lng) return;
+    autoFetchedRef.current = true;
+    await doFetchNaboer(nv.lat, nv.lng);
+  }
+
+  function toggleNabo(idx: number) {
+    setDeselected(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }
+
+  function selectAll() { setDeselected(new Set()); }
+  function deselectAll() { setDeselected(new Set(nyeNaboer.map((_, i) => i))); }
 
   // Create a nabovarsel case
   async function createNabovarsel() {
@@ -176,36 +202,36 @@ export default function NabovarselPage() {
     });
     if (res.ok) {
       const data: Nabovarsel = await res.json();
-      setNv({ ...data, nabovarsel_naboer: [] });
+      const newNv = { ...data, nabovarsel_naboer: [] };
+      setNv(newNv);
+      // Auto-fetch naboer immediately after creating
+      if (data.lat && data.lng) {
+        autoFetchedRef.current = true;
+        doFetchNaboer(data.lat, data.lng);
+      }
     }
     setCreating(false);
   }
 
-  // Fetch neighbouring properties from Kartverket
-  async function fetchNaboer() {
-    if (!nv?.lat || !nv?.lng) return;
-    setFetchingNaboer(true);
-    setSendResult(null);
-    try {
-      const res = await fetch(`/api/admin/naboer?lat=${nv.lat}&lng=${nv.lng}`);
-      const data = await res.json();
-      setKartverketNaboer(data.naboer ?? []);
-    } catch {
-      setSendResult("Feil ved henting av naboer fra Kartverket");
-    }
-    setFetchingNaboer(false);
-  }
-
-  // Add selected Kartverket-naboer to the nabovarsel case
-  async function addNaboer(selected: KartverketNabo[]) {
+  // Add checked naboer to the nabovarsel case
+  async function addNaboer() {
     if (!nv) return;
+    const selected = nyeNaboer.filter((_, i) => !deselected.has(i));
+    if (selected.length === 0) return;
+    const payload = selected.map(n => ({
+      gnr: n.gnr,
+      bnr: n.bnr,
+      kommunenr: n.kommunenr,
+      eiendom_adresse: n.adresse ?? null,
+    }));
     const res = await fetch(`/api/admin/nabovarsel/${nv.id}/naboer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(selected),
+      body: JSON.stringify(payload),
     });
     if (res.ok) {
       setKartverketNaboer([]);
+      setDeselected(new Set());
       await loadNV();
     }
   }
@@ -294,11 +320,12 @@ export default function NabovarselPage() {
   const sendt = naboer.filter(n => n.status !== "ikke_sendt").length;
   const harSvar = naboer.filter(n => n.status === "ingen_merknad" || n.status === "merknad_mottatt").length;
 
-  // Filter out already-added properties from Kartverket results
-  const existingKeys = new Set(naboer.map(n => `${n.gnr}-${n.bnr}-${n.snr}-${n.fnr}`));
+  // Filter out already-added properties
+  const existingKeys = new Set(naboer.map(n => `${n.gnr}-${n.bnr}-${n.kommunenr}`));
   const nyeNaboer = kartverketNaboer.filter(
-    k => !existingKeys.has(`${k.gnr}-${k.bnr}-${k.snr}-${k.fnr}`),
+    k => !existingKeys.has(`${k.gnr}-${k.bnr}-${k.kommunenr}`),
   );
+  const selectedCount = nyeNaboer.filter((_, i) => !deselected.has(i)).length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -337,7 +364,7 @@ export default function NabovarselPage() {
               Opprett en sak for å starte nabovarslingsprosessen.
               {!quote?.map_lat && (
                 <span className="mt-1 block text-yellow-600">
-                  OBS: Tomteplassering mangler på saken. Gå til sakskortet og sett posisjon på kartet først.
+                  OBS: Tomteplassering mangler. Gå til sakskortet og sett posisjon på kartet først.
                 </span>
               )}
             </p>
@@ -399,58 +426,112 @@ export default function NabovarselPage() {
               </div>
             </div>
 
-            {/* Fetch naboer from Kartverket */}
-            {naboer.length === 0 && (
-              <div className="mb-6 rounded-xl border border-dashed border-orange-300 bg-orange-50 p-6">
-                <h2 className="mb-1 font-semibold text-gray-900">Hent naboeiendommer fra Kartverket</h2>
-                <p className="mb-4 text-sm text-gray-500">
-                  Systemet søker etter tilstøtende eiendommer basert på tomtens posisjon.
-                  Eierinfo (navn og e-post) må legges inn manuelt.
-                </p>
-                <button
-                  onClick={fetchNaboer}
-                  disabled={fetchingNaboer || !nv.lat}
-                  className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
-                >
-                  {fetchingNaboer ? "Henter…" : "Hent naboer fra Kartverket"}
-                </button>
-                {!nv.lat && (
-                  <p className="mt-2 text-xs text-yellow-600">Tomteposisjon mangler — sett markør på kartet i sakskortet.</p>
+            {/* Kartverket naboer — pre-selected, deselect to exclude */}
+            {(nyeNaboer.length > 0 || fetchingNaboer) && (
+              <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+                <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h2 className="font-semibold text-gray-900">
+                      {fetchingNaboer
+                        ? "Henter naboeiendommer fra Kartverket…"
+                        : `${nyeNaboer.length} naboeiendommer funnet`}
+                    </h2>
+                    {!fetchingNaboer && (
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        Alle er forhåndsvalgt. Klikk for å fjerne de du ikke vil varsle.
+                      </p>
+                    )}
+                  </div>
+                  {!fetchingNaboer && nyeNaboer.length > 1 && (
+                    <div className="flex gap-2">
+                      <button onClick={selectAll} className="text-xs text-blue-600 hover:underline">Velg alle</button>
+                      <span className="text-gray-300">|</span>
+                      <button onClick={deselectAll} className="text-xs text-gray-400 hover:underline">Fjern alle</button>
+                    </div>
+                  )}
+                </div>
+
+                {fetchingNaboer ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 animate-pulse py-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <circle cx="12" cy="12" r="10" strokeOpacity="0.2"/>
+                      <path d="M12 2a10 10 0 0 1 10 10"/>
+                    </svg>
+                    Søker etter tilstøtende eiendommer…
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      {nyeNaboer.map((n, i) => {
+                        const checked = !deselected.has(i);
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => toggleNabo(i)}
+                            className={`w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
+                              checked
+                                ? "border-blue-200 bg-white"
+                                : "border-gray-200 bg-gray-50 opacity-50"
+                            }`}
+                          >
+                            <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${
+                              checked ? "border-blue-500 bg-blue-500" : "border-gray-300 bg-white"
+                            }`}>
+                              {checked && (
+                                <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
+                                  <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900">
+                                {n.adresse ?? `Gnr. ${n.gnr} / Bnr. ${n.bnr}`}
+                              </p>
+                              <p className="text-xs text-gray-400">Gnr. {n.gnr} · Bnr. {n.bnr} · {n.kommunenr}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        onClick={addNaboer}
+                        disabled={selectedCount === 0}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40"
+                      >
+                        Legg til valgte ({selectedCount})
+                      </button>
+                      <button
+                        onClick={() => { setKartverketNaboer([]); setDeselected(new Set()); }}
+                        className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                      >
+                        Avbryt
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             )}
 
-            {/* Kartverket results to import */}
-            {nyeNaboer.length > 0 && (
-              <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
-                <h2 className="mb-3 font-semibold text-gray-900">
-                  {nyeNaboer.length} naboeiendom{nyeNaboer.length !== 1 ? "mer" : ""} funnet
-                </h2>
-                <p className="mb-4 text-xs text-gray-500">Velg hvilke som skal legges til. Eierinfo legges inn etterpå.</p>
-                <div className="space-y-2">
-                  {nyeNaboer.map((n, i) => (
-                    <div key={i} className="flex items-center justify-between rounded-lg bg-white px-4 py-3 border border-blue-100">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{n.eiendom_adresse}</p>
-                        <p className="text-xs text-gray-500">Gnr. {n.gnr} Bnr. {n.bnr}{n.snr ? ` Snr. ${n.snr}` : ""} • {n.kommunenr}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex gap-3">
+            {/* Empty state — no naboer yet and nothing fetching */}
+            {naboer.length === 0 && nyeNaboer.length === 0 && !fetchingNaboer && (
+              <div className="mb-6 rounded-xl border border-dashed border-orange-300 bg-orange-50 p-6">
+                <h2 className="mb-1 font-semibold text-gray-900">Ingen naboer lagt til</h2>
+                <p className="mb-4 text-sm text-gray-500">
+                  {nv.lat
+                    ? "Ingen tilstøtende eiendommer ble funnet automatisk. Du kan prøve på nytt, eller legge til manuelt."
+                    : "Tomteposisjon mangler — sett markør på kartet i sakskortet."}
+                </p>
+                {nv.lat && (
                   <button
-                    onClick={() => addNaboer(nyeNaboer)}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    onClick={fetchNaboer}
+                    disabled={fetchingNaboer}
+                    className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
                   >
-                    Legg til alle ({nyeNaboer.length})
+                    Prøv å hente naboer igjen
                   </button>
-                  <button
-                    onClick={() => setKartverketNaboer([])}
-                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
-                  >
-                    Avbryt
-                  </button>
-                </div>
+                )}
               </div>
             )}
 
@@ -464,7 +545,7 @@ export default function NabovarselPage() {
                     disabled={fetchingNaboer}
                     className="text-xs text-orange-500 hover:underline disabled:opacity-50"
                   >
-                    {fetchingNaboer ? "Henter…" : "Oppdater fra Kartverket"}
+                    {fetchingNaboer ? "Henter…" : "Hent flere fra Kartverket"}
                   </button>
                 </div>
                 <div className="space-y-3">
@@ -497,7 +578,6 @@ export default function NabovarselPage() {
                           )}
                         </div>
                         <div className="flex flex-shrink-0 gap-2">
-                          {/* Edit */}
                           <button
                             onClick={() => {
                               setEditNabo(nabo);
@@ -512,7 +592,6 @@ export default function NabovarselPage() {
                           >
                             Rediger
                           </button>
-                          {/* Mark svar */}
                           {(nabo.status === "sendt" || nabo.status === "purring_sendt") && (
                             <button
                               onClick={() => { setAddMerknadId(nabo.id); setMerknadTekst(""); }}
@@ -521,7 +600,6 @@ export default function NabovarselPage() {
                               Svar
                             </button>
                           )}
-                          {/* Delete */}
                           <button
                             onClick={() => deleteNabo(nabo.id)}
                             className="rounded-lg border border-red-100 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
@@ -531,7 +609,6 @@ export default function NabovarselPage() {
                         </div>
                       </div>
 
-                      {/* Merknad input */}
                       {addMerknadId === nabo.id && (
                         <div className="mt-3 border-t border-gray-100 pt-3">
                           <p className="mb-2 text-xs font-medium text-gray-700">Registrer svar fra nabo</p>
