@@ -196,6 +196,19 @@ export default function QuoteDetailPage() {
   const [linkedSoknadshjelp, setLinkedSoknadshjelp] = useState<Record<string, unknown> | null>(null);
   const [activeTab, setActiveTab] = useState<"tilbud" | "soknadshjelp">("tilbud");
 
+  // Tomtegrenser + naboer
+  type GrenseavstandData = {
+    minWallDistance: number;
+    byDirection: Record<string, number>;
+    propertyArea: number;
+    needsDispensasjon: boolean;
+  };
+  type NaboData = { gnr: number; bnr: number; kommunenr: string; adresse?: string; kommunenavn?: string };
+  const [grenseData, setGreseData] = useState<GrenseavstandData | null>(null);
+  const [loadingGrensе, setLoadingGrensе] = useState(false);
+  const [naboerData, setNaboerData] = useState<NaboData[]>([]);
+  const [loadingNaboer, setLoadingNaboer] = useState(false);
+
   // GP Catalog picker
   const [catalogModal, setCatalogModal] = useState<{ sIdx: number } | null>(null);
   const [catalogProducts, setCatalogProducts] = useState<GpProduct[]>([]);
@@ -258,6 +271,26 @@ export default function QuoteDetailPage() {
     const { data: sokData } = await supabase.from("soknadshjelp").select("*").eq("quote_id", id).maybeSingle();
     if (sokData) setLinkedSoknadshjelp(sokData as Record<string, unknown>);
     setLoading(false);
+
+    // Auto-fetch grenseavstand + naboer if garage is placed on map
+    if (data?.map_lat && data?.map_lng) {
+      const q = data as QuoteRow;
+      const params = (q.configuration as { parameters?: Record<string, number> } | null)?.parameters;
+      const bredde = params?.width ? params.width / 1000 : 0;
+      const lengde = params?.length ? params.length / 1000 : 0;
+
+      setLoadingGrensе(true);
+      fetch(`/api/admin/grenseavstand?lat=${q.map_lat}&lng=${q.map_lng}&bredde=${bredde}&lengde=${lengde}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setGreseData(d); })
+        .finally(() => setLoadingGrensе(false));
+
+      setLoadingNaboer(true);
+      fetch(`/api/admin/naboer?lat=${q.map_lat}&lng=${q.map_lng}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.naboer) setNaboerData(d.naboer); })
+        .finally(() => setLoadingNaboer(false));
+    }
   }
 
   const hasUnsavedChanges = JSON.stringify(offerSections) !== JSON.stringify(savedSections);
@@ -1595,6 +1628,78 @@ export default function QuoteDetailPage() {
                 </div>
               );
             })()}
+
+            {/* Tomtegrenser & Naboer */}
+            {(quote.map_lat != null && quote.map_lng != null) && (
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">Tomtegrenser & Naboer</h2>
+
+                {/* Grenseavstand */}
+                {loadingGrensе ? (
+                  <p className="text-xs text-gray-400 animate-pulse">Beregner avstand til grenser...</p>
+                ) : grenseData ? (
+                  <div className="mb-4">
+                    <div className="mb-2 flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-medium text-gray-600">Nærmeste grense:</span>
+                      <span className={`text-sm font-bold ${grenseData.minWallDistance < 1 ? "text-red-600" : grenseData.minWallDistance < 4 ? "text-amber-600" : "text-green-600"}`}>
+                        {grenseData.minWallDistance} m
+                      </span>
+                      {grenseData.needsDispensasjon && (
+                        <span className="rounded bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">Dispensasjon kan kreves (&lt;4 m)</span>
+                      )}
+                      {grenseData.propertyArea > 0 && (
+                        <span className="text-xs text-gray-400">· Tomt: {grenseData.propertyArea.toLocaleString("nb-NO")} m²</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                      {Object.entries(grenseData.byDirection).sort(([a], [b]) => a.localeCompare(b)).map(([dir, dist]) => (
+                        <div key={dir} className={`rounded-lg border px-3 py-2 text-center ${dist < 1 ? "border-red-200 bg-red-50" : dist < 4 ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-gray-50"}`}>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{dir}</p>
+                          <p className={`text-base font-bold mt-0.5 ${dist < 1 ? "text-red-600" : dist < 4 ? "text-amber-600" : "text-gray-800"}`}>{dist} m</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[10px] text-gray-400">Avstand fra garasjeveggen til eiendomsgrense. Rød &lt;1 m · Gul &lt;4 m (dispensasjon) · Grønn OK</p>
+                  </div>
+                ) : (
+                  <p className="mb-3 text-xs text-gray-400 italic">Kunne ikke beregne grenseavstand.</p>
+                )}
+
+                {/* Naboer */}
+                <div className="border-t border-gray-100 pt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-600">
+                      Naboeiendommer {!loadingNaboer && naboerData.length > 0 && `(${naboerData.length})`}
+                    </span>
+                    <Link href={`/admin/quotes/${id}/nabovarsel`}
+                      className="text-xs font-semibold text-orange-600 hover:text-orange-800">
+                      Åpne nabovarsel →
+                    </Link>
+                  </div>
+                  {loadingNaboer ? (
+                    <p className="text-xs text-gray-400 animate-pulse">Henter naboer fra Kartverket...</p>
+                  ) : naboerData.length > 0 ? (
+                    <ul className="space-y-1">
+                      {naboerData.slice(0, 8).map((n, i) => (
+                        <li key={i} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-xs">
+                          <span className="font-medium text-gray-700">
+                            {n.adresse ?? `Gnr. ${n.gnr} / ${n.bnr}`}
+                          </span>
+                          <span className="text-gray-400 font-mono">
+                            {n.gnr}/{n.bnr}
+                          </span>
+                        </li>
+                      ))}
+                      {naboerData.length > 8 && (
+                        <li className="text-[11px] text-gray-400 px-1">+ {naboerData.length - 8} til — se nabovarsel-siden</li>
+                      )}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">Ingen naboer funnet.</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right: offer builder */}
