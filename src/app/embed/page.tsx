@@ -13,6 +13,7 @@ export default function EmbedPage() {
     doorWidthMm: 2500,
     doorHeightMm: 2125,
     buildingType: "garasje",
+    doorColor: "hvit" as "hvit" | "sort",
   });
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function EmbedPage() {
       doorWidthMm: Number(sp.get("doorWidth")  || 2500),
       doorHeightMm:Number(sp.get("doorHeight") || 2125),
       buildingType: sp.get("buildingType")     || "garasje",
+      doorColor:   (sp.get("doorColor")        || "hvit") as "hvit" | "sort",
     });
 
     // Native app sends updates via injectJavaScript calling this function
@@ -41,6 +43,7 @@ export default function EmbedPage() {
         doorWidthMm={config.doorWidthMm}
         doorHeightMm={config.doorHeightMm}
         buildingType={config.buildingType}
+        doorColor={config.doorColor}
         addedElements={[]}
       />
     </div>
