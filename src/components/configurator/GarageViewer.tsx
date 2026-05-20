@@ -12,6 +12,7 @@ import { computePortOffset } from "./DoorWindowAdder";
 useGLTF.preload("/Vindu_100x50glb.glb");
 useGLTF.preload("/Carport_GLB.glb");
 useGLTF.preload("/Garasje_Flatt_tak.glb");
+useGLTF.preload("/Garasje_saltak1.glb");
 useGLTF.preload("/Garasjeport_2500x2125.glb");
 
 interface GarageViewerProps {
@@ -300,7 +301,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
 }) {
   const modelUrl = buildingType === "carport"
     ? "/Carport_GLB.glb"
-    : roofType === "flattak" ? "/Garasje_Flatt_tak.glb" : "/garasje_saltak.glb";
+    : roofType === "flattak" ? "/Garasje_Flatt_tak.glb" : "/Garasje_saltak1.glb";
   const { scene: rawScene } = useGLTF(modelUrl);
 
   const { scene, sizeX, sizeZ, cx, cz, minY } = useMemo(() => {
