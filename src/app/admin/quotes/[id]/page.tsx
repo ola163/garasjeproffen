@@ -195,6 +195,7 @@ export default function QuoteDetailPage() {
   const [addingComment, setAddingComment] = useState(false);
   const [linkedSoknadshjelp, setLinkedSoknadshjelp] = useState<Record<string, unknown> | null>(null);
   const [activeTab, setActiveTab] = useState<"tilbud" | "soknadshjelp">("tilbud");
+  const [tegningPriser, setTegningPriser] = useState({ kun_garasje: 5000, med_eksisterende: 10000, situasjonsplan: 1500 });
 
   // Tomtegrenser + naboer
   type GrenseavstandData = {
@@ -270,6 +271,16 @@ export default function QuoteDetailPage() {
     // Load linked soknadshjelp if any
     const { data: sokData } = await supabase.from("soknadshjelp").select("*").eq("quote_id", id).maybeSingle();
     if (sokData) setLinkedSoknadshjelp(sokData as Record<string, unknown>);
+    // Fetch configurable drawing prices
+    fetch("/api/admin/soknadshjelp-priser").then(r => r.json()).then((rows: { key: string; price: number }[]) => {
+      const m: Record<string, number> = {};
+      for (const row of rows) m[row.key] = row.price;
+      setTegningPriser({
+        kun_garasje: m["tegning_kun_garasje"] ?? 5000,
+        med_eksisterende: m["tegning_med_eksisterende"] ?? 10000,
+        situasjonsplan: m["tegning_situasjonsplan"] ?? 1500,
+      });
+    }).catch(() => {});
     setLoading(false);
 
     // Auto-fetch grenseavstand + naboer if garage is placed on map
@@ -511,6 +522,25 @@ export default function QuoteDetailPage() {
 
   function updateSectionNotes(sIdx: number, notes: string) {
     setOfferSections((prev) => prev.map((s, i) => i === sIdx ? { ...s, notes } : s));
+  }
+
+  function updateSectionInternalNotes(sIdx: number, internal_notes: string) {
+    setOfferSections((prev) => prev.map((s, i) => i === sIdx ? { ...s, internal_notes } : s));
+  }
+
+  const TEGNING_OPTIONS = [
+    { key: "kun_garasje",      label: "Kun garasjen",                      description: "Fasade-, plan- og snittegning av ny garasje" },
+    { key: "med_eksisterende", label: "Garasje + eksisterende bebyggelse",  description: "Inkluderer alle bygg på tomten" },
+    { key: "situasjonsplan",   label: "Situasjonsplan",                     description: "Kart med tomtegrenser og naboavstand" },
+  ] as const;
+
+  function toggleTegningItem(sIdx: number, label: string, price: number) {
+    setOfferSections(prev => prev.map((s, i) => {
+      if (i !== sIdx) return s;
+      const exists = s.line_items.some(item => item.description === label);
+      if (exists) return { ...s, line_items: s.line_items.filter(item => item.description !== label) };
+      return { ...s, line_items: [...s.line_items, { description: label, amount: price, quantity: 1 }] };
+    }));
   }
 
   function updateSectionField(sIdx: number, field: keyof OfferSection, value: unknown) {
@@ -1817,6 +1847,38 @@ export default function QuoteDetailPage() {
                     </div>
 
                     <div className="p-3 space-y-2">
+                      {/* Tegninger til søknaden — quick-picker for søknadshjelp sections */}
+                      {section.category === "søknadshjelp" && (
+                        <div className="mb-1 rounded-lg border border-teal-200 bg-teal-50 p-3">
+                          <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wide mb-2">Tegninger til søknaden</p>
+                          <div className="space-y-1.5">
+                            {TEGNING_OPTIONS.map(opt => {
+                              const price = tegningPriser[opt.key];
+                              const isActive = section.line_items.some(item => item.description === opt.label);
+                              return (
+                                <div
+                                  key={opt.key}
+                                  onClick={() => toggleTegningItem(sIdx, opt.label, price)}
+                                  className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer select-none transition-colors ${isActive ? "border-teal-400 bg-white shadow-sm" : "border-dashed border-teal-200 hover:border-teal-300 hover:bg-teal-50"}`}
+                                >
+                                  <div className={`h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${isActive ? "border-teal-500 bg-teal-500" : "border-teal-300 bg-white"}`}>
+                                    {isActive && (
+                                      <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-gray-800">{opt.label}</p>
+                                    <p className="text-[10px] text-gray-500">{opt.description}</p>
+                                  </div>
+                                  <span className="text-xs font-bold text-teal-700 shrink-0 whitespace-nowrap">{new Intl.NumberFormat("nb-NO").format(price)} kr</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       {/* Inherited Søknadshjelp items (Materialpakke and Prefabelement) */}
                       {sokItems.length > 0 && (
                         <div className="mb-2 rounded-lg bg-green-50 border border-green-100 p-2">
@@ -2215,10 +2277,22 @@ export default function QuoteDetailPage() {
                       </div>
 
                       {/* Section notes */}
-                      <textarea rows={2} value={section.notes}
-                        onChange={(e) => updateSectionNotes(sIdx, e.target.value)}
-                        placeholder="Notat for denne kategorien (valgfritt)…"
-                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                      <div className="space-y-1.5">
+                        <div>
+                          <p className="text-[10px] text-gray-400 mb-1">Notat til kunde (vises på tilbud)</p>
+                          <textarea rows={2} value={section.notes}
+                            onChange={(e) => updateSectionNotes(sIdx, e.target.value)}
+                            placeholder="Notat som vises på tilbudet til kunden…"
+                            className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-red-400 mb-1">Internt notat (kun for oss)</p>
+                          <textarea rows={2} value={section.internal_notes ?? ""}
+                            onChange={(e) => updateSectionInternalNotes(sIdx, e.target.value)}
+                            placeholder="Internt notat — vises ikke på tilbudet…"
+                            className="w-full rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-sm text-red-700 placeholder:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300" />
+                        </div>
+                      </div>
 
                       {/* Section subtotal */}
                       <div className="border-t border-gray-100 pt-2 space-y-0.5">

@@ -18,6 +18,7 @@ export interface OfferSection {
   category: string;
   line_items: LineItem[];
   notes: string;
+  internal_notes?: string;
   rabatt_value?: number;
   rabatt_type?: "kr" | "pst";
   rabatt_description?: string;
