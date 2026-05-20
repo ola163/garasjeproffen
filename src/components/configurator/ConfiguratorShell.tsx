@@ -923,7 +923,6 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bredde på garasjeport
-                  <span className="block text-xs font-normal text-gray-500 mt-0.5">Inkl. portåpner og montering</span>
                 </label>
                 {validDoorWidthOptions.length === 0 ? (
                   <p className="text-xs text-red-500">
@@ -943,6 +942,9 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                       </option>
                     ))}
                   </select>
+                )}
+                {validDoorWidthOptions.length > 0 && (
+                  <p className="mt-1.5 text-xs text-gray-500">Inkl. motor og montering</p>
                 )}
               </div>
 
