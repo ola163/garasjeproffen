@@ -1200,13 +1200,14 @@ export default function SoknadshjelDetailPage() {
                 {saveOk && !hasChanges && <span className="text-xs font-medium text-green-600">Lagret ✓</span>}
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={handleDownloadPdf}
-                  disabled={downloadingPdf}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                <a
+                  href={`/admin/soknadshjelp/${id}/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                 >
-                  {downloadingPdf ? "Genererer…" : "PDF"}
-                </button>
+                  PDF
+                </a>
                 <button
                   onClick={handleSave}
                   disabled={saving || !hasChanges || isPendingApproval}
