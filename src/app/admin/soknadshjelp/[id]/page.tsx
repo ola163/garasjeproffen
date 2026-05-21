@@ -145,6 +145,7 @@ export default function SoknadshjelDetailPage() {
   const [sendingApproval, setSendingApproval] = useState(false);
   const [approvalSent, setApprovalSent] = useState(false);
   const [approvingCase, setApprovingCase] = useState(false);
+  const [emailSendResult, setEmailSendResult] = useState<{ success: boolean; message: string } | null>(null);
   const [returComment, setReturComment] = useState("");
   const [returningCase, setReturningCase] = useState(false);
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
@@ -467,10 +468,11 @@ export default function SoknadshjelDetailPage() {
   async function handleApprove() {
     if (!supabase || !row || !user) return;
     setApprovingCase(true);
+    setEmailSendResult(null);
     const old = status;
     const total = (row.permit_price ?? 0)
-      + (row.extra_costs as { amount: number }[] ?? []).reduce((s, c) => s + c.amount, 0)
-      + (row.manual_dispensasjoner as { amount: number }[] ?? []).reduce((s, d) => s + d.amount, 0);
+      + extraCosts.reduce((s, c) => s + c.amount, 0)
+      + manualDisps.reduce((s, d) => s + d.amount, 0);
 
     await supabase.from("soknadshjelp").update({
       status: "offer_sent",
@@ -488,19 +490,35 @@ export default function SoknadshjelDetailPage() {
     setStatus("offer_sent");
     setRow((prev) => prev ? { ...prev, status: "offer_sent", approval_requested_from: null, approval_requested_at: null } : null);
 
-    await fetch("/api/admin/soknadshjelp-approved", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        adminEmail: user.email,
-        customerEmail: row.customer_email,
-        customerName: row.customer_name,
-        ticketNumber: row.ticket_number,
-        address: row.address,
-        totalPrice: total,
-        soknadshjelId: row.id,
-      }),
-    });
+    if (!row.customer_email) {
+      setEmailSendResult({ success: false, message: "Kunde mangler e-postadresse – e-post ikke sendt." });
+      setApprovingCase(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/soknadshjelp-approved", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminEmail: user.email,
+          customerEmail: row.customer_email,
+          customerName: row.customer_name,
+          ticketNumber: row.ticket_number,
+          address: row.address,
+          totalPrice: total,
+          soknadshjelId: row.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEmailSendResult({ success: true, message: `E-post sendt til ${row.customer_email}` });
+      } else {
+        setEmailSendResult({ success: false, message: data.error ?? "Noe gikk galt ved sending av e-post." });
+      }
+    } catch {
+      setEmailSendResult({ success: false, message: "Nettverksfeil – e-post ikke sendt." });
+    }
 
     setApprovingCase(false);
   }
@@ -930,6 +948,11 @@ export default function SoknadshjelDetailPage() {
                     >
                       {approvingCase ? "Sender…" : "Godkjenn og send til kunde"}
                     </button>
+                    {emailSendResult && (
+                      <p className={`text-xs font-medium ${emailSendResult.success ? "text-green-700" : "text-red-600"}`}>
+                        {emailSendResult.success ? "✓ " : "✗ "}{emailSendResult.message}
+                      </p>
+                    )}
                     <div className="flex gap-2">
                       <input
                         type="text"
