@@ -195,7 +195,16 @@ export default function SoknadshjelDetailPage() {
         setStatus(data.status ?? "new");
         setAssignedTo(data.assigned_to ?? "");
         setLeadSource(data.lead_source ?? "");
-        setLocalDibk((data.dibk as Record<string, string>) ?? {});
+        // Parse dibk: extract embedded reasons (keys ending with ~)
+        const fullDibk = (data.dibk as Record<string, string>) ?? {};
+        const cleanDibkValues: Record<string, string> = {};
+        const embeddedReasons: Record<string, string> = {};
+        for (const [k, v] of Object.entries(fullDibk)) {
+          if (k.endsWith("~")) embeddedReasons[k.slice(0, -1)] = v;
+          else cleanDibkValues[k] = v;
+        }
+        setLocalDibk(cleanDibkValues);
+        if (Object.keys(embeddedReasons).length > 0) setLocalDibkReasons(embeddedReasons);
         // admin_dibk_comments: prefer DB column if it exists, else reconstruct from activity_log
         const dbComments = (data.admin_dibk_comments as Record<string, string> | null);
         if (dbComments && Object.keys(dbComments).length > 0) {
@@ -204,15 +213,13 @@ export default function SoknadshjelDetailPage() {
         setExtraCosts(data.extra_costs ?? []);
         const md = data.manual_dispensasjoner ?? [];
         setManualDisps(md);
-        const dibkCount = data.dibk
-          ? Object.entries(data.dibk as Record<string, string>).filter(([k, v]) => isDispensasjon(k, v)).length
-          : 0;
+        const dibkCount = Object.entries(cleanDibkValues).filter(([k, v]) => isDispensasjon(k, v)).length;
         setNewDispAmount(dibkCount > 0 || md.length > 0 ? "2000" : "8000");
       }
       if (actData) {
         setActivityLog(actData as ActivityEntry[]);
         const rebuiltComments: Record<string, string> = {};
-        const rebuiltReasons: Record<string, string> = {};
+        const actLogReasons: Record<string, string> = {};
         for (const e of (actData as ActivityEntry[])) {
           if (e.action_type === "dibk_admin_comment") {
             const p = e.payload as { key?: string; comment?: string };
@@ -220,11 +227,12 @@ export default function SoknadshjelDetailPage() {
           }
           if (e.action_type === "dibk_edit") {
             const p = e.payload as { key?: string; reason?: string };
-            if (p.key && p.reason && !(p.key in rebuiltReasons)) rebuiltReasons[p.key] = p.reason;
+            if (p.key && p.reason && !(p.key in actLogReasons)) actLogReasons[p.key] = p.reason;
           }
         }
         if (Object.keys(rebuiltComments).length > 0) setDibkAdminComments(rebuiltComments);
-        if (Object.keys(rebuiltReasons).length > 0) setLocalDibkReasons(rebuiltReasons);
+        // activityLog reasons are only a fallback — dibk-embedded reasons (set above) take priority
+        if (Object.keys(actLogReasons).length > 0) setLocalDibkReasons(prev => ({ ...actLogReasons, ...prev }));
       }
 
       // Merge DB records + any orphaned storage files (DB row missing)
@@ -530,7 +538,9 @@ export default function SoknadshjelDetailPage() {
     try {
       const newTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
-      const origDibk = row.dibk ?? {};
+      const origDibk = Object.fromEntries(
+        Object.entries(row.dibk ?? {}).filter(([k]) => !k.endsWith("~"))
+      );
       const dibkChanges: { key: string; field: string; old_value: string; new_value: string; reason?: string }[] = [];
       Object.entries(localDibk).forEach(([k, v]) => {
         if (origDibk[k] !== v) {
@@ -539,11 +549,16 @@ export default function SoknadshjelDetailPage() {
         }
       });
 
+      const dibkForSave: Record<string, string> = { ...localDibk };
+      for (const [k, v] of Object.entries(localDibkReasons)) {
+        if (v.trim()) dibkForSave[`${k}~`] = v.trim();
+      }
+
       const { error: mainErr } = await supabase.from("soknadshjelp").update({
         extra_costs: extraCosts,
         manual_dispensasjoner: manualDisps,
         total_price: newTotal,
-        dibk: localDibk,
+        dibk: dibkForSave,
       }).eq("id", row.id);
       if (mainErr) console.error("Main save failed:", mainErr);
 
@@ -579,7 +594,7 @@ export default function SoknadshjelDetailPage() {
       }
 
       const savedComments = Object.fromEntries(commentEntries) as Record<string, string>;
-      setRow((prev) => prev ? { ...prev, dibk: localDibk, admin_dibk_comments: Object.keys(savedComments).length > 0 ? savedComments : null } : null);
+      setRow((prev) => prev ? { ...prev, dibk: dibkForSave, admin_dibk_comments: Object.keys(savedComments).length > 0 ? savedComments : null } : null);
       setSaveOk(true);
       setTimeout(() => setSaveOk(false), 2500);
     } catch (err) {

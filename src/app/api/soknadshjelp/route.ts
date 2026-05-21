@@ -31,6 +31,7 @@ export async function POST(request: Request) {
 
       const dibkRows = dibk
         ? Object.entries(dibk as Record<string, string>)
+            .filter(([k]) => !k.endsWith("~"))
             .map(([k, v]) => `<tr><td><strong>${esc(k)}:</strong></td><td>${esc(v) || "–"}</td></tr>`)
             .join("")
         : "";
