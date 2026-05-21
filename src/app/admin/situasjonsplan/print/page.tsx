@@ -565,6 +565,30 @@ function drawTitleBlock(
   drawNorthArrow(ctx, col3CenterX, y + H - 55, 34);
 }
 
+function drawWatermark(ctx: CanvasRenderingContext2D) {
+  ctx.save();
+  const cx = CANVAS_W / 2;
+  const cy = CANVAS_H / 2;
+  const diagLen = Math.hypot(CANVAS_W, CANVAS_H);
+  const angle   = -Math.atan2(CANVAS_H, CANVAS_W);
+
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  const testSize = 300;
+  ctx.font = `bold ${testSize}px sans-serif`;
+  const tw    = ctx.measureText("GarasjeProffen").width;
+  const scale = (diagLen * 0.88) / tw;
+  ctx.scale(scale, scale);
+
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle   = "#1e293b";
+  ctx.textAlign   = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("GarasjeProffen", 0, 0);
+  ctx.restore();
+}
+
 // ── Manual drawing types + helpers ──
 type DrawPoint = { x: number; y: number };
 type DrawItem =
@@ -744,6 +768,7 @@ function PrintContent() {
 
   // Drawing state
   const [drawItems,      setDrawItems]      = useState<DrawItem[]>([]);
+  const [showWatermark,  setShowWatermark]  = useState(false);
   const [activeTool,     setActiveTool]     = useState<"line" | "arrow" | null>(null);
   const [currentPts,     setCurrentPts]     = useState<DrawPoint[]>([]);
   const [mousePos,       setMousePos]       = useState<DrawPoint | null>(null);
@@ -766,7 +791,7 @@ function PrintContent() {
     : `/admin/situasjonsplan?lat=${lat}&lng=${lng}&rotation=${rotation}&widthMm=${widthMm}&lengthMm=${lengthMm}&roofType=${roofType}&buildingType=${buildingType}${address ? `&address=${encodeURIComponent(address)}` : ""}`;
 
   // Re-draw overlays on top of saved base image
-  const applyOverlays = useCallback((items: DrawItem[]) => {
+  const applyOverlays = useCallback((items: DrawItem[], watermark: boolean) => {
     if (!canvasRef.current || !baseImgRef.current) return;
     const ctx = canvasRef.current.getContext("2d")!;
     ctx.putImageData(baseImgRef.current, 0, 0);
@@ -774,11 +799,12 @@ function PrintContent() {
       if (item.type === "line") drawManualLine(ctx, item.pts);
       else drawEntryArrow(ctx, item.x, item.y, item.angleDeg);
     }
+    if (watermark) drawWatermark(ctx);
   }, []);
 
   useEffect(() => {
-    applyOverlays(drawItems);
-  }, [drawItems, applyOverlays]);
+    applyOverlays(drawItems, showWatermark);
+  }, [drawItems, showWatermark, applyOverlays]);
 
   // ESC cancels active tool
   useEffect(() => {
@@ -922,6 +948,21 @@ function PrintContent() {
                 >
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/><polyline points="5 12 12 5 19 12"/></svg>
                   Inn/Ut symbol
+                </button>
+                <button
+                  onClick={() => setShowWatermark(w => !w)}
+                  className={`flex items-center gap-1 rounded-lg border text-xs font-medium px-2.5 py-1.5 transition-colors ${
+                    showWatermark
+                      ? "border-orange-400 bg-orange-50 text-orange-600 hover:bg-orange-100"
+                      : "border-gray-200 text-gray-600 hover:border-slate-400 hover:bg-slate-50"
+                  }`}
+                  title="Legg til diagonalt vannmerke over hele situasjonsplanen"
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M3 3l18 18M7 4h10M4 8h16M4 16h16M7 20h10" opacity="0.5"/>
+                    <text x="4" y="17" fontSize="9" fontWeight="bold" fill="currentColor" stroke="none" opacity="0.7">GP</text>
+                  </svg>
+                  {showWatermark ? "Fjern vannmerke" : "Vannmerke"}
                 </button>
                 {drawItems.length > 0 && (
                   <button
