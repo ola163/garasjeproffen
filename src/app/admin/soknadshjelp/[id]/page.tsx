@@ -622,12 +622,16 @@ export default function SoknadshjelDetailPage() {
     !dibkReasonsMissing;
 
   const manuallyChangedKeys = new Set<string>();
+  const activityLogReasons: Record<string, string> = {};
   activityLog
     .filter((e) => e.action_type === "dibk_edit")
     .forEach((e) => {
-      const p = e.payload as { key?: string; field?: string };
+      const p = e.payload as { key?: string; field?: string; reason?: string };
       const resolvedKey = p.key ?? Object.entries(DIBK_LABELS).find(([, label]) => label === p.field)?.[0];
-      if (resolvedKey) manuallyChangedKeys.add(resolvedKey);
+      if (resolvedKey) {
+        manuallyChangedKeys.add(resolvedKey);
+        if (p.reason && !(resolvedKey in activityLogReasons)) activityLogReasons[resolvedKey] = p.reason;
+      }
     });
 
   const totalDispCount = dibkDispCount + manualDisps.length;
@@ -838,7 +842,7 @@ export default function SoknadshjelDetailPage() {
                           />
                         ) : (
                           <p className="mt-1.5 rounded border border-blue-100 bg-blue-50 px-2 py-1 text-xs text-blue-700">
-                            <span className="font-semibold">Grunn:</span> {localDibkReasons[k] || "–"}
+                            <span className="font-semibold">Grunn:</span> {localDibkReasons[k] || activityLogReasons[k] || "–"}
                           </p>
                         )
                       )}
