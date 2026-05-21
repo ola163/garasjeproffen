@@ -26,7 +26,9 @@ export default async function SoknadshjelPdfPage({ params }: { params: Promise<{
     .single();
   if (!data) notFound();
 
-  const extraCosts = (data.extra_costs as { description: string; amount: number }[]) ?? [];
+  const allExtraCosts = (data.extra_costs as { description: string; amount: number }[]) ?? [];
+  const extraCosts = allExtraCosts.filter(c => c.amount >= 0);
+  const rabatter   = allExtraCosts.filter(c => c.amount < 0);
   const manualDisps = (data.manual_dispensasjoner as { description: string; amount: number }[]) ?? [];
 
   const DISP_KEYS = ["frittstående", "bya50", "enEtasje", "monehoyde", "nabogrense", "avstandBygg", "ikkeVernet", "ikkeFlom"];
@@ -35,7 +37,7 @@ export default async function SoknadshjelPdfPage({ params }: { params: Promise<{
     k === "lnf" ? v === "Ja" : DISP_KEYS.includes(k) && v === "Nei"
   ).length;
   const permitPrice = (data.permit_price as number) ?? 0;
-  const grandTotal = permitPrice + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
+  const grandTotal = permitPrice + manualDisps.reduce((s, d) => s + d.amount, 0) + allExtraCosts.reduce((s, c) => s + c.amount, 0);
   const today = formatDate(new Date().toISOString());
 
   return (
@@ -74,6 +76,8 @@ export default async function SoknadshjelPdfPage({ params }: { params: Promise<{
         .total-row { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 10pt; }
         .total-row.grand { background: #e2520a; color: white; font-size: 13pt; font-weight: 800; padding: 12px 16px; }
         .doc-footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #e0ddd8; display: flex; justify-content: space-between; font-size: 8pt; color: #888; }
+        .section-header-green { background: #16a34a; color: white; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; padding: 6px 12px; border-radius: 4px 4px 0 0; }
+        td.green { color: #16a34a; text-align: right; white-space: nowrap; font-weight: 600; }
       `}</style>
 
       <div className="page">
@@ -187,6 +191,31 @@ export default async function SoknadshjelPdfPage({ params }: { params: Promise<{
                     <td>{c.description}</td>
                     <td className="right">{nok(exclMva(c.amount))}</td>
                     <td className="right">{nok(c.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Rabatter */}
+        {rabatter.length > 0 && (
+          <div className="section">
+            <div className="section-header-green">Rabatter</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Beskrivelse</th>
+                  <th className="right" style={{ width: 110 }}>Ekskl. MVA</th>
+                  <th className="right" style={{ width: 110 }}>Inkl. MVA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rabatter.map((c, i) => (
+                  <tr key={i}>
+                    <td>{c.description}</td>
+                    <td className="green">− {nok(exclMva(Math.abs(c.amount)))}</td>
+                    <td className="green">− {nok(Math.abs(c.amount))}</td>
                   </tr>
                 ))}
               </tbody>

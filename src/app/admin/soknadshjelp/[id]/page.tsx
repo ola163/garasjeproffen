@@ -127,8 +127,12 @@ export default function SoknadshjelDetailPage() {
 
   // Extra costs
   const [extraCosts, setExtraCosts] = useState<ExtraCost[]>([]);
+  const [localPermitPrice, setLocalPermitPrice] = useState<number | null>(null);
   const [newCostDesc, setNewCostDesc] = useState("");
   const [newCostAmount, setNewCostAmount] = useState("");
+  const [newRabattDesc, setNewRabattDesc] = useState("");
+  const [newRabattAmount, setNewRabattAmount] = useState("");
+  const [newRabattType, setNewRabattType] = useState<"kr" | "pst">("kr");
 
   // Manual dispensasjoner
   const [manualDisps, setManualDisps] = useState<ManualDisp[]>([]);
@@ -208,6 +212,7 @@ export default function SoknadshjelDetailPage() {
     ]).then(([{ data }, { data: actData }, { data: attData }, { data: storageFiles }]) => {
       if (data) {
         setRow(data as SoknadshjelRow);
+        setLocalPermitPrice(data.permit_price ?? null);
         setNotes(data.notes ?? "");
         setCustomerNotes(data.customer_notes ?? "");
         setTilbudsbeskrivelse(data.tilbudsbeskrivelse ?? "");
@@ -270,6 +275,19 @@ export default function SoknadshjelDetailPage() {
       setLoading(false);
     });
   }, [user, id]);
+
+  // Auto-calculate permit_price from DIBK dispensasjon count + price list
+  useEffect(() => {
+    if (allPriser.length === 0) return;
+    const dispCount = Object.entries(localDibk).filter(([k, v]) => isDispensasjon(k, v)).length;
+    const tegningBase    = allPriser.find(p => p.key === "tegning")?.price           ?? 12500;
+    const disp1Price     = allPriser.find(p => p.key === "dispensasjon_1")?.price    ?? 8000;
+    const dispExtraPrice = allPriser.find(p => p.key === "dispensasjon_ekstra")?.price ?? 2000;
+    let price = tegningBase;
+    if (dispCount >= 1) price += disp1Price;
+    if (dispCount > 1)  price += (dispCount - 1) * dispExtraPrice;
+    setLocalPermitPrice(price);
+  }, [localDibk, allPriser]);
 
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
@@ -335,6 +353,26 @@ export default function SoknadshjelDetailPage() {
 
   function removeExtraCost(i: number) {
     setExtraCosts((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function addRabatt() {
+    const val = parseFloat(newRabattAmount.replace(/\s/g, "").replace(",", "."));
+    if (!newRabattDesc.trim() || isNaN(val) || val <= 0) return;
+    let amount: number;
+    if (newRabattType === "pst") {
+      const base = (localPermitPrice ?? row?.permit_price ?? 0)
+        + manualDisps.reduce((s, d) => s + d.amount, 0)
+        + extraCosts.filter(c => c.amount > 0).reduce((s, c) => s + c.amount, 0);
+      amount = -Math.round(base * val / 100);
+    } else {
+      amount = -val;
+    }
+    const desc = newRabattType === "pst"
+      ? `${newRabattDesc.trim()} (${val}%)`
+      : newRabattDesc.trim();
+    setExtraCosts((prev) => [...prev, { description: desc, amount }]);
+    setNewRabattDesc("");
+    setNewRabattAmount("");
   }
 
   function toggleTegningCost(label: string, price: number) {
@@ -459,7 +497,7 @@ export default function SoknadshjelDetailPage() {
         customerPhone: row.customer_phone,
         address: row.address,
         totalPrice: computedTotal,
-        permitPrice: row.permit_price ?? 0,
+        permitPrice: localPermitPrice ?? row.permit_price ?? 0,
         permitResult: row.permit_result,
         extraCosts,
         manualDisps,
@@ -480,7 +518,7 @@ export default function SoknadshjelDetailPage() {
     setApprovingCase(true);
     setEmailSendResult(null);
     const old = status;
-    const total = (row.permit_price ?? 0)
+    const total = (localPermitPrice ?? row.permit_price ?? 0)
       + extraCosts.reduce((s, c) => s + c.amount, 0)
       + manualDisps.reduce((s, d) => s + d.amount, 0);
 
@@ -772,7 +810,7 @@ export default function SoknadshjelDetailPage() {
     if (!supabase || !row) return;
     setSaving(true);
     try {
-      const newTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
+      const newTotal = (localPermitPrice ?? row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
       const origDibk = Object.fromEntries(
         Object.entries(row.dibk ?? {}).filter(([k]) => !k.endsWith("~"))
@@ -793,6 +831,7 @@ export default function SoknadshjelDetailPage() {
       const { error: mainErr } = await supabase.from("soknadshjelp").update({
         extra_costs: extraCosts,
         manual_dispensasjoner: manualDisps,
+        permit_price: localPermitPrice,
         total_price: newTotal,
         dibk: dibkForSave,
       }).eq("id", row.id);
@@ -830,7 +869,7 @@ export default function SoknadshjelDetailPage() {
       }
 
       const savedComments = Object.fromEntries(commentEntries) as Record<string, string>;
-      setRow((prev) => prev ? { ...prev, dibk: dibkForSave, extra_costs: extraCosts, manual_dispensasjoner: manualDisps, admin_dibk_comments: Object.keys(savedComments).length > 0 ? savedComments : null } : null);
+      setRow((prev) => prev ? { ...prev, dibk: dibkForSave, extra_costs: extraCosts, manual_dispensasjoner: manualDisps, permit_price: localPermitPrice, admin_dibk_comments: Object.keys(savedComments).length > 0 ? savedComments : null } : null);
       hasUnsavedChangesRef.current = false;
       setSaveOk(true);
       setTimeout(() => setSaveOk(false), 2500);
@@ -867,12 +906,14 @@ export default function SoknadshjelDetailPage() {
     (changedDibkKeys.length > 0 ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
     JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? []) ||
+    localPermitPrice !== (row.permit_price ?? null) ||
     commentsChanged) &&
     !dibkReasonsMissing;
   const hasUnsavedChanges =
     changedDibkKeys.length > 0 ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
     JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? []) ||
+    localPermitPrice !== (row.permit_price ?? null) ||
     commentsChanged;
   hasUnsavedChangesRef.current = hasUnsavedChanges;
 
@@ -891,7 +932,7 @@ export default function SoknadshjelDetailPage() {
 
   const isPendingApproval = status === "pending_approval";
   const totalDispCount = dibkDispCount + manualDisps.length;
-  const computedTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
+  const computedTotal = (localPermitPrice ?? row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1283,7 +1324,7 @@ export default function SoknadshjelDetailPage() {
                       Søknadshjelp
                       {dibkDispCount > 0 && <span className="ml-1.5 text-xs text-gray-400">(inkl. {dibkDispCount} DIBK-disp.)</span>}
                     </span>
-                    <span className="text-sm font-semibold text-gray-900">{row.permit_price != null ? fmt(row.permit_price) : "–"}</span>
+                    <span className="text-sm font-semibold text-gray-900">{localPermitPrice != null ? fmt(localPermitPrice) : "–"}</span>
                   </div>
                 </div>
               </div>
@@ -1384,10 +1425,10 @@ export default function SoknadshjelDetailPage() {
                     </div>
                   </div>
 
-                  {/* Other extra costs */}
-                  {extraCosts.filter(c => !TEGNING_LABELS.has(c.description)).length > 0 && (
+                  {/* Other extra costs (positive only) */}
+                  {extraCosts.filter(c => !TEGNING_LABELS.has(c.description) && c.amount > 0).length > 0 && (
                     <div className="divide-y divide-gray-100 border-t border-gray-100 pt-1">
-                      {extraCosts.filter(c => !TEGNING_LABELS.has(c.description)).map((c) => (
+                      {extraCosts.filter(c => !TEGNING_LABELS.has(c.description) && c.amount > 0).map((c) => (
                         <div key={c.description} className="flex items-center justify-between py-2">
                           <span className="text-sm text-gray-700">{c.description}</span>
                           <div className="flex items-center gap-2">
@@ -1423,6 +1464,74 @@ export default function SoknadshjelDetailPage() {
                       </div>
                       <button onClick={addExtraCost} disabled={!newCostDesc.trim() || !newCostAmount}
                         className="rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40">
+                        + Legg til
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* RABATTER SECTION */}
+              <div className="overflow-hidden rounded-lg border border-green-200">
+                <div className="flex items-center justify-between bg-green-600 px-3 py-2">
+                  <span className="text-xs font-bold uppercase tracking-wide text-white">Rabatter</span>
+                  {extraCosts.filter(c => c.amount < 0).length > 0 && (
+                    <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold text-white">
+                      {fmt(Math.abs(extraCosts.filter(c => c.amount < 0).reduce((s, c) => s + c.amount, 0)))} rabatt
+                    </span>
+                  )}
+                </div>
+                <div className="bg-white px-3 py-2">
+                  {extraCosts.filter(c => c.amount < 0).length > 0 && (
+                    <div className="mb-2 divide-y divide-gray-100">
+                      {extraCosts.filter(c => c.amount < 0).map((c) => (
+                        <div key={c.description + c.amount} className="flex items-center justify-between py-2">
+                          <span className="text-sm text-gray-700">{c.description}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-green-600">− {fmt(Math.abs(c.amount))}</span>
+                            <button onClick={() => removeExtraCost(extraCosts.indexOf(c))} disabled={isPendingApproval} className="text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed">
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!isPendingApproval && (
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="text"
+                        placeholder="Beskrivelse"
+                        value={newRabattDesc}
+                        onChange={(e) => setNewRabattDesc(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && addRabatt()}
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                      />
+                      <div className="relative">
+                        <input
+                          type="number"
+                          placeholder="Beløp"
+                          value={newRabattAmount}
+                          onChange={(e) => setNewRabattAmount(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && addRabatt()}
+                          className="w-20 rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                        />
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                          {newRabattType === "pst" ? "%" : "kr"}
+                        </span>
+                      </div>
+                      <div className="flex overflow-hidden rounded-lg border border-gray-200 text-xs font-medium">
+                        <button
+                          onClick={() => setNewRabattType("kr")}
+                          className={`px-2.5 py-1.5 transition-colors ${newRabattType === "kr" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                        >kr</button>
+                        <button
+                          onClick={() => setNewRabattType("pst")}
+                          className={`px-2.5 py-1.5 transition-colors ${newRabattType === "pst" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                        >%</button>
+                      </div>
+                      <button onClick={addRabatt} disabled={!newRabattDesc.trim() || !newRabattAmount}
+                        className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-40">
                         + Legg til
                       </button>
                     </div>
