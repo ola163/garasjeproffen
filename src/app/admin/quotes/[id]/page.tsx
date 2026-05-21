@@ -162,6 +162,8 @@ export default function QuoteDetailPage() {
   const [offerValidUntil, setOfferValidUntil] = useState<string>(() => {
     const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().slice(0, 10);
   });
+  const [tilbudsbeskrivelse, setTilbudsbeskrivelse] = useState("");
+  const [savingTilbud, setSavingTilbud] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
@@ -255,6 +257,7 @@ export default function QuoteDetailPage() {
       const q = data as QuoteRow;
       setQuote(q);
       setLeadSource(q.lead_source ?? "");
+      setTilbudsbeskrivelse((q as QuoteRow & { tilbudsbeskrivelse?: string }).tilbudsbeskrivelse ?? "");
       const sections = q.offer_sections?.length
         ? q.offer_sections
         : (() => {
@@ -407,6 +410,13 @@ export default function QuoteDetailPage() {
     setSaving(false);
     setSaveOk(true);
     setTimeout(() => setSaveOk(false), 2500);
+  }
+
+  async function handleSaveTilbudsbeskrivelse() {
+    if (!supabase || !quote) return;
+    setSavingTilbud(true);
+    await supabase.from("quotes").update({ tilbudsbeskrivelse: tilbudsbeskrivelse || null } as Record<string, unknown>).eq("id", quote.id);
+    setSavingTilbud(false);
   }
 
   function buildDefaultLineItems(q: QuoteRow): LineItem[] {
@@ -1054,7 +1064,7 @@ export default function QuoteDetailPage() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token ?? ""}`,
         },
-        body: JSON.stringify({ quoteId: quote.id, offerSections, adminEmail: user.email, customerEmail: quote.customer_email, customerName: quote.customer_name, ticketNumber: quote.ticket_number }),
+        body: JSON.stringify({ quoteId: quote.id, offerSections, adminEmail: user.email, customerEmail: quote.customer_email, customerName: quote.customer_name, ticketNumber: quote.ticket_number, tilbudsbeskrivelse: tilbudsbeskrivelse || null }),
       });
       const data = await res.json();
       if (data.success) {
@@ -2374,6 +2384,25 @@ export default function QuoteDetailPage() {
                   )}
                 </div>
               )}
+
+              {/* Tilbudsbeskrivelse */}
+              <div className="mb-3">
+                <p className="mb-1 text-[10px] font-medium text-gray-500">Tilbudsbeskrivelse (vises på PDF-tilbud)</p>
+                <textarea
+                  rows={3}
+                  value={tilbudsbeskrivelse}
+                  onChange={(e) => setTilbudsbeskrivelse(e.target.value)}
+                  placeholder="Beskriv hva tilbudet inkluderer…"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                <button
+                  onClick={handleSaveTilbudsbeskrivelse}
+                  disabled={savingTilbud}
+                  className="mt-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                >
+                  {savingTilbud ? "Lagrer…" : "Lagre beskrivelse"}
+                </button>
+              </div>
 
               {/* Send til godkjenning / send på nytt */}
               {quote.status !== "pending_approval" && (

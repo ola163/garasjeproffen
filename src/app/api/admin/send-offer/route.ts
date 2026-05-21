@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 import type { LineItem, OfferSection } from "@/types/quote-admin";
+import { generateQuotePdf } from "@/lib/pdf/quote-pdf";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -49,13 +50,14 @@ function lineAdj(item: LineItem, sec: OfferSection): number {
 
 export async function POST(request: Request) {
   try {
-    const { quoteId, offerSections, adminEmail, customerEmail, customerName, ticketNumber } = await request.json() as {
+    const { quoteId, offerSections, adminEmail, customerEmail, customerName, ticketNumber, tilbudsbeskrivelse } = await request.json() as {
       quoteId: string;
       offerSections: OfferSection[];
       adminEmail: string;
       customerEmail: string;
       customerName: string;
       ticketNumber: string;
+      tilbudsbeskrivelse?: string | null;
     };
 
     if (!ALLOWED_ADMINS.includes((adminEmail ?? "").toLowerCase())) {
@@ -253,6 +255,35 @@ export async function POST(request: Request) {
       </div>
     `;
 
+    // ── Generate PDF ──
+    let pdfBuffer: Buffer | undefined;
+    try {
+      const materialGroups = gpSortedCats.map(([category, totalInclVat]) => ({ category, totalInclVat }));
+      const serviceGroups = SERVICE_ORDER
+        .filter(cat => serviceSectionItems.has(cat))
+        .map(cat => ({
+          label: SERVICE_LABELS[cat] ?? cat,
+          items: (serviceSectionItems.get(cat) ?? []).map(item => {
+            const ownerSection = offerSections.find(s => s.category === cat);
+            const base = item.amount * item.quantity;
+            const adj = ownerSection ? lineAdj(item, ownerSection) : 0;
+            const rabattDesc = item.rabatt_description ?? (!item.no_rabatt ? ownerSection?.rabatt_description : undefined);
+            return { description: item.description, totalInclVat: base + adj, rabattDesc };
+          }),
+        }));
+      pdfBuffer = await generateQuotePdf({
+        ticketNumber,
+        customerName,
+        tilbudsbeskrivelse,
+        materialGroups,
+        serviceGroups,
+        discount,
+        grandTotal,
+      });
+    } catch (pdfErr) {
+      console.error("PDF generation failed, sending email without attachment:", pdfErr);
+    }
+
     const resendKey = process.env.RESEND_API_KEY;
     if (resendKey) {
       const resend = new Resend(resendKey);
@@ -261,6 +292,9 @@ export async function POST(request: Request) {
         to: customerEmail,
         subject: `Tilbud fra GarasjeProffen – ${ticketNumber}`,
         html: emailHtml,
+        attachments: pdfBuffer
+          ? [{ filename: `tilbud-${ticketNumber}.pdf`, content: pdfBuffer }]
+          : undefined,
       });
     }
 

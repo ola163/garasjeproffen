@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
+import { generateSoknadshjelPdf } from "@/lib/pdf/soknadshjelp-pdf";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 
@@ -36,10 +38,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "RESEND_API_KEY mangler" }, { status: 500 });
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.garasjeproffen.no";
-    const totalFormatted = totalPrice
-      ? formatNOK(totalPrice)
-      : null;
+    const totalFormatted = totalPrice ? formatNOK(totalPrice) : null;
+
+    // ── Fetch full data for PDF ──
+    let pdfBuffer: Buffer | undefined;
+    try {
+      const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (sbUrl && sbKey) {
+        const sb = createClient(sbUrl, sbKey);
+        const { data: row } = await sb
+          .from("soknadshjelp")
+          .select("tilbudsbeskrivelse,permit_price,extra_costs,manual_dispensasjoner")
+          .eq("id", soknadshjelId)
+          .single();
+        if (row) {
+          pdfBuffer = await generateSoknadshjelPdf({
+            ticketNumber,
+            customerName,
+            address,
+            tilbudsbeskrivelse: row.tilbudsbeskrivelse,
+            permitPrice: row.permit_price ?? 0,
+            extraCosts: (row.extra_costs as { description: string; amount: number }[]) ?? [],
+            manualDisps: (row.manual_dispensasjoner as { description: string; amount: number }[]) ?? [],
+          });
+        }
+      }
+    } catch (pdfErr) {
+      console.error("PDF generation failed, sending email without attachment:", pdfErr);
+    }
 
     const resend = new Resend(resendKey);
     await resend.emails.send({
@@ -58,6 +85,7 @@ export async function POST(request: Request) {
             <p style="color:#374151;margin:0 0 20px">
               Vi har gjennomgått din søknadshjelp-forespørsel og er klare til å hjelpe deg videre.
               En av våre saksbehandlere tar snart kontakt for å avtale neste steg.
+              ${pdfBuffer ? "Se vedlagt tilbud for detaljer og priser." : ""}
             </p>
 
             <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:0 0 20px">
@@ -95,6 +123,9 @@ export async function POST(request: Request) {
           </div>
         </div>
       `,
+      attachments: pdfBuffer
+        ? [{ filename: `tilbud-${ticketNumber}.pdf`, content: pdfBuffer }]
+        : undefined,
     });
 
     return NextResponse.json({ success: true });

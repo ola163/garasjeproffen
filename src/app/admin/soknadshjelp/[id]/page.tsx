@@ -39,6 +39,7 @@ interface SoknadshjelRow {
   assigned_to: string | null;
   notes: string | null;
   customer_notes: string | null;
+  tilbudsbeskrivelse: string | null;
   dibk_comments: Record<string, string> | null;
   admin_dibk_comments: Record<string, string> | null;
   lead_source: string | null;
@@ -118,6 +119,9 @@ export default function SoknadshjelDetailPage() {
   const [savingNotes, setSavingNotes] = useState(false);
   const [customerNotes, setCustomerNotes] = useState("");
   const [savingCustomerNotes, setSavingCustomerNotes] = useState(false);
+  const [tilbudsbeskrivelse, setTilbudsbeskrivelse] = useState("");
+  const [savingTilbud, setSavingTilbud] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [status, setStatus] = useState("new");
   const [assignedTo, setAssignedTo] = useState("");
 
@@ -201,6 +205,7 @@ export default function SoknadshjelDetailPage() {
         setRow(data as SoknadshjelRow);
         setNotes(data.notes ?? "");
         setCustomerNotes(data.customer_notes ?? "");
+        setTilbudsbeskrivelse(data.tilbudsbeskrivelse ?? "");
         setStatus(data.status ?? "new");
         setAssignedTo(data.assigned_to ?? "");
         setLeadSource(data.lead_source ?? "");
@@ -597,6 +602,38 @@ export default function SoknadshjelDetailPage() {
     await supabase.from("soknadshjelp").update({ customer_notes: customerNotes || null }).eq("id", row.id);
     setRow((prev) => prev ? { ...prev, customer_notes: customerNotes || null } : null);
     setSavingCustomerNotes(false);
+  }
+
+  async function handleSaveTilbudsbeskrivelse() {
+    if (!supabase || !row) return;
+    setSavingTilbud(true);
+    await supabase.from("soknadshjelp").update({ tilbudsbeskrivelse: tilbudsbeskrivelse || null }).eq("id", row.id);
+    setRow((prev) => prev ? { ...prev, tilbudsbeskrivelse: tilbudsbeskrivelse || null } : null);
+    setSavingTilbud(false);
+  }
+
+  async function handleDownloadPdf() {
+    if (!user || !row) return;
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch("/api/admin/soknadshjelp-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminEmail: user.email, soknadshjelId: row.id }),
+      });
+      if (!res.ok) { alert("Kunne ikke generere PDF"); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `tilbud-${row.ticket_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingPdf(false);
+    }
   }
 
   async function handleAddComment() {
@@ -1308,6 +1345,35 @@ export default function SoknadshjelDetailPage() {
           {/* Notater + Lagre */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-gray-700">Notater</h2>
+
+            {/* Tilbudsbeskrivelse */}
+            <div className="mb-4">
+              <p className="mb-1 text-[10px] font-medium text-gray-500">Tilbudsbeskrivelse (vises på PDF-tilbud)</p>
+              <textarea
+                rows={4}
+                value={tilbudsbeskrivelse}
+                onChange={(e) => setTilbudsbeskrivelse(e.target.value)}
+                placeholder="Beskriv hva tilbudet inkluderer, spesielle vilkår, o.l.…"
+                disabled={isPendingApproval}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
+              />
+              <div className="mt-1.5 flex gap-2">
+                <button
+                  onClick={handleSaveTilbudsbeskrivelse}
+                  disabled={savingTilbud || isPendingApproval}
+                  className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {savingTilbud ? "Lagrer…" : "Lagre beskrivelse"}
+                </button>
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {downloadingPdf ? "Genererer…" : "Last ned PDF"}
+                </button>
+              </div>
+            </div>
 
             {/* Customer notes */}
             <div className="mb-4">

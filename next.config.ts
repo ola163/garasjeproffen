@@ -12,7 +12,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["file-type"],
+  serverExternalPackages: ["file-type", "pdfkit"],
   async redirects() {
     return [
       { source: "/configurator", destination: "/garasje", permanent: false },
