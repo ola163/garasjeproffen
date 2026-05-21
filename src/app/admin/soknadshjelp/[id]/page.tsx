@@ -152,6 +152,8 @@ export default function SoknadshjelDetailPage() {
   const [emailSendResult, setEmailSendResult] = useState<{ success: boolean; message: string } | null>(null);
   const [returComment, setReturComment] = useState("");
   const [returningCase, setReturningCase] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
   const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
   const [dibkAdminComments, setDibkAdminComments] = useState<Record<string, string>>({});
@@ -551,6 +553,27 @@ export default function SoknadshjelDetailPage() {
     setReturningCase(false);
   }
 
+  async function handleDelete() {
+    if (!supabase || !user) return;
+    setDeleting(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch("/api/admin/delete-soknadshjelp", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session?.access_token ?? ""}`,
+      },
+      body: JSON.stringify({ soknadshjelId: id }),
+    });
+    setDeleting(false);
+    if (res.ok) {
+      router.push("/admin/quotes");
+    } else {
+      const data = await res.json();
+      alert(data.error ?? "Sletting feilet.");
+    }
+  }
+
   async function handleConvertToQuote() {
     if (!supabase || !row || row.quote_id) return;
     setConvertingToQuote(true);
@@ -927,6 +950,14 @@ export default function SoknadshjelDetailPage() {
               ))}
             </div>
             <div className="flex flex-wrap justify-end gap-2">
+              {status === "cancelled" && (
+                <button
+                  onClick={() => setDeleteOpen(true)}
+                  className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  Slett
+                </button>
+              )}
               <Link
                 href={`/admin/soknadshjelp/${id}/dispensasjonssoknad`}
                 className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
@@ -1766,6 +1797,28 @@ export default function SoknadshjelDetailPage() {
             {dibkReasonsMissing && (
               <p className="mt-3 text-xs text-amber-600">Du må oppgi begrunnelse for DIBK-endringer før du kan lagre.</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteOpen && row && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-base font-bold text-gray-900">Slett sak</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Er du sikker på at du vil slette <span className="font-semibold">{row.ticket_number}</span>?
+              Dette kan ikke angres.
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setDeleteOpen(false)} className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Avbryt
+              </button>
+              <button onClick={handleDelete} disabled={deleting}
+                className="flex-1 rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                {deleting ? "Sletter…" : "Slett permanent"}
+              </button>
+            </div>
           </div>
         </div>
       )}
