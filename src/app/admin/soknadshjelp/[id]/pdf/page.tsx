@@ -21,13 +21,19 @@ export default async function SoknadshjelPdfPage({ params }: { params: Promise<{
   const sb = getSupabase();
   const { data } = await sb
     .from("soknadshjelp")
-    .select("ticket_number,customer_name,customer_email,customer_phone,address,permit_price,permit_result,extra_costs,manual_dispensasjoner,customer_notes,assigned_to,created_at")
+    .select("ticket_number,customer_name,customer_email,customer_phone,address,permit_price,permit_result,extra_costs,manual_dispensasjoner,customer_notes,assigned_to,created_at,dibk")
     .eq("id", id)
     .single();
   if (!data) notFound();
 
   const extraCosts = (data.extra_costs as { description: string; amount: number }[]) ?? [];
   const manualDisps = (data.manual_dispensasjoner as { description: string; amount: number }[]) ?? [];
+
+  const DISP_KEYS = ["frittstående", "bya50", "enEtasje", "monehoyde", "nabogrense", "avstandBygg", "ikkeVernet", "ikkeFlom"];
+  const dibk = (data.dibk as Record<string, string> | null) ?? {};
+  const dibkDispCount = Object.entries(dibk).filter(([k, v]) =>
+    k === "lnf" ? v === "Ja" : DISP_KEYS.includes(k) && v === "Nei"
+  ).length;
   const permitPrice = (data.permit_price as number) ?? 0;
   const grandTotal = permitPrice + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
   const today = formatDate(new Date().toISOString());
@@ -122,7 +128,14 @@ export default async function SoknadshjelPdfPage({ params }: { params: Promise<{
               </thead>
               <tbody>
                 <tr>
-                  <td>Søknadshjelp</td>
+                  <td>
+                    Søknadshjelp
+                    {dibkDispCount > 0 && (
+                      <span style={{ marginLeft: 8, fontSize: "8.5pt", color: "#666" }}>
+                        (inkl. {dibkDispCount} dispensasjon{dibkDispCount > 1 ? "er" : ""})
+                      </span>
+                    )}
+                  </td>
                   <td className="right">{nok(exclMva(permitPrice))}</td>
                   <td className="right">{nok(permitPrice)}</td>
                 </tr>
