@@ -1158,181 +1158,222 @@ export default function SoknadshjelDetailPage() {
             </div>
           )}
 
-          {/* Manual dispensasjoner */}
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="mb-3 flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">Dispensasjoner fra reguleringsplan</h2>
-              {manualDisps.length > 0 && (
-                <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{manualDisps.length}</span>
-              )}
+          {/* Tilbudsbygger */}
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+
+            {/* Builder header */}
+            <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Tilbudsbygger</h2>
+                {hasChanges && <span className="text-xs font-medium text-amber-600">● Ulagrede endringer</span>}
+                {saveOk && !hasChanges && <span className="text-xs font-medium text-green-600">Lagret ✓</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {downloadingPdf ? "Genererer…" : "PDF"}
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !hasChanges || isPendingApproval}
+                  className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {saving ? "Lagrer…" : "Lagre"}
+                </button>
+              </div>
             </div>
-            {manualDisps.length > 0 && (
-              <ul className="mb-3 space-y-1.5">
-                {manualDisps.map((d, i) => (
-                  <li key={i} className="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 ring-1 ring-red-200">
-                    <span className="text-sm text-gray-800">{d.description}</span>
-                    <div className="ml-3 flex items-center gap-2">
-                      <span className="text-xs font-semibold text-gray-700">{fmt(d.amount)}</span>
-                      <button onClick={() => removeManualDisp(i)} disabled={isPendingApproval} className="text-red-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed" title="Fjern">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+
+            <div className="space-y-3 p-4">
+
+              {/* SØKNADSHJELP SECTION */}
+              <div className="overflow-hidden rounded-lg border border-gray-200">
+                <div className="bg-[#e2520a] px-3 py-2">
+                  <span className="text-xs font-bold uppercase tracking-wide text-white">Søknadshjelp</span>
+                </div>
+                <div className="divide-y divide-gray-100 bg-white">
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <span className="text-sm text-gray-700">
+                      Søknadshjelp
+                      {dibkDispCount > 0 && <span className="ml-1.5 text-xs text-gray-400">(inkl. {dibkDispCount} DIBK-disp.)</span>}
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">{row.permit_price != null ? fmt(row.permit_price) : "–"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* DISPENSASJONER SECTION */}
+              <div className="overflow-hidden rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between bg-[#e2520a] px-3 py-2">
+                  <span className="text-xs font-bold uppercase tracking-wide text-white">Dispensasjoner</span>
+                  {manualDisps.length > 0 && (
+                    <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold text-white">{manualDisps.length}</span>
+                  )}
+                </div>
+                <div className="bg-white px-3 py-2">
+                  {manualDisps.length > 0 && (
+                    <div className="mb-2 divide-y divide-gray-100">
+                      {manualDisps.map((d, i) => (
+                        <div key={i} className="flex items-center justify-between py-2">
+                          <span className="flex items-center gap-1.5 text-sm text-gray-700">
+                            <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">Disp.</span>
+                            {d.description}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900">{fmt(d.amount)}</span>
+                            <button onClick={() => removeManualDisp(i)} disabled={isPendingApproval} className="text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed">
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!isPendingApproval && (
+                    <>
+                      <div className="flex gap-2 pt-1">
+                        <input
+                          type="text"
+                          placeholder="F.eks. Avstand til vei, Høyde over regulert"
+                          value={newDispDesc}
+                          onChange={(e) => setNewDispDesc(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && addManualDisp()}
+                          className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                        />
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={newDispAmount}
+                            onChange={(e) => setNewDispAmount(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && addManualDisp()}
+                            className="w-24 rounded-lg border border-orange-300 bg-orange-50 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                          />
+                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">kr</span>
+                        </div>
+                        <button onClick={addManualDisp} disabled={!newDispDesc.trim() || !newDispAmount}
+                          className="rounded-lg bg-red-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-40">
+                          + Legg til
+                        </button>
+                      </div>
+                      <p className="mt-1 text-[10px] text-gray-400">Foreslått pris: {dibkDispCount > 0 || manualDisps.length > 0 ? "2 000" : "8 000"} kr — kan overstyres</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* TEGNINGER OG KOSTNADER SECTION */}
+              <div className="overflow-hidden rounded-lg border border-gray-200">
+                <div className="bg-[#e2520a] px-3 py-2">
+                  <span className="text-xs font-bold uppercase tracking-wide text-white">Tegninger og kostnader</span>
+                </div>
+                <div className="bg-white px-3 py-3 space-y-3">
+                  {/* Tegninger picker */}
+                  <div>
+                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">Tegninger til søknaden</p>
+                    <div className="space-y-1.5">
+                      {TEGNING_OPTIONS.map(opt => {
+                        const price = tegningPriser[opt.key];
+                        const isActive = extraCosts.some(c => c.description === opt.label);
+                        return (
+                          <div
+                            key={opt.key}
+                            onClick={() => !isPendingApproval && toggleTegningCost(opt.label, price)}
+                            className={`flex select-none items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${isPendingApproval ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${isActive ? "border-teal-400 bg-teal-50" : "border-dashed border-gray-200 hover:border-gray-300"}`}
+                          >
+                            <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-colors ${isActive ? "border-teal-500 bg-teal-500" : "border-gray-300 bg-white"}`}>
+                              {isActive && (
+                                <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-gray-800">{opt.label}</p>
+                              <p className="text-[10px] text-gray-500">{opt.description}</p>
+                            </div>
+                            <span className="shrink-0 whitespace-nowrap text-xs font-bold text-gray-700">{new Intl.NumberFormat("nb-NO").format(price)} kr</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Other extra costs */}
+                  {extraCosts.filter(c => !TEGNING_LABELS.has(c.description)).length > 0 && (
+                    <div className="divide-y divide-gray-100 border-t border-gray-100 pt-1">
+                      {extraCosts.filter(c => !TEGNING_LABELS.has(c.description)).map((c) => (
+                        <div key={c.description} className="flex items-center justify-between py-2">
+                          <span className="text-sm text-gray-700">{c.description}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900">{fmt(c.amount)}</span>
+                            <button onClick={() => removeExtraCost(extraCosts.indexOf(c))} disabled={isPendingApproval} className="text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed">
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!isPendingApproval && (
+                    <div className="flex gap-2 border-t border-gray-100 pt-1">
+                      <input
+                        type="text"
+                        placeholder="Annen kostnad"
+                        value={newCostDesc}
+                        onChange={(e) => setNewCostDesc(e.target.value)}
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      />
+                      <div className="relative">
+                        <input
+                          type="number"
+                          placeholder="Beløp"
+                          value={newCostAmount}
+                          onChange={(e) => setNewCostAmount(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && addExtraCost()}
+                          className="w-24 rounded-lg border border-gray-300 px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                        />
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">kr</span>
+                      </div>
+                      <button onClick={addExtraCost} disabled={!newCostDesc.trim() || !newCostAmount}
+                        className="rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40">
+                        + Legg til
                       </button>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="F.eks. Avstand til vei, Høyde over regulert"
-                value={newDispDesc}
-                onChange={(e) => setNewDispDesc(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addManualDisp()}
-                disabled={isPendingApproval}
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
-              />
-              <div className="relative">
-                <input
-                  type="number"
-                  value={newDispAmount}
-                  onChange={(e) => setNewDispAmount(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addManualDisp()}
+                  )}
+                </div>
+              </div>
+
+              {/* GRAND TOTAL */}
+              <div className="rounded-lg bg-orange-50 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Totalt inkl. MVA</span>
+                  <span className="text-lg font-bold text-gray-900">{fmt(computedTotal)}</span>
+                </div>
+              </div>
+
+              {/* TILBUDSBESKRIVELSE */}
+              <div>
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Tilbudsbeskrivelse</p>
+                <textarea
+                  rows={3}
+                  value={tilbudsbeskrivelse}
+                  onChange={(e) => setTilbudsbeskrivelse(e.target.value)}
+                  placeholder="Beskriv hva tilbudet inkluderer, spesielle vilkår, o.l.…"
                   disabled={isPendingApproval}
-                  className="w-28 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
-                  title="Foreslått pris — kan overstyres"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
                 />
-                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">kr</span>
+                <button
+                  onClick={handleSaveTilbudsbeskrivelse}
+                  disabled={savingTilbud || isPendingApproval}
+                  className="mt-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {savingTilbud ? "Lagrer…" : "Lagre beskrivelse"}
+                </button>
               </div>
-              <button onClick={addManualDisp} disabled={!newDispDesc.trim() || !newDispAmount || isPendingApproval}
-                className="rounded-lg bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-40">
-                + Legg til
-              </button>
-            </div>
-            <p className="mt-1.5 text-xs text-gray-400">Foreslått pris: {dibkDispCount > 0 || manualDisps.length > 0 ? "2 000" : "8 000"} kr — kan overstyres i beløpsfeltet.</p>
-            <div className="mt-3 flex justify-end">
-              <button onClick={handleSave} disabled={saving || !hasChanges || isPendingApproval} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
-            </div>
-          </div>
 
-          {/* Pris */}
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold text-gray-700">Pris</h2>
-
-            {/* Tegninger til søknaden picker */}
-            <div className="mb-4 rounded-lg border border-teal-200 bg-teal-50 p-3">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-teal-700">Tegninger til søknaden</p>
-              <div className="space-y-1.5">
-                {TEGNING_OPTIONS.map(opt => {
-                  const price = tegningPriser[opt.key];
-                  const isActive = extraCosts.some(c => c.description === opt.label);
-                  return (
-                    <div
-                      key={opt.key}
-                      onClick={() => !isPendingApproval && toggleTegningCost(opt.label, price)}
-                      className={`flex select-none items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${isPendingApproval ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${isActive ? "border-teal-400 bg-white shadow-sm" : "border-dashed border-teal-200 hover:border-teal-300"}`}
-                    >
-                      <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-colors ${isActive ? "border-teal-500 bg-teal-500" : "border-teal-300 bg-white"}`}>
-                        {isActive && (
-                          <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-gray-800">{opt.label}</p>
-                        <p className="text-[10px] text-gray-500">{opt.description}</p>
-                      </div>
-                      <span className="shrink-0 whitespace-nowrap text-xs font-bold text-teal-700">{new Intl.NumberFormat("nb-NO").format(price)} kr</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* DIBK admin comments summary */}
-            {Object.entries(dibkAdminComments).filter(([, v]) => v.trim()).length > 0 && (
-              <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 p-3 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-orange-600 mb-1.5">DIBK-notater</p>
-                {Object.entries(dibkAdminComments).filter(([, v]) => v.trim()).map(([k, v]) => (
-                  <div key={k} className="flex gap-2 text-xs">
-                    <span className="shrink-0 font-semibold text-orange-700">{DIBK_LABELS[k] ?? k}:</span>
-                    <span className="text-orange-800">{v}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between text-gray-600">
-                <span>
-                  Søknadshjelp
-                  {dibkDispCount > 0 && <span className="ml-1 text-xs text-gray-400">(inkl. {dibkDispCount} DIBK-dispensasjon{dibkDispCount > 1 ? "er" : ""})</span>}
-                </span>
-                <span>{row.permit_price != null ? fmt(row.permit_price) : "–"}</span>
-              </div>
-              {manualDisps.map((d, i) => (
-                <div key={`disp-${i}`} className="flex items-center justify-between text-gray-600">
-                  <span className="flex items-center gap-1.5">
-                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">Disp.</span>
-                    {d.description}
-                  </span>
-                  <span>{fmt(d.amount)}</span>
-                </div>
-              ))}
-              {/* Tegning items — shown in picker above, listed here for totalling */}
-              {extraCosts.filter(c => TEGNING_LABELS.has(c.description)).map((c, i) => (
-                <div key={`teg-${i}`} className="flex items-center justify-between text-teal-700">
-                  <span className="flex items-center gap-1.5">
-                    <span className="rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-600">Tegning</span>
-                    {c.description}
-                  </span>
-                  <span>{fmt(c.amount)}</span>
-                </div>
-              ))}
-              {/* Other extra costs */}
-              {extraCosts.filter(c => !TEGNING_LABELS.has(c.description)).map((c, i) => (
-                <div key={i} className="flex items-center justify-between text-gray-600">
-                  <span>{c.description}</span>
-                  <div className="flex items-center gap-2">
-                    <span>{fmt(c.amount)}</span>
-                    <button onClick={() => removeExtraCost(extraCosts.indexOf(c))} disabled={isPendingApproval} className="text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed" title="Fjern">
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
-              <div className="border-t border-gray-100 pt-1.5 flex justify-between font-bold text-gray-900">
-                <span>Totalt</span>
-                <span>{fmt(computedTotal)}</span>
-              </div>
-            </div>
-
-            {/* Add extra cost */}
-            <div className="mt-3 flex gap-2">
-              <input
-                type="text"
-                placeholder="Beskrivelse"
-                value={newCostDesc}
-                onChange={(e) => setNewCostDesc(e.target.value)}
-                disabled={isPendingApproval}
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
-              />
-              <input
-                type="number"
-                placeholder="Beløp"
-                value={newCostAmount}
-                onChange={(e) => setNewCostAmount(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addExtraCost()}
-                disabled={isPendingApproval}
-                className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
-              />
-              <button onClick={addExtraCost} disabled={!newCostDesc.trim() || !newCostAmount || isPendingApproval}
-                className="rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40">
-                + Legg til
-              </button>
-            </div>
-            <div className="mt-3 flex justify-end">
-              <button onClick={handleSave} disabled={saving || !hasChanges || isPendingApproval} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
             </div>
           </div>
 
@@ -1345,35 +1386,6 @@ export default function SoknadshjelDetailPage() {
           {/* Notater + Lagre */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-gray-700">Notater</h2>
-
-            {/* Tilbudsbeskrivelse */}
-            <div className="mb-4">
-              <p className="mb-1 text-[10px] font-medium text-gray-500">Tilbudsbeskrivelse (vises på PDF-tilbud)</p>
-              <textarea
-                rows={4}
-                value={tilbudsbeskrivelse}
-                onChange={(e) => setTilbudsbeskrivelse(e.target.value)}
-                placeholder="Beskriv hva tilbudet inkluderer, spesielle vilkår, o.l.…"
-                disabled={isPendingApproval}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
-              />
-              <div className="mt-1.5 flex gap-2">
-                <button
-                  onClick={handleSaveTilbudsbeskrivelse}
-                  disabled={savingTilbud || isPendingApproval}
-                  className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
-                >
-                  {savingTilbud ? "Lagrer…" : "Lagre beskrivelse"}
-                </button>
-                <button
-                  onClick={handleDownloadPdf}
-                  disabled={downloadingPdf}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {downloadingPdf ? "Genererer…" : "Last ned PDF"}
-                </button>
-              </div>
-            </div>
 
             {/* Customer notes */}
             <div className="mb-4">
