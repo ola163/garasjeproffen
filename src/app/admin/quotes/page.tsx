@@ -570,6 +570,7 @@ export default function AdminQuotesPage() {
                     <tr key={q.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <span className="font-mono text-xs font-semibold text-gray-700">{q.ticket_number}</span>
+                        <span className="ml-1.5 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">Byggpakke</span>
                         {q.created_manually && (
                           <span className="ml-1.5 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">Manuell</span>
                         )}
