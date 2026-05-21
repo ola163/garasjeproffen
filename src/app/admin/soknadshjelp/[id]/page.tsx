@@ -43,6 +43,8 @@ interface SoknadshjelRow {
   admin_dibk_comments: Record<string, string> | null;
   lead_source: string | null;
   quote_id: string | null;
+  approval_requested_from: string | null;
+  approval_requested_at: string | null;
   created_at: string;
 }
 
@@ -136,6 +138,7 @@ export default function SoknadshjelDetailPage() {
   const [updatingAssigned, setUpdatingAssigned] = useState(false);
   const [convertingToQuote, setConvertingToQuote] = useState(false);
   const [convertConfirm, setConvertConfirm] = useState(false);
+  const [sendingApproval, setSendingApproval] = useState(false);
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
   const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
   const [dibkAdminComments, setDibkAdminComments] = useState<Record<string, string>>({});
@@ -343,6 +346,39 @@ export default function SoknadshjelDetailPage() {
     setRow((prev) => prev ? { ...prev, quote_id: inserted.id } : null);
     setConvertingToQuote(false);
     router.push(`/admin/quotes/${inserted.id}`);
+  }
+
+  async function handleSendForApproval(toEmail: string) {
+    if (!supabase || !row) return;
+    setSendingApproval(true);
+    const now = new Date().toISOString();
+    await supabase.from("soknadshjelp").update({
+      status: "pending_approval",
+      approval_requested_from: toEmail,
+      approval_requested_at: now,
+    }).eq("id", row.id);
+    const { data: logEntry } = await supabase.from("activity_log").insert({
+      entity_type: "soknadshjelp",
+      entity_id: row.id,
+      action_type: "approval_requested",
+      actor_email: user?.email ?? "ukjent",
+      payload: { to: toEmail },
+    }).select().single();
+    if (logEntry) setActivityLog((prev) => [logEntry as ActivityEntry, ...prev]);
+    setStatus("pending_approval");
+    setRow((prev) => prev ? { ...prev, status: "pending_approval", approval_requested_from: toEmail, approval_requested_at: now } : null);
+    setSendingApproval(false);
+  }
+
+  async function handleCancelApproval() {
+    if (!supabase || !row) return;
+    await supabase.from("soknadshjelp").update({
+      status: "in_review",
+      approval_requested_from: null,
+      approval_requested_at: null,
+    }).eq("id", row.id);
+    setStatus("in_review");
+    setRow((prev) => prev ? { ...prev, status: "in_review", approval_requested_from: null, approval_requested_at: null } : null);
   }
 
   async function handleSaveNotes() {
@@ -1174,6 +1210,7 @@ export default function SoknadshjelDetailPage() {
                 {activityLog.map((entry) => {
                   const dotColor =
                     entry.action_type === "status_change" ? "bg-orange-400" :
+                    entry.action_type === "approval_requested" ? "bg-purple-400" :
                     entry.action_type === "dibk_edit" ? "bg-blue-400" :
                     entry.action_type === "comment" ? "bg-gray-400" : "bg-gray-300";
                   return (
@@ -1209,6 +1246,10 @@ export default function SoknadshjelDetailPage() {
                           );
                         })() : entry.action_type === "comment" ? (
                           <p className="text-gray-800 font-medium">"{(entry.payload as { text?: string }).text}"</p>
+                        ) : entry.action_type === "approval_requested" ? (
+                          <p className="text-purple-700 font-medium">
+                            Sendt til godkjenning — <span className="font-semibold">{adminName((entry.payload as { to?: string }).to ?? "")}</span>
+                          </p>
                         ) : entry.action_type === "lead_source_change" ? (
                           <p className="text-gray-600">Lead kilde: <span className="font-medium">{(entry.payload as { old?: string }).old || "–"}</span> → <span className="font-medium">{(entry.payload as { new?: string }).new || "–"}</span></p>
                         ) : (
@@ -1222,6 +1263,50 @@ export default function SoknadshjelDetailPage() {
               </ol>
             )}
           </div>
+
+          {/* Send til godkjenning */}
+          {!["paid", "ferdigstilt", "cancelled"].includes(status) && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-1 text-sm font-semibold text-gray-700">Send til godkjenning</h2>
+              {row.approval_requested_from && status === "pending_approval" ? (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-gray-600">
+                      Sendt til <span className="font-semibold text-orange-700">{adminName(row.approval_requested_from)}</span>
+                      {row.approval_requested_at && (
+                        <span className="ml-1.5 text-xs text-gray-400">· {formatDate(row.approval_requested_at)}</span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-400">Venter på tilbakemelding.</p>
+                  </div>
+                  <button
+                    onClick={handleCancelApproval}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50"
+                  >
+                    Trekk tilbake
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p className="mb-3 text-xs text-gray-500">Velg hvem som skal godkjenne tilbudet:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ALLOWED_ADMINS.filter(e => e !== user?.email?.toLowerCase()).concat(
+                      ALLOWED_ADMINS.filter(e => e === user?.email?.toLowerCase())
+                    ).map((email) => (
+                      <button
+                        key={email}
+                        onClick={() => handleSendForApproval(email)}
+                        disabled={sendingApproval}
+                        className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors"
+                      >
+                        {sendingApproval ? "Sender…" : `Send til ${adminName(email)}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
         </div>
       </div>
