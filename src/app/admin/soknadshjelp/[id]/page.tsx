@@ -211,15 +211,20 @@ export default function SoknadshjelDetailPage() {
       }
       if (actData) {
         setActivityLog(actData as ActivityEntry[]);
-        // Reconstruct admin dibk comments from log (newest-first, take first per key)
-        const rebuilt: Record<string, string> = {};
+        const rebuiltComments: Record<string, string> = {};
+        const rebuiltReasons: Record<string, string> = {};
         for (const e of (actData as ActivityEntry[])) {
           if (e.action_type === "dibk_admin_comment") {
             const p = e.payload as { key?: string; comment?: string };
-            if (p.key && !(p.key in rebuilt)) rebuilt[p.key] = p.comment ?? "";
+            if (p.key && !(p.key in rebuiltComments)) rebuiltComments[p.key] = p.comment ?? "";
+          }
+          if (e.action_type === "dibk_edit") {
+            const p = e.payload as { key?: string; reason?: string };
+            if (p.key && p.reason && !(p.key in rebuiltReasons)) rebuiltReasons[p.key] = p.reason;
           }
         }
-        if (Object.keys(rebuilt).length > 0) setDibkAdminComments(rebuilt);
+        if (Object.keys(rebuiltComments).length > 0) setDibkAdminComments(rebuiltComments);
+        if (Object.keys(rebuiltReasons).length > 0) setLocalDibkReasons(rebuiltReasons);
       }
 
       // Merge DB records + any orphaned storage files (DB row missing)
@@ -522,68 +527,69 @@ export default function SoknadshjelDetailPage() {
   async function handleSave() {
     if (!supabase || !row) return;
     setSaving(true);
-    const newTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
+    try {
+      const newTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
-    const origDibk = row.dibk ?? {};
-    const dibkChanges: { key: string; field: string; old_value: string; new_value: string; reason?: string }[] = [];
-    Object.entries(localDibk).forEach(([k, v]) => {
-      if (origDibk[k] !== v) {
-        const reason = localDibkReasons[k]?.trim();
-        dibkChanges.push({ key: k, field: DIBK_LABELS[k] ?? k, old_value: origDibk[k] ?? "", new_value: v, ...(reason ? { reason } : {}) });
-      }
-    });
+      const origDibk = row.dibk ?? {};
+      const dibkChanges: { key: string; field: string; old_value: string; new_value: string; reason?: string }[] = [];
+      Object.entries(localDibk).forEach(([k, v]) => {
+        if (origDibk[k] !== v) {
+          const reason = localDibkReasons[k]?.trim();
+          dibkChanges.push({ key: k, field: DIBK_LABELS[k] ?? k, old_value: origDibk[k] ?? "", new_value: v, ...(reason ? { reason } : {}) });
+        }
+      });
 
-    await supabase.from("soknadshjelp").update({
-      extra_costs: extraCosts,
-      manual_dispensasjoner: manualDisps,
-      total_price: newTotal,
-      dibk: localDibk,
-    }).eq("id", row.id);
+      const { error: mainErr } = await supabase.from("soknadshjelp").update({
+        extra_costs: extraCosts,
+        manual_dispensasjoner: manualDisps,
+        total_price: newTotal,
+        dibk: localDibk,
+      }).eq("id", row.id);
+      if (mainErr) console.error("Main save failed:", mainErr);
 
-    // Persist admin dibk comments to activity_log (works without DB migration)
-    // Also attempt to save to dedicated column if it exists
-    const commentEntries = Object.entries(dibkAdminComments).filter(([, v]) => v.trim());
-    const commentLogEntries: ActivityEntry[] = [];
-    for (const [k, v] of commentEntries) {
-      const { data: ce } = await supabase.from("activity_log").insert({
-        entity_type: "soknadshjelp",
-        entity_id: row.id,
-        action_type: "dibk_admin_comment",
-        actor_email: user?.email ?? "ukjent",
-        payload: { key: k, comment: v },
-      }).select().single();
-      if (ce) commentLogEntries.push(ce as ActivityEntry);
-    }
-    if (commentLogEntries.length > 0) setActivityLog((prev) => [...commentLogEntries.reverse(), ...prev]);
-    // Also try the dedicated column (silently fails if not migrated yet)
-    const filteredAdminComments = Object.fromEntries(commentEntries);
-    await supabase.from("soknadshjelp").update({
-      admin_dibk_comments: Object.keys(filteredAdminComments).length > 0 ? filteredAdminComments : null,
-    }).eq("id", row.id);
-
-    if (dibkChanges.length > 0) {
-      const changedKeys = dibkChanges.map((c) => c.key);
-      setLocalManualKeys((prev) => new Set([...prev, ...changedKeys]));
-      const newEntries: ActivityEntry[] = [];
-      for (const change of dibkChanges) {
-        const { data: logEntry, error: logErr } = await supabase.from("activity_log").insert({
+      // Persist admin dibk comments to activity_log (no migration needed)
+      const commentEntries = Object.entries(dibkAdminComments).filter(([, v]) => v.trim());
+      const commentLogEntries: ActivityEntry[] = [];
+      for (const [k, v] of commentEntries) {
+        const { data: ce, error: ceErr } = await supabase.from("activity_log").insert({
           entity_type: "soknadshjelp",
           entity_id: row.id,
-          action_type: "dibk_edit",
+          action_type: "dibk_admin_comment",
           actor_email: user?.email ?? "ukjent",
-          payload: change,
+          payload: { key: k, comment: v },
         }).select().single();
-        if (logErr) console.error("activity_log insert failed:", logErr);
-        if (logEntry) newEntries.push(logEntry as ActivityEntry);
+        if (ceErr) console.error("dibk_admin_comment insert failed:", ceErr);
+        if (ce) commentLogEntries.push(ce as ActivityEntry);
       }
-      if (newEntries.length > 0) setActivityLog((prev) => [...newEntries.reverse(), ...prev]);
-    }
+      if (commentLogEntries.length > 0) setActivityLog((prev) => [...commentLogEntries.reverse(), ...prev]);
 
-    setRow((prev) => prev ? { ...prev, dibk: localDibk } : null);
-    setLocalDibkReasons({});
-    setSaving(false);
-    setSaveOk(true);
-    setTimeout(() => setSaveOk(false), 2500);
+      if (dibkChanges.length > 0) {
+        const changedKeys = dibkChanges.map((c) => c.key);
+        setLocalManualKeys((prev) => new Set([...prev, ...changedKeys]));
+        const newEntries: ActivityEntry[] = [];
+        for (const change of dibkChanges) {
+          const { data: logEntry, error: logErr } = await supabase.from("activity_log").insert({
+            entity_type: "soknadshjelp",
+            entity_id: row.id,
+            action_type: "dibk_edit",
+            actor_email: user?.email ?? "ukjent",
+            payload: change,
+          }).select().single();
+          if (logErr) console.error("dibk_edit insert failed:", logErr);
+          if (logEntry) newEntries.push(logEntry as ActivityEntry);
+        }
+        if (newEntries.length > 0) setActivityLog((prev) => [...newEntries.reverse(), ...prev]);
+      }
+
+      const savedComments = Object.fromEntries(commentEntries) as Record<string, string>;
+      setRow((prev) => prev ? { ...prev, dibk: localDibk, admin_dibk_comments: Object.keys(savedComments).length > 0 ? savedComments : null } : null);
+      setSaveOk(true);
+      setTimeout(() => setSaveOk(false), 2500);
+    } catch (err) {
+      console.error("handleSave error:", err);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (authLoading || loading) return <div className="flex min-h-screen items-center justify-center text-gray-400">Laster...</div>;
@@ -605,10 +611,14 @@ export default function SoknadshjelDetailPage() {
     .filter(([k, v]) => (row.dibk ?? {})[k] !== v)
     .map(([k]) => k);
   const dibkReasonsMissing = changedDibkKeys.some((k) => !localDibkReasons[k]?.trim());
+  const nonEmptyComments = Object.fromEntries(Object.entries(dibkAdminComments).filter(([, v]) => v.trim()));
+  const savedNonEmptyComments = Object.fromEntries(Object.entries(row.admin_dibk_comments ?? {}).filter(([, v]) => (v as string).trim()));
+  const commentsChanged = JSON.stringify(nonEmptyComments) !== JSON.stringify(savedNonEmptyComments);
   const hasChanges =
     (changedDibkKeys.length > 0 ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
-    JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? [])) &&
+    JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? []) ||
+    commentsChanged) &&
     !dibkReasonsMissing;
 
   const manuallyChangedKeys = new Set<string>();
@@ -616,11 +626,8 @@ export default function SoknadshjelDetailPage() {
     .filter((e) => e.action_type === "dibk_edit")
     .forEach((e) => {
       const p = e.payload as { key?: string; field?: string };
-      if (p.key) manuallyChangedKeys.add(p.key);
-      else if (p.field) {
-        const found = Object.entries(DIBK_LABELS).find(([, label]) => label === p.field)?.[0];
-        if (found) manuallyChangedKeys.add(found);
-      }
+      const resolvedKey = p.key ?? Object.entries(DIBK_LABELS).find(([, label]) => label === p.field)?.[0];
+      if (resolvedKey) manuallyChangedKeys.add(resolvedKey);
     });
 
   const totalDispCount = dibkDispCount + manualDisps.length;
@@ -820,14 +827,20 @@ export default function SoknadshjelDetailPage() {
                         onChange={(e) => setDibkAdminComments((prev) => ({ ...prev, [k]: e.target.value }))}
                         className="mt-1.5 w-full rounded border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
                       />
-                      {unsaved && (
-                        <input
-                          type="text"
-                          placeholder="Grunn til endring (påkrevd)"
-                          value={localDibkReasons[k] ?? ""}
-                          onChange={(e) => setLocalDibkReasons((prev) => ({ ...prev, [k]: e.target.value }))}
-                          className="mt-1.5 w-full rounded border border-blue-300 bg-white px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        />
+                      {(unsaved || manualOverride || !!localDibkReasons[k]?.trim()) && (
+                        unsaved ? (
+                          <input
+                            type="text"
+                            placeholder="Grunn til endring (påkrevd)"
+                            value={localDibkReasons[k] ?? ""}
+                            onChange={(e) => setLocalDibkReasons((prev) => ({ ...prev, [k]: e.target.value }))}
+                            className="mt-1.5 w-full rounded border border-blue-300 bg-white px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          />
+                        ) : (
+                          <p className="mt-1.5 rounded border border-blue-100 bg-blue-50 px-2 py-1 text-xs text-blue-700">
+                            <span className="font-semibold">Grunn:</span> {localDibkReasons[k] || "–"}
+                          </p>
+                        )
                       )}
                     </div>
                   );
