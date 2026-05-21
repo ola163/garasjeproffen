@@ -870,38 +870,9 @@ export default function SoknadshjelDetailPage() {
               )}
               {/* Godkjenning */}
               {status === "pending_approval" ? (
-                row.approval_requested_from === adminName(user?.email) ? (
-                  <div className="flex flex-col items-end gap-2">
-                    <button
-                      onClick={handleApprove}
-                      disabled={approvingCase || returningCase}
-                      className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-                    >
-                      {approvingCase ? "Godkjenner…" : "Godkjenn"}
-                    </button>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Kommentar ved retur (valgfri)"
-                        value={returComment}
-                        onChange={(e) => setReturComment(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleReturnCase()}
-                        className="w-48 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
-                      />
-                      <button
-                        onClick={handleReturnCase}
-                        disabled={returningCase || approvingCase}
-                        className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
-                      >
-                        {returningCase ? "Sender…" : "Send i retur"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <span className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700">
-                    Venter godkjenning fra {row.approval_requested_from}
-                  </span>
-                )
+                <span className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700">
+                  Venter godkjenning
+                </span>
               ) : (
                 !["offer_sent", "paid", "ferdigstilt", "cancelled"].includes(status) && (
                   <button
@@ -919,16 +890,56 @@ export default function SoknadshjelDetailPage() {
 
         <div className="space-y-4">
 
-          {/* Lock banner */}
-          {isPendingApproval && (
-            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-center gap-3">
-              <svg className="h-5 w-5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-              <div>
-                <p className="text-sm font-semibold text-amber-800">Saken er låst — venter på godkjenning</p>
-                <p className="text-xs text-amber-700">Ingen endringer kan gjøres. Du kan legge inn kommentarer i loggen og sende saken i retur.</p>
+          {/* Approval banner */}
+          {isPendingApproval && (() => {
+            const approverName = adminName(row.approval_requested_from);
+            const isApprover =
+              row.approval_requested_from === adminName(user?.email) ||
+              row.approval_requested_from?.toLowerCase() === user?.email?.toLowerCase();
+            return (
+              <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Venter godkjenning</p>
+                <p className="mt-1 text-sm text-orange-800">
+                  Sendt til <span className="font-semibold">{approverName}</span> for godkjenning.
+                </p>
+                {isApprover ? (
+                  <div className="mt-3 space-y-2">
+                    <button
+                      onClick={handleApprove}
+                      disabled={approvingCase || returningCase}
+                      className="w-full rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {approvingCase ? "Godkjenner…" : "Godkjenn søknadshjelp-saken"}
+                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Kommentar ved retur (valgfri)"
+                        value={returComment}
+                        onChange={(e) => setReturComment(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleReturnCase()}
+                        className="flex-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <button
+                        onClick={handleReturnCase}
+                        disabled={returningCase || approvingCase}
+                        className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                      >
+                        {returningCase ? "Sender…" : "Send i retur"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleCancelApproval}
+                    className="mt-3 rounded-lg border border-orange-300 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100 transition-colors"
+                  >
+                    Trekk tilbake
+                  </button>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Statuslogg */}
           {activityLog.filter(e => e.action_type === "status_change").length > 0 && (
