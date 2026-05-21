@@ -134,6 +134,11 @@ export default function SoknadshjelDetailPage() {
   const [newRabattAmount, setNewRabattAmount] = useState("");
   const [newRabattType, setNewRabattType] = useState<"kr" | "pst">("kr");
 
+  const [rabattTarget, setRabattTarget] = useState<"soknadshjelp" | "dispensasjoner" | "tegninger" | null>(null);
+  const [inlineRabattDesc, setInlineRabattDesc] = useState("");
+  const [inlineRabattAmount, setInlineRabattAmount] = useState("");
+  const [inlineRabattType, setInlineRabattType] = useState<"kr" | "pst">("kr");
+
   // Manual dispensasjoner
   const [manualDisps, setManualDisps] = useState<ManualDisp[]>([]);
   const [newDispDesc, setNewDispDesc] = useState("");
@@ -373,6 +378,24 @@ export default function SoknadshjelDetailPage() {
     setExtraCosts((prev) => [...prev, { description: desc, amount }]);
     setNewRabattDesc("");
     setNewRabattAmount("");
+  }
+
+  function addInlineRabatt() {
+    if (!rabattTarget) return;
+    const val = parseFloat(inlineRabattAmount.replace(/\s/g, "").replace(",", "."));
+    if (!inlineRabattDesc.trim() || isNaN(val) || val <= 0) return;
+    let baseAmt = 0;
+    if (rabattTarget === "soknadshjelp") baseAmt = localPermitPrice ?? 0;
+    else if (rabattTarget === "dispensasjoner") baseAmt = manualDisps.reduce((s, d) => s + d.amount, 0);
+    else baseAmt = extraCosts.filter(c => c.amount > 0).reduce((s, c) => s + c.amount, 0);
+    const catPrefix = rabattTarget === "soknadshjelp" ? "Søknadshjelp – " : rabattTarget === "dispensasjoner" ? "Dispensasjon – " : "Tegning – ";
+    const raw = inlineRabattDesc.trim();
+    const amount = inlineRabattType === "pst" ? -Math.round(baseAmt * val / 100) : -val;
+    const finalDesc = inlineRabattType === "pst" ? `${catPrefix}${raw} (${val}%)` : `${catPrefix}${raw}`;
+    setExtraCosts(prev => [...prev, { description: finalDesc, amount }]);
+    setInlineRabattDesc("");
+    setInlineRabattAmount("");
+    setRabattTarget(null);
   }
 
   function toggleTegningCost(label: string, price: number) {
@@ -1281,42 +1304,85 @@ export default function SoknadshjelDetailPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  {priserOpen && (
-                    <div className="border-t border-blue-200 bg-white">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-blue-100 bg-blue-50">
-                            <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-blue-600">Tjeneste</th>
-                            <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-blue-600">Ekskl. MVA</th>
-                            <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-blue-600">Inkl. MVA</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {allPriser.map(p => (
-                            <tr key={p.key} className="hover:bg-gray-50">
-                              <td className="px-3 py-2 text-gray-800">
-                                {p.label}
-                                {p.description && <span className="ml-1.5 text-[10px] text-gray-400">{p.description}</span>}
-                              </td>
-                              <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{fmt(p.price / 1.25)}</td>
-                              <td className="px-3 py-2 text-right font-medium text-gray-900 tabular-nums">{fmt(p.price)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <p className="px-3 py-1.5 text-[10px] text-gray-400">
-                        Disse prisene administreres under{" "}
-                        <a href="/admin/priser" target="_blank" className="underline hover:text-gray-600">Admin → Priser</a>.
-                      </p>
-                    </div>
-                  )}
+                  {priserOpen && (() => {
+                    const p = (key: string) => allPriser.find(x => x.key === key)?.price ?? 0;
+                    const tegningBase = p("tegning");
+                    const disp1 = p("dispensasjon_1");
+                    const dispExtra = p("dispensasjon_ekstra");
+                    const dispCount = Object.entries(localDibk).filter(([k, v]) => isDispensasjon(k, v)).length;
+                    const PRICE_GROUPS = [
+                      { label: "Søknadshjelp", keys: ["tegning", "dispensasjon_1", "dispensasjon_ekstra"] },
+                      { label: "Tegninger", keys: ["tegning_kun_garasje", "tegning_med_eksisterende", "tegning_situasjonsplan"] },
+                      { label: "Andre", keys: ["nabovarsel"] },
+                    ];
+                    return (
+                      <div className="border-t border-blue-200 bg-white">
+                        {/* Computed breakdown for this case */}
+                        {localPermitPrice != null && (
+                          <div className="border-b border-blue-100 bg-blue-50 px-4 py-3">
+                            <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-blue-600">Beregnet søknadshjelp – denne saken</p>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">Søknadshjelp (base)</span>
+                                <span className="tabular-nums text-gray-900">{fmt(tegningBase)}</span>
+                              </div>
+                              {dispCount >= 1 && (
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Dispensasjon (1. stk.)</span>
+                                  <span className="tabular-nums text-gray-900">+ {fmt(disp1)}</span>
+                                </div>
+                              )}
+                              {dispCount > 1 && (
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">{dispCount - 1} ekstra disp. × {fmt(dispExtra)}</span>
+                                  <span className="tabular-nums text-gray-900">+ {fmt((dispCount - 1) * dispExtra)}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between border-t border-blue-200 pt-1 text-sm font-bold">
+                                <span className="text-blue-700">Total søknadshjelp</span>
+                                <span className="tabular-nums text-blue-700">{fmt(localPermitPrice)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {/* Full price list grouped by category */}
+                        {PRICE_GROUPS.map(group => {
+                          const items = group.keys.map(k => allPriser.find(x => x.key === k)).filter(Boolean) as typeof allPriser;
+                          if (items.length === 0) return null;
+                          return (
+                            <div key={group.label} className="border-b border-gray-100 px-4 py-2">
+                              <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">{group.label}</p>
+                              {items.map(item => (
+                                <div key={item.key} className="flex justify-between py-1 text-sm">
+                                  <span className="text-gray-700">
+                                    {item.label}
+                                    {item.description && <span className="ml-1.5 text-[10px] text-gray-400">{item.description}</span>}
+                                  </span>
+                                  <span className="tabular-nums font-medium text-gray-900">{fmt(item.price)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                        <p className="px-4 py-1.5 text-[10px] text-gray-400">
+                          Alle priser inkl. MVA · Administreres under{" "}
+                          <a href="/admin/priser" target="_blank" className="underline hover:text-gray-600">Admin → Priser</a>
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
               {/* SØKNADSHJELP SECTION */}
               <div className="overflow-hidden rounded-lg border border-gray-200">
-                <div className="bg-[#e2520a] px-3 py-2">
+                <div className="flex items-center justify-between bg-[#e2520a] px-3 py-2">
                   <span className="text-xs font-bold uppercase tracking-wide text-white">Søknadshjelp</span>
+                  {!isPendingApproval && (
+                    <button onClick={() => setRabattTarget(t => t === "soknadshjelp" ? null : "soknadshjelp")} className={`rounded px-2 py-0.5 text-[10px] font-semibold transition-colors ${rabattTarget === "soknadshjelp" ? "bg-white text-orange-600" : "text-white/80 hover:bg-white/20 hover:text-white"}`}>
+                      % Rabatt
+                    </button>
+                  )}
                 </div>
                 <div className="divide-y divide-gray-100 bg-white">
                   <div className="flex items-center justify-between px-3 py-2.5">
@@ -1326,16 +1392,48 @@ export default function SoknadshjelDetailPage() {
                     </span>
                     <span className="text-sm font-semibold text-gray-900">{localPermitPrice != null ? fmt(localPermitPrice) : "–"}</span>
                   </div>
+                  {extraCosts.filter(c => c.amount < 0 && c.description.startsWith("Søknadshjelp – ")).map((c, i) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-sm text-gray-600">{c.description}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-green-600">− {fmt(Math.abs(c.amount))}</span>
+                        <button onClick={() => removeExtraCost(extraCosts.indexOf(c))} disabled={isPendingApproval} className="text-gray-300 hover:text-red-500 disabled:opacity-30"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+                {rabattTarget === "soknadshjelp" && !isPendingApproval && (
+                  <div className="border-t border-green-100 bg-green-50 px-3 py-2">
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Beskrivelse" value={inlineRabattDesc} onChange={e => setInlineRabattDesc(e.target.value)} onKeyDown={e => e.key === "Enter" && addInlineRabatt()} className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                      <div className="relative">
+                        <input type="number" placeholder="Beløp" value={inlineRabattAmount} onChange={e => setInlineRabattAmount(e.target.value)} onKeyDown={e => e.key === "Enter" && addInlineRabatt()} className="w-20 rounded-lg border border-green-300 bg-white px-3 py-1.5 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">{inlineRabattType === "pst" ? "%" : "kr"}</span>
+                      </div>
+                      <div className="flex overflow-hidden rounded-lg border border-gray-200 text-xs font-medium">
+                        <button onClick={() => setInlineRabattType("kr")} className={`px-2.5 py-1.5 ${inlineRabattType === "kr" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>kr</button>
+                        <button onClick={() => setInlineRabattType("pst")} className={`px-2.5 py-1.5 ${inlineRabattType === "pst" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>%</button>
+                      </div>
+                      <button onClick={addInlineRabatt} disabled={!inlineRabattDesc.trim() || !inlineRabattAmount} className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-40">+ Legg til</button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* DISPENSASJONER SECTION */}
               <div className="overflow-hidden rounded-lg border border-gray-200">
                 <div className="flex items-center justify-between bg-[#e2520a] px-3 py-2">
                   <span className="text-xs font-bold uppercase tracking-wide text-white">Andre dispensasjoner</span>
-                  {manualDisps.length > 0 && (
-                    <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold text-white">{manualDisps.length}</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {manualDisps.length > 0 && (
+                      <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold text-white">{manualDisps.length}</span>
+                    )}
+                    {!isPendingApproval && (
+                      <button onClick={() => setRabattTarget(t => t === "dispensasjoner" ? null : "dispensasjoner")} className={`rounded px-2 py-0.5 text-[10px] font-semibold transition-colors ${rabattTarget === "dispensasjoner" ? "bg-white text-orange-600" : "text-white/80 hover:bg-white/20 hover:text-white"}`}>
+                        % Rabatt
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="bg-white px-3 py-2">
                   {manualDisps.length > 0 && (
@@ -1385,13 +1483,43 @@ export default function SoknadshjelDetailPage() {
                       <p className="mt-1 text-[10px] text-gray-400">Foreslått pris: {dibkDispCount > 0 || manualDisps.length > 0 ? "2 000" : "8 000"} kr — kan overstyres</p>
                     </>
                   )}
+                  {extraCosts.filter(c => c.amount < 0 && c.description.startsWith("Dispensasjon – ")).map((c, i) => (
+                    <div key={i} className="flex items-center justify-between pt-2">
+                      <span className="text-sm text-gray-600">{c.description}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-green-600">− {fmt(Math.abs(c.amount))}</span>
+                        <button onClick={() => removeExtraCost(extraCosts.indexOf(c))} disabled={isPendingApproval} className="text-gray-300 hover:text-red-500 disabled:opacity-30"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+                {rabattTarget === "dispensasjoner" && !isPendingApproval && (
+                  <div className="border-t border-green-100 bg-green-50 px-3 py-2">
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Beskrivelse" value={inlineRabattDesc} onChange={e => setInlineRabattDesc(e.target.value)} onKeyDown={e => e.key === "Enter" && addInlineRabatt()} className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                      <div className="relative">
+                        <input type="number" placeholder="Beløp" value={inlineRabattAmount} onChange={e => setInlineRabattAmount(e.target.value)} onKeyDown={e => e.key === "Enter" && addInlineRabatt()} className="w-20 rounded-lg border border-green-300 bg-white px-3 py-1.5 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">{inlineRabattType === "pst" ? "%" : "kr"}</span>
+                      </div>
+                      <div className="flex overflow-hidden rounded-lg border border-gray-200 text-xs font-medium">
+                        <button onClick={() => setInlineRabattType("kr")} className={`px-2.5 py-1.5 ${inlineRabattType === "kr" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>kr</button>
+                        <button onClick={() => setInlineRabattType("pst")} className={`px-2.5 py-1.5 ${inlineRabattType === "pst" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>%</button>
+                      </div>
+                      <button onClick={addInlineRabatt} disabled={!inlineRabattDesc.trim() || !inlineRabattAmount} className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-40">+ Legg til</button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* TEGNINGER OG KOSTNADER SECTION */}
               <div className="overflow-hidden rounded-lg border border-gray-200">
-                <div className="bg-[#e2520a] px-3 py-2">
+                <div className="flex items-center justify-between bg-[#e2520a] px-3 py-2">
                   <span className="text-xs font-bold uppercase tracking-wide text-white">Tegninger og kostnader</span>
+                  {!isPendingApproval && (
+                    <button onClick={() => setRabattTarget(t => t === "tegninger" ? null : "tegninger")} className={`rounded px-2 py-0.5 text-[10px] font-semibold transition-colors ${rabattTarget === "tegninger" ? "bg-white text-orange-600" : "text-white/80 hover:bg-white/20 hover:text-white"}`}>
+                      % Rabatt
+                    </button>
+                  )}
                 </div>
                 <div className="bg-white px-3 py-3 space-y-3">
                   {/* Tegninger picker */}
@@ -1442,6 +1570,15 @@ export default function SoknadshjelDetailPage() {
                     </div>
                   )}
 
+                  {extraCosts.filter(c => c.amount < 0 && c.description.startsWith("Tegning – ")).map((c, i) => (
+                    <div key={i} className="flex items-center justify-between border-t border-gray-100 pt-2">
+                      <span className="text-sm text-gray-600">{c.description}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-green-600">− {fmt(Math.abs(c.amount))}</span>
+                        <button onClick={() => removeExtraCost(extraCosts.indexOf(c))} disabled={isPendingApproval} className="text-gray-300 hover:text-red-500 disabled:opacity-30"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      </div>
+                    </div>
+                  ))}
                   {!isPendingApproval && (
                     <div className="flex gap-2 border-t border-gray-100 pt-1">
                       <input
@@ -1469,22 +1606,42 @@ export default function SoknadshjelDetailPage() {
                     </div>
                   )}
                 </div>
+                {rabattTarget === "tegninger" && !isPendingApproval && (
+                  <div className="border-t border-green-100 bg-green-50 px-3 py-2">
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Beskrivelse" value={inlineRabattDesc} onChange={e => setInlineRabattDesc(e.target.value)} onKeyDown={e => e.key === "Enter" && addInlineRabatt()} className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                      <div className="relative">
+                        <input type="number" placeholder="Beløp" value={inlineRabattAmount} onChange={e => setInlineRabattAmount(e.target.value)} onKeyDown={e => e.key === "Enter" && addInlineRabatt()} className="w-20 rounded-lg border border-green-300 bg-white px-3 py-1.5 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">{inlineRabattType === "pst" ? "%" : "kr"}</span>
+                      </div>
+                      <div className="flex overflow-hidden rounded-lg border border-gray-200 text-xs font-medium">
+                        <button onClick={() => setInlineRabattType("kr")} className={`px-2.5 py-1.5 ${inlineRabattType === "kr" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>kr</button>
+                        <button onClick={() => setInlineRabattType("pst")} className={`px-2.5 py-1.5 ${inlineRabattType === "pst" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>%</button>
+                      </div>
+                      <button onClick={addInlineRabatt} disabled={!inlineRabattDesc.trim() || !inlineRabattAmount} className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-40">+ Legg til</button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* RABATTER SECTION */}
+              {/* ANDRE RABATTER SECTION (non-category-specific) */}
+              {(() => {
+                const CAT_PREFIXES = ["Søknadshjelp – ", "Dispensasjon – ", "Tegning – "];
+                const uncategorized = extraCosts.filter(c => c.amount < 0 && !CAT_PREFIXES.some(p => c.description.startsWith(p)));
+                return (
               <div className="overflow-hidden rounded-lg border border-green-200">
                 <div className="flex items-center justify-between bg-green-600 px-3 py-2">
-                  <span className="text-xs font-bold uppercase tracking-wide text-white">Rabatter</span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-white">Andre rabatter</span>
                   {extraCosts.filter(c => c.amount < 0).length > 0 && (
                     <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold text-white">
-                      {fmt(Math.abs(extraCosts.filter(c => c.amount < 0).reduce((s, c) => s + c.amount, 0)))} rabatt
+                      {fmt(Math.abs(extraCosts.filter(c => c.amount < 0).reduce((s, c) => s + c.amount, 0)))} tot.
                     </span>
                   )}
                 </div>
                 <div className="bg-white px-3 py-2">
-                  {extraCosts.filter(c => c.amount < 0).length > 0 && (
+                  {uncategorized.length > 0 && (
                     <div className="mb-2 divide-y divide-gray-100">
-                      {extraCosts.filter(c => c.amount < 0).map((c) => (
+                      {uncategorized.map((c) => (
                         <div key={c.description + c.amount} className="flex items-center justify-between py-2">
                           <span className="text-sm text-gray-700">{c.description}</span>
                           <div className="flex items-center gap-2">
@@ -1538,6 +1695,7 @@ export default function SoknadshjelDetailPage() {
                   )}
                 </div>
               </div>
+                ); })()}
 
               {/* GRAND TOTAL */}
               <div className="rounded-lg bg-orange-50 px-4 py-3">

@@ -330,15 +330,15 @@ function drawGarageFootprint(
     ctx.restore();
   }
 
-  // Right edge = widthLabel (existing placement)
+  // Right edge = lengthLabel (right edge runs N-S = depth/lengde)
   {
     const [bx, by] = edgeMid(outer[1], outer[2]);
-    labelWithBg(widthLabel, bx, by, edgeAngle(outer[1], outer[2]), "top");
+    labelWithBg(lengthLabel, bx, by, edgeAngle(outer[1], outer[2]), "top");
   }
-  // Bottom edge = lengthLabel (existing placement)
+  // Bottom edge = widthLabel (bottom edge runs E-W = span/bredde)
   {
     const [rx, ry] = edgeMid(outer[2], outer[3]);
-    labelWithBg(lengthLabel, rx, ry, edgeAngle(outer[2], outer[3]), "bottom");
+    labelWithBg(widthLabel, rx, ry, edgeAngle(outer[2], outer[3]), "bottom");
   }
 
   ctx.restore();
