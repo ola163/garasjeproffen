@@ -139,6 +139,8 @@ export default function SoknadshjelDetailPage() {
   const [convertingToQuote, setConvertingToQuote] = useState(false);
   const [convertConfirm, setConvertConfirm] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
+  const [approvalSent, setApprovalSent] = useState(false);
+  const [approvingCase, setApprovingCase] = useState(false);
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
   const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
   const [dibkAdminComments, setDibkAdminComments] = useState<Record<string, string>>({});
@@ -349,6 +351,68 @@ export default function SoknadshjelDetailPage() {
       setRow((prev) => prev ? { ...prev, assigned_to: email || null } : null);
     }
     setUpdatingAssigned(false);
+  }
+
+  async function handleRequestApproval() {
+    if (!supabase || !row || !user) return;
+    // Send to the admin who has NOT taken this case
+    const otherAdmin = ALLOWED_ADMINS.find((a) => a !== (row.assigned_to || user.email));
+    const approverEmail = otherAdmin ?? ALLOWED_ADMINS.find((a) => a !== user.email) ?? "";
+    if (!approverEmail) return;
+    const approverName = adminName(approverEmail);
+    const requesterName = adminName(user.email);
+    const now = new Date().toISOString();
+    setSendingApproval(true);
+    await supabase.from("soknadshjelp").update({
+      status: "pending_approval",
+      approval_requested_from: approverName,
+      approval_requested_at: now,
+    }).eq("id", row.id);
+    const old = status;
+    setStatus("pending_approval");
+    const { data: logEntry } = await supabase.from("activity_log").insert({
+      entity_type: "soknadshjelp",
+      entity_id: row.id,
+      action_type: "status_change",
+      actor_email: user.email ?? "ukjent",
+      payload: { from_status: old, to_status: "pending_approval" },
+    }).select().single();
+    if (logEntry) setActivityLog((prev) => [logEntry as ActivityEntry, ...prev]);
+    setRow((prev) => prev ? { ...prev, status: "pending_approval", approval_requested_from: approverName, approval_requested_at: now } : null);
+    await fetch("/api/admin/soknadshjelp-approval", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        approverEmail,
+        approverName,
+        requesterName,
+        ticketNumber: row.ticket_number,
+        customerName: row.customer_name,
+        totalPrice: row.total_price ?? 0,
+        soknadshjelId: row.id,
+      }),
+    });
+    setSendingApproval(false);
+    setApprovalSent(true);
+    setTimeout(() => setApprovalSent(false), 3000);
+  }
+
+  async function handleApprove() {
+    if (!supabase || !row || !user) return;
+    setApprovingCase(true);
+    const old = status;
+    setStatus("offer_sent");
+    await supabase.from("soknadshjelp").update({ status: "offer_sent" }).eq("id", row.id);
+    const { data: logEntry } = await supabase.from("activity_log").insert({
+      entity_type: "soknadshjelp",
+      entity_id: row.id,
+      action_type: "status_change",
+      actor_email: user.email ?? "ukjent",
+      payload: { from_status: old, to_status: "offer_sent" },
+    }).select().single();
+    if (logEntry) setActivityLog((prev) => [logEntry as ActivityEntry, ...prev]);
+    setRow((prev) => prev ? { ...prev, status: "offer_sent" } : null);
+    setApprovingCase(false);
   }
 
   async function handleConvertToQuote() {
@@ -723,6 +787,32 @@ export default function SoknadshjelDetailPage() {
                 >
                   {convertingToQuote ? "Oppretter…" : "Konverter til søknadshjelp + byggpakke"}
                 </button>
+              )}
+              {/* Godkjenning */}
+              {status === "pending_approval" ? (
+                row.approval_requested_from === adminName(user?.email) ? (
+                  <button
+                    onClick={handleApprove}
+                    disabled={approvingCase}
+                    className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  >
+                    {approvingCase ? "Godkjenner…" : "Godkjenn"}
+                  </button>
+                ) : (
+                  <span className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700">
+                    Venter godkjenning fra {row.approval_requested_from}
+                  </span>
+                )
+              ) : (
+                !["offer_sent", "paid", "ferdigstilt", "cancelled"].includes(status) && (
+                  <button
+                    onClick={handleRequestApproval}
+                    disabled={sendingApproval}
+                    className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                  >
+                    {sendingApproval ? "Sender…" : approvalSent ? "Sendt ✓" : "Send til godkjenning"}
+                  </button>
+                )
               )}
             </div>
           </div>
