@@ -566,39 +566,59 @@ function drawTitleBlock(
 }
 
 function drawWatermark(ctx: CanvasRenderingContext2D) {
-  const lines = [
+  // ── 1. Big diagonal "GarasjeProffen" text ──
+  ctx.save();
+  const cx      = CANVAS_W / 2;
+  const cy      = MAP_H / 2;
+  const diagLen = Math.hypot(CANVAS_W, MAP_H);
+  const angle   = -Math.atan2(MAP_H, CANVAS_W);
+
+  const testSize = 100;
+  ctx.font = `bold ${testSize}px sans-serif`;
+  const measured = ctx.measureText("GarasjeProffen").width;
+  const fontSize = Math.floor((diagLen * 0.88) / measured * testSize);
+
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  ctx.globalAlpha  = 0.12;
+  ctx.fillStyle    = "#1e293b";
+  ctx.textAlign    = "center";
+  ctx.textBaseline = "middle";
+  ctx.font         = `bold ${fontSize}px sans-serif`;
+  ctx.fillText("GarasjeProffen", 0, 0);
+  ctx.restore();
+
+  // ── 2. Copyright notice box at bottom-centre of map area ──
+  const copyrightLines = [
     "Denne tegning tilhører Garasjeproffen og er beskyttet av åndsverkloven.",
     "Kopiering og annen bruk uten Garasjeproffen sin godkjenning er forbudt.",
     "Misbruk kan medføre erstatningsansvar.",
   ];
 
   ctx.save();
-  const cx      = CANVAS_W / 2;
-  const cy      = CANVAS_H / 2;
-  const diagLen = Math.hypot(CANVAS_W, CANVAS_H);
-  const angle   = -Math.atan2(CANVAS_H, CANVAS_W);
+  const cFontSize = 16;
+  const cLineH    = cFontSize * 1.65;
+  const cPadY     = 16;
+  const cBoxW     = CANVAS_W - 80;
+  const cBoxH     = copyrightLines.length * cLineH + cPadY * 2;
+  const cBoxX     = (CANVAS_W - cBoxW) / 2;
+  const cBoxY     = MAP_H - cBoxH - 50;
 
-  // Scale font so the longest line fills ~80 % of the diagonal
-  const testSize = 100;
-  ctx.font = `bold ${testSize}px sans-serif`;
-  const maxMeasured = Math.max(...lines.map(l => ctx.measureText(l).width));
-  const fontSize    = Math.floor((diagLen * 0.80) / maxMeasured * testSize);
-  const lineH       = fontSize * 1.45;
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle   = "rgba(255,255,255,0.93)";
+  ctx.fillRect(cBoxX, cBoxY, cBoxW, cBoxH);
+  ctx.strokeStyle = "#94a3b8";
+  ctx.lineWidth   = 1.5;
+  ctx.globalAlpha = 1;
+  ctx.strokeRect(cBoxX, cBoxY, cBoxW, cBoxH);
 
-  ctx.translate(cx, cy);
-  ctx.rotate(angle);
-
-  ctx.globalAlpha  = 0.30;
+  ctx.font         = `bold ${cFontSize}px sans-serif`;
   ctx.fillStyle    = "#1e293b";
   ctx.textAlign    = "center";
-  ctx.textBaseline = "middle";
-  ctx.font         = `bold ${fontSize}px sans-serif`;
-
-  const totalH = lineH * (lines.length - 1);
-  lines.forEach((line, i) => {
-    ctx.fillText(line, 0, -totalH / 2 + i * lineH);
+  ctx.textBaseline = "top";
+  copyrightLines.forEach((line, i) => {
+    ctx.fillText(line, CANVAS_W / 2, cBoxY + cPadY + i * cLineH);
   });
-
   ctx.restore();
 }
 
@@ -792,6 +812,9 @@ function PrintContent() {
   const rotation  = parseInt  (params.get("rotation") ?? "0", 10);
   const widthMm   = parseInt  (params.get("widthMm")  ?? "5000", 10);
   const lengthMm  = parseInt  (params.get("lengthMm") ?? "6000", 10);
+
+  const [localWidthMm,  setLocalWidthMm]  = useState(widthMm);
+  const [localLengthMm, setLocalLengthMm] = useState(lengthMm);
   const roofType      = params.get("roofType")     ?? "saltak";
   const buildingType  = params.get("buildingType") ?? "garasje";
   const address       = params.get("address")      ?? "";
@@ -840,7 +863,7 @@ function PrintContent() {
       await renderSituasjonsplan(
         canvasRef.current,
         lat, lng,
-        widthMm, lengthMm, rotation,
+        localWidthMm, localLengthMm, rotation,
         address,
         roofType, buildingType,
       );
@@ -851,7 +874,7 @@ function PrintContent() {
       setErrorMsg(e instanceof Error ? e.message : "Ukjent feil");
       setStatus("error");
     }
-  }, [lat, lng, widthMm, lengthMm, rotation, address, roofType, buildingType, isValid]);
+  }, [lat, lng, localWidthMm, localLengthMm, rotation, address, roofType, buildingType, isValid]);
 
   useEffect(() => {
     render();
@@ -940,6 +963,35 @@ function PrintContent() {
         <Link href={backUrl} className="text-sm text-gray-400 hover:text-orange-500 transition-colors">← Tilbake</Link>
         <span className="text-gray-300">/</span>
         <h1 className="text-sm font-semibold text-gray-800">Situasjonsplan – Tegning</h1>
+
+        {/* ── Dimension editor ── */}
+        <div className="flex items-center gap-1.5 ml-2 border-l border-gray-200 pl-3">
+          <span className="text-xs text-gray-500">B:</span>
+          <input
+            type="number"
+            value={localWidthMm / 1000}
+            onChange={e => setLocalWidthMm(Math.round(parseFloat(e.target.value || "0") * 1000))}
+            step="0.1" min="1" max="20"
+            className="w-16 rounded-lg border border-gray-200 px-2 py-1 text-xs text-center focus:border-orange-400 focus:outline-none"
+          />
+          <span className="text-xs text-gray-400">m</span>
+          <span className="text-xs text-gray-500 ml-1">L:</span>
+          <input
+            type="number"
+            value={localLengthMm / 1000}
+            onChange={e => setLocalLengthMm(Math.round(parseFloat(e.target.value || "0") * 1000))}
+            step="0.1" min="1" max="20"
+            className="w-16 rounded-lg border border-gray-200 px-2 py-1 text-xs text-center focus:border-orange-400 focus:outline-none"
+          />
+          <span className="text-xs text-gray-400">m</span>
+          <button
+            onClick={render}
+            disabled={status === "loading"}
+            className="flex items-center gap-1 rounded-lg border border-orange-300 text-orange-600 hover:bg-orange-50 disabled:opacity-40 text-xs font-medium px-2.5 py-1.5 transition-colors"
+          >
+            ↺ Tegn på nytt
+          </button>
+        </div>
 
         {/* ── Drawing tools (shown when done) ── */}
         {status === "done" && (
