@@ -102,6 +102,9 @@ export default function SoknadshjelDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasUnsavedChangesRef = useRef(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [pendingHref, setPendingHref] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [row, setRow] = useState<SoknadshjelRow | null>(null);
@@ -255,6 +258,60 @@ export default function SoknadshjelDetailPage() {
       setLoading(false);
     });
   }, [user, id]);
+
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (hasUnsavedChangesRef.current) { e.preventDefault(); e.returnValue = ""; }
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
+  useEffect(() => {
+    function onLinkClick(e: MouseEvent) {
+      if (!hasUnsavedChangesRef.current) return;
+      const anchor = (e.target as Element).closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:") || anchor.target === "_blank") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingHref(href);
+      setLeaveConfirmOpen(true);
+    }
+    window.addEventListener("click", onLinkClick, true);
+
+    function onPopState() {
+      if (!hasUnsavedChangesRef.current) return;
+      window.history.pushState(null, "", window.location.href);
+      setPendingHref("__back__");
+      setLeaveConfirmOpen(true);
+    }
+    window.addEventListener("popstate", onPopState);
+
+    const origPushState = window.history.pushState.bind(window.history);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window.history as any).pushState = function(data: unknown, unused: string, url?: string | URL | null) {
+      if (hasUnsavedChangesRef.current && url != null) {
+        setPendingHref(String(url));
+        setLeaveConfirmOpen(true);
+        return;
+      }
+      origPushState(data, unused, url);
+    };
+
+    return () => {
+      window.removeEventListener("click", onLinkClick, true);
+      window.removeEventListener("popstate", onPopState);
+      window.history.pushState = origPushState;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function navigate(href: string) {
+    if (hasUnsavedChangesRef.current) { setPendingHref(href); setLeaveConfirmOpen(true); }
+    else router.push(href);
+  }
 
   function addExtraCost() {
     const amount = parseFloat(newCostAmount.replace(/\s/g, "").replace(",", "."));
@@ -697,7 +754,8 @@ export default function SoknadshjelDetailPage() {
       }
 
       const savedComments = Object.fromEntries(commentEntries) as Record<string, string>;
-      setRow((prev) => prev ? { ...prev, dibk: dibkForSave, admin_dibk_comments: Object.keys(savedComments).length > 0 ? savedComments : null } : null);
+      setRow((prev) => prev ? { ...prev, dibk: dibkForSave, extra_costs: extraCosts, manual_dispensasjoner: manualDisps, admin_dibk_comments: Object.keys(savedComments).length > 0 ? savedComments : null } : null);
+      hasUnsavedChangesRef.current = false;
       setSaveOk(true);
       setTimeout(() => setSaveOk(false), 2500);
     } catch (err) {
@@ -735,6 +793,12 @@ export default function SoknadshjelDetailPage() {
     JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? []) ||
     commentsChanged) &&
     !dibkReasonsMissing;
+  const hasUnsavedChanges =
+    changedDibkKeys.length > 0 ||
+    JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
+    JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? []) ||
+    commentsChanged;
+  hasUnsavedChangesRef.current = hasUnsavedChanges;
 
   const manuallyChangedKeys = new Set<string>();
   const activityLogReasons: Record<string, string> = {};
@@ -760,7 +824,7 @@ export default function SoknadshjelDetailPage() {
         {/* Header */}
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <button onClick={() => router.push("/admin/quotes")} className="mt-1 text-gray-400 hover:text-gray-600">
+            <button onClick={() => navigate("/admin/quotes")} className="mt-1 text-gray-400 hover:text-gray-600">
               <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
             </button>
             <div>
@@ -1570,6 +1634,46 @@ export default function SoknadshjelDetailPage() {
                 {convertingToQuote ? "Oppretter…" : "Ja, konverter"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave confirmation modal */}
+      {leaveConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Ulagrede endringer</h2>
+            <p className="mt-1 text-sm text-gray-500">Du har endringer som ikke er lagret. Hva vil du gjøre?</p>
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setLeaveConfirmOpen(false)}
+                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Avbryt
+              </button>
+              <button
+                onClick={async () => {
+                  await handleSave();
+                  hasUnsavedChangesRef.current = false;
+                  setLeaveConfirmOpen(false);
+                  if (pendingHref === "__back__") history.go(-1);
+                  else router.push(pendingHref);
+                }}
+                disabled={saving || dibkReasonsMissing}
+                className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50">
+                {saving ? "Lagrer…" : "Lagre og gå ut"}
+              </button>
+              <button onClick={() => {
+                hasUnsavedChangesRef.current = false;
+                setLeaveConfirmOpen(false);
+                if (pendingHref === "__back__") history.go(-1);
+                else router.push(pendingHref);
+              }}
+                className="flex-1 rounded-lg border border-red-200 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50">
+                Forkast
+              </button>
+            </div>
+            {dibkReasonsMissing && (
+              <p className="mt-3 text-xs text-amber-600">Du må oppgi begrunnelse for DIBK-endringer før du kan lagre.</p>
+            )}
           </div>
         </div>
       )}
