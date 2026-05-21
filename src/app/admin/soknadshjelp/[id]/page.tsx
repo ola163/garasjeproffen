@@ -141,6 +141,8 @@ export default function SoknadshjelDetailPage() {
   const [sendingApproval, setSendingApproval] = useState(false);
   const [approvalSent, setApprovalSent] = useState(false);
   const [approvingCase, setApprovingCase] = useState(false);
+  const [returComment, setReturComment] = useState("");
+  const [returningCase, setReturningCase] = useState(false);
   const [localDibk, setLocalDibk] = useState<Record<string, string>>({});
   const [localDibkReasons, setLocalDibkReasons] = useState<Record<string, string>>({});
   const [dibkAdminComments, setDibkAdminComments] = useState<Record<string, string>>({});
@@ -402,7 +404,11 @@ export default function SoknadshjelDetailPage() {
     setApprovingCase(true);
     const old = status;
     setStatus("offer_sent");
-    await supabase.from("soknadshjelp").update({ status: "offer_sent" }).eq("id", row.id);
+    await supabase.from("soknadshjelp").update({
+      status: "offer_sent",
+      approval_requested_from: null,
+      approval_requested_at: null,
+    }).eq("id", row.id);
     const { data: logEntry } = await supabase.from("activity_log").insert({
       entity_type: "soknadshjelp",
       entity_id: row.id,
@@ -411,8 +417,31 @@ export default function SoknadshjelDetailPage() {
       payload: { from_status: old, to_status: "offer_sent" },
     }).select().single();
     if (logEntry) setActivityLog((prev) => [logEntry as ActivityEntry, ...prev]);
-    setRow((prev) => prev ? { ...prev, status: "offer_sent" } : null);
+    setRow((prev) => prev ? { ...prev, status: "offer_sent", approval_requested_from: null, approval_requested_at: null } : null);
     setApprovingCase(false);
+  }
+
+  async function handleReturnCase() {
+    if (!supabase || !row || !user) return;
+    setReturningCase(true);
+    const text = returComment.trim();
+    await supabase.from("soknadshjelp").update({
+      status: "in_review",
+      approval_requested_from: null,
+      approval_requested_at: null,
+    }).eq("id", row.id);
+    const { data: logEntry } = await supabase.from("activity_log").insert({
+      entity_type: "soknadshjelp",
+      entity_id: row.id,
+      action_type: "approval_rejected",
+      actor_email: user.email ?? "ukjent",
+      payload: { comment: text },
+    }).select().single();
+    if (logEntry) setActivityLog((prev) => [logEntry as ActivityEntry, ...prev]);
+    setStatus("in_review");
+    setRow((prev) => prev ? { ...prev, status: "in_review", approval_requested_from: null, approval_requested_at: null } : null);
+    setReturComment("");
+    setReturningCase(false);
   }
 
   async function handleConvertToQuote() {
@@ -710,6 +739,7 @@ export default function SoknadshjelDetailPage() {
       }
     });
 
+  const isPendingApproval = status === "pending_approval";
   const totalDispCount = dibkDispCount + manualDisps.length;
   const computedTotal = (row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
@@ -739,7 +769,7 @@ export default function SoknadshjelDetailPage() {
                 <select
                   value={assignedTo}
                   onChange={(e) => handleAssignedToChange(e.target.value)}
-                  disabled={updatingAssigned}
+                  disabled={updatingAssigned || isPendingApproval}
                   className="rounded border border-gray-200 bg-transparent px-1.5 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-60"
                 >
                   <option value="">Ikke tildelt</option>
@@ -762,7 +792,7 @@ export default function SoknadshjelDetailPage() {
             {/* Inline status buttons */}
             <div className="flex flex-wrap justify-end gap-1.5">
               {STATUS_OPTIONS.map((s) => (
-                <button key={s} onClick={() => setStatusConfirm(s)} disabled={updatingStatus || s === status}
+                <button key={s} onClick={() => setStatusConfirm(s)} disabled={updatingStatus || s === status || isPendingApproval}
                   className={`rounded-full px-3 py-1 text-xs font-medium transition-all disabled:cursor-default ${
                     s === status
                       ? (STATUS_COLORS[s] ?? "bg-gray-100 text-gray-500") + " ring-2 ring-offset-1 ring-current opacity-100"
@@ -791,13 +821,32 @@ export default function SoknadshjelDetailPage() {
               {/* Godkjenning */}
               {status === "pending_approval" ? (
                 row.approval_requested_from === adminName(user?.email) ? (
-                  <button
-                    onClick={handleApprove}
-                    disabled={approvingCase}
-                    className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-                  >
-                    {approvingCase ? "Godkjenner…" : "Godkjenn"}
-                  </button>
+                  <div className="flex flex-col items-end gap-2">
+                    <button
+                      onClick={handleApprove}
+                      disabled={approvingCase || returningCase}
+                      className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {approvingCase ? "Godkjenner…" : "Godkjenn"}
+                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Kommentar ved retur (valgfri)"
+                        value={returComment}
+                        onChange={(e) => setReturComment(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleReturnCase()}
+                        className="w-48 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <button
+                        onClick={handleReturnCase}
+                        disabled={returningCase || approvingCase}
+                        className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                      >
+                        {returningCase ? "Sender…" : "Send i retur"}
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <span className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700">
                     Venter godkjenning fra {row.approval_requested_from}
@@ -819,6 +868,17 @@ export default function SoknadshjelDetailPage() {
         </div>
 
         <div className="space-y-4">
+
+          {/* Lock banner */}
+          {isPendingApproval && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-center gap-3">
+              <svg className="h-5 w-5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Saken er låst — venter på godkjenning</p>
+                <p className="text-xs text-amber-700">Ingen endringer kan gjøres. Du kan legge inn kommentarer i loggen og sende saken i retur.</p>
+              </div>
+            </div>
+          )}
 
           {/* Statuslogg */}
           {activityLog.filter(e => e.action_type === "status_change").length > 0 && (
@@ -854,7 +914,7 @@ export default function SoknadshjelDetailPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">Lead kilde</span>
                 <select value={leadSource} onChange={(e) => handleLeadSourceChange(e.target.value)}
-                  disabled={savingLeadSource}
+                  disabled={savingLeadSource || isPendingApproval}
                   className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60">
                   <option value="">– Ukjent</option>
                   {leadSources.map((s) => (
@@ -895,7 +955,7 @@ export default function SoknadshjelDetailPage() {
                     {dibkDispCount} dispensasjon{dibkDispCount > 1 ? "er" : ""}
                   </span>
                 )}
-                <button onClick={handleSave} disabled={saving || !hasChanges} className="ml-auto rounded-lg bg-orange-500 px-3 py-1 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
+                <button onClick={handleSave} disabled={saving || !hasChanges || isPendingApproval} className="ml-auto rounded-lg bg-orange-500 px-3 py-1 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
               </div>
               <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
                 {Object.entries(localDibk).map(([k, v]) => {
@@ -914,7 +974,8 @@ export default function SoknadshjelDetailPage() {
                         <select
                           value={v}
                           onChange={(e) => setLocalDibk((prev) => ({ ...prev, [k]: e.target.value }))}
-                          className={`ml-2 rounded border px-1.5 py-0.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-orange-400 ${v === "Ja" ? "text-green-600 bg-green-50 border-green-200" : v === "Nei" ? "text-red-500 bg-red-50 border-red-200" : "text-gray-500 bg-gray-50 border-gray-200"}`}
+                          disabled={isPendingApproval}
+                          className={`ml-2 rounded border px-1.5 py-0.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-70 disabled:cursor-not-allowed ${v === "Ja" ? "text-green-600 bg-green-50 border-green-200" : v === "Nei" ? "text-red-500 bg-red-50 border-red-200" : "text-gray-500 bg-gray-50 border-gray-200"}`}
                         >
                           <option value="Ja">Ja</option>
                           <option value="Nei">Nei</option>
@@ -931,7 +992,8 @@ export default function SoknadshjelDetailPage() {
                         placeholder="Admin-kommentar (vises i tilbudsbygger)"
                         value={dibkAdminComments[k] ?? ""}
                         onChange={(e) => setDibkAdminComments((prev) => ({ ...prev, [k]: e.target.value }))}
-                        className="mt-1.5 w-full rounded border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                        disabled={isPendingApproval}
+                        className="mt-1.5 w-full rounded border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-70"
                       />
                       {(unsaved || manualOverride || !!localDibkReasons[k]?.trim()) && (
                         unsaved ? (
@@ -940,7 +1002,8 @@ export default function SoknadshjelDetailPage() {
                             placeholder="Grunn til endring (påkrevd)"
                             value={localDibkReasons[k] ?? ""}
                             onChange={(e) => setLocalDibkReasons((prev) => ({ ...prev, [k]: e.target.value }))}
-                            className="mt-1.5 w-full rounded border border-blue-300 bg-white px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            disabled={isPendingApproval}
+                            className="mt-1.5 w-full rounded border border-blue-300 bg-white px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-70"
                           />
                         ) : (
                           <p className="mt-1.5 rounded border border-blue-100 bg-blue-50 px-2 py-1 text-xs text-blue-700">
@@ -970,7 +1033,7 @@ export default function SoknadshjelDetailPage() {
                     <span className="text-sm text-gray-800">{d.description}</span>
                     <div className="ml-3 flex items-center gap-2">
                       <span className="text-xs font-semibold text-gray-700">{fmt(d.amount)}</span>
-                      <button onClick={() => removeManualDisp(i)} className="text-red-400 hover:text-red-600" title="Fjern">
+                      <button onClick={() => removeManualDisp(i)} disabled={isPendingApproval} className="text-red-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed" title="Fjern">
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
                     </div>
@@ -985,7 +1048,8 @@ export default function SoknadshjelDetailPage() {
                 value={newDispDesc}
                 onChange={(e) => setNewDispDesc(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addManualDisp()}
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                disabled={isPendingApproval}
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
               />
               <div className="relative">
                 <input
@@ -993,19 +1057,20 @@ export default function SoknadshjelDetailPage() {
                   value={newDispAmount}
                   onChange={(e) => setNewDispAmount(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addManualDisp()}
-                  className="w-28 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  disabled={isPendingApproval}
+                  className="w-28 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
                   title="Foreslått pris — kan overstyres"
                 />
                 <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">kr</span>
               </div>
-              <button onClick={addManualDisp} disabled={!newDispDesc.trim() || !newDispAmount}
+              <button onClick={addManualDisp} disabled={!newDispDesc.trim() || !newDispAmount || isPendingApproval}
                 className="rounded-lg bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-40">
                 + Legg til
               </button>
             </div>
             <p className="mt-1.5 text-xs text-gray-400">Foreslått pris: {dibkDispCount > 0 || manualDisps.length > 0 ? "2 000" : "8 000"} kr — kan overstyres i beløpsfeltet.</p>
             <div className="mt-3 flex justify-end">
-              <button onClick={handleSave} disabled={saving || !hasChanges} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
+              <button onClick={handleSave} disabled={saving || !hasChanges || isPendingApproval} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
             </div>
           </div>
 
@@ -1023,8 +1088,8 @@ export default function SoknadshjelDetailPage() {
                   return (
                     <div
                       key={opt.key}
-                      onClick={() => toggleTegningCost(opt.label, price)}
-                      className={`flex cursor-pointer select-none items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${isActive ? "border-teal-400 bg-white shadow-sm" : "border-dashed border-teal-200 hover:border-teal-300"}`}
+                      onClick={() => !isPendingApproval && toggleTegningCost(opt.label, price)}
+                      className={`flex select-none items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${isPendingApproval ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${isActive ? "border-teal-400 bg-white shadow-sm" : "border-dashed border-teal-200 hover:border-teal-300"}`}
                     >
                       <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-colors ${isActive ? "border-teal-500 bg-teal-500" : "border-teal-300 bg-white"}`}>
                         {isActive && (
@@ -1090,7 +1155,7 @@ export default function SoknadshjelDetailPage() {
                   <span>{c.description}</span>
                   <div className="flex items-center gap-2">
                     <span>{fmt(c.amount)}</span>
-                    <button onClick={() => removeExtraCost(extraCosts.indexOf(c))} className="text-gray-300 hover:text-red-500" title="Fjern">
+                    <button onClick={() => removeExtraCost(extraCosts.indexOf(c))} disabled={isPendingApproval} className="text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed" title="Fjern">
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
@@ -1109,7 +1174,8 @@ export default function SoknadshjelDetailPage() {
                 placeholder="Beskrivelse"
                 value={newCostDesc}
                 onChange={(e) => setNewCostDesc(e.target.value)}
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                disabled={isPendingApproval}
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
               />
               <input
                 type="number"
@@ -1117,15 +1183,16 @@ export default function SoknadshjelDetailPage() {
                 value={newCostAmount}
                 onChange={(e) => setNewCostAmount(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addExtraCost()}
-                className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                disabled={isPendingApproval}
+                className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
               />
-              <button onClick={addExtraCost} disabled={!newCostDesc.trim() || !newCostAmount}
+              <button onClick={addExtraCost} disabled={!newCostDesc.trim() || !newCostAmount || isPendingApproval}
                 className="rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40">
                 + Legg til
               </button>
             </div>
             <div className="mt-3 flex justify-end">
-              <button onClick={handleSave} disabled={saving || !hasChanges} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
+              <button onClick={handleSave} disabled={saving || !hasChanges || isPendingApproval} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Lagrer…" : "Lagre"}</button>
             </div>
           </div>
 
@@ -1147,11 +1214,12 @@ export default function SoknadshjelDetailPage() {
                 value={customerNotes}
                 onChange={(e) => setCustomerNotes(e.target.value)}
                 placeholder="Notat som vises på tilbudet til kunden…"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                disabled={isPendingApproval}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
               />
               <button
                 onClick={handleSaveCustomerNotes}
-                disabled={savingCustomerNotes}
+                disabled={savingCustomerNotes || isPendingApproval}
                 className="mt-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
               >
                 {savingCustomerNotes ? "Lagrer…" : "Lagre kundenotat"}
@@ -1162,7 +1230,7 @@ export default function SoknadshjelDetailPage() {
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <p className="text-[10px] font-medium text-red-400">Internt notat (kun for oss)</p>
-                {!editingNotes && (
+                {!editingNotes && !isPendingApproval && (
                   <button onClick={() => setEditingNotes(true)} className="text-xs text-red-400 hover:text-red-600 font-medium">Endre</button>
                 )}
               </div>
@@ -1202,7 +1270,7 @@ export default function SoknadshjelDetailPage() {
               )}
             </div>
             <div className="mt-3 flex items-center gap-3 flex-wrap">
-              <button onClick={handleSave} disabled={saving || !hasChanges}
+              <button onClick={handleSave} disabled={saving || !hasChanges || isPendingApproval}
                 className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">
                 {saving ? "Lagrer…" : "Lagre"}
               </button>
@@ -1360,6 +1428,7 @@ export default function SoknadshjelDetailPage() {
                   const dotColor =
                     entry.action_type === "status_change" ? "bg-orange-400" :
                     entry.action_type === "approval_requested" ? "bg-purple-400" :
+                    entry.action_type === "approval_rejected" ? "bg-amber-400" :
                     entry.action_type === "dibk_edit" ? "bg-blue-400" :
                     entry.action_type === "comment" ? "bg-gray-400" : "bg-gray-300";
                   return (
@@ -1399,6 +1468,13 @@ export default function SoknadshjelDetailPage() {
                           <p className="text-purple-700 font-medium">
                             Sendt til godkjenning — <span className="font-semibold">{adminName((entry.payload as { to?: string }).to ?? "")}</span>
                           </p>
+                        ) : entry.action_type === "approval_rejected" ? (
+                          <div>
+                            <p className="text-amber-700 font-medium">Sendt i retur</p>
+                            {(entry.payload as { comment?: string }).comment && (
+                              <p className="mt-0.5 text-gray-600 italic">"{(entry.payload as { comment?: string }).comment}"</p>
+                            )}
+                          </div>
                         ) : entry.action_type === "lead_source_change" ? (
                           <p className="text-gray-600">Lead kilde: <span className="font-medium">{(entry.payload as { old?: string }).old || "–"}</span> → <span className="font-medium">{(entry.payload as { new?: string }).new || "–"}</span></p>
                         ) : (
@@ -1414,7 +1490,7 @@ export default function SoknadshjelDetailPage() {
           </div>
 
           {/* Send til godkjenning */}
-          {!["paid", "ferdigstilt", "cancelled"].includes(status) && (
+          {!["paid", "ferdigstilt", "cancelled", "pending_approval"].includes(status) && (
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <h2 className="mb-1 text-sm font-semibold text-gray-700">Send til godkjenning</h2>
               {row.approval_requested_from && status === "pending_approval" ? (
