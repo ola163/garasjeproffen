@@ -229,6 +229,7 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
             <div className="info-row"><span className="info-label">Navn</span><span className="info-value">{quote.customer_name}</span></div>
             <div className="info-row"><span className="info-label">E-post</span><span className="info-value">{quote.customer_email}</span></div>
             {quote.customer_phone && <div className="info-row"><span className="info-label">Telefon</span><span className="info-value">{quote.customer_phone}</span></div>}
+            {quote.map_address && <div className="info-row"><span className="info-label">Adresse</span><span className="info-value">{quote.map_address}</span></div>}
           </div>
           <div className="info-box">
             <h3>Produkt</h3>
