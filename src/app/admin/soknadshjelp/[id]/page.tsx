@@ -468,7 +468,10 @@ export default function SoknadshjelDetailPage() {
     if (!supabase || !row || !user) return;
     setApprovingCase(true);
     const old = status;
-    setStatus("offer_sent");
+    const total = (row.permit_price ?? 0)
+      + (row.extra_costs as { amount: number }[] ?? []).reduce((s, c) => s + c.amount, 0)
+      + (row.manual_dispensasjoner as { amount: number }[] ?? []).reduce((s, d) => s + d.amount, 0);
+
     await supabase.from("soknadshjelp").update({
       status: "offer_sent",
       approval_requested_from: null,
@@ -482,7 +485,23 @@ export default function SoknadshjelDetailPage() {
       payload: { from_status: old, to_status: "offer_sent" },
     }).select().single();
     if (logEntry) setActivityLog((prev) => [logEntry as ActivityEntry, ...prev]);
+    setStatus("offer_sent");
     setRow((prev) => prev ? { ...prev, status: "offer_sent", approval_requested_from: null, approval_requested_at: null } : null);
+
+    await fetch("/api/admin/soknadshjelp-approved", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        adminEmail: user.email,
+        customerEmail: row.customer_email,
+        customerName: row.customer_name,
+        ticketNumber: row.ticket_number,
+        address: row.address,
+        totalPrice: total,
+        soknadshjelId: row.id,
+      }),
+    });
+
     setApprovingCase(false);
   }
 
@@ -909,7 +928,7 @@ export default function SoknadshjelDetailPage() {
                       disabled={approvingCase || returningCase}
                       className="w-full rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
                     >
-                      {approvingCase ? "Godkjenner…" : "Godkjenn søknadshjelp-saken"}
+                      {approvingCase ? "Sender…" : "Godkjenn og send til kunde"}
                     </button>
                     <div className="flex gap-2">
                       <input
