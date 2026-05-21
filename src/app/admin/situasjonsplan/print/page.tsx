@@ -566,26 +566,39 @@ function drawTitleBlock(
 }
 
 function drawWatermark(ctx: CanvasRenderingContext2D) {
+  const lines = [
+    "Denne tegning tilhører Garasjeproffen og er beskyttet av åndsverkloven.",
+    "Kopiering og annen bruk uten Garasjeproffen sin godkjenning er forbudt.",
+    "Misbruk kan medføre erstatningsansvar.",
+  ];
+
   ctx.save();
-  const cx = CANVAS_W / 2;
-  const cy = CANVAS_H / 2;
+  const cx      = CANVAS_W / 2;
+  const cy      = CANVAS_H / 2;
   const diagLen = Math.hypot(CANVAS_W, CANVAS_H);
   const angle   = -Math.atan2(CANVAS_H, CANVAS_W);
+
+  // Scale font so the longest line fills ~80 % of the diagonal
+  const testSize = 100;
+  ctx.font = `bold ${testSize}px sans-serif`;
+  const maxMeasured = Math.max(...lines.map(l => ctx.measureText(l).width));
+  const fontSize    = Math.floor((diagLen * 0.80) / maxMeasured * testSize);
+  const lineH       = fontSize * 1.45;
 
   ctx.translate(cx, cy);
   ctx.rotate(angle);
 
-  const testSize = 300;
-  ctx.font = `bold ${testSize}px sans-serif`;
-  const tw    = ctx.measureText("GarasjeProffen").width;
-  const scale = (diagLen * 0.88) / tw;
-  ctx.scale(scale, scale);
-
-  ctx.globalAlpha = 0.12;
-  ctx.fillStyle   = "#1e293b";
-  ctx.textAlign   = "center";
+  ctx.globalAlpha  = 0.30;
+  ctx.fillStyle    = "#1e293b";
+  ctx.textAlign    = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("GarasjeProffen", 0, 0);
+  ctx.font         = `bold ${fontSize}px sans-serif`;
+
+  const totalH = lineH * (lines.length - 1);
+  lines.forEach((line, i) => {
+    ctx.fillText(line, 0, -totalH / 2 + i * lineH);
+  });
+
   ctx.restore();
 }
 
