@@ -205,8 +205,9 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
         {/* Header */}
         <div className="header">
           <div>
-            <div className="logo">Garasje<span>Proffen</span></div>
-            <div style={{ fontSize: "9pt", color: "#888", marginTop: 4, lineHeight: 1.6 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-header.jpg" alt="GarasjeProffen" style={{ height: 48, width: "auto", display: "block", marginBottom: 6 }} />
+            <div style={{ fontSize: "9pt", color: "#888", lineHeight: 1.6 }}>
               Tjødnavegen 8b, 4342 Bryne<br />
               post@garasjeproffen.no<br />
               Org.nr. 937 606 966
