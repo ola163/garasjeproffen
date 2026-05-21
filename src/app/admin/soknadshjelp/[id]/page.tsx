@@ -196,7 +196,11 @@ export default function SoknadshjelDetailPage() {
         setAssignedTo(data.assigned_to ?? "");
         setLeadSource(data.lead_source ?? "");
         setLocalDibk((data.dibk as Record<string, string>) ?? {});
-        setDibkAdminComments((data.admin_dibk_comments as Record<string, string>) ?? {});
+        // admin_dibk_comments: prefer DB column if it exists, else reconstruct from activity_log
+        const dbComments = (data.admin_dibk_comments as Record<string, string> | null);
+        if (dbComments && Object.keys(dbComments).length > 0) {
+          setDibkAdminComments(dbComments);
+        }
         setExtraCosts(data.extra_costs ?? []);
         const md = data.manual_dispensasjoner ?? [];
         setManualDisps(md);
@@ -205,7 +209,18 @@ export default function SoknadshjelDetailPage() {
           : 0;
         setNewDispAmount(dibkCount > 0 || md.length > 0 ? "2000" : "8000");
       }
-      if (actData) setActivityLog(actData as ActivityEntry[]);
+      if (actData) {
+        setActivityLog(actData as ActivityEntry[]);
+        // Reconstruct admin dibk comments from log (newest-first, take first per key)
+        const rebuilt: Record<string, string> = {};
+        for (const e of (actData as ActivityEntry[])) {
+          if (e.action_type === "dibk_admin_comment") {
+            const p = e.payload as { key?: string; comment?: string };
+            if (p.key && !(p.key in rebuilt)) rebuilt[p.key] = p.comment ?? "";
+          }
+        }
+        if (Object.keys(rebuilt).length > 0) setDibkAdminComments(rebuilt);
+      }
 
       // Merge DB records + any orphaned storage files (DB row missing)
       const dbAtts: Attachment[] = (attData as Attachment[]) ?? [];
@@ -525,8 +540,23 @@ export default function SoknadshjelDetailPage() {
       dibk: localDibk,
     }).eq("id", row.id);
 
-    // Save admin_dibk_comments separately so a missing column doesn't break the main save
-    const filteredAdminComments = Object.fromEntries(Object.entries(dibkAdminComments).filter(([, v]) => v.trim()));
+    // Persist admin dibk comments to activity_log (works without DB migration)
+    // Also attempt to save to dedicated column if it exists
+    const commentEntries = Object.entries(dibkAdminComments).filter(([, v]) => v.trim());
+    const commentLogEntries: ActivityEntry[] = [];
+    for (const [k, v] of commentEntries) {
+      const { data: ce } = await supabase.from("activity_log").insert({
+        entity_type: "soknadshjelp",
+        entity_id: row.id,
+        action_type: "dibk_admin_comment",
+        actor_email: user?.email ?? "ukjent",
+        payload: { key: k, comment: v },
+      }).select().single();
+      if (ce) commentLogEntries.push(ce as ActivityEntry);
+    }
+    if (commentLogEntries.length > 0) setActivityLog((prev) => [...commentLogEntries.reverse(), ...prev]);
+    // Also try the dedicated column (silently fails if not migrated yet)
+    const filteredAdminComments = Object.fromEntries(commentEntries);
     await supabase.from("soknadshjelp").update({
       admin_dibk_comments: Object.keys(filteredAdminComments).length > 0 ? filteredAdminComments : null,
     }).eq("id", row.id);
@@ -1203,11 +1233,11 @@ export default function SoknadshjelDetailPage() {
                 Send
               </button>
             </div>
-            {activityLog.length === 0 ? (
+            {activityLog.filter(e => e.action_type !== "dibk_admin_comment").length === 0 ? (
               <p className="text-xs text-gray-400 italic">Ingen aktivitet ennå.</p>
             ) : (
               <ol className="relative border-l border-gray-200 space-y-4 ml-2">
-                {activityLog.map((entry) => {
+                {activityLog.filter(e => e.action_type !== "dibk_admin_comment").map((entry) => {
                   const dotColor =
                     entry.action_type === "status_change" ? "bg-orange-400" :
                     entry.action_type === "approval_requested" ? "bg-purple-400" :
