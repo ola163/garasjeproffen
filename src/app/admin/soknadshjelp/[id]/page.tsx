@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
-import { adminName } from "@/lib/admin-names";
+import { adminName, ADMIN_NAMES } from "@/lib/admin-names";
 
 const ALLOWED_ADMINS = ["ola@garasjeproffen.no", "christian@garasjeproffen.no"];
 const BUCKET = "soknadshjelp-attachments";
@@ -141,6 +141,7 @@ export default function SoknadshjelDetailPage() {
   const [updatingAssigned, setUpdatingAssigned] = useState(false);
   const [convertingToQuote, setConvertingToQuote] = useState(false);
   const [convertConfirm, setConvertConfirm] = useState(false);
+  const [approvalOpen, setApprovalOpen] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
   const [approvalSent, setApprovalSent] = useState(false);
   const [approvingCase, setApprovingCase] = useState(false);
@@ -412,12 +413,8 @@ export default function SoknadshjelDetailPage() {
     setUpdatingAssigned(false);
   }
 
-  async function handleRequestApproval() {
-    if (!supabase || !row || !user) return;
-    // Send to the admin who has NOT taken this case
-    const otherAdmin = ALLOWED_ADMINS.find((a) => a !== (row.assigned_to || user.email));
-    const approverEmail = otherAdmin ?? ALLOWED_ADMINS.find((a) => a !== user.email) ?? "";
-    if (!approverEmail) return;
+  async function handleRequestApproval(approverEmail: string) {
+    if (!supabase || !row || !user || !approverEmail) return;
     const approverName = adminName(approverEmail);
     const requesterName = adminName(user.email);
     const now = new Date().toISOString();
@@ -462,6 +459,7 @@ export default function SoknadshjelDetailPage() {
       }),
     });
     setSendingApproval(false);
+    setApprovalOpen(false);
     setApprovalSent(true);
     setTimeout(() => setApprovalSent(false), 3000);
   }
@@ -534,28 +532,6 @@ export default function SoknadshjelDetailPage() {
     setRow((prev) => prev ? { ...prev, quote_id: inserted.id } : null);
     setConvertingToQuote(false);
     router.push(`/admin/quotes/${inserted.id}`);
-  }
-
-  async function handleSendForApproval(toEmail: string) {
-    if (!supabase || !row) return;
-    setSendingApproval(true);
-    const now = new Date().toISOString();
-    await supabase.from("soknadshjelp").update({
-      status: "pending_approval",
-      approval_requested_from: toEmail,
-      approval_requested_at: now,
-    }).eq("id", row.id);
-    const { data: logEntry } = await supabase.from("activity_log").insert({
-      entity_type: "soknadshjelp",
-      entity_id: row.id,
-      action_type: "approval_requested",
-      actor_email: user?.email ?? "ukjent",
-      payload: { to: toEmail },
-    }).select().single();
-    if (logEntry) setActivityLog((prev) => [logEntry as ActivityEntry, ...prev]);
-    setStatus("pending_approval");
-    setRow((prev) => prev ? { ...prev, status: "pending_approval", approval_requested_from: toEmail, approval_requested_at: now } : null);
-    setSendingApproval(false);
   }
 
   async function handleCancelApproval() {
@@ -929,11 +905,11 @@ export default function SoknadshjelDetailPage() {
               ) : (
                 !["offer_sent", "paid", "ferdigstilt", "cancelled"].includes(status) && (
                   <button
-                    onClick={handleRequestApproval}
+                    onClick={() => setApprovalOpen(true)}
                     disabled={sendingApproval}
                     className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
                   >
-                    {sendingApproval ? "Sender…" : approvalSent ? "Sendt ✓" : "Send til godkjenning"}
+                    {approvalSent ? "Sendt ✓" : "Send til godkjenning"}
                   </button>
                 )
               )}
@@ -1563,52 +1539,37 @@ export default function SoknadshjelDetailPage() {
             )}
           </div>
 
-          {/* Send til godkjenning */}
-          {!["paid", "ferdigstilt", "cancelled", "pending_approval"].includes(status) && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-1 text-sm font-semibold text-gray-700">Send til godkjenning</h2>
-              {row.approval_requested_from && status === "pending_approval" ? (
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-gray-600">
-                      Sendt til <span className="font-semibold text-orange-700">{adminName(row.approval_requested_from)}</span>
-                      {row.approval_requested_at && (
-                        <span className="ml-1.5 text-xs text-gray-400">· {formatDate(row.approval_requested_at)}</span>
-                      )}
-                    </p>
-                    <p className="mt-0.5 text-xs text-gray-400">Venter på tilbakemelding.</p>
-                  </div>
-                  <button
-                    onClick={handleCancelApproval}
-                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50"
-                  >
-                    Trekk tilbake
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <p className="mb-3 text-xs text-gray-500">Velg hvem som skal godkjenne tilbudet:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {ALLOWED_ADMINS.filter(e => e !== user?.email?.toLowerCase()).concat(
-                      ALLOWED_ADMINS.filter(e => e === user?.email?.toLowerCase())
-                    ).map((email) => (
-                      <button
-                        key={email}
-                        onClick={() => handleSendForApproval(email)}
-                        disabled={sendingApproval}
-                        className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors"
-                      >
-                        {sendingApproval ? "Sender…" : `Send til ${adminName(email)}`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
         </div>
       </div>
+
+      {/* Approval request modal */}
+      {approvalOpen && row && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Send til godkjenning</h2>
+            <p className="mt-1 text-sm text-gray-500">Velg hvem som skal godkjenne søknadshjelp-saken.</p>
+            <div className="mt-4 space-y-2">
+              {(Object.entries(ADMIN_NAMES) as [string, string][])
+                .filter(([email]) => email !== user?.email?.toLowerCase())
+                .map(([email, name]) => (
+                  <button key={email} onClick={() => handleRequestApproval(email)}
+                    disabled={sendingApproval}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-left text-sm font-medium text-gray-700 hover:border-orange-400 hover:bg-orange-50 hover:text-orange-700 transition-all disabled:opacity-50">
+                    {sendingApproval ? "Sender…" : name}
+                    {!sendingApproval && <span className="ml-2 text-xs font-normal text-gray-400">{email}</span>}
+                  </button>
+                ))}
+            </div>
+            <div className="mt-5">
+              <button onClick={() => setApprovalOpen(false)}
+                className="w-full rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Convert confirmation modal */}
       {convertConfirm && (
