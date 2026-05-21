@@ -566,19 +566,16 @@ export default function SoknadshjelDetailPage() {
       if (dibkChanges.length > 0) {
         const changedKeys = dibkChanges.map((c) => c.key);
         setLocalManualKeys((prev) => new Set([...prev, ...changedKeys]));
-        const newEntries: ActivityEntry[] = [];
         for (const change of dibkChanges) {
-          const { data: logEntry, error: logErr } = await supabase.from("activity_log").insert({
+          const { error: logErr } = await supabase.from("activity_log").insert({
             entity_type: "soknadshjelp",
             entity_id: row.id,
             action_type: "dibk_edit",
             actor_email: user?.email ?? "ukjent",
             payload: change,
-          }).select().single();
+          });
           if (logErr) console.error("dibk_edit insert failed:", logErr);
-          if (logEntry) newEntries.push(logEntry as ActivityEntry);
         }
-        if (newEntries.length > 0) setActivityLog((prev) => [...newEntries.reverse(), ...prev]);
       }
 
       const savedComments = Object.fromEntries(commentEntries) as Record<string, string>;
