@@ -147,10 +147,12 @@ export default async function QuotePdfPage({ params }: { params: Promise<{ id: s
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; color: #1a1a1a; background: white; }
-        @page { size: A4; margin: 18mm 18mm 22mm 18mm; }
+        @page { size: A4; margin: 0; }
         @media print {
           .no-print { display: none !important; }
+          header, footer, nav, aside { display: none !important; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .page { padding: 18mm 18mm 22mm 18mm; max-width: 100%; margin: 0; }
         }
         .page { max-width: 800px; margin: 0 auto; padding: 32px; }
         /* Header */
