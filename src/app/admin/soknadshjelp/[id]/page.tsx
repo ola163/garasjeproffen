@@ -1291,7 +1291,7 @@ export default function SoknadshjelDetailPage() {
               {/* DISPENSASJONER SECTION */}
               <div className="overflow-hidden rounded-lg border border-gray-200">
                 <div className="flex items-center justify-between bg-[#e2520a] px-3 py-2">
-                  <span className="text-xs font-bold uppercase tracking-wide text-white">Dispensasjoner</span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-white">Andre dispensasjoner</span>
                   {manualDisps.length > 0 && (
                     <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold text-white">{manualDisps.length}</span>
                   )}
