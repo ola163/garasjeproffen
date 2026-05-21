@@ -20,9 +20,9 @@ const LENGTH_MIN = 2400;
 const LENGTH_MAX = 8400;
 
 const DOOR_WIDTH_OPTIONS = [
-  { label: "2,5 m (standard)", value: 2500 },
-  { label: "3,0 m", value: 3000 },
-  { label: "5,0 m (dobbel)", value: 5000 },
+  { label: "2 500 mm — inkl. motor og montering", value: 2500 },
+  { label: "3 000 mm — inkl. motor og montering", value: 3000 },
+  { label: "5 000 mm (dobbel) — inkl. motor og montering", value: 5000 },
 ];
 
 const ELEMENT_PRICES: Record<string, number> = {
@@ -72,7 +72,7 @@ function DimSlider({
         <Text style={styles.dimLabel}>{label}</Text>
         <View style={[styles.dimBadge, snapped && styles.dimBadgeGreen]}>
           <Text style={[styles.dimBadgeText, snapped && styles.dimBadgeTextGreen]}>
-            {(valueMm / 1000).toFixed(1)} m
+            {(valueMm / 1000).toFixed(1)} m {snapped ? "✓" : ""}
           </Text>
         </View>
       </View>
@@ -93,6 +93,79 @@ function DimSlider({
 
 type AddedElement = { side: "front" | "back" | "left" | "right"; category: string };
 
+function SituasjonsplanView({
+  widthMm, lengthMm, buildingType,
+}: { widthMm: number; lengthMm: number; buildingType: BuildingType }) {
+  const { width: screenWidth } = useWindowDimensions();
+  const PAD = 40;
+  const planW = screenWidth;
+  const planH = screenWidth * 0.75;
+  const scale = Math.min((planW - PAD * 2) / widthMm, (planH - PAD * 2) / lengthMm);
+  const gW = widthMm * scale;
+  const gL = lengthMm * scale;
+  const offsetX = (planW - gW) / 2;
+  const offsetY = (planH - gL) / 2;
+
+  const wLabel = `${(widthMm / 1000).toFixed(1)} m`;
+  const lLabel = `${(lengthMm / 1000).toFixed(1)} m`;
+
+  return (
+    <View style={{ width: planW, height: planH, backgroundColor: "#e8f5e9", justifyContent: "center", alignItems: "center" }}>
+      {/* North indicator */}
+      <View style={{ position: "absolute", top: 8, right: 12, alignItems: "center" }}>
+        <Text style={{ fontSize: 10, color: "#555", fontWeight: "700" }}>N</Text>
+        <Text style={{ fontSize: 14, color: "#555" }}>↑</Text>
+      </View>
+
+      {/* Garage rectangle */}
+      <View
+        style={{
+          position: "absolute",
+          left: offsetX,
+          top: offsetY,
+          width: gW,
+          height: gL,
+          backgroundColor: buildingType === "carport" ? "rgba(180,180,220,0.5)" : "rgba(200,200,210,0.85)",
+          borderWidth: 2,
+          borderColor: "#555",
+        }}
+      >
+        {/* Label inside */}
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ fontSize: 11, color: "#333", fontWeight: "700" }}>
+            {buildingType === "carport" ? "Carport" : "Garasje"}
+          </Text>
+          <Text style={{ fontSize: 10, color: "#555", marginTop: 2 }}>
+            {wLabel} × {lLabel}
+          </Text>
+        </View>
+
+        {/* Width label (bottom) */}
+        <Text style={{
+          position: "absolute", bottom: -20, left: 0, right: 0,
+          textAlign: "center", fontSize: 10, color: "#333", fontWeight: "600",
+        }}>
+          ← {wLabel} →
+        </Text>
+      </View>
+
+      {/* Length label (right side) */}
+      <View style={{
+        position: "absolute",
+        left: offsetX + gW + 6,
+        top: offsetY + gL / 2 - 10,
+      }}>
+        <Text style={{ fontSize: 10, color: "#333", fontWeight: "600" }}>↕{"\n"}{lLabel}</Text>
+      </View>
+
+      {/* Scale legend */}
+      <Text style={{ position: "absolute", bottom: 6, left: 12, fontSize: 9, color: "#888" }}>
+        Situasjonsplan — ikke skalert til eksakt tomt
+      </Text>
+    </View>
+  );
+}
+
 export default function KonfiguratorScreen() {
   const router = useRouter();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -111,6 +184,7 @@ export default function KonfiguratorScreen() {
   const [vinduOpen,    setVinduOpen]    = useState(false);
   const [grunnarbeid,  setGrunnarbeid]  = useState(false);
   const [addedElements, setAddedElements] = useState<AddedElement[]>([]);
+  const [viewMode,     setViewMode]     = useState<"3d" | "plan">("3d");
 
   const webViewRef = useRef<WebViewType>(null);
 
@@ -151,28 +225,40 @@ export default function KonfiguratorScreen() {
     [lengthMm, widthMm, packageType, roofType, buildingType],
   );
 
-  const totalWithElements = pricing.totalPrice + elementTotal + (grunnarbeid ? 0 : 0);
+  const totalWithElements = pricing.totalPrice + elementTotal;
 
   const wSnapped = buildingType === "garasje" && isWidthSnapped(widthMm);
   const lSnapped = buildingType === "garasje" && isLengthSnapped(lengthMm);
   const sqm = (widthMm / 1000) * (lengthMm / 1000);
 
-  const SIDEBAR_W = isLandscape ? Math.round(Math.min(300, screenWidth * 0.30)) : undefined;
+  const snappedCount = (wSnapped ? 1 : 0) + (lSnapped ? 1 : 0);
+  const discountPct = snappedCount === 2 ? 10 : snappedCount === 1 ? 5 : 0;
+
+  const SIDEBAR_W = isLandscape ? Math.round(Math.min(260, screenWidth * 0.28)) : undefined;
+
+  // Viewer takes ~78% of height in portrait, full minus sidebar in landscape
+  const viewerH = isLandscape ? undefined : Math.round(screenHeight * 0.78);
 
   return (
     <View style={[styles.root, isLandscape ? styles.rootRow : styles.rootCol]}>
-      {/* 3D Viewer */}
-      <View style={isLandscape ? styles.viewerLandscape : styles.viewerPortrait}>
-        <WebView
-          ref={webViewRef}
-          source={{ uri: embedUrl }}
-          style={StyleSheet.absoluteFill}
-          javaScriptEnabled
-          scrollEnabled={false}
-          bounces={false}
-          onLoad={() => setViewerReady(true)}
-          originWhitelist={["*"]}
-        />
+      {/* Viewer area */}
+      <View style={isLandscape ? styles.viewerLandscape : [styles.viewerPortrait, { height: viewerH }]}>
+
+        {viewMode === "3d" ? (
+          <WebView
+            ref={webViewRef}
+            source={{ uri: embedUrl }}
+            style={StyleSheet.absoluteFill}
+            javaScriptEnabled
+            scrollEnabled={false}
+            bounces={false}
+            onLoad={() => setViewerReady(true)}
+            originWhitelist={["*"]}
+          />
+        ) : (
+          <SituasjonsplanView widthMm={widthMm} lengthMm={lengthMm} buildingType={buildingType} />
+        )}
+
         {/* Logo overlay */}
         <View style={styles.logoOverlay} pointerEvents="none">
           <Image
@@ -180,6 +266,22 @@ export default function KonfiguratorScreen() {
             style={styles.logo}
             resizeMode="contain"
           />
+        </View>
+
+        {/* View mode toggle */}
+        <View style={styles.viewToggle}>
+          {(["3d", "plan"] as const).map((mode) => (
+            <TouchableOpacity
+              key={mode}
+              style={[styles.viewToggleBtn, viewMode === mode && styles.viewToggleBtnActive]}
+              onPress={() => setViewMode(mode)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.viewToggleText, viewMode === mode && styles.viewToggleTextActive]}>
+                {mode === "3d" ? "3D" : "Situasjonsplan"}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
@@ -199,7 +301,7 @@ export default function KonfiguratorScreen() {
         />
 
         {/* Tjeneste */}
-        <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Tjeneste</Text>
+        <Text style={[styles.sectionLabel, { marginTop: 10 }]}>Tjeneste</Text>
         <SegmentControl
           options={["materialpakke", "prefab"] as PackageType[]}
           value={packageType}
@@ -210,7 +312,7 @@ export default function KonfiguratorScreen() {
         {/* Taktype */}
         {buildingType === "garasje" && (
           <>
-            <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Taktype</Text>
+            <Text style={[styles.sectionLabel, { marginTop: 10 }]}>Taktype</Text>
             <SegmentControl
               options={["flattak", "saltak"] as RoofType[]}
               value={roofType}
@@ -220,22 +322,34 @@ export default function KonfiguratorScreen() {
           </>
         )}
 
-        {/* Standardmål */}
+        {/* Standardmål + discount info */}
         {buildingType === "garasje" && (
-          <View style={styles.snapRow}>
-            <Text style={styles.snapLabel}>Standardmål</Text>
-            <Switch
-              value={snapOnly}
-              onValueChange={handleSnapToggle}
-              trackColor={{ false: Colors.gray200, true: Colors.green }}
-              thumbColor={Colors.white}
-              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-            />
-          </View>
+          <>
+            <View style={styles.snapRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.snapLabel}>Standardmål</Text>
+                <Text style={styles.snapHint}>5% rabatt på 1 mål · 10% på begge</Text>
+              </View>
+              <Switch
+                value={snapOnly}
+                onValueChange={handleSnapToggle}
+                trackColor={{ false: Colors.gray200, true: Colors.green }}
+                thumbColor={Colors.white}
+                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+              />
+            </View>
+            {discountPct > 0 && (
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountText}>
+                  ✓ {discountPct}% standardmål-rabatt er inkludert
+                </Text>
+              </View>
+            )}
+          </>
         )}
 
         {/* Sliders */}
-        <View style={{ marginTop: 8 }}>
+        <View style={{ marginTop: 6 }}>
           <DimSlider
             label="Bredde"
             valueMm={widthMm}
@@ -289,7 +403,7 @@ export default function KonfiguratorScreen() {
                   </TouchableOpacity>
                 ))}
 
-                <Text style={[styles.subLabel, { marginTop: 12 }]}>Farge</Text>
+                <Text style={[styles.subLabel, { marginTop: 10 }]}>Farge</Text>
                 <View style={styles.colorRow}>
                   {(["hvit", "sort"] as const).map((c) => (
                     <TouchableOpacity
@@ -311,8 +425,8 @@ export default function KonfiguratorScreen() {
                   <View style={styles.hormannBadge}>
                     <Text style={styles.hormannText}>HÖRMANN</Text>
                   </View>
-                  <Text style={styles.hormannModel}>RenoMatic Plan L – isolert seksjonport</Text>
-                  {["42 mm isolerte stålseksjoner m/ PU-skumkjerne", "10 års garanti", "CO₂-nøytral produksjon", "Fingerklemmebeskyttelse", "Inkl. motor og montering"].map(f => (
+                  <Text style={styles.hormannModel}>RenoMatic – isolert seksjonport</Text>
+                  {["10 års garanti", "CO₂-nøytral produksjon", "Fingerklemmebeskyttelse", "5 årsgaranti på portåpner*", "Inkl. motor og montering"].map(f => (
                     <Text key={f} style={styles.hormannFeature}>✓ {f}</Text>
                   ))}
                 </View>
@@ -439,106 +553,125 @@ const styles = StyleSheet.create({
   rootRow:     { flexDirection: "row" },
   rootCol:     { flexDirection: "column" },
 
-  viewerPortrait:  { height: "62%" as unknown as number },
-  viewerLandscape: { flex: 1 },
+  viewerPortrait:  { overflow: "hidden" },
+  viewerLandscape: { flex: 1, overflow: "hidden" },
 
   logoOverlay: { position: "absolute", top: 10, left: 10, zIndex: 10 },
   logo:        { width: 90, height: 32, borderRadius: 6, opacity: 0.92 },
 
-  sidebar:        { backgroundColor: Colors.white, borderTopWidth: 1, borderTopColor: Colors.gray200 },
-  sidebarContent: { padding: 12, paddingBottom: 40, gap: 0 },
+  viewToggle: {
+    position: "absolute", bottom: 10, right: 10, zIndex: 10,
+    flexDirection: "row", gap: 4,
+  },
+  viewToggleBtn: {
+    backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  viewToggleBtnActive: { backgroundColor: Colors.orange },
+  viewToggleText: { fontSize: 11, color: "rgba(255,255,255,0.85)", fontWeight: "600" },
+  viewToggleTextActive: { color: Colors.white },
 
-  sectionLabel: { fontSize: 10, fontWeight: "600", color: Colors.gray500, marginBottom: 5,
+  sidebar:        { backgroundColor: Colors.white, borderTopWidth: 1, borderTopColor: Colors.gray200 },
+  sidebarContent: { padding: 10, paddingBottom: 32, gap: 0 },
+
+  sectionLabel: { fontSize: 9, fontWeight: "600", color: Colors.gray500, marginBottom: 4,
                   textTransform: "uppercase", letterSpacing: 0.5 },
   segment:      { flexDirection: "row", backgroundColor: Colors.gray100, borderRadius: 7, padding: 2, gap: 2 },
-  segmentBtn:   { flex: 1, paddingVertical: 7, borderRadius: 5, alignItems: "center" },
+  segmentBtn:   { flex: 1, paddingVertical: 6, borderRadius: 5, alignItems: "center" },
   segmentBtnActive: { backgroundColor: Colors.white, ...Platform.select({
     ios:     { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1 },
     android: { elevation: 1 },
   }) },
-  segmentLabel:       { fontSize: 12, color: Colors.gray500, fontWeight: "500" },
+  segmentLabel:       { fontSize: 11, color: Colors.gray500, fontWeight: "500" },
   segmentLabelActive: { color: Colors.gray900, fontWeight: "700" },
 
-  snapRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 },
-  snapLabel: { fontSize: 12, color: Colors.gray700, fontWeight: "500" },
+  snapRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
+  snapLabel: { fontSize: 12, color: Colors.gray700, fontWeight: "600" },
+  snapHint:  { fontSize: 10, color: Colors.gray400, marginTop: 1 },
 
-  dimRow:      { marginTop: 8 },
-  dimLabelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 },
-  dimLabel:    { fontSize: 12, fontWeight: "600", color: Colors.gray700 },
+  discountBadge: {
+    backgroundColor: "#f0fdf4", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+    marginTop: 4, borderWidth: 1, borderColor: "#bbf7d0",
+  },
+  discountText: { fontSize: 11, color: Colors.green, fontWeight: "600" },
+
+  dimRow:      { marginTop: 6 },
+  dimLabelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 1 },
+  dimLabel:    { fontSize: 11, fontWeight: "600", color: Colors.gray700 },
   dimBadge:    { backgroundColor: Colors.orangeLight, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
   dimBadgeGreen:     { backgroundColor: "#f0fdf4" },
-  dimBadgeText:      { fontSize: 12, fontWeight: "700", color: Colors.orange },
+  dimBadgeText:      { fontSize: 11, fontWeight: "700", color: Colors.orange },
   dimBadgeTextGreen: { color: Colors.green },
-  slider:    { width: "100%", height: 32 },
+  slider:    { width: "100%", height: 28 },
 
-  areaText:    { fontSize: 11, color: Colors.gray400, textAlign: "right", marginTop: 2 },
+  areaText:    { fontSize: 10, color: Colors.gray400, textAlign: "right", marginTop: 0 },
   areaWarning: { color: "#b45309" },
 
-  section:       { marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.gray100, paddingTop: 10 },
+  section:       { marginTop: 10, borderTopWidth: 1, borderTopColor: Colors.gray100, paddingTop: 8 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sectionTitle:  { fontSize: 13, fontWeight: "700", color: Colors.gray800, flex: 1 },
-  sectionBody:   { marginTop: 10 },
+  sectionTitle:  { fontSize: 12, fontWeight: "700", color: Colors.gray800, flex: 1 },
+  sectionBody:   { marginTop: 8 },
   chevron:       { fontSize: 10, color: Colors.gray400, marginLeft: 4 },
   badge:         { backgroundColor: Colors.orange, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1, marginRight: 6 },
   badgeText:     { fontSize: 10, color: Colors.white, fontWeight: "700" },
 
-  subLabel:      { fontSize: 11, fontWeight: "600", color: Colors.gray500, marginBottom: 6,
+  subLabel:      { fontSize: 10, fontWeight: "600", color: Colors.gray500, marginBottom: 5,
                    textTransform: "uppercase", letterSpacing: 0.4 },
-  optionRow:     { flexDirection: "row", alignItems: "center", paddingVertical: 8,
+  optionRow:     { flexDirection: "row", alignItems: "center", paddingVertical: 7,
                    borderWidth: 1, borderColor: Colors.gray200, borderRadius: 8,
-                   paddingHorizontal: 10, marginBottom: 6, backgroundColor: Colors.white },
+                   paddingHorizontal: 10, marginBottom: 5, backgroundColor: Colors.white },
   optionRowActive: { borderColor: Colors.orange, backgroundColor: Colors.orangeLight },
-  radioCircle:   { width: 14, height: 14, borderRadius: 7, borderWidth: 2,
-                   borderColor: Colors.gray300, marginRight: 8 },
+  radioCircle:   { width: 13, height: 13, borderRadius: 7, borderWidth: 2,
+                   borderColor: Colors.gray300, marginRight: 8, flexShrink: 0 },
   radioCircleActive: { borderColor: Colors.orange, backgroundColor: Colors.orange },
-  optionLabel:   { fontSize: 13, color: Colors.gray700 },
+  optionLabel:   { fontSize: 12, color: Colors.gray700, flex: 1 },
   optionLabelActive: { color: Colors.orange, fontWeight: "600" },
 
   colorRow:    { flexDirection: "row", gap: 8 },
   colorBtn:    { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                 gap: 6, paddingVertical: 9, borderRadius: 8, borderWidth: 1,
+                 gap: 6, paddingVertical: 8, borderRadius: 8, borderWidth: 1,
                  borderColor: Colors.gray200, backgroundColor: Colors.white },
   colorBtnActive: { borderColor: Colors.orange, backgroundColor: Colors.orangeLight },
-  colorDot:    { width: 14, height: 14, borderRadius: 7, backgroundColor: "#fff",
+  colorDot:    { width: 13, height: 13, borderRadius: 7, backgroundColor: "#fff",
                  borderWidth: 1, borderColor: Colors.gray300 },
-  colorLabel:  { fontSize: 13, color: Colors.gray700 },
+  colorLabel:  { fontSize: 12, color: Colors.gray700 },
 
-  hormannBox:     { marginTop: 12, backgroundColor: Colors.gray50, borderRadius: 8,
-                    padding: 10, borderWidth: 1, borderColor: Colors.gray200 },
+  hormannBox:     { marginTop: 10, backgroundColor: Colors.gray50, borderRadius: 8,
+                    padding: 8, borderWidth: 1, borderColor: Colors.gray200 },
   hormannBadge:   { backgroundColor: "#1d4ed8", borderRadius: 4, paddingHorizontal: 6,
-                    paddingVertical: 2, alignSelf: "flex-start", marginBottom: 6 },
-  hormannText:    { color: Colors.white, fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
-  hormannModel:   { fontSize: 11, fontWeight: "600", color: Colors.gray700, marginBottom: 4 },
-  hormannFeature: { fontSize: 10, color: Colors.gray500, lineHeight: 16 },
+                    paddingVertical: 2, alignSelf: "flex-start", marginBottom: 5 },
+  hormannText:    { color: Colors.white, fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
+  hormannModel:   { fontSize: 10, fontWeight: "600", color: Colors.gray700, marginBottom: 3 },
+  hormannFeature: { fontSize: 10, color: Colors.gray500, lineHeight: 15 },
 
-  wallGrid: { flexDirection: "row", gap: 6 },
+  wallGrid: { flexDirection: "row", gap: 5 },
   wallCol:  { flex: 1 },
-  wallName: { fontSize: 10, fontWeight: "700", color: Colors.gray500, marginBottom: 5,
+  wallName: { fontSize: 9, fontWeight: "700", color: Colors.gray500, marginBottom: 4,
               textTransform: "uppercase", letterSpacing: 0.4 },
-  addBtn:   { backgroundColor: Colors.gray100, borderRadius: 6, paddingVertical: 6,
-              alignItems: "center", marginBottom: 4 },
-  addBtnText: { fontSize: 10, color: Colors.gray700, fontWeight: "600" },
+  addBtn:   { backgroundColor: Colors.gray100, borderRadius: 6, paddingVertical: 5,
+              alignItems: "center", marginBottom: 3 },
+  addBtnText: { fontSize: 9, color: Colors.gray700, fontWeight: "600" },
 
   elRow:       { flexDirection: "row", alignItems: "center", backgroundColor: Colors.gray100,
-                 borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
-  elLabel:     { flex: 1, fontSize: 11, color: Colors.gray700 },
+                 borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 },
+  elLabel:     { flex: 1, fontSize: 10, color: Colors.gray700 },
   elRemove:    { padding: 4 },
   elRemoveText:{ fontSize: 16, color: Colors.gray400, lineHeight: 18 },
 
   grunnBtn:     { borderWidth: 2, borderStyle: "dashed", borderColor: Colors.orange,
-                  borderRadius: 8, paddingVertical: 11, alignItems: "center" },
+                  borderRadius: 8, paddingVertical: 10, alignItems: "center" },
   grunnBtnActive: { backgroundColor: "#f0fdf4", borderColor: Colors.green, borderStyle: "solid" },
-  grunnBtnText: { fontSize: 12, fontWeight: "700", color: Colors.orange },
+  grunnBtnText: { fontSize: 11, fontWeight: "700", color: Colors.orange },
   grunnBtnTextActive: { color: Colors.green },
-  grunnNote:    { fontSize: 10, color: Colors.gray400, textAlign: "center", marginTop: 4 },
+  grunnNote:    { fontSize: 9, color: Colors.gray400, textAlign: "center", marginTop: 3 },
 
-  priceBox:    { marginTop: 14, backgroundColor: Colors.gray50, borderRadius: 10,
+  priceBox:    { marginTop: 10, backgroundColor: Colors.gray50, borderRadius: 10,
                  padding: 10, borderWidth: 1, borderColor: Colors.gray200 },
-  priceTotal:  { fontSize: 18, fontWeight: "800", color: Colors.orange, marginBottom: 4 },
-  priceAdj:    { fontSize: 10, color: Colors.gray500, lineHeight: 15 },
+  priceTotal:  { fontSize: 17, fontWeight: "800", color: Colors.orange, marginBottom: 3 },
+  priceAdj:    { fontSize: 10, color: Colors.gray500, lineHeight: 14 },
   manualText:  { fontSize: 12, color: Colors.gray500, fontStyle: "italic" },
 
-  ctaBtn:     { backgroundColor: Colors.orange, borderRadius: 10, paddingVertical: 13,
-                alignItems: "center", marginTop: 12 },
+  ctaBtn:     { backgroundColor: Colors.orange, borderRadius: 10, paddingVertical: 12,
+                alignItems: "center", marginTop: 10 },
   ctaBtnText: { color: Colors.white, fontWeight: "700", fontSize: 14 },
 });

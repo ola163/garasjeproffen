@@ -45,8 +45,6 @@ export default function KontaktScreen() {
       : `https://maps.google.com/?q=${addr}`;
     Linking.openURL(url);
   }
-  function website()  { Linking.openURL("https://garasjeproffen.no"); }
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
@@ -106,12 +104,6 @@ export default function KontaktScreen() {
         ))}
       </View>
 
-      {/* Nettside */}
-      <TouchableOpacity style={styles.webBtn} onPress={website}>
-        <Ionicons name="globe-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
-        <Text style={styles.webBtnText}>Besøk garasjeproffen.no</Text>
-      </TouchableOpacity>
-
     </ScrollView>
   );
 }
@@ -138,7 +130,4 @@ const styles = StyleSheet.create({
                      paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
   timeDay:         { fontSize: 14, color: Colors.gray700 },
   timeValue:       { fontSize: 14, color: Colors.gray900, fontWeight: "600" },
-  webBtn:          { backgroundColor: Colors.gray900, borderRadius: 10, paddingVertical: 14,
-                     flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 4 },
-  webBtnText:      { color: Colors.white, fontWeight: "700", fontSize: 15 },
 });

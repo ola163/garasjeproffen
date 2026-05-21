@@ -46,9 +46,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
-      {/* Hidden screens — kept in router but not shown in tab bar */}
-      <Tabs.Screen name="plasser" options={{ href: null }} />
-      <Tabs.Screen name="referanser" options={{ href: null }} />
     </Tabs>
   );
 }
