@@ -225,7 +225,7 @@ export default function StatistikkPage() {
               </button>
               {(() => {
                 const homepageOnly = (e: IpEntry) => e.paths.length === 0 || (e.paths.length === 1 && e.paths[0] === "/");
-                const norske = data.uniqueIps.filter((e) => (!e.countryCode || e.countryCode === "NO") && !homepageOnly(e));
+                const norske = data.uniqueIps.filter((e) => (!e.countryCode || e.countryCode === "NO") && !homepageOnly(e) && e.emails.length === 0);
                 const utland = data.uniqueIps.filter((e) => e.countryCode && e.countryCode !== "NO" && !homepageOnly(e));
                 const forside = data.uniqueIps.filter(homepageOnly);
                 return (
@@ -340,7 +340,9 @@ export default function StatistikkPage() {
             {/* IP tables */}
             {(tab === "iper" || tab === "utland" || tab === "forside") && (() => {
               const homepageOnly = (e: IpEntry) => e.paths.length === 0 || (e.paths.length === 1 && e.paths[0] === "/");
-              const norske = data.uniqueIps.filter((e) => (!e.countryCode || e.countryCode === "NO") && !homepageOnly(e));
+              const norske = data.uniqueIps
+                .filter((e) => (!e.countryCode || e.countryCode === "NO") && !homepageOnly(e) && e.emails.length === 0)
+                .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
               const utland = data.uniqueIps.filter((e) => e.countryCode && e.countryCode !== "NO" && !homepageOnly(e));
               const forside = data.uniqueIps.filter(homepageOnly);
               const entries = tab === "iper" ? norske : tab === "utland" ? utland : forside;
