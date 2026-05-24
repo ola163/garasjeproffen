@@ -605,13 +605,16 @@ function StepDibk({ dibk, setDibk, autoFilled, dibkComments, setDibkComments, on
         ))}
       </div>
       {allAnswered && <div className="mt-6"><PermitBanner result={result} /></div>}
+      {!allAnswered && (
+        <p className="mt-4 text-xs text-gray-400">Du må svare på alle spørsmålene for å gå videre.</p>
+      )}
       <div className="mt-6 flex gap-3">
         <button onClick={onBack}
           className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50">
           ← Tilbake
         </button>
-        <button onClick={onNext}
-          className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600">
+        <button onClick={onNext} disabled={!allAnswered}
+          className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">
           Videre til tegninger →
         </button>
       </div>
