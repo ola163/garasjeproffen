@@ -1088,6 +1088,11 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
     if (skipType) return hasPlacedOnMap ? 2 : 1;
     return 0;
   });
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
+
   const [buildingType, setBuildingType] = useState<BuildingType | null>(initialBuildingType ?? null);
   const [address, setAddress] = useState(savedAddress);
   const autoFilled = garageConfig ? autoFillDibk(garageConfig) : {};

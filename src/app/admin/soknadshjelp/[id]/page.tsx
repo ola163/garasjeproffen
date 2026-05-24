@@ -925,6 +925,7 @@ export default function SoknadshjelDetailPage() {
   const nonEmptyComments = Object.fromEntries(Object.entries(dibkAdminComments).filter(([, v]) => v.trim()));
   const savedNonEmptyComments = Object.fromEntries(Object.entries(row.admin_dibk_comments ?? {}).filter(([, v]) => (v as string).trim()));
   const commentsChanged = JSON.stringify(nonEmptyComments) !== JSON.stringify(savedNonEmptyComments);
+  const vetIkkeMissingComment = Object.entries(localDibk).some(([k, v]) => v === "Vet ikke" && !dibkAdminComments[k]?.trim());
   const hasChanges =
     (changedDibkKeys.length > 0 ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
@@ -956,7 +957,6 @@ export default function SoknadshjelDetailPage() {
 
   const isPendingApproval = status === "pending_approval";
   const totalDispCount = dibkDispCount + manualDisps.length;
-  const vetIkkeMissingComment = Object.entries(localDibk).some(([k, v]) => v === "Vet ikke" && !dibkAdminComments[k]?.trim());
   const computedTotal = (localPermitPrice ?? row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
   return (
