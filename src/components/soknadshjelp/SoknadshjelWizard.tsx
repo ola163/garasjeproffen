@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { getDoorPrice } from "@/lib/door-pricing";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
@@ -105,7 +106,7 @@ function permitCost(d: DibkAnswers): number {
 function buildingCost(g: GarageConfig) {
   const sqm = (g.widthMm / 1000) * (g.lengthMm / 1000);
   const build = Math.round(sqm * 5500);
-  const door = g.doorWidthMm >= 4000 ? 40_000 : 20_000;
+  const door = getDoorPrice(g.doorWidthMm, "hvit") ?? (g.doorWidthMm >= 4000 ? 40_000 : 20_000);
   return { build, door, sqm };
 }
 
