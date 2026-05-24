@@ -236,7 +236,7 @@ function PermitBanner({ result }: { result: PermitResult }) {
     <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
       <p className="font-semibold text-amber-800">? Vi anbefaler å avklare med kommunen</p>
       <p className="mt-1 text-xs text-amber-700">
-        Du har svart «Vet ikke» på ett eller flere punkter. Ta kontakt med kommunen eller oss.
+        Du har svart «Vet ikke» på ett eller flere punkter. Ta kontakt med oss.
       </p>
     </div>
   );
