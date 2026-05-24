@@ -1026,6 +1026,21 @@ export default function SoknadshjelDetailPage() {
               ))}
             </div>
             <div className="flex flex-wrap justify-end gap-2">
+              <a
+                href={`/admin/soknadshjelp/${id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                PDF
+              </a>
+              <button
+                onClick={handleSave}
+                disabled={saving || !hasChanges || isPendingApproval}
+                className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {saving ? "Lagrer…" : "Lagre"}
+              </button>
               {status === "cancelled" && (
                 <button
                   onClick={() => setDeleteOpen(true)}
