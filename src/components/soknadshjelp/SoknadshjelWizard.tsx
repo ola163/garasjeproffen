@@ -593,10 +593,10 @@ function StepDibk({ dibk, setDibk, autoFilled, dibkComments, setDibkComments, on
                 <Pill key={v} label={v} active={dibk[key] === v} onClick={() => set(key, v)} />
               ))}
             </div>
-            {isDispTriggered(key, dibk[key]) && (
+            {(isDispTriggered(key, dibk[key]) || dibk[key] === "Vet ikke") && (
               <div className="mt-2">
                 <p className="text-xs font-medium text-amber-700">
-                  Kommentar til denne dispensasjonen{dibk[key] === "Vet ikke" ? " *" : " (valgfritt)"}
+                  {dibk[key] === "Vet ikke" ? "Beskriv situasjonen *" : "Kommentar til denne dispensasjonen (valgfritt)"}
                 </p>
                 <textarea
                   rows={2}
