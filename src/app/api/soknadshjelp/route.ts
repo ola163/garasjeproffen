@@ -104,6 +104,27 @@ export async function POST(request: Request) {
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey);
+
+      // Fetch drawing prices to pre-populate extra_costs for admin tilbudsbygger
+      const { data: priserData } = await sb.from("soknadshjelp_priser").select("key, price");
+      const priser: Record<string, number> = {};
+      for (const p of (priserData ?? [])) priser[p.key] = p.price;
+      const pKunGarasje      = priser["tegning_kun_garasje"]      ?? 5000;
+      const pMedEksisterende = priser["tegning_med_eksisterende"]  ?? 10000;
+      const pSituasjonsplan  = priser["tegning_situasjonsplan"]    ?? 1500;
+
+      const drawingExtraCosts: { description: string; amount: number }[] = [];
+      if (drawingSelections?.choice === "need-help") {
+        if (drawingSelections.garasjeType === "kun-garasje" || drawingSelections.hasExistingDrawings === true) {
+          drawingExtraCosts.push({ description: "Kun garasjen", amount: pKunGarasje });
+        } else if (drawingSelections.garasjeType === "garasje-eksisterende" || drawingSelections.hasExistingDrawings === false) {
+          drawingExtraCosts.push({ description: "Garasje + eksisterende bebyggelse", amount: pMedEksisterende });
+        }
+        if (drawingSelections.withSituasjonsplan) {
+          drawingExtraCosts.push({ description: "Situasjonsplan", amount: pSituasjonsplan });
+        }
+      }
+
       const { data: ticketData } = await sb.rpc("next_ticket_number");
       const ticketNumber = (ticketData as string) ?? `Q-${Date.now()}`;
       await sb.from("soknadshjelp").insert({
@@ -118,6 +139,7 @@ export async function POST(request: Request) {
         permit_result: permitResult || null,
         permit_price: permit ?? null,
         total_price: total ?? null,
+        extra_costs: drawingExtraCosts.length > 0 ? drawingExtraCosts : null,
         status: "new",
       });
     }
