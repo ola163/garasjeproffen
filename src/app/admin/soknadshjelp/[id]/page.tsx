@@ -398,12 +398,19 @@ export default function SoknadshjelDetailPage() {
     setRabattTarget(null);
   }
 
+  const TEGNING_MUTUALLY_EXCLUSIVE = new Set(["Kun garasjen", "Garasje + eksisterende bebyggelse"]);
+
   function toggleTegningCost(label: string, price: number) {
     const exists = extraCosts.some(c => c.description === label);
     if (exists) {
       setExtraCosts(prev => prev.filter(c => c.description !== label));
     } else {
-      setExtraCosts(prev => [...prev, { description: label, amount: price }]);
+      setExtraCosts(prev => {
+        const filtered = TEGNING_MUTUALLY_EXCLUSIVE.has(label)
+          ? prev.filter(c => !TEGNING_MUTUALLY_EXCLUSIVE.has(c.description))
+          : [...prev];
+        return [...filtered, { description: label, amount: price }];
+      });
     }
   }
 
