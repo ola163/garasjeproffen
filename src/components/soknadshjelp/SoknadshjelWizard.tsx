@@ -1021,17 +1021,6 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
 
           <div className="border-t border-gray-100 pt-4">
             {user === undefined && <div className="py-2 text-center text-sm text-gray-400">Laster…</div>}
-            {user && (
-              <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3">
-                <p className="text-sm font-semibold text-green-900">Du er logget inn</p>
-                <p className="mt-1 text-sm text-green-700">
-                  Bruk <span className="font-medium">«Tomteplassering»</span>-funksjonen i konfiguratoren for å koble tegningsoppdraget til riktig tomt.
-                </p>
-                <a href="/configurator" className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-green-600 py-2 text-sm font-semibold text-white hover:bg-green-700">
-                  Åpne konfiguratoren →
-                </a>
-              </div>
-            )}
             {user === null && (
               <div>
                 <p className="text-sm text-gray-600 mb-3">
