@@ -931,7 +931,8 @@ export default function SoknadshjelDetailPage() {
     JSON.stringify(manualDisps) !== JSON.stringify(row.manual_dispensasjoner ?? []) ||
     localPermitPrice !== (row.permit_price ?? null) ||
     commentsChanged) &&
-    !dibkReasonsMissing;
+    !dibkReasonsMissing &&
+    !vetIkkeMissingComment;
   const hasUnsavedChanges =
     changedDibkKeys.length > 0 ||
     JSON.stringify(extraCosts) !== JSON.stringify(row.extra_costs ?? []) ||
@@ -955,6 +956,7 @@ export default function SoknadshjelDetailPage() {
 
   const isPendingApproval = status === "pending_approval";
   const totalDispCount = dibkDispCount + manualDisps.length;
+  const vetIkkeMissingComment = Object.entries(localDibk).some(([k, v]) => v === "Vet ikke" && !dibkAdminComments[k]?.trim());
   const computedTotal = (localPermitPrice ?? row.permit_price ?? 0) + manualDisps.reduce((s, d) => s + d.amount, 0) + extraCosts.reduce((s, c) => s + c.amount, 0);
 
   return (
@@ -1225,13 +1227,20 @@ export default function SoknadshjelDetailPage() {
                           <span className="font-semibold">Kundens kommentar:</span> {row.dibk_comments[k]}
                         </p>
                       )}
+                      {v === "Vet ikke" && !dibkAdminComments[k]?.trim() && (
+                        <p className="mt-1 text-[10px] font-semibold text-red-600">⚠ Kommentar påkrevd når «Vet ikke» er valgt</p>
+                      )}
                       <input
                         type="text"
-                        placeholder="Admin-kommentar (vises i tilbudsbygger)"
+                        placeholder={v === "Vet ikke" ? "Kommentar påkrevd – forklar hvorfor" : "Admin-kommentar (vises i tilbudsbygger)"}
                         value={dibkAdminComments[k] ?? ""}
                         onChange={(e) => setDibkAdminComments((prev) => ({ ...prev, [k]: e.target.value }))}
                         disabled={isPendingApproval}
-                        className="mt-1.5 w-full rounded border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-70"
+                        className={`mt-1.5 w-full rounded border px-2 py-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 disabled:opacity-70 ${
+                          v === "Vet ikke" && !dibkAdminComments[k]?.trim()
+                            ? "border-red-400 bg-red-50 focus:ring-red-400"
+                            : "border-orange-200 bg-orange-50 focus:ring-orange-400"
+                        }`}
                       />
                       {(unsaved || manualOverride || !!localDibkReasons[k]?.trim()) && (
                         unsaved ? (
