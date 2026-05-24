@@ -564,6 +564,10 @@ function StepDibk({ dibk, setDibk, autoFilled, dibkComments, setDibkComments, on
     setDibk({ ...dibk, [key]: val });
   }
   const allAnswered = Object.values(dibk).every((v) => v !== "");
+  const vetIkkeMissingComment = (Object.entries(dibk) as [keyof DibkAnswers, string][]).some(
+    ([k, v]) => v === "Vet ikke" && !dibkComments[k]?.trim()
+  );
+  const canProceed = allAnswered && !vetIkkeMissingComment;
   const result = permitResult(dibk);
 
   return (
@@ -591,7 +595,9 @@ function StepDibk({ dibk, setDibk, autoFilled, dibkComments, setDibkComments, on
             </div>
             {isDispTriggered(key, dibk[key]) && (
               <div className="mt-2">
-                <p className="text-xs font-medium text-amber-700">Kommentar til denne dispensasjonen (valgfritt)</p>
+                <p className="text-xs font-medium text-amber-700">
+                  Kommentar til denne dispensasjonen{dibk[key] === "Vet ikke" ? " *" : " (valgfritt)"}
+                </p>
                 <textarea
                   rows={2}
                   value={dibkComments[key] ?? ""}
@@ -608,12 +614,15 @@ function StepDibk({ dibk, setDibk, autoFilled, dibkComments, setDibkComments, on
       {!allAnswered && (
         <p className="mt-4 text-xs text-gray-400">Du må svare på alle spørsmålene for å gå videre.</p>
       )}
+      {allAnswered && vetIkkeMissingComment && (
+        <p className="mt-2 text-xs text-amber-600">Fyll inn kommentar på alle «Vet ikke»-svar for å gå videre.</p>
+      )}
       <div className="mt-6 flex gap-3">
         <button onClick={onBack}
           className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50">
           ← Tilbake
         </button>
-        <button onClick={onNext} disabled={!allAnswered}
+        <button onClick={onNext} disabled={!canProceed}
           className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed">
           Videre til tegninger →
         </button>
@@ -762,7 +771,7 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             <input required type="email" placeholder="E-post *" value={email} onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-            <input type="tel" placeholder="Telefon" value={phone} onChange={(e) => setPhone(e.target.value)}
+            <input required type="tel" placeholder="Mobilnr. *" value={phone} onChange={(e) => setPhone(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             <textarea placeholder="Eventuelle spesielle ønsker..." rows={3} value={message} onChange={(e) => setMessage(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
