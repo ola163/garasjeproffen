@@ -9,7 +9,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Ugyldig forespørsel." }, { status: 400 });
     }
 
-    const { name, email, phone, address, dibk, dibkComments, garageConfig, permitResult, permit, total } = body;
+    const { name, email, phone, address, dibk, dibkComments, garageConfig, permitResult, permit, total, drawingCost, drawingSelections } = body;
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json({ error: "Navn er påkrevd." }, { status: 400 });
@@ -66,6 +66,25 @@ export async function POST(request: Request) {
 
           <h3>DIBK-svar</h3>
           <table>${dibkRows}</table>
+
+          <h3>Tegninger</h3>
+          <table>
+            ${drawingSelections?.choice === "have-drawings"
+              ? `<tr><td>Har tegninger fra før</td></tr>`
+              : drawingSelections?.choice === "need-help"
+                ? `
+                  <tr><td><strong>Bestilt:</strong></td><td>${
+                    drawingSelections.hasExistingDrawings === true ? "Kun garasjen (har eksisterende tegninger)" :
+                    drawingSelections.hasExistingDrawings === false ? "Garasje + eksisterende bebyggelse" :
+                    drawingSelections.garasjeType === "kun-garasje" ? "Kun garasjen" :
+                    drawingSelections.garasjeType === "garasje-eksisterende" ? "Garasje + eksisterende bebyggelse" : "–"
+                  }</td></tr>
+                  <tr><td><strong>Situasjonsplan:</strong></td><td>${drawingSelections.withSituasjonsplan ? "Ja" : "Nei"}</td></tr>
+                  <tr><td><strong>Pris tegninger:</strong></td><td>${(drawingCost ?? 0).toLocaleString("nb-NO")} kr</td></tr>
+                `
+                : `<tr><td>Ingen tegningsvalg registrert</td></tr>`
+            }
+          </table>
 
           <h3>Søknadsresultat</h3>
           <p><strong>${esc(permitResult) || "–"}</strong></p>

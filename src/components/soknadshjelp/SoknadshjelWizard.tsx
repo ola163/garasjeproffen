@@ -620,13 +620,14 @@ function StepDibk({ dibk, setDibk, autoFilled, dibkComments, setDibkComments, on
 }
 
 // ── Step 4: Estimate + contact ────────────────────────────────────────────────
-function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, dibkComments, onBack }: {
+function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, dibkComments, drawingSelections, onBack }: {
   dibk: DibkAnswers;
   address: string;
   garageConfig?: GarageConfig;
   buildingType: BuildingType | null;
   drawingCost: number;
   dibkComments: Record<string, string>;
+  drawingSelections: DrawingInfo | null;
   onBack: () => void;
 }) {
   const result = permitResult(dibk);
@@ -651,7 +652,7 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
       await fetch("/api/soknadshjelp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone, message, address, dibk, dibkComments, garageConfig, permitResult: result, permit, nabovarsel: naboCost, total, buildingType: buildingLabel }),
+        body: JSON.stringify({ name, email, phone, message, address, dibk, dibkComments, garageConfig, permitResult: result, permit, nabovarsel: naboCost, total, buildingType: buildingLabel, drawingSelections }),
       });
       setSent(true);
     } finally {
@@ -786,6 +787,13 @@ const DRAWING_TIPS = [
 
 type GarasjeType = "kun-garasje" | "garasje-eksisterende" | null;
 
+type DrawingInfo = {
+  choice: "need-help" | "have-drawings" | null;
+  garasjeType: GarasjeType;
+  withSituasjonsplan: boolean;
+  hasExistingDrawings: boolean | null;
+};
+
 function SituasjonsplanCheckbox({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-4 py-3 transition-colors ${checked ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
@@ -802,7 +810,7 @@ function SituasjonsplanCheckbox({ checked, onChange }: { checked: boolean; onCha
 function StepDrawings({ garageConfig, onBack, onNext }: {
   garageConfig?: GarageConfig;
   onBack: () => void;
-  onNext: (drawingCost: number) => void;
+  onNext: (drawingCost: number, selections: DrawingInfo) => void;
 }) {
   // ── Drawing prices fetched from admin ────────────────────────────────────────
   const [prices, setPrices] = useState({ kun_garasje: 5000, med_eksisterende: 10000, situasjonsplan: 1500 });
@@ -911,7 +919,7 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
             <div className="flex gap-3 pt-1">
               <button onClick={onBack} className="text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
               <button
-                onClick={() => onNext(totalCost)}
+                onClick={() => onNext(totalCost, { choice: "need-help", garasjeType: null, withSituasjonsplan, hasExistingDrawings })}
                 className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
               >
                 Videre til prisestimat →
@@ -980,7 +988,7 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
           </div>
           <div className="mt-5 border-t border-gray-100 pt-4 flex gap-3">
             <button onClick={() => setChoice(null)} className="text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
-            <button onClick={() => onNext(0)} className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600">
+            <button onClick={() => onNext(0, { choice: "have-drawings", garasjeType: null, withSituasjonsplan: false, hasExistingDrawings: null })} className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600">
               Videre til prisestimat →
             </button>
           </div>
@@ -1048,7 +1056,7 @@ function StepDrawings({ garageConfig, onBack, onNext }: {
           <div className="flex gap-3 pt-1">
             <button onClick={() => setChoice(null)} className="text-sm text-gray-400 hover:text-gray-600">← Tilbake</button>
             <button
-              onClick={() => onNext(standaloneDrawingCost)}
+              onClick={() => onNext(standaloneDrawingCost, { choice: "need-help", garasjeType, withSituasjonsplan, hasExistingDrawings: null })}
               disabled={garasjeType === null && !withSituasjonsplan}
               className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -1088,6 +1096,7 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
   const [dibk, setDibk] = useState<DibkAnswers>({ ...defaultDibk, ...autoFilled });
   const [dibkComments, setDibkComments] = useState<Record<string, string>>({});
   const [drawingCost, setDrawingCost] = useState(0);
+  const [drawingSelections, setDrawingSelections] = useState<DrawingInfo | null>(null);
 
   return (
     <div className="mx-auto max-w-xl px-6 py-12 sm:py-16">
@@ -1118,10 +1127,10 @@ export default function SoknadshjelWizard({ garageConfig, initialBuildingType }:
         <StepDibk dibk={dibk} setDibk={setDibk} autoFilled={autoFilled} dibkComments={dibkComments} setDibkComments={setDibkComments} onNext={() => setStep(3)} onBack={() => setStep(hasPlacedOnMap ? 0 : 1)} />
       )}
       {step === 3 && (
-        <StepDrawings garageConfig={garageConfig} onBack={() => setStep(2)} onNext={(cost) => { setDrawingCost(cost); setStep(4); }} />
+        <StepDrawings garageConfig={garageConfig} onBack={() => setStep(2)} onNext={(cost, sel) => { setDrawingCost(cost); setDrawingSelections(sel); setStep(4); }} />
       )}
       {step === 4 && (
-        <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} drawingCost={drawingCost} dibkComments={dibkComments} onBack={() => setStep(3)} />
+        <StepEstimate dibk={dibk} address={address} garageConfig={garageConfig} buildingType={buildingType} drawingCost={drawingCost} dibkComments={dibkComments} drawingSelections={drawingSelections} onBack={() => setStep(3)} />
       )}
     </div>
   );
