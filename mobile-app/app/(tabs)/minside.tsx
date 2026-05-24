@@ -1,201 +1,131 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Alert, ActivityIndicator, Platform, KeyboardAvoidingView,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  Alert, ActivityIndicator,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@/context/AuthContext";
+import { supabase, SavedConfig } from "@/lib/supabase";
 import { Colors } from "@/constants/Colors";
 
-const API_BASE = "https://garasjeproffen.no";
-const STORAGE_KEY = "gp_session";
-
-const FEATURES = [
-  { icon: "save-outline" as const,            label: "Lagre garasjemodeller" },
-  { icon: "document-text-outline" as const,   label: "Se dine tilbud og søknader" },
-  { icon: "notifications-outline" as const,   label: "Varsler om prosjektstatus" },
-  { icon: "time-outline" as const,            label: "Historikk og bestillinger" },
-];
-
 export default function MinSideScreen() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [messeMode, setMesseMode] = useState(false);
-  const [password, setPassword] = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [checking, setChecking] = useState(true);
+  const { user, signOut } = useAuth();
+  const router = useRouter();
+  const [configs, setConfigs] = useState<SavedConfig[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((val: string | null) => {
-      if (val === "messe") { setLoggedIn(true); setMesseMode(true); }
-      setChecking(false);
-    });
-  }, []);
+    if (user) loadConfigs();
+  }, [user]);
 
-  async function loginMesse() {
-    if (!password.trim()) return;
+  async function loadConfigs() {
     setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/auth/messe-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: password.trim() }),
-        credentials: "include",
-      });
-      if (res.ok) {
-        await AsyncStorage.setItem(STORAGE_KEY, "messe");
-        setLoggedIn(true);
-        setMesseMode(true);
-        setPassword("");
-      } else {
-        Alert.alert("Feil passord", "Prøv igjen.");
-      }
-    } catch {
-      Alert.alert("Feil", "Ingen internettforbindelse.");
-    } finally {
-      setLoading(false);
-    }
+    const { data, error } = await supabase
+      .from("saved_configs")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setLoading(false);
+    if (!error && data) setConfigs(data as SavedConfig[]);
   }
 
-  async function logout() {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    setLoggedIn(false);
-    setMesseMode(false);
-    setPassword("");
+  async function deleteConfig(id: string) {
+    Alert.alert("Slett konfigurasjon", "Er du sikker?", [
+      { text: "Avbryt", style: "cancel" },
+      {
+        text: "Slett", style: "destructive",
+        onPress: async () => {
+          await supabase.from("saved_configs").delete().eq("id", id);
+          setConfigs((prev) => prev.filter((c) => c.id !== id));
+        },
+      },
+    ]);
   }
 
-  if (checking) {
+  if (!user) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={Colors.orange} />
+        <Ionicons name="person-circle-outline" size={72} color={Colors.gray400} />
+        <Text style={styles.notLoggedTitle}>Ikke innlogget</Text>
+        <Text style={styles.notLoggedSub}>Logg inn for å lagre og hente dine garasjemodeller</Text>
+        <TouchableOpacity style={styles.loginBtn} onPress={() => router.push("/login")}>
+          <Text style={styles.loginBtnText}>Logg inn / Opprett konto</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  if (loggedIn) {
-    return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <View style={styles.avatarCircle}>
-            <Ionicons name="person" size={32} color={Colors.orange} />
-          </View>
-          <Text style={styles.heroName}>{messeMode ? "Messedemo" : "Min konto"}</Text>
-          {messeMode && <Text style={styles.heroSub}>Innlogget som messebruker</Text>}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Tilgang</Text>
-          {FEATURES.map((f, i) => (
-            <View key={i} style={[styles.featureRow, i < FEATURES.length - 1 && styles.featureBorder]}>
-              <View style={styles.featureIcon}>
-                <Ionicons name={f.icon} size={18} color={Colors.orange} />
-              </View>
-              <Text style={styles.featureLabel}>{f.label}</Text>
-              <Ionicons name="checkmark-circle" size={18} color={Colors.green} />
-            </View>
-          ))}
-        </View>
-
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.7}>
-          <Ionicons name="log-out-outline" size={18} color={Colors.gray600} style={{ marginRight: 8 }} />
-          <Text style={styles.logoutBtnText}>Logg ut</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    );
-  }
-
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-
-        {/* Avatar */}
-        <View style={styles.avatarSection}>
-          <View style={styles.avatarCircleLarge}>
-            <Ionicons name="person-outline" size={44} color={Colors.gray400} />
-          </View>
-          <Text style={styles.notLoggedTitle}>Ikke innlogget</Text>
-          <Text style={styles.notLoggedSub}>
-            Logg inn for å lagre og hente dine garasjemodeller
-          </Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Profil */}
+      <View style={styles.profileCard}>
+        <Ionicons name="person-circle-outline" size={48} color={Colors.orange} />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.email}>{user.email}</Text>
+          <Text style={styles.emailSub}>Innlogget bruker</Text>
         </View>
+        <TouchableOpacity onPress={signOut}>
+          <Text style={styles.logoutText}>Logg ut</Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Features */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Med en konto kan du</Text>
-          {FEATURES.map((f, i) => (
-            <View key={i} style={[styles.featureRow, i < FEATURES.length - 1 && styles.featureBorder]}>
-              <View style={styles.featureIcon}>
-                <Ionicons name={f.icon} size={18} color={Colors.orange} />
-              </View>
-              <Text style={styles.featureLabel}>{f.label}</Text>
+      {/* Lagrede konfigurasjoner */}
+      <Text style={styles.sectionTitle}>Mine konfigurasjoner</Text>
+
+      {loading ? (
+        <ActivityIndicator color={Colors.orange} style={{ marginTop: 32 }} />
+      ) : configs.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Ionicons name="construct-outline" size={36} color={Colors.gray400} />
+          <Text style={styles.emptyText}>Ingen lagrede konfigurasjoner ennå</Text>
+          <Text style={styles.emptySub}>Bygg en garasje i konfiguratoren og trykk «Lagre»</Text>
+        </View>
+      ) : (
+        configs.map((c) => (
+          <View key={c.id} style={styles.configCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.configName}>{c.name}</Text>
+              <Text style={styles.configDetails}>
+                {(c.config.width / 1000).toFixed(1)} m × {(c.config.length / 1000).toFixed(1)} m
+                {"  ·  "}{c.config.roofType === "saltak" ? "Saltak" : "Flattak"}
+                {"  ·  "}{c.config.packageType === "prefab" ? "Prefab" : "Materialpakke"}
+              </Text>
+              <Text style={styles.configDate}>
+                {new Date(c.created_at).toLocaleDateString("nb-NO")}
+              </Text>
             </View>
-          ))}
-        </View>
-
-        {/* Messe login */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Messedemo</Text>
-          <Text style={styles.messeInfo}>Har du messepassord? Logg inn for full tilgang.</Text>
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Passord"
-            secureTextEntry
-            returnKeyType="done"
-            onSubmitEditing={loginMesse}
-          />
-          <TouchableOpacity
-            style={[styles.loginBtn, (!password.trim() || loading) && { opacity: 0.5 }]}
-            onPress={loginMesse}
-            disabled={!password.trim() || loading}
-            activeOpacity={0.85}
-          >
-            {loading
-              ? <ActivityIndicator color={Colors.white} />
-              : <>
-                  <Ionicons name="log-in-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
-                  <Text style={styles.loginBtnText}>Logg inn</Text>
-                </>}
-          </TouchableOpacity>
-        </View>
-
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <TouchableOpacity onPress={() => deleteConfig(c.id)} style={styles.deleteBtn}>
+              <Ionicons name="trash-outline" size={20} color={Colors.gray400} />
+            </TouchableOpacity>
+          </View>
+        ))
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container:       { flex: 1, backgroundColor: Colors.gray50 },
-  content:         { padding: 16, paddingBottom: 48, gap: 12 },
-  center:          { flex: 1, justifyContent: "center", alignItems: "center" },
-  hero:            { backgroundColor: Colors.orange, borderRadius: 14, padding: 20, alignItems: "center" },
-  avatarCircle:    { width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.orangeLight,
-                     justifyContent: "center", alignItems: "center", marginBottom: 10 },
-  heroName:        { fontSize: 20, fontWeight: "800", color: Colors.white },
-  heroSub:         { fontSize: 13, color: "#ffedd5", marginTop: 4 },
-  avatarSection:   { alignItems: "center", paddingVertical: 28 },
-  avatarCircleLarge:{ width: 90, height: 90, borderRadius: 45, backgroundColor: Colors.gray100,
-                      justifyContent: "center", alignItems: "center", marginBottom: 16 },
-  notLoggedTitle:  { fontSize: 20, fontWeight: "700", color: Colors.gray900, marginBottom: 8 },
-  notLoggedSub:    { fontSize: 14, color: Colors.gray500, textAlign: "center",
-                     lineHeight: 20, maxWidth: 280 },
-  card:            { backgroundColor: Colors.white, borderRadius: 14, padding: 16,
-                     borderWidth: 1, borderColor: Colors.gray200 },
-  cardTitle:       { fontSize: 15, fontWeight: "700", color: Colors.gray900, marginBottom: 14 },
-  featureRow:      { flexDirection: "row", alignItems: "center", paddingVertical: 11 },
-  featureBorder:   { borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
-  featureIcon:     { width: 34, height: 34, borderRadius: 8, backgroundColor: Colors.orangeLight,
-                     justifyContent: "center", alignItems: "center", marginRight: 12 },
-  featureLabel:    { flex: 1, fontSize: 14, color: Colors.gray800, fontWeight: "500" },
-  messeInfo:       { fontSize: 13, color: Colors.gray500, marginBottom: 12 },
-  input:           { borderWidth: 1, borderColor: Colors.gray200, borderRadius: 8,
-                     paddingHorizontal: 12, paddingVertical: 10, fontSize: 15,
-                     color: Colors.gray900, backgroundColor: Colors.gray50, marginBottom: 10 },
-  loginBtn:        { backgroundColor: Colors.orange, borderRadius: 10, paddingVertical: 13,
-                     flexDirection: "row", justifyContent: "center", alignItems: "center" },
-  loginBtnText:    { color: Colors.white, fontWeight: "700", fontSize: 15 },
-  logoutBtn:       { borderRadius: 12, paddingVertical: 13, alignItems: "center",
-                     flexDirection: "row", justifyContent: "center",
-                     borderWidth: 1, borderColor: Colors.gray200, backgroundColor: Colors.white },
-  logoutBtnText:   { color: Colors.gray600, fontWeight: "600", fontSize: 15 },
+  container:      { flex: 1, backgroundColor: Colors.gray50 },
+  content:        { padding: 16, paddingBottom: 40, gap: 12 },
+  center:         { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  notLoggedTitle: { fontSize: 20, fontWeight: "700", color: Colors.gray900, marginTop: 16 },
+  notLoggedSub:   { fontSize: 14, color: Colors.gray500, textAlign: "center", marginTop: 8, marginBottom: 24, lineHeight: 20 },
+  loginBtn:       { backgroundColor: Colors.orange, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32 },
+  loginBtnText:   { color: Colors.white, fontWeight: "700", fontSize: 16 },
+  profileCard:    { backgroundColor: Colors.white, borderRadius: 12, padding: 16,
+                    borderWidth: 1, borderColor: Colors.gray200, flexDirection: "row", alignItems: "center" },
+  email:          { fontSize: 15, fontWeight: "600", color: Colors.gray900 },
+  emailSub:       { fontSize: 12, color: Colors.gray500, marginTop: 2 },
+  logoutText:     { fontSize: 14, color: Colors.orange, fontWeight: "600" },
+  sectionTitle:   { fontSize: 15, fontWeight: "700", color: Colors.gray900, marginTop: 4 },
+  emptyCard:      { backgroundColor: Colors.white, borderRadius: 12, padding: 32,
+                    borderWidth: 1, borderColor: Colors.gray200, alignItems: "center" },
+  emptyText:      { fontSize: 15, fontWeight: "600", color: Colors.gray700, marginTop: 12 },
+  emptySub:       { fontSize: 13, color: Colors.gray400, textAlign: "center", marginTop: 6, lineHeight: 18 },
+  configCard:     { backgroundColor: Colors.white, borderRadius: 12, padding: 16,
+                    borderWidth: 1, borderColor: Colors.gray200, flexDirection: "row", alignItems: "center" },
+  configName:     { fontSize: 15, fontWeight: "700", color: Colors.gray900, marginBottom: 4 },
+  configDetails:  { fontSize: 13, color: Colors.gray500 },
+  configDate:     { fontSize: 12, color: Colors.gray400, marginTop: 4 },
+  deleteBtn:      { padding: 8 },
 });

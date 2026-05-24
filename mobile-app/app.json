@@ -2,8 +2,8 @@
   "expo": {
     "name": "GarasjeProffen",
     "slug": "garasjeproffen",
-    "version": "2.2.0",
-    "orientation": "default",
+    "version": "1.1.1",
+    "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "garasjeproffen",
     "userInterfaceStyle": "light",
@@ -18,7 +18,8 @@
       "bundleIdentifier": "no.garasjeproffen.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Brukes ikke.",
-        "NSPhotoLibraryUsageDescription": "For å laste opp bilder til tilbudsforespørselen."
+        "NSPhotoLibraryUsageDescription": "For å laste opp bilder til tilbudsforespørselen.",
+        "NSLocationWhenInUseUsageDescription": "For å plassere garasjen på din tomt i kartet."
       }
     },
     "android": {
@@ -26,26 +27,23 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f97316"
       },
-      "package": "no.garasjeproffen.app"
+      "package": "no.garasjeproffen.app",
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-router",
       "expo-font",
-      ["expo-build-properties", {
-        "android": {
-          "compileSdkVersion": 36,
-          "targetSdkVersion": 36,
-          "buildToolsVersion": "36.1.0"
-        }
-      }]
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {
-        "origin": false
-      },
+      "router": {},
       "eas": {
         "projectId": "0c455fe4-2a77-4414-a6ca-4985d5fcc065"
       }
