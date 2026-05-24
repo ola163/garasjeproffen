@@ -1,0 +1,18 @@
+export const Colors = {
+  orange:     "#f97316",
+  orangeDark: "#ea6c0a",
+  orangeLight:"#fff7ed",
+  gray900:    "#111827",
+  gray800:    "#1f2937",
+  gray700:    "#374151",
+  gray600:    "#4b5563",
+  gray500:    "#6b7280",
+  gray400:    "#9ca3af",
+  gray200:    "#e5e7eb",
+  gray100:    "#f3f4f6",
+  gray50:     "#f9fafb",
+  white:      "#ffffff",
+  green:      "#16a34a",
+  blue:       "#2563eb",
+  blueLight:  "#eff6ff",
+};

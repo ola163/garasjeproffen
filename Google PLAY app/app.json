@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "GarasjeProffen",
+    "slug": "garasjeproffen",
+    "version": "1.1.1",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "garasjeproffen",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f97316"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "no.garasjeproffen.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Brukes ikke.",
+        "NSPhotoLibraryUsageDescription": "For å laste opp bilder til tilbudsforespørselen.",
+        "NSLocationWhenInUseUsageDescription": "For å plassere garasjen på din tomt i kartet."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f97316"
+      },
+      "package": "no.garasjeproffen.app",
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0c455fe4-2a77-4414-a6ca-4985d5fcc065"
+      }
+    }
+  }
+}
