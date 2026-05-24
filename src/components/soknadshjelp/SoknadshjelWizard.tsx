@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getDoorPrice } from "@/lib/door-pricing";
+import { getDoorPrice, isDoorColorAvailable } from "@/lib/door-pricing";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
@@ -103,10 +103,10 @@ function permitCost(d: DibkAnswers): number {
   return disp > 0 ? 10_000 + Math.max(0, disp - 1) * 5_000 : 8_000;
 }
 
-function buildingCost(g: GarageConfig) {
+function buildingCost(g: GarageConfig, doorColor: "hvit" | "sort" = "hvit") {
   const sqm = (g.widthMm / 1000) * (g.lengthMm / 1000);
   const build = Math.round(sqm * 5500);
-  const door = getDoorPrice(g.doorWidthMm, "hvit") ?? (g.doorWidthMm >= 4000 ? 40_000 : 20_000);
+  const door = getDoorPrice(g.doorWidthMm, doorColor) ?? getDoorPrice(g.doorWidthMm, "hvit") ?? (g.doorWidthMm >= 4000 ? 40_000 : 20_000);
   return { build, door, sqm };
 }
 
@@ -643,10 +643,12 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
   drawingSelections: DrawingInfo | null;
   onBack: () => void;
 }) {
+  const [doorColor, setDoorColor] = useState<"hvit" | "sort">("hvit");
+
   const result = permitResult(dibk);
   const permit = permitCost(dibk);
   const naboCost = countDisp(dibk) > 0 ? 3_000 : 0;
-  const garage = garageConfig ? buildingCost(garageConfig) : null;
+  const garage = garageConfig ? buildingCost(garageConfig, doorColor) : null;
   const total = (garage ? garage.build + garage.door : 0) + permit + naboCost + drawingCost;
 
   const [name, setName] = useState("");
@@ -688,8 +690,29 @@ function StepEstimate({ dibk, address, garageConfig, buildingType, drawingCost, 
               <span>Bygg ({garage.sqm.toFixed(1)} m² × 5 500 kr)</span>
               <span>{fmt(garage.build)}</span>
             </div>
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Garasjeport</span>
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <span>Garasjeport</span>
+                <div className="flex gap-1">
+                  {(["hvit", "sort"] as const).map((color) => {
+                    const available = isDoorColorAvailable(garageConfig!.doorWidthMm, color);
+                    if (!available) return null;
+                    return (
+                      <button
+                        key={color}
+                        onClick={() => setDoorColor(color)}
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold border transition-colors ${
+                          doorColor === color
+                            ? "border-gray-700 bg-gray-700 text-white"
+                            : "border-gray-300 text-gray-500 hover:border-gray-500"
+                        }`}
+                      >
+                        {color.charAt(0).toUpperCase() + color.slice(1)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <span>{fmt(garage.door)}</span>
             </div>
           </>
