@@ -13,30 +13,51 @@ interface Props {
 }
 
 export default function GarageDresser({ widthMm, lengthMm, roofType, buildingType }: Props) {
-  const webRef = useRef<WebView>(null);
+  const webRef    = useRef<WebView>(null);
+  const readyRef  = useRef(false);
+  const pendingRef = useRef<Props | null>(null);
 
-  const url = `${DRESSER_URL}?widthMm=${widthMm}&lengthMm=${lengthMm}&roofType=${roofType}&buildingType=${buildingType}`;
+  // Stable initial URL — never changes so WebView never reloads
+  const initialUrl = useRef(
+    `${DRESSER_URL}?widthMm=${widthMm}&lengthMm=${lengthMm}&roofType=${roofType}&buildingType=${buildingType}`
+  );
 
-  useEffect(() => {
+  function send(p: Props) {
     webRef.current?.injectJavaScript(`
       window.dispatchEvent(new MessageEvent('message', {
         data: JSON.stringify({
           type: 'update',
-          widthMm: ${widthMm},
-          lengthMm: ${lengthMm},
-          roofType: '${roofType}',
-          buildingType: '${buildingType}',
+          widthMm: ${p.widthMm},
+          lengthMm: ${p.lengthMm},
+          roofType: '${p.roofType}',
+          buildingType: '${p.buildingType}',
         })
       }));
       true;
     `);
+  }
+
+  useEffect(() => {
+    if (readyRef.current) {
+      send({ widthMm, lengthMm, roofType, buildingType });
+    } else {
+      pendingRef.current = { widthMm, lengthMm, roofType, buildingType };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widthMm, lengthMm, roofType, buildingType]);
+
+  function onLoad() {
+    readyRef.current = true;
+    const p = pendingRef.current ?? { widthMm, lengthMm, roofType, buildingType };
+    pendingRef.current = null;
+    setTimeout(() => send(p), 300);
+  }
 
   return (
     <View style={styles.container}>
       <WebView
         ref={webRef}
-        source={{ uri: url }}
+        source={{ uri: initialUrl.current }}
         style={styles.web}
         renderLoading={() => (
           <View style={styles.loader}>
@@ -44,6 +65,7 @@ export default function GarageDresser({ widthMm, lengthMm, roofType, buildingTyp
           </View>
         )}
         startInLoadingState
+        onLoad={onLoad}
         allowsInlineMediaPlayback
         javaScriptEnabled
         domStorageEnabled

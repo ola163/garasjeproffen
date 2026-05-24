@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, Switch,
   StyleSheet, Platform, Pressable, Alert, TextInput, Modal, ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +14,7 @@ import GarageViewer3D from "@/components/GarageViewer3D";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import GrunnarbeidModal, { type GrunnarbeidData, emptyGrunnarbeid } from "@/components/GrunnarbeidModal";
+import { useConfig } from "@/context/ConfigContext";
 
 const WIDTH_MIN  = 2400;
 const WIDTH_MAX  = 8000;
@@ -104,6 +106,9 @@ function DimensionRow({
 export default function KonfiguratorScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { setConfig } = useConfig();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const isLandscape = winW > winH;
   const [buildingType, setBuildingType] = useState<BuildingType>("garasje");
   const [packageType,  setPackageType]  = useState<PackageType>("materialpakke");
   const [roofType,     setRoofType]     = useState<RoofType>("saltak");
@@ -124,8 +129,18 @@ export default function KonfiguratorScreen() {
   });
 
   // Grunnarbeid
-  const [grunnData,  setGrunnData]  = useState<GrunnarbeidData>(emptyGrunnarbeid());
-  const [grunnModal, setGrunnModal] = useState(false);
+  const [grunnData,   setGrunnData]   = useState<GrunnarbeidData>(emptyGrunnarbeid());
+  const [grunnModal,  setGrunnModal]  = useState(false);
+  const [soknadModal, setSoknadModal] = useState(false);
+
+  // Sync to ConfigContext so Plasser-tab picks up current dimensions
+  useEffect(() => {
+    setConfig({
+      buildingType, packageType, roofType, widthMm, lengthMm, doorWidthMm, doorColor,
+      totalPrice: pricing.totalPrice, manualQuote: pricing.manualQuote,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildingType, packageType, roofType, widthMm, lengthMm, doorWidthMm, doorColor]);
 
   async function handleSave() {
     if (!saveName.trim()) { Alert.alert("Gi konfigurasjonen et navn"); return; }
@@ -190,7 +205,15 @@ export default function KonfiguratorScreen() {
   const lSnapped = buildingType === "garasje" && isLengthSnapped(lengthMm);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={{ flex: 1, flexDirection: isLandscape ? "row" : "column" }}>
+    <ScrollView
+      style={[styles.container, isLandscape && { flex: 1 }]}
+      contentContainerStyle={styles.content}
+    >
+      {/* Portrait: 3D viewer at top */}
+      {!isLandscape && (
+        <GarageViewer3D widthMm={widthMm} lengthMm={lengthMm} roofType={roofType} buildingType={buildingType} />
+      )}
 
       {/* Bygningstype */}
       <View style={styles.card}>
@@ -361,14 +384,6 @@ export default function KonfiguratorScreen() {
         </View>
       </TouchableOpacity>
 
-      {/* 3D-visning */}
-      <GarageViewer3D
-        widthMm={widthMm}
-        lengthMm={lengthMm}
-        roofType={roofType}
-        buildingType={buildingType}
-      />
-
       {/* Prisestimat */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Prisestimat</Text>
@@ -402,20 +417,7 @@ export default function KonfiguratorScreen() {
 
         <TouchableOpacity
           style={styles.ctaBtn}
-          onPress={() =>
-            router.push({
-              pathname: "/tilbud",
-              params: {
-                buildingType,
-                packageType,
-                roofType,
-                widthMm: String(widthMm),
-                lengthMm: String(lengthMm),
-                totalPrice: String(pricing.totalPrice),
-                manualQuote: pricing.manualQuote ? "1" : "0",
-              },
-            })
-          }
+          onPress={() => setSoknadModal(true)}
         >
           <Text style={styles.ctaBtnText}>Be om tilbud</Text>
         </TouchableOpacity>
@@ -430,6 +432,42 @@ export default function KonfiguratorScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Søknadshjelp-spørsmål før tilbud */}
+      <Modal visible={soknadModal} transparent animationType="fade" onRequestClose={() => setSoknadModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Ionicons name="document-text-outline" size={32} color={Colors.orange} style={{ alignSelf: "center", marginBottom: 12 }} />
+            <Text style={styles.modalTitle}>Trenger du søknadshjelp?</Text>
+            <Text style={[styles.modalInput, { borderWidth: 0, color: Colors.gray500, fontSize: 14, lineHeight: 20, marginBottom: 16 }]}>
+              Vil du sjekke om du trenger byggesøknad for garasjen?
+            </Text>
+            <TouchableOpacity
+              style={styles.ctaBtn}
+              onPress={() => { setSoknadModal(false); router.push("/(tabs)/soknadshjelp"); }}
+            >
+              <Text style={styles.ctaBtnText}>Ja, sjekk søknadskrav</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveBtn, { marginTop: 8 }]}
+              onPress={() => {
+                setSoknadModal(false);
+                router.push({
+                  pathname: "/tilbud",
+                  params: {
+                    buildingType, packageType, roofType,
+                    widthMm: String(widthMm), lengthMm: String(lengthMm),
+                    totalPrice: String(pricing.totalPrice),
+                    manualQuote: pricing.manualQuote ? "1" : "0",
+                  },
+                });
+              }}
+            >
+              <Text style={styles.saveBtnText}>Nei, gå direkte til tilbud</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <GrunnarbeidModal
         visible={grunnModal}
@@ -465,6 +503,12 @@ export default function KonfiguratorScreen() {
         </View>
       </Modal>
     </ScrollView>
+    {isLandscape && (
+      <View style={{ flex: 1, backgroundColor: Colors.gray100 }}>
+        <GarageViewer3D widthMm={widthMm} lengthMm={lengthMm} roofType={roofType} buildingType={buildingType} />
+      </View>
+    )}
+    </View>
   );
 }
 

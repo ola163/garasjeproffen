@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, TextInput, Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/Colors";
@@ -87,7 +87,7 @@ const QUESTIONS: { key: keyof DibkAnswers; q: string; hint?: string }[] = [
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function TypeBtn({ id, label, icon, selected, onPress }: {
+function TypeBtn({ label, icon, selected, onPress }: {
   id: BuildingType; label: string; icon: string;
   selected: boolean; onPress: () => void;
 }) {
@@ -108,10 +108,19 @@ function TypeBtn({ id, label, icon, selected, onPress }: {
   );
 }
 
-function QuestionRow({ question, hint, answer, onChange }: {
+function QuestionRow({ qkey, question, hint, answer, comment, onAnswer, onComment }: {
+  qkey: keyof DibkAnswers;
   question: string; hint?: string;
-  answer: Answer; onChange: (a: Answer) => void;
+  answer: Answer;
+  comment: string;
+  onAnswer: (a: Answer) => void;
+  onComment: (c: string) => void;
 }) {
+  const isDispKey = SØKNAD_KEYS.includes(qkey) || qkey === "lnf";
+  const showOptionalComment  = answer === "Nei" && isDispKey;
+  const showMandatoryComment = answer === "Vet ikke";
+  const showComment = showOptionalComment || showMandatoryComment;
+
   return (
     <View style={styles.questionWrap}>
       <Text style={styles.questionText}>{question}</Text>
@@ -121,7 +130,7 @@ function QuestionRow({ question, hint, answer, onChange }: {
           <TouchableOpacity
             key={opt}
             style={[styles.pill, answer === opt && pillActive(opt)]}
-            onPress={() => onChange(opt)}
+            onPress={() => onAnswer(opt)}
             activeOpacity={0.7}
           >
             <Text style={[styles.pillText, answer === opt && pillTextActive(opt)]}>
@@ -130,12 +139,37 @@ function QuestionRow({ question, hint, answer, onChange }: {
           </TouchableOpacity>
         ))}
       </View>
+      {showComment && (
+        <View style={styles.commentWrap}>
+          <Text style={styles.commentLabel}>
+            {showMandatoryComment
+              ? "Kommentar (obligatorisk) *"
+              : "Kommentar til dispensasjonen (valgfritt)"}
+          </Text>
+          <TextInput
+            style={[
+              styles.commentInput,
+              showMandatoryComment && !comment.trim() && styles.commentInputRequired,
+            ]}
+            value={comment}
+            onChangeText={onComment}
+            multiline
+            numberOfLines={2}
+            placeholder={showMandatoryComment ? "Beskriv situasjonen..." : "Eventuell kommentar..."}
+            placeholderTextColor={Colors.gray400}
+          />
+          {showMandatoryComment && !comment.trim() && (
+            <Text style={styles.commentRequired}>Påkrevd – fyll inn for å gå videre</Text>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
-function ResultBanner({ result, cost }: { result: PermitResult; cost: number }) {
+function ResultBanner({ result, d }: { result: PermitResult; d: DibkAnswers }) {
   if (result === "ubesvart") return null;
+  const cost = permitCost(d);
 
   const configs = {
     søknadsfri: {
@@ -174,25 +208,115 @@ function ResultBanner({ result, cost }: { result: PermitResult; cost: number }) 
   );
 }
 
+// ─── Tegninger step ───────────────────────────────────────────────────────────
+
+function TegningerStep({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+  const [hasDrawings,    setHasDrawings]    = useState<boolean | null>(null);
+  const [needsSituasjon, setNeedsSituasjon] = useState(false);
+
+  const drawingCost = hasDrawings === null ? null : hasDrawings ? 5_000 : 10_000;
+  const totalCost   = (drawingCost ?? 0) + (needsSituasjon ? 1_500 : 0);
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Steg 3 — Tegninger</Text>
+      <Text style={styles.cardSub}>
+        Garasjetegningene er klargjort fra konfiguratoren. Har du originale tegninger av eksisterende bebygging på tomten?
+      </Text>
+
+      <View style={styles.drawingRow}>
+        <TouchableOpacity
+          style={[styles.drawingBtn, hasDrawings === true && styles.drawingBtnActive]}
+          onPress={() => setHasDrawings(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="checkmark-circle-outline" size={24}
+            color={hasDrawings === true ? Colors.orange : Colors.gray400} />
+          <Text style={[styles.drawingBtnText, hasDrawings === true && styles.drawingBtnTextActive]}>
+            Ja, har tegninger
+          </Text>
+          <Text style={styles.drawingBtnSub}>Kun garasje{"\n"}fra {fmt(5_000)}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.drawingBtn, hasDrawings === false && styles.drawingBtnActive]}
+          onPress={() => setHasDrawings(false)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close-circle-outline" size={24}
+            color={hasDrawings === false ? Colors.orange : Colors.gray400} />
+          <Text style={[styles.drawingBtnText, hasDrawings === false && styles.drawingBtnTextActive]}>
+            Nei, trenger tegninger
+          </Text>
+          <Text style={styles.drawingBtnSub}>Garasje + eksist. bygg{"\n"}fra {fmt(10_000)}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.situasjonRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.situasjonLabel}>Situasjonsplan</Text>
+          <Text style={styles.situasjonSub}>Viser tomtegrenser og plassering — fra {fmt(1_500)}</Text>
+        </View>
+        <Switch
+          value={needsSituasjon}
+          onValueChange={setNeedsSituasjon}
+          trackColor={{ false: Colors.gray200, true: Colors.orange }}
+          thumbColor={Colors.white}
+        />
+      </View>
+
+      {hasDrawings !== null && (
+        <View style={styles.drawingTotal}>
+          <Text style={styles.drawingTotalLabel}>Estimert tegnekostnad</Text>
+          <Text style={styles.drawingTotalValue}>{fmt(totalCost)}</Text>
+        </View>
+      )}
+
+      <View style={styles.stepNavRow}>
+        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+          <Text style={styles.backBtnText}>← Tilbake</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.nextBtn, { flex: 1 }]} onPress={onDone}>
+          <Text style={styles.nextBtnText}>Ferdig →</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
+
+type Step = "type" | "questions" | "tegninger" | "result";
 
 export default function SoknadshjelScreen() {
   const [buildingType, setBuildingType] = useState<BuildingType | null>(null);
-  const [answers, setAnswers] = useState<DibkAnswers>(DEFAULT_ANSWERS);
-  const [showQuestions, setShowQuestions] = useState(false);
+  const [answers, setAnswers]           = useState<DibkAnswers>(DEFAULT_ANSWERS);
+  const [comments, setComments]         = useState<Record<string, string>>({});
+  const [step, setStep]                 = useState<Step>("type");
 
   function setAnswer(key: keyof DibkAnswers, val: Answer) {
     setAnswers((prev) => ({ ...prev, [key]: val }));
+    if (val !== "Nei" && val !== "Vet ikke") {
+      setComments((prev) => { const c = { ...prev }; delete c[key]; return c; });
+    }
   }
 
-  const result = showQuestions ? permitResult(answers) : "ubesvart";
-  const cost   = permitCost(answers);
-  const answeredCount = Object.values(answers).filter((v) => v !== "").length;
+  function setComment(key: string, val: string) {
+    setComments((prev) => ({ ...prev, [key]: val }));
+  }
+
+  const allAnswered = Object.values(answers).every((v) => v !== "");
+  const missingMandatory = QUESTIONS.filter(
+    (q) => answers[q.key] === "Vet ikke" && !(comments[q.key] ?? "").trim()
+  );
+  const canProceed = allAnswered && missingMandatory.length === 0;
+
+  const result = (step === "tegninger" || step === "result") ? permitResult(answers) : "ubesvart";
 
   function reset() {
     setBuildingType(null);
     setAnswers(DEFAULT_ANSWERS);
-    setShowQuestions(false);
+    setComments({});
+    setStep("type");
   }
 
   return (
@@ -216,10 +340,10 @@ export default function SoknadshjelScreen() {
             onPress={() => setBuildingType(bt.id)}
           />
         ))}
-        {buildingType && !showQuestions && (
+        {buildingType && step === "type" && (
           <TouchableOpacity
             style={styles.nextBtn}
-            onPress={() => setShowQuestions(true)}
+            onPress={() => setStep("questions")}
             activeOpacity={0.8}
           >
             <Text style={styles.nextBtnText}>Sjekk søknadskrav →</Text>
@@ -228,60 +352,106 @@ export default function SoknadshjelScreen() {
       </View>
 
       {/* Step 2: DIBK-spørsmål */}
-      {showQuestions && (
+      {(step === "questions" || step === "tegninger" || step === "result") && (
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle}>Steg 2 — Søknadskrav</Text>
-            <Text style={styles.progressText}>{answeredCount}/{QUESTIONS.length}</Text>
+            <Text style={styles.progressText}>
+              {Object.values(answers).filter((v) => v !== "").length}/{QUESTIONS.length}
+            </Text>
           </View>
           <Text style={styles.cardSub}>
             Basert på plan- og bygningsloven § 20-5 (søknadsfrie tiltak)
           </Text>
+
+          <View style={styles.dispNote}>
+            <Ionicons name="information-circle-outline" size={16} color="#92400e" style={{ marginTop: 1 }} />
+            <Text style={styles.dispNoteText}>
+              Merk: Lokale dispensasjoner (f.eks. fra kommuneplanens arealdel) er ikke inkludert i prisene, men gir en tilleggskostnad på{" "}
+              <Text style={{ fontWeight: "700" }}>kr 2 000 per dispensasjon</Text> ved søknadshjelp.
+            </Text>
+          </View>
+
           {QUESTIONS.map((q) => (
             <QuestionRow
               key={q.key}
+              qkey={q.key}
               question={q.q}
               hint={q.hint}
               answer={answers[q.key]}
-              onChange={(a) => setAnswer(q.key, a)}
+              comment={comments[q.key] ?? ""}
+              onAnswer={(a) => setAnswer(q.key, a)}
+              onComment={(c) => setComment(q.key, c)}
             />
           ))}
+
+          {step === "questions" && (
+            <>
+              {!allAnswered && (
+                <Text style={styles.blockHint}>Svar på alle spørsmål for å gå videre.</Text>
+              )}
+              {allAnswered && missingMandatory.length > 0 && (
+                <Text style={styles.blockHint}>
+                  Fyll inn kommentarer for alle «Vet ikke»-svar.
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.nextBtn, !canProceed && styles.nextBtnDisabled]}
+                onPress={() => { if (canProceed) setStep("tegninger"); }}
+                activeOpacity={canProceed ? 0.8 : 1}
+              >
+                <Text style={styles.nextBtnText}>Videre til tegninger →</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
+      )}
+
+      {/* Step 3: Tegninger */}
+      {step === "tegninger" && (
+        <TegningerStep
+          onBack={() => setStep("questions")}
+          onDone={() => setStep("result")}
+        />
       )}
 
       {/* Resultat */}
-      {showQuestions && (
-        <ResultBanner result={result} cost={cost} />
+      {step === "result" && (
+        <>
+          <ResultBanner result={result} d={answers} />
+
+          {(result === "søknad" || result === "usikkert") && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Vil du ha hjelp?</Text>
+              <Text style={styles.ctaBody}>
+                GarasjeProffen bistår med situasjonsplan, tegninger og innsending til kommunen.
+              </Text>
+              <TouchableOpacity
+                style={styles.ctaBtn}
+                onPress={() => Linking.openURL("tel:+4747617563")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="call-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
+                <Text style={styles.ctaBtnText}>Ring oss: 476 17 563</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.ctaBtn, styles.ctaBtnSecondary]}
+                onPress={() => Linking.openURL("mailto:post@garasjeproffen.no?subject=Søknadshjelp")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="mail-outline" size={18} color={Colors.orange} style={{ marginRight: 8 }} />
+                <Text style={[styles.ctaBtnText, { color: Colors.orange }]}>Send e-post</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity onPress={() => setStep("tegninger")} style={styles.resetBtn}>
+            <Text style={styles.resetText}>← Tilbake til tegninger</Text>
+          </TouchableOpacity>
+        </>
       )}
 
-      {/* CTA */}
-      {showQuestions && (result === "søknad" || result === "usikkert") && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Vil du ha hjelp?</Text>
-          <Text style={styles.ctaBody}>
-            GarasjeProffen bistår med situasjonsplan, tegninger og innsending til kommunen.
-          </Text>
-          <TouchableOpacity
-            style={styles.ctaBtn}
-            onPress={() => Linking.openURL("tel:+4747617563")}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="call-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
-            <Text style={styles.ctaBtnText}>Ring oss: 476 17 563</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.ctaBtn, styles.ctaBtnSecondary]}
-            onPress={() => Linking.openURL("mailto:post@garasjeproffen.no?subject=Søknadshjelp")}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="mail-outline" size={18} color={Colors.orange} style={{ marginRight: 8 }} />
-            <Text style={[styles.ctaBtnText, { color: Colors.orange }]}>Send e-post</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Reset */}
-      {showQuestions && (
+      {step !== "type" && (
         <TouchableOpacity onPress={reset} style={styles.resetBtn}>
           <Text style={styles.resetText}>Start på nytt</Text>
         </TouchableOpacity>
@@ -297,7 +467,7 @@ export default function SoknadshjelScreen() {
           },
           {
             q: "Hva koster søknadshjelp?",
-            a: "Enkel søknad uten dispensasjon koster fra kr 8 000. Behøves det dispensasjon, starter prisen på kr 10 000.",
+            a: "Enkel søknad uten dispensasjon koster fra kr 8 000. Behøves det dispensasjon, starter prisen på kr 10 000. Lokale dispensasjoner kommer i tillegg med kr 2 000 per stk.",
           },
           {
             q: "Hvor lang tid tar kommunen?",
@@ -346,16 +516,26 @@ const styles = StyleSheet.create({
   cardSub:      { fontSize: 12, color: Colors.gray500, marginBottom: 14, lineHeight: 17 },
   progressText: { fontSize: 12, color: Colors.gray400 },
 
-  typeBtn:           { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
-                       paddingHorizontal: 12, borderRadius: 10, borderWidth: 1,
-                       borderColor: Colors.gray200, marginBottom: 6, backgroundColor: Colors.gray50 },
-  typeBtnActive:     { borderColor: Colors.orange, backgroundColor: "#fff7ed" },
-  typeBtnLabel:      { flex: 1, fontSize: 14, color: Colors.gray700, fontWeight: "500" },
-  typeBtnLabelActive:{ color: Colors.orange, fontWeight: "600" },
+  dispNote:     { flexDirection: "row", gap: 8, backgroundColor: "#fffbeb", borderRadius: 8,
+                  padding: 10, marginBottom: 12, borderWidth: 1, borderColor: "#fcd34d" },
+  dispNoteText: { flex: 1, fontSize: 12, color: "#92400e", lineHeight: 17 },
 
-  nextBtn:     { backgroundColor: Colors.orange, borderRadius: 10, paddingVertical: 13,
-                 alignItems: "center", marginTop: 8 },
-  nextBtnText: { color: Colors.white, fontWeight: "700", fontSize: 15 },
+  typeBtn:            { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
+                        paddingHorizontal: 12, borderRadius: 10, borderWidth: 1,
+                        borderColor: Colors.gray200, marginBottom: 6, backgroundColor: Colors.gray50 },
+  typeBtnActive:      { borderColor: Colors.orange, backgroundColor: "#fff7ed" },
+  typeBtnLabel:       { flex: 1, fontSize: 14, color: Colors.gray700, fontWeight: "500" },
+  typeBtnLabelActive: { color: Colors.orange, fontWeight: "600" },
+
+  nextBtn:         { backgroundColor: Colors.orange, borderRadius: 10, paddingVertical: 13,
+                     alignItems: "center", marginTop: 12 },
+  nextBtnDisabled: { backgroundColor: Colors.gray200 },
+  nextBtnText:     { color: Colors.white, fontWeight: "700", fontSize: 15 },
+  backBtn:         { flex: 1, borderWidth: 1, borderColor: Colors.gray200, borderRadius: 10,
+                     paddingVertical: 13, alignItems: "center" },
+  backBtnText:     { color: Colors.gray600, fontWeight: "600", fontSize: 15 },
+  stepNavRow:      { flexDirection: "row", gap: 8, marginTop: 12 },
+  blockHint:       { fontSize: 12, color: Colors.gray400, textAlign: "center", marginTop: 8, marginBottom: 4 },
 
   questionWrap: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
   questionText: { fontSize: 14, fontWeight: "600", color: Colors.gray800, marginBottom: 2 },
@@ -364,6 +544,13 @@ const styles = StyleSheet.create({
   pill:         { flex: 1, paddingVertical: 7, borderRadius: 8, borderWidth: 1,
                   borderColor: Colors.gray200, alignItems: "center", backgroundColor: Colors.gray50 },
   pillText:     { fontSize: 13, color: Colors.gray500, fontWeight: "500" },
+
+  commentWrap:          { marginTop: 8 },
+  commentLabel:         { fontSize: 11, fontWeight: "600", color: Colors.gray500, marginBottom: 4 },
+  commentInput:         { borderWidth: 1, borderColor: Colors.gray200, borderRadius: 8, padding: 8,
+                          fontSize: 13, color: Colors.gray900, minHeight: 52, textAlignVertical: "top" },
+  commentInputRequired: { borderColor: "#f97316" },
+  commentRequired:      { fontSize: 11, color: "#dc2626", marginTop: 3 },
 
   resultBanner: { borderRadius: 12, padding: 16, borderWidth: 1.5 },
   resultHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
@@ -374,11 +561,11 @@ const styles = StyleSheet.create({
   costLabel:    { fontSize: 13, color: Colors.gray700, flex: 1 },
   costValue:    { fontSize: 15, fontWeight: "800", color: Colors.orange },
 
-  ctaBody:          { fontSize: 13, color: Colors.gray500, lineHeight: 19, marginBottom: 12 },
-  ctaBtn:           { flexDirection: "row", backgroundColor: Colors.orange, borderRadius: 10,
-                      paddingVertical: 13, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  ctaBtnSecondary:  { backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.orange },
-  ctaBtnText:       { color: Colors.white, fontWeight: "700", fontSize: 15 },
+  ctaBody:         { fontSize: 13, color: Colors.gray500, lineHeight: 19, marginBottom: 12 },
+  ctaBtn:          { flexDirection: "row", backgroundColor: Colors.orange, borderRadius: 10,
+                     paddingVertical: 13, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  ctaBtnSecondary: { backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.orange },
+  ctaBtnText:      { color: Colors.white, fontWeight: "700", fontSize: 15 },
 
   resetBtn:  { alignItems: "center", paddingVertical: 8 },
   resetText: { fontSize: 14, color: Colors.gray400 },
@@ -386,4 +573,22 @@ const styles = StyleSheet.create({
   faqItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
   faqQ:    { fontSize: 14, fontWeight: "600", color: Colors.gray800, marginBottom: 4 },
   faqA:    { fontSize: 13, color: Colors.gray500, lineHeight: 19 },
+
+  drawingRow:           { flexDirection: "row", gap: 8, marginBottom: 12 },
+  drawingBtn:           { flex: 1, borderWidth: 1, borderColor: Colors.gray200, borderRadius: 10,
+                          padding: 12, alignItems: "center", gap: 6, backgroundColor: Colors.gray50 },
+  drawingBtnActive:     { borderColor: Colors.orange, backgroundColor: "#fff7ed" },
+  drawingBtnText:       { fontSize: 13, fontWeight: "600", color: Colors.gray700, textAlign: "center" },
+  drawingBtnTextActive: { color: Colors.orange },
+  drawingBtnSub:        { fontSize: 11, color: Colors.gray400, textAlign: "center", lineHeight: 15 },
+
+  situasjonRow:      { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12,
+                       borderTopWidth: 1, borderTopColor: Colors.gray100, marginBottom: 4 },
+  situasjonLabel:    { fontSize: 14, fontWeight: "600", color: Colors.gray800 },
+  situasjonSub:      { fontSize: 12, color: Colors.gray400, marginTop: 2 },
+
+  drawingTotal:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+                       backgroundColor: Colors.gray50, borderRadius: 8, padding: 12, marginBottom: 4 },
+  drawingTotalLabel: { fontSize: 13, color: Colors.gray600 },
+  drawingTotalValue: { fontSize: 15, fontWeight: "800", color: Colors.orange },
 });

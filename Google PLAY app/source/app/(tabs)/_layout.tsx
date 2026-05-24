@@ -45,14 +45,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="document-text-outline" size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="referanser"
-        options={{
-          title: "Referanser",
-          tabBarIcon: ({ color, size }) => <Ionicons name="images-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
+      <Tabs.Screen name="referanser" options={{ href: null }} />
+<Tabs.Screen
         name="kontakt"
         options={{
           title: "Kontakt",

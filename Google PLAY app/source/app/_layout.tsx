@@ -1,10 +1,12 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider } from "@/context/AuthContext";
+import { ConfigProvider } from "@/context/ConfigContext";
 
 export default function RootLayout() {
   return (
     <AuthProvider>
+    <ConfigProvider>
       <StatusBar style="light" />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -29,6 +31,7 @@ export default function RootLayout() {
           }}
         />
       </Stack>
+    </ConfigProvider>
     </AuthProvider>
   );
 }
