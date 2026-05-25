@@ -314,29 +314,10 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
     const size0 = box0.getSize(new Vector3());
     const center0 = box0.getCenter(new Vector3());
 
-    // For saltak: find the grey roof material from one panel and apply to all roof meshes
+    // For saltak: apply uniform grey to all roof meshes (both slopes)
     const isSaltak = modelUrl.includes("saltak");
-    let roofMat: MeshStandardMaterial | null = null;
     const roofThreshold = box0.min.y + size0.y * 0.55;
-
-    if (isSaltak) {
-      // First pass: find the grey material on a roof mesh
-      s.traverse(child => {
-        if (!(child instanceof Mesh)) return;
-        const meshBox = new Box3().setFromObject(child);
-        const meshCenterY = (meshBox.min.y + meshBox.max.y) / 2;
-        if (meshCenterY < roofThreshold) return;
-        const mats = Array.isArray(child.material) ? child.material : [child.material];
-        mats.forEach(mat => {
-          if (roofMat) return;
-          if (mat instanceof MeshStandardMaterial) {
-            const { r, g, b } = mat.color;
-            const isGrey = Math.abs(r - g) < 0.08 && Math.abs(g - b) < 0.08 && r > 0.2 && r < 0.85;
-            if (isGrey) roofMat = mat.clone();
-          }
-        });
-      });
-    }
+    const greyRoofMat = isSaltak ? new THREE.MeshStandardMaterial({ color: "#8a8f94", roughness: 0.8, metalness: 0.1, envMapIntensity: 0.4 }) : null;
 
     s.traverse(child => {
       if (child instanceof Mesh) {
@@ -345,18 +326,12 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
         const mats = Array.isArray(child.material) ? child.material : [child.material];
         mats.forEach(mat => {
           if (mat instanceof MeshStandardMaterial) {
-            // Apply grey roof material to all roof meshes on saltak
-            if (isSaltak && roofMat) {
+            // Apply uniform grey to all roof meshes on saltak
+            if (isSaltak && greyRoofMat) {
               const meshBox = new Box3().setFromObject(child);
               const meshCenterY = (meshBox.min.y + meshBox.max.y) / 2;
               if (meshCenterY >= roofThreshold) {
-                const newMat = roofMat.clone();
-                newMat.envMapIntensity = 0.4;
-                newMat.stencilWrite = false;
-                newMat.stencilFunc  = THREE.NotEqualStencilFunc;
-                newMat.stencilRef   = 1;
-                newMat.needsUpdate  = true;
-                (child as Mesh).material = newMat;
+                (child as Mesh).material = greyRoofMat;
                 return;
               }
             }
