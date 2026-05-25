@@ -206,8 +206,14 @@ export default function KonfiguratorScreen() {
 
   return (
     <View style={{ flex: 1, flexDirection: isLandscape ? "row" : "column" }}>
+    {/* Landscape: 3D viewer on the LEFT */}
+    {isLandscape && (
+      <View style={{ flex: 1, backgroundColor: Colors.gray100 }}>
+        <GarageViewer3D widthMm={widthMm} lengthMm={lengthMm} roofType={roofType} buildingType={buildingType} />
+      </View>
+    )}
     <ScrollView
-      style={[styles.container, isLandscape && { flex: 1 }]}
+      style={[styles.container, isLandscape && { width: 320, flex: 0 }]}
       contentContainerStyle={styles.content}
     >
       {/* Portrait: 3D viewer at top */}
@@ -503,11 +509,6 @@ export default function KonfiguratorScreen() {
         </View>
       </Modal>
     </ScrollView>
-    {isLandscape && (
-      <View style={{ flex: 1, backgroundColor: Colors.gray100 }}>
-        <GarageViewer3D widthMm={widthMm} lengthMm={lengthMm} roofType={roofType} buildingType={buildingType} />
-      </View>
-    )}
     </View>
   );
 }

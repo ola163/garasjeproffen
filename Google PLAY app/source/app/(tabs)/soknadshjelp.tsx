@@ -212,7 +212,7 @@ function ResultBanner({ result, d }: { result: PermitResult; d: DibkAnswers }) {
 
 function TegningerStep({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const [hasDrawings,    setHasDrawings]    = useState<boolean | null>(null);
-  const [needsSituasjon, setNeedsSituasjon] = useState(false);
+  const [needsSituasjon, setNeedsSituasjon] = useState(true);
 
   const drawingCost = hasDrawings === null ? null : hasDrawings ? 5_000 : 10_000;
   const totalCost   = (drawingCost ?? 0) + (needsSituasjon ? 1_500 : 0);

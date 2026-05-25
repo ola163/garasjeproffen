@@ -51,13 +51,13 @@ export default function GarageViewer3D({ widthMm, lengthMm, roofType, buildingTy
     setTimeout(() => send(initial), 500);
   }
 
-  const initialUrl = `${VIEWER_URL}?widthMm=${widthMm}&lengthMm=${lengthMm}&roofType=${roofType}&buildingType=${buildingType}`;
+  const initialUrl = useRef(`${VIEWER_URL}?widthMm=${widthMm}&lengthMm=${lengthMm}&roofType=${roofType}&buildingType=${buildingType}`);
 
   return (
     <View style={styles.container}>
       <WebView
         ref={webViewRef}
-        source={{ uri: initialUrl }}
+        source={{ uri: initialUrl.current }}
         style={styles.webview}
         onLoad={onLoad}
         scrollEnabled={false}

@@ -44,6 +44,9 @@ export default function TilbudScreen() {
     setLoading(true);
     try {
       const body = {
+        packageType:  params.packageType,
+        roofType:     params.roofType,
+        buildingType: params.buildingType,
         configuration: {
           parameters: { length: lengthMm, width: widthMm },
           timestamp: Date.now(),
