@@ -983,8 +983,8 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 {/* Hörmann / Portteknikk info */}
                 <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
                   <div className="mb-2">
-                    <div className="inline-flex items-center justify-center rounded bg-blue-700 px-2 py-0.5">
-                      <span className="text-xs font-black tracking-widest text-white">HÖRMANN</span>
+                    <div className="inline-flex items-center justify-center rounded px-3 py-1" style={{ backgroundColor: "#002F6C" }}>
+                      <span className="font-black tracking-widest" style={{ color: "#F0A500", fontSize: "13px", letterSpacing: "0.14em" }}>HÖRMANN</span>
                     </div>
                   </div>
                   <p className="text-xs font-medium text-gray-700 mb-1.5">RenoMatic – isolert seksjonport</p>
