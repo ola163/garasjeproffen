@@ -336,8 +336,6 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
     });
     const wallSpanX = (maxWX > minWX) ? maxWX - minWX : size0.x;
     const wallSpanZ = (maxWZ > minWZ) ? maxWZ - minWZ : size0.z;
-    const wallCxX   = (minWX + maxWX) / 2;
-    const wallCxZ   = (minWZ + maxWZ) / 2;
 
     // For saltak: find the grey roof material from one panel and apply to all roof meshes
     const isSaltak = modelUrl.includes("saltak");
@@ -394,7 +392,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
         });
       }
     });
-    return { scene: s, sizeX: wallSpanX, sizeZ: wallSpanZ, cx: wallCxX, cz: wallCxZ, minY: box0.min.y };
+    return { scene: s, sizeX: wallSpanX, sizeZ: wallSpanZ, cx: center0.x, cz: center0.z, minY: box0.min.y };
   }, [rawScene, modelUrl]);
 
   const scaleX = sizeX > 0 ? widthMm  / 1000 / sizeX : 1;
