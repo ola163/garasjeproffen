@@ -1,9 +1,11 @@
 import { useState } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, TextInput, Switch,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
+import { useConfig } from "@/context/ConfigContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -288,6 +290,8 @@ function TegningerStep({ onBack, onDone }: { onBack: () => void; onDone: () => v
 type Step = "type" | "questions" | "tegninger" | "result";
 
 export default function SoknadshjelScreen() {
+  const router = useRouter();
+  const { config } = useConfig();
   const [buildingType, setBuildingType] = useState<BuildingType | null>(null);
   const [answers, setAnswers]           = useState<DibkAnswers>(DEFAULT_ANSWERS);
   const [comments, setComments]         = useState<Record<string, string>>({});
@@ -420,30 +424,35 @@ export default function SoknadshjelScreen() {
         <>
           <ResultBanner result={result} d={answers} />
 
-          {(result === "søknad" || result === "usikkert") && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Vil du ha hjelp?</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>
+              {result === "søknad" || result === "usikkert" ? "Bestill garasje med søknadshjelp" : "Klar til å bestille?"}
+            </Text>
+            {(result === "søknad" || result === "usikkert") && (
               <Text style={styles.ctaBody}>
                 GarasjeProffen bistår med situasjonsplan, tegninger og innsending til kommunen.
               </Text>
-              <TouchableOpacity
-                style={styles.ctaBtn}
-                onPress={() => Linking.openURL("tel:+4747617563")}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="call-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
-                <Text style={styles.ctaBtnText}>Ring oss: 476 17 563</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.ctaBtn, styles.ctaBtnSecondary]}
-                onPress={() => Linking.openURL("mailto:post@garasjeproffen.no?subject=Søknadshjelp")}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="mail-outline" size={18} color={Colors.orange} style={{ marginRight: 8 }} />
-                <Text style={[styles.ctaBtnText, { color: Colors.orange }]}>Send e-post</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            )}
+            <TouchableOpacity
+              style={styles.ctaBtn}
+              activeOpacity={0.8}
+              onPress={() => router.push({
+                pathname: "/tilbud",
+                params: {
+                  buildingType: config.buildingType,
+                  packageType:  config.packageType,
+                  roofType:     config.roofType,
+                  widthMm:      String(config.widthMm),
+                  lengthMm:     String(config.lengthMm),
+                  totalPrice:   String(config.totalPrice),
+                  manualQuote:  config.manualQuote ? "1" : "0",
+                  soknadResult: result,
+                },
+              })}
+            >
+              <Text style={styles.ctaBtnText}>Bestill garasje →</Text>
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity onPress={() => setStep("tegninger")} style={styles.resetBtn}>
             <Text style={styles.resetText}>← Tilbake til tegninger</Text>

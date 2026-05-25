@@ -213,7 +213,7 @@ export default function KonfiguratorScreen() {
       </View>
     )}
     <ScrollView
-      style={[styles.container, isLandscape && { width: 320, flex: 0 }]}
+      style={[styles.container, isLandscape && { width: 240, flex: 0 }]}
       contentContainerStyle={styles.content}
     >
       {/* Portrait: 3D viewer at top */}
@@ -423,7 +423,21 @@ export default function KonfiguratorScreen() {
 
         <TouchableOpacity
           style={styles.ctaBtn}
-          onPress={() => setSoknadModal(true)}
+          onPress={() => {
+            if (buildingType === "garasje") {
+              setSoknadModal(true);
+            } else {
+              router.push({
+                pathname: "/tilbud",
+                params: {
+                  buildingType, packageType, roofType,
+                  widthMm: String(widthMm), lengthMm: String(lengthMm),
+                  totalPrice: String(pricing.totalPrice),
+                  manualQuote: pricing.manualQuote ? "1" : "0",
+                },
+              });
+            }
+          }}
         >
           <Text style={styles.ctaBtnText}>Be om tilbud</Text>
         </TouchableOpacity>

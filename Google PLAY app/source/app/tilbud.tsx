@@ -18,6 +18,7 @@ export default function TilbudScreen() {
   const params = useLocalSearchParams<{
     buildingType: string; packageType: string; roofType: string;
     widthMm: string; lengthMm: string; totalPrice: string; manualQuote: string;
+    soknadResult?: string;
   }>();
 
   const widthMm    = Number(params.widthMm);
@@ -43,7 +44,7 @@ export default function TilbudScreen() {
 
     setLoading(true);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         packageType:  params.packageType,
         roofType:     params.roofType,
         buildingType: params.buildingType,
@@ -60,6 +61,9 @@ export default function TilbudScreen() {
         },
         customer: { name: name.trim(), email: email.trim(), phone: phone.trim(), message: message.trim() },
       };
+      if (params.soknadResult && params.soknadResult !== "ubesvart") {
+        body.soknadshjelp = { result: params.soknadResult, requested: true };
+      }
 
       const res = await fetch(`${API_BASE}/api/quote`, {
         method:  "POST",
@@ -118,6 +122,12 @@ export default function TilbudScreen() {
           {isManual && (
             <Text style={styles.manualNote}>Krever manuelt tilbud — vi regner ut pris for deg.</Text>
           )}
+          {params.soknadResult === "søknad" || params.soknadResult === "usikkert" ? (
+            <View style={[styles.summaryRow, { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#fed7aa" }]}>
+              <Text style={styles.summaryLabel}>Søknadshjelp</Text>
+              <Text style={[styles.summaryValue, { color: Colors.orange }]}>Inkludert</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Kontaktskjema */}
@@ -173,7 +183,7 @@ export default function TilbudScreen() {
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>
-          Vi svarer normalt innen én arbeidsdag. Ring 476 17 563 (Christian) eller 913 44 486 (Ola) for rask hjelp.
+          Vi svarer normalt innen én arbeidsdag.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
