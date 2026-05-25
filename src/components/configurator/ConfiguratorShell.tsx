@@ -471,15 +471,16 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
   }, []);
 
   const viewerProps = {
-    lengthMm:     lengthValue,
-    widthMm:      widthValue,
-    doorWidthMm:  doorWidthValue,
-    doorHeightMm: DOOR_HEIGHT_MM,
+    lengthMm:        lengthValue,
+    widthMm:         widthValue,
+    doorWidthMm:     doorWidthValue,
+    doorHeightMm:    DOOR_HEIGHT_MM,
     doorColor,
     roofType,
     focusSide,
     addedElements,
     buildingType,
+    showMeasureTool: effectiveAdmin,
   };
 
   const sqm = (lengthValue / 1000) * (widthValue / 1000);

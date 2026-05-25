@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useMemo, useState, useCallback, Suspense, Component, type ReactNode } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { OrbitControls, Environment, Grid, useGLTF, Line, Text, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import { Box3, Vector3, Mesh, MeshStandardMaterial } from "three";
@@ -27,6 +27,7 @@ interface GarageViewerProps {
   rotationDeg?: number;
   demoDoorOpen?: boolean;
   autoRotate?: boolean;
+  showMeasureTool?: boolean;
   [key: string]: unknown;
 }
 
@@ -514,6 +515,61 @@ function GarageDimensionLines({ lengthMm, widthMm, wallHalfL, wallHalfW }: {
   );
 }
 
+function MeasureRaycaster({ active, onPoint }: { active: boolean; onPoint: (p: THREE.Vector3) => void }) {
+  const { camera, gl, scene } = useThree();
+  const rcRef  = useRef(new THREE.Raycaster());
+  const cbRef  = useRef(onPoint);
+  useEffect(() => { cbRef.current = onPoint; }, [onPoint]);
+
+  useEffect(() => {
+    if (!active) return;
+    const canvas = gl.domElement;
+    let startX = 0, startY = 0;
+
+    const onDown = (e: PointerEvent) => { startX = e.clientX; startY = e.clientY; };
+    const onClick = (e: MouseEvent) => {
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 4) return;
+      const rect = canvas.getBoundingClientRect();
+      const nx = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+      const ny = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+      rcRef.current.setFromCamera(new THREE.Vector2(nx, ny), camera);
+      const hits = rcRef.current.intersectObjects(scene.children, true).filter(h => {
+        const m = h.object as Mesh;
+        if (!m.isMesh) return false;
+        const mat = Array.isArray(m.material) ? m.material[0] : m.material;
+        return mat && (mat as MeshStandardMaterial).colorWrite !== false;
+      });
+      if (hits.length > 0) cbRef.current(hits[0].point.clone());
+    };
+
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("click", onClick);
+    return () => {
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("click", onClick);
+    };
+  }, [active, camera, gl, scene]);
+
+  return null;
+}
+
+function MeasureVisuals({ points }: { points: THREE.Vector3[] }) {
+  if (points.length === 0) return null;
+  return (
+    <>
+      {points.map((p, i) => (
+        <mesh key={i} position={[p.x, p.y, p.z]} renderOrder={10}>
+          <sphereGeometry args={[0.07, 16, 16]} />
+          <meshBasicMaterial color="#f97316" depthTest={false} />
+        </mesh>
+      ))}
+      {points.length === 2 && (
+        <Line points={[points[0], points[1]]} color="#f97316" lineWidth={2} />
+      )}
+    </>
+  );
+}
+
 class GltfErrorBoundary extends Component<
   { children: ReactNode; onError: (msg: string) => void },
   { failed: boolean }
@@ -528,10 +584,12 @@ class GltfErrorBoundary extends Component<
   }
 }
 
-export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm, doorColor = "hvit", roofType, addedElements = [], buildingType, rotationDeg, demoDoorOpen = false, autoRotate = false }: GarageViewerProps) {
+export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeightMm, doorColor = "hvit", roofType, addedElements = [], buildingType, rotationDeg, demoDoorOpen = false, autoRotate = false, showMeasureTool = false }: GarageViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl>(null);
   const [wallHalfL, setWallHalfL] = useState<number | null>(null);
   const [wallHalfW, setWallHalfW] = useState<number | null>(null);
+  const [measureActive, setMeasureActive] = useState(false);
+  const [measurePoints, setMeasurePoints] = useState<THREE.Vector3[]>([]);
 
   // Reset wall faces when the model type changes so old values don't linger
   useEffect(() => {
@@ -544,6 +602,10 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
     setWallHalfW(halfW);
   }, []);
 
+  const handleMeasurePoint = useCallback((p: THREE.Vector3) => {
+    setMeasurePoints(prev => prev.length >= 2 ? [p] : [...prev, p]);
+  }, []);
+
   const hasGarage = buildingType !== "carport";
   const hasFlatGarage = roofType === "flattak" && hasGarage;
   const portOffsetX = hasGarage
@@ -551,7 +613,51 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
     : 0;
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full" style={{ cursor: measureActive ? "crosshair" : undefined }}>
+
+      {/* Measure toggle button */}
+      {showMeasureTool && (
+        <button
+          onClick={() => { setMeasureActive(v => !v); setMeasurePoints([]); }}
+          title="Måleverktøy"
+          className={`absolute top-2 right-2 z-10 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow transition-colors ${
+            measureActive ? "bg-orange-500 text-white" : "bg-white/90 text-gray-700 border border-gray-200 hover:bg-gray-50"
+          }`}
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16M8 4v4M12 4v4M16 4v4M8 16v4M12 16v4M16 16v4" />
+          </svg>
+          Mål
+        </button>
+      )}
+
+      {/* Measurement result panel */}
+      {showMeasureTool && measureActive && (
+        <div className="absolute bottom-12 left-3 z-10 rounded-lg bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 p-3 text-xs min-w-[170px]">
+          {measurePoints.length === 0 && <p className="text-gray-400 italic">Klikk på et punkt i 3D-visningen</p>}
+          {measurePoints.length === 1 && <p className="text-gray-400 italic">Klikk på et nytt punkt</p>}
+          {measurePoints.length === 2 && (() => {
+            const [a, b] = measurePoints;
+            const dx   = Math.round(Math.abs(b.x - a.x) * 1000);
+            const dy   = Math.round(Math.abs(b.y - a.y) * 1000);
+            const dz   = Math.round(Math.abs(b.z - a.z) * 1000);
+            const dist = Math.round(a.distanceTo(b) * 1000);
+            return (
+              <>
+                <p className="font-semibold text-gray-800 mb-2">Avstand</p>
+                <div className="space-y-1">
+                  <div className="flex justify-between gap-6"><span className="text-gray-500">Total</span><span className="font-mono font-bold text-orange-600">{dist} mm</span></div>
+                  <div className="flex justify-between gap-6"><span className="text-gray-500">ΔX (bredd)</span><span className="font-mono">{dx} mm</span></div>
+                  <div className="flex justify-between gap-6"><span className="text-gray-500">ΔY (høyde)</span><span className="font-mono">{dy} mm</span></div>
+                  <div className="flex justify-between gap-6"><span className="text-gray-500">ΔZ (lengd)</span><span className="font-mono">{dz} mm</span></div>
+                </div>
+                <button onClick={() => setMeasurePoints([])} className="mt-2.5 text-[10px] text-gray-400 hover:text-gray-600 underline">Nullstill</button>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
       <Canvas
         shadows
         camera={{ position: [12, 7, 12], fov: 42 }}
@@ -618,6 +724,9 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
         <GizmoHelper alignment="bottom-left" margin={[50, 50]}>
           <GizmoViewport axisColors={["#e2520a", "#22c55e", "#2563eb"]} labelColor="#fff" axisHeadScale={0.6} hideNegativeAxes={true} />
         </GizmoHelper>
+
+        <MeasureRaycaster active={showMeasureTool && measureActive} onPoint={handleMeasurePoint} />
+        <MeasureVisuals points={measurePoints} />
       </Canvas>
     </div>
   );
