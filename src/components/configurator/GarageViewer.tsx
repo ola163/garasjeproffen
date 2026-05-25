@@ -466,7 +466,7 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
     return { clone, ox, oy, oz };
   }, [rawScene, targetW, targetH, doorColor]);
 
-  const doorZ = roofType === "saltak" ? lengthMm / 2000 - WALL_T : lengthMm / 2000 - WALL_T / 2;
+  const doorZ = (roofType === "saltak" ? lengthMm / 2000 - WALL_T : lengthMm / 2000 - WALL_T / 2) - 0.030;
   const doorGroupRef = useRef<THREE.Group>(null);
   const doorYRef = useRef(0);
   const demoDoorOpenRef = useRef(demoDoorOpen);
