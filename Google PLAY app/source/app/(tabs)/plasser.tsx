@@ -12,8 +12,6 @@ import type { RoofType, BuildingType } from "@/lib/pricing";
 const WIDTH_STEPS  = [2600, 3200, 3800, 4400, 5000, 5600, 6200, 6800, 7400, 8000];
 const LENGTH_STEPS = [2400, 3000, 3600, 4200, 4800, 5400, 6000, 6600, 7200, 7800, 8400];
 
-function snapWidth(v: number)  { return Math.max(2600, Math.min(8000, Math.round((v - 200) / 600) * 600 + 200)); }
-function snapLength(v: number) { return Math.max(2400, Math.min(8400, Math.round(v / 600) * 600)); }
 
 export default function PlasserScreen() {
   const router = useRouter();
@@ -113,11 +111,11 @@ export default function PlasserScreen() {
               </Text>
               <Slider
                 style={styles.slider}
-                minimumValue={2600}
+                minimumValue={2400}
                 maximumValue={8000}
-                step={600}
-                value={snapWidth(widthMm)}
-                onValueChange={(v) => setWidthMm(snapWidth(v))}
+                step={100}
+                value={widthMm}
+                onValueChange={(v) => setWidthMm(Math.round(v / 100) * 100)}
                 minimumTrackTintColor={Colors.orange}
                 maximumTrackTintColor={Colors.gray200}
                 thumbTintColor={Colors.orange}
@@ -129,9 +127,9 @@ export default function PlasserScreen() {
                 style={styles.slider}
                 minimumValue={2400}
                 maximumValue={8400}
-                step={600}
-                value={snapLength(lengthMm)}
-                onValueChange={(v) => setLengthMm(snapLength(v))}
+                step={100}
+                value={lengthMm}
+                onValueChange={(v) => setLengthMm(Math.round(v / 100) * 100)}
                 minimumTrackTintColor={Colors.orange}
                 maximumTrackTintColor={Colors.gray200}
                 thumbTintColor={Colors.orange}

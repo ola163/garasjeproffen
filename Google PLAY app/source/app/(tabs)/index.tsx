@@ -157,9 +157,9 @@ export default function KonfiguratorScreen() {
     Alert.alert("Lagret!", "Finner den under «Min side».");
   }
 
-  const widthStep  = snapOnly ? 600 : 200;
+  const widthStep  = snapOnly ? 600 : 100;
   const widthMin   = snapOnly ? 2600 : WIDTH_MIN;
-  const lengthStep = 600;
+  const lengthStep = snapOnly ? 600 : 100;
 
   function handleSnapToggle(val: boolean) {
     if (val) {
@@ -170,11 +170,11 @@ export default function KonfiguratorScreen() {
   }
 
   function handleWidthChange(v: number) {
-    setWidthMm(snapOnly ? snapWidth(v) : v);
+    setWidthMm(snapOnly ? snapWidth(v) : Math.round(v / 100) * 100);
   }
 
   function handleLengthChange(v: number) {
-    setLengthMm(snapOnly ? snapLength(v) : v);
+    setLengthMm(snapOnly ? snapLength(v) : Math.round(v / 100) * 100);
   }
 
   const pricing = useMemo(
@@ -206,10 +206,13 @@ export default function KonfiguratorScreen() {
 
   return (
     <View style={{ flex: 1, flexDirection: isLandscape ? "row" : "column" }}>
-    {/* Landscape: 3D viewer on the LEFT */}
+    {/* Landscape: 3D viewer on the LEFT — fills full height */}
     {isLandscape && (
-      <View style={{ flex: 1, backgroundColor: Colors.gray100 }}>
-        <GarageViewer3D widthMm={widthMm} lengthMm={lengthMm} roofType={roofType} buildingType={buildingType} />
+      <View style={{ flex: 1, backgroundColor: "#1a2535" }}>
+        <GarageViewer3D
+          widthMm={widthMm} lengthMm={lengthMm} roofType={roofType} buildingType={buildingType}
+          containerStyle={{ flex: 1, height: undefined, borderRadius: 0 }}
+        />
       </View>
     )}
     <ScrollView
