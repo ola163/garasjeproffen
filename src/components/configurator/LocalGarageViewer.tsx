@@ -6,8 +6,8 @@ import * as THREE from "three";
 import { OrbitControls, useGLTF, Line, Text, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import type { AddedElement, WallSide, ElementCategory } from "./DoorWindowAdder";
 
-useGLTF.preload("/Vindu_100x50glb.glb");
-useGLTF.preload("/Carport_GLB.glb");
+useGLTF.preload("/models/Vindu_100x50glb.glb");
+useGLTF.preload("/models/Carport_GLB.glb");
 
 interface LocalGarageViewerProps {
   lengthMm: number;
@@ -231,7 +231,7 @@ function GarageGeometry({ lengthM, widthM, doorWidthM, doorHeightM, roofType = "
 
 // ── Window 100×50 GLB model ───────────────────────────────────────────────────
 function WindowGLBInner({ position, rotY }: { position: [number, number, number]; rotY: number }) {
-  const { scene } = useGLTF("/Vindu_100x50glb.glb");
+  const { scene } = useGLTF("/models/Vindu_100x50glb.glb");
 
   const group = useMemo(() => {
     const clone = scene.clone(true);
@@ -367,7 +367,7 @@ function GarageElements({ elements, lengthM, widthM }: {
 
 // ── Carport GLB model ─────────────────────────────────────────────────────────
 function CarportModel({ lengthM, widthM }: { lengthM: number; widthM: number }) {
-  const { scene: rawScene } = useGLTF("/Carport_GLB.glb");
+  const { scene: rawScene } = useGLTF("/models/Carport_GLB.glb");
 
   const { scene, sizeX, sizeZ, cx, cz, minY } = useMemo(() => {
     const s = rawScene.clone(true);

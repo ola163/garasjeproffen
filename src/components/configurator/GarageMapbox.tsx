@@ -87,8 +87,8 @@ function buildGarageGeoJSON(
 }
 
 function getModelUrl(bt?: string, rt?: string): string {
-  if (bt === "carport") return "/Carport_GLB.glb";
-  return rt === "saltak" ? "/garasje_saltak.glb" : "/Garasje_Flatt_tak.glb";
+  if (bt === "carport") return "/models/Carport_GLB.glb";
+  return rt === "saltak" ? "/models/garasje_saltak.glb" : "/models/Garasje_Flatt_tak.glb";
 }
 
 /** Point-to-segment distance (same units as inputs) */
@@ -1077,11 +1077,11 @@ export default function GarageMapbox({
           setGlbsVersion((v) => v + 1);
           loadModel(getModelUrl(buildingType, roofType));
 
-          new GLTFLoader().load("/Garasjeport_2500x2125.glb", (gltf) => {
+          new GLTFLoader().load("/models/Garasjeport_2500x2125.glb", (gltf) => {
             doorGlbRef.current = gltf.scene;
             setGlbsVersion((v) => v + 1);
           });
-          new GLTFLoader().load("/Vindu_100x50glb.glb", (gltf) => {
+          new GLTFLoader().load("/models/Vindu_100x50glb.glb", (gltf) => {
             windowGlbRef.current = gltf.scene;
             setGlbsVersion((v) => v + 1);
           });

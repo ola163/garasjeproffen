@@ -9,11 +9,11 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { AddedElement, ElementCategory } from "./DoorWindowAdder";
 import { computePortOffset } from "./DoorWindowAdder";
 
-useGLTF.preload("/Vindu_100x50glb.glb");
-useGLTF.preload("/Carport_GLB.glb");
-useGLTF.preload("/Garasje_Flatt_tak.glb");
-useGLTF.preload("/Garasje_saltak1.glb");
-useGLTF.preload("/Garasjeport_2500x2125.glb");
+useGLTF.preload("/models/Vindu_100x50glb.glb");
+useGLTF.preload("/models/Carport_GLB.glb");
+useGLTF.preload("/models/Garasje_Flatt_tak.glb");
+useGLTF.preload("/models/Garasje_saltak1.glb");
+useGLTF.preload("/models/Garasjeport_2500x2125.glb");
 
 interface GarageViewerProps {
   lengthMm: number;
@@ -54,7 +54,7 @@ function getElDims(cat: ElementCategory) {
 }
 
 function WindowGLBInner({ position, rotY }: { position: [number, number, number]; rotY: number }) {
-  const { scene } = useGLTF("/Vindu_100x50glb.glb");
+  const { scene } = useGLTF("/models/Vindu_100x50glb.glb");
   const group = useMemo(() => {
     const clone = scene.clone(true);
     const box = new Box3().setFromObject(clone);
@@ -301,8 +301,8 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   onWallFaces?: (halfL: number, halfW: number) => void;
 }) {
   const modelUrl = buildingType === "carport"
-    ? "/Carport_GLB.glb"
-    : roofType === "flattak" ? "/Garasje_Flatt_tak.glb" : "/Garasje_saltak1.glb";
+    ? "/models/Carport_GLB.glb"
+    : roofType === "flattak" ? "/models/Garasje_Flatt_tak.glb" : "/models/Garasje_saltak1.glb";
   const { scene: rawScene } = useGLTF(modelUrl);
 
   const { scene, sizeX, sizeZ, cx, cz, minY } = useMemo(() => {
@@ -445,7 +445,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
 }
 
 function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit", roofType = "flattak" }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort"; roofType?: string }) {
-  const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
+  const { scene: rawScene } = useGLTF("/models/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
 
