@@ -728,6 +728,12 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
           hasFlatRoof={hasFlatGarage}
           portOffsetX={portOffsetX}
         />
+        {/* Interior floor — concrete colour matching garage slab, visible through window openings */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} receiveShadow>
+          <planeGeometry args={[widthMm / 1000, lengthMm / 1000]} />
+          <meshStandardMaterial color="#6b6b6b" roughness={0.85} metalness={0.0} />
+        </mesh>
+
         <GarageDimensionLines lengthMm={lengthMm} widthMm={widthMm} wallHalfL={wallHalfL} wallHalfW={wallHalfW} />
 
         <Grid
