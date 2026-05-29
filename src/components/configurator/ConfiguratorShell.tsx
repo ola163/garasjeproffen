@@ -646,6 +646,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                     )}
                   </div>
                 )}
+                {/* Centre logo */}
+                <div className="flex-1 flex justify-center pb-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/logo.jpg" alt="GarasjeProffen" className="h-24 w-auto object-contain drop-shadow-2xl" />
+                </div>
               </div>
             </div>
 
