@@ -99,7 +99,7 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
     m.colorWrite  = false;
     m.depthWrite  = false;
     m.depthTest   = false;
-    m.side        = THREE.DoubleSide;
+    m.side        = THREE.FrontSide;
     m.stencilWrite = true;
     m.stencilFunc  = THREE.AlwaysStencilFunc;
     m.stencilRef   = 1;
