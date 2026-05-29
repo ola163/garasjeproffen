@@ -480,7 +480,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
     focusSide,
     addedElements,
     buildingType,
-    showMeasureTool: effectiveAdmin,
+    showMeasureTool: effectiveAdmin && viewMode !== "demo",
   };
 
   const sqm = (lengthValue / 1000) * (widthValue / 1000);
