@@ -752,7 +752,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
         {/* Interior walls — same colour as exterior, block see-through from any angle */}
         {(() => {
           const W = widthMm / 1000; const L = lengthMm / 1000;
-          const H = 3.0; const T = 0.13;
+          const H = 3.0; const T = 0.40;
           const col = "#dde1e7"; const r = 0.6;
           return (<>
             {/* front */}
