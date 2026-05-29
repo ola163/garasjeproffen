@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useEffect, useState, useRef } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import dynamic from "next/dynamic";
@@ -596,7 +597,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 )}
               </div>
 
-              {/* Caption + progress dots — right */}
+              {/* Caption + progress dots + QR — right */}
               <div className={`flex flex-col items-end gap-2 transition-opacity duration-400 ${captionVisible ? "opacity-100" : "opacity-0"}`}>
                 <div className="rounded-xl bg-white/90 backdrop-blur-sm px-3 py-2.5 shadow-lg text-right">
                   <p className="text-sm font-bold text-gray-900">{DEMO_STEPS[demoStep].label}</p>
@@ -606,6 +607,11 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                   {DEMO_STEPS.map((_, i) => (
                     <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i === demoStep ? "w-5 bg-orange-500" : "w-1 bg-white/60"}`} />
                   ))}
+                </div>
+                {/* QR code */}
+                <div className="rounded-xl bg-white/90 backdrop-blur-sm p-2 shadow-lg flex flex-col items-center gap-1">
+                  <QRCodeSVG value="https://garasjeproffen.no/garasje" size={72} />
+                  <p className="text-[9px] text-gray-500 font-medium">Prøv selv</p>
                 </div>
               </div>
             </div>
@@ -707,9 +713,12 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="px-5 py-4 border-t border-white/10">
-                <p className="text-xs text-white/30 text-center">garasjeproffen.no</p>
+              {/* Footer — QR code */}
+              <div className="px-5 py-5 border-t border-white/10 flex flex-col items-center gap-2">
+                <div className="rounded-xl bg-white p-2.5 shadow-lg">
+                  <QRCodeSVG value="https://garasjeproffen.no/garasje" size={120} />
+                </div>
+                <p className="text-xs text-white/50 text-center">Skann for å prøve konfiguratoren</p>
               </div>
             </div>
           </div>
