@@ -411,7 +411,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
     scene.rotation.y = rotRad;
     scene.updateMatrixWorld(true);
     const box = new Box3().setFromObject(scene);
-    const yThresh = box.max.y * 0.65;
+    const yThresh = box.min.y + (box.max.y - box.min.y) * 0.25;
     let maxAbsX = 0, maxAbsZ = 0;
     const _v = new THREE.Vector3();
     scene.traverse(child => {
@@ -444,7 +444,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit", roofType = "flattak", wallFaceZ }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort"; roofType?: string; wallFaceZ?: number | null }) {
+function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit", roofType = "flattak" }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort"; roofType?: string }) {
   const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
@@ -492,8 +492,7 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
     return { clone, ox, oy, oz };
   }, [rawScene, targetW, targetH, doorColor]);
 
-  const zRef  = wallFaceZ ?? lengthMm / 2000;
-  const doorZ = (roofType === "saltak" ? zRef - WALL_T : zRef - WALL_T / 2) - 0.030;
+  const doorZ = (roofType === "saltak" ? lengthMm / 2000 - WALL_T : lengthMm / 2000 - WALL_T / 2) - 0.030;
   const doorGroupRef = useRef<THREE.Group>(null);
   const doorYRef = useRef(0);
   const demoDoorOpenRef = useRef(demoDoorOpen);
@@ -509,7 +508,7 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
   return (
     <group position={[portOffsetX, 0, 0]}>
       {/* Stencil cutter — punches hole through full wall at door opening */}
-      <mesh renderOrder={-2} position={[0, targetH / 2, zRef - WALL_T / 2]} material={matCut}>
+      <mesh renderOrder={-2} position={[0, targetH / 2, lengthMm / 2000 - WALL_T / 2]} material={matCut}>
         <boxGeometry args={[targetW, targetH, WALL_T + 0.1]} />
       </mesh>
       {/* Door panel — animates in Y */}
@@ -705,7 +704,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
               onWallFaces={handleWallFaces}
             />
             {hasGarage && (
-              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} roofType={roofType} wallFaceZ={wallHalfL} />
+              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} roofType={roofType} />
             )}
           </Suspense>
         </GltfErrorBoundary>
