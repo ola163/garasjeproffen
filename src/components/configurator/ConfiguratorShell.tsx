@@ -627,7 +627,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
                 <GarageViewer {...viewerProps} autoRotate />
                 <div className="absolute top-5 left-6 flex items-center gap-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/logo.jpg" alt="GarasjeProffen" className="h-8 w-auto object-contain rounded" />
+                  <img src="/logo.jpg" alt="GarasjeProffen" className="h-16 w-auto object-contain rounded" />
                 </div>
               </div>
               {/* Mascot + Q&A bottom */}
