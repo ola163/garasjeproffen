@@ -634,7 +634,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
             {/* Left: 3D viewer + mascot bottom bar */}
             <div className="flex-1 flex flex-col min-w-0">
               <div className="relative flex-1">
-                <GarageViewer {...viewerProps} autoRotate />
+                <GarageViewer {...viewerProps} autoRotate doorColor={DEMO_STEPS[demoStep].doorColor} />
                 <div className="absolute top-5 left-6 flex items-center gap-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/logo.jpg" alt="GarasjeProffen" className="h-16 w-auto object-contain rounded" />
