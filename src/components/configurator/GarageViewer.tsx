@@ -456,7 +456,7 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
     m.colorWrite  = false;
     m.depthWrite  = false;
     m.depthTest   = false;
-    m.side        = THREE.DoubleSide;
+    m.side        = THREE.FrontSide;
     m.stencilWrite = true;
     m.stencilFunc  = THREE.AlwaysStencilFunc;
     m.stencilRef   = 1;
@@ -497,9 +497,9 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
     return { clone, ox, oy, oz };
   }, [rawScene, targetW, targetH, doorColor]);
 
-  // Saltak: 173 mm from outermost eave tip (SolidWorks measurement). Flattak: flush with wall face.
+  // Both: fixed offset from wall face (lengthMm/2000) → scales correctly with garage length.
   const doorZ = roofType === "saltak"
-    ? (eaveFrontZ ?? lengthMm / 2000) - 0.173
+    ? lengthMm / 2000 - WALL_T - 0.030
     : lengthMm / 2000 - WALL_T / 2 - 0.030;
   const doorGroupRef = useRef<THREE.Group>(null);
   const doorYRef = useRef(0);
