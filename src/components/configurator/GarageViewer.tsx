@@ -315,30 +315,6 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
     const size0 = box0.getSize(new Vector3());
     const center0 = box0.getCenter(new Vector3());
 
-    // Scan only the lower 40 % of model height to find actual wall face extents,
-    // excluding roof overhangs/eaves that inflate the bounding box.
-    const yWallThresh = box0.min.y + size0.y * 0.40;
-    let minWX = Infinity, maxWX = -Infinity, minWZ = Infinity, maxWZ = -Infinity;
-    const _sv = new THREE.Vector3();
-    s.traverse(child => {
-      const mesh = child as Mesh;
-      if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
-      const pos = mesh.geometry.attributes.position;
-      for (let i = 0; i < pos.count; i++) {
-        _sv.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
-        if (_sv.y < yWallThresh) {
-          if (_sv.x < minWX) minWX = _sv.x;
-          if (_sv.x > maxWX) maxWX = _sv.x;
-          if (_sv.z < minWZ) minWZ = _sv.z;
-          if (_sv.z > maxWZ) maxWZ = _sv.z;
-        }
-      }
-    });
-    const wallSpanX = (maxWX > minWX) ? maxWX - minWX : size0.x;
-    const wallSpanZ = (maxWZ > minWZ) ? maxWZ - minWZ : size0.z;
-    const wallCxX   = (minWX + maxWX) / 2;
-    const wallCxZ   = (minWZ + maxWZ) / 2;
-
     // For saltak: find the grey roof material from one panel and apply to all roof meshes
     const isSaltak = modelUrl.includes("saltak");
     let roofMat: MeshStandardMaterial | null = null;
@@ -394,7 +370,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
         });
       }
     });
-    return { scene: s, sizeX: wallSpanX, sizeZ: wallSpanZ, cx: wallCxX, cz: wallCxZ, minY: box0.min.y };
+    return { scene: s, sizeX: size0.x, sizeZ: size0.z, cx: center0.x, cz: center0.z, minY: box0.min.y };
   }, [rawScene, modelUrl]);
 
   const scaleX = sizeX > 0 ? widthMm  / 1000 / sizeX : 1;
