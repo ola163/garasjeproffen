@@ -483,6 +483,9 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
         mat.color.set(paintColor);
         mat.roughness = doorColor === "sort" ? 0.45 : 0.55;
         mat.metalness = doorColor === "sort" ? 0.15 : 0.05;
+        mat.transparent = false;
+        mat.opacity = 1;
+        mat.depthWrite = true;
         (c as Mesh).material = mat;
       }
     });
@@ -515,6 +518,11 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
       {/* Stencil cutter — punches hole through full wall at door opening */}
       <mesh renderOrder={-2} position={[0, targetH / 2, lengthMm / 2000 - WALL_T / 2]} material={matCut}>
         <boxGeometry args={[targetW, targetH, WALL_T + 0.1]} />
+      </mesh>
+      {/* Interior backing — seals the hole so the hollow model interior is not visible */}
+      <mesh position={[0, targetH / 2, lengthMm / 2000 - WALL_T - 0.05]}>
+        <planeGeometry args={[targetW, targetH]} />
+        <meshStandardMaterial color="#3a3a3a" side={THREE.DoubleSide} />
       </mesh>
       {/* Door panel — animates in Y */}
       <group ref={doorGroupRef}>
