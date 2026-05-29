@@ -298,14 +298,14 @@ function DimensionLine({
 
 function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, onWallFaces }: {
   lengthMm: number; widthMm: number; roofType?: string; buildingType?: string; rotationDeg?: number;
-  onWallFaces?: (halfL: number, halfW: number) => void;
+  onWallFaces?: (halfL: number, halfW: number, eaveFrontZ: number) => void;
 }) {
   const modelUrl = buildingType === "carport"
     ? "/models/Carport_GLB.glb"
     : roofType === "flattak" ? "/models/Garasje_Flatt_tak.glb" : "/models/Garasje_saltakV2.glb";
   const { scene: rawScene } = useGLTF(modelUrl);
 
-  const { scene, sizeX, sizeZ, cx, cz, minY } = useMemo(() => {
+  const { scene, sizeX, sizeZ, cx, cz, minY, eaveRelZ } = useMemo(() => {
     const s = rawScene.clone(true);
     s.scale.set(1, 1, 1);
     s.position.set(0, 0, 0);
@@ -353,7 +353,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
               if (meshCenterY >= roofThreshold) {
                 const newMat = roofMat.clone();
                 newMat.envMapIntensity = 0.4;
-                newMat.stencilWrite = false;
+                newMat.stencilWrite = true;
                 newMat.stencilFunc  = THREE.NotEqualStencilFunc;
                 newMat.stencilRef   = 1;
                 newMat.needsUpdate  = true;
@@ -362,7 +362,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
               }
             }
             mat.envMapIntensity = 0.4;
-            mat.stencilWrite = false;
+            mat.stencilWrite = true;
             mat.stencilFunc  = THREE.NotEqualStencilFunc;
             mat.stencilRef   = 1;
             mat.needsUpdate  = true;
@@ -395,7 +395,9 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
     const wallCxX   = (maxWX > minWX) ? (minWX + maxWX) / 2 : center0.x;
     const wallCxZ   = (maxWZ > minWZ) ? (minWZ + maxWZ) / 2 : center0.z;
 
-    return { scene: s, sizeX: wallSpanX, sizeZ: wallSpanZ, cx: wallCxX, cz: wallCxZ, minY: box0.min.y };
+    // eaveRelZ: full-bbox max Z relative to wall centre (unscaled). Captures eave overhang.
+    const eaveRelZ = box0.max.z - wallCxZ;
+    return { scene: s, sizeX: wallSpanX, sizeZ: wallSpanZ, cx: wallCxX, cz: wallCxZ, minY: box0.min.y, eaveRelZ };
   }, [rawScene, modelUrl]);
 
   // scaleX/Z derived from actual wall span → wall face lands exactly at ±widthMm/2000 / ±lengthMm/2000
@@ -426,7 +428,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
         }
       }
     });
-    if (maxAbsX > 0.1 && maxAbsZ > 0.1) onWallFaces(maxAbsZ, maxAbsX);
+    if (maxAbsX > 0.1 && maxAbsZ > 0.1) onWallFaces(maxAbsZ, maxAbsX, eaveRelZ * scaleZ);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, scaleX, scaleZ, rotRad]);
 
@@ -444,7 +446,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit", roofType = "flattak" }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort"; roofType?: string }) {
+function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit", roofType = "flattak", eaveFrontZ }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort"; roofType?: string; eaveFrontZ?: number }) {
   const { scene: rawScene } = useGLTF("/models/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
@@ -492,7 +494,10 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
     return { clone, ox, oy, oz };
   }, [rawScene, targetW, targetH, doorColor]);
 
-  const doorZ = (roofType === "saltak" ? lengthMm / 2000 - WALL_T : lengthMm / 2000 - WALL_T / 2) - 0.030;
+  // Saltak: 173 mm from outermost eave tip (SolidWorks measurement). Flattak: flush with wall face.
+  const doorZ = roofType === "saltak"
+    ? (eaveFrontZ ?? lengthMm / 2000) - 0.173
+    : lengthMm / 2000 - WALL_T / 2 - 0.030;
   const doorGroupRef = useRef<THREE.Group>(null);
   const doorYRef = useRef(0);
   const demoDoorOpenRef = useRef(demoDoorOpen);
@@ -614,6 +619,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
   const orbitRef = useRef<OrbitControlsImpl>(null);
   const [wallHalfL, setWallHalfL] = useState<number | null>(null);
   const [wallHalfW, setWallHalfW] = useState<number | null>(null);
+  const [eaveFrontZ, setEaveFrontZ] = useState<number | null>(null);
   const [measureActive, setMeasureActive] = useState(false);
   const [measurePoints, setMeasurePoints] = useState<THREE.Vector3[]>([]);
 
@@ -621,11 +627,13 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
   useEffect(() => {
     setWallHalfL(null);
     setWallHalfW(null);
+    setEaveFrontZ(null);
   }, [roofType, buildingType]);
 
-  const handleWallFaces = useCallback((halfL: number, halfW: number) => {
+  const handleWallFaces = useCallback((halfL: number, halfW: number, eaveZ: number) => {
     setWallHalfL(halfL);
     setWallHalfW(halfW);
+    setEaveFrontZ(eaveZ);
   }, []);
 
   const handleMeasurePoint = useCallback((p: THREE.Vector3) => {
@@ -704,7 +712,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
               onWallFaces={handleWallFaces}
             />
             {hasGarage && (
-              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} roofType={roofType} />
+              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} roofType={roofType} eaveFrontZ={eaveFrontZ ?? undefined} />
             )}
           </Suspense>
         </GltfErrorBoundary>
