@@ -525,6 +525,22 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
       {/* Door panel — animates in Y */}
       <group ref={doorGroupRef}>
         <primitive object={group.clone} position={[group.ox, group.oy, group.oz + doorZ]} dispose={null} />
+        {/* Hörmann logo — bottom-right corner of door */}
+        <mesh position={[targetW / 2 - 0.18, 0.10, doorZ + 0.027]}>
+          <planeGeometry args={[0.28, 0.075]} />
+          <meshBasicMaterial color="#002F6C" />
+        </mesh>
+        <Text
+          position={[targetW / 2 - 0.18, 0.10, doorZ + 0.028]}
+          fontSize={0.045}
+          color="#F0A500"
+          anchorX="center"
+          anchorY="middle"
+          letterSpacing={0.12}
+          fontWeight={700}
+        >
+          HÖRMANN
+        </Text>
       </group>
     </group>
   );
