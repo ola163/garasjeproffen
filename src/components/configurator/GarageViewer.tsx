@@ -145,8 +145,8 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
 
         if (isGLBWindow) {
           meshes.push(
-            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace - dir * WALL_T / 2]} material={matCut}>
-              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, WALL_T + 0.1]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace]} rotation={[0, dir === 1 ? 0 : Math.PI, 0]} material={matCut}>
+              <planeGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02]} />
             </mesh>,
             <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.4)]} material={matInterior}>
               <boxGeometry args={[w + FB * 2, h + FB * 2, 0.02]} />
@@ -159,8 +159,8 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
           );
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace - dir * WALL_T / 2]} material={matCut}>
-              <boxGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02, WALL_T + 0.1]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace]} rotation={[0, dir === 1 ? 0 : Math.PI, 0]} material={matCut}>
+              <planeGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02]} />
             </mesh>,
             <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.4)]} material={matInterior}>
               <boxGeometry args={[w + FB * 2, h + FB * 2, 0.02]} />
@@ -213,8 +213,8 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
 
         if (isGLBWindow) {
           meshes.push(
-            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace - dir * WALL_T / 2, cy, z]} material={matCut}>
-              <boxGeometry args={[WALL_T + 0.1, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace, cy, z]} rotation={[0, dir === 1 ? Math.PI / 2 : -Math.PI / 2, 0]} material={matCut}>
+              <planeGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02]} />
             </mesh>,
             <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.4), cy, z]} material={matInterior}>
               <boxGeometry args={[0.02, h + FB * 2, w + FB * 2]} />
@@ -227,8 +227,8 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
           );
         } else if (isWindow) {
           meshes.push(
-            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace - dir * WALL_T / 2, cy, z]} material={matCut}>
-              <boxGeometry args={[WALL_T + 0.1, h + FB * 2 + 0.02, w + FB * 2 + 0.02]} />
+            <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace, cy, z]} rotation={[0, dir === 1 ? Math.PI / 2 : -Math.PI / 2, 0]} material={matCut}>
+              <planeGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02]} />
             </mesh>,
             <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.4), cy, z]} material={matInterior}>
               <boxGeometry args={[0.02, h + FB * 2, w + FB * 2]} />
@@ -517,8 +517,8 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
   return (
     <group position={[portOffsetX, 0, 0]}>
       {/* Stencil cutter — punches hole through full wall at door opening */}
-      <mesh renderOrder={-2} position={[0, targetH / 2, lengthMm / 2000 - WALL_T / 2]} material={matCut}>
-        <boxGeometry args={[targetW, targetH, WALL_T + 0.1]} />
+      <mesh renderOrder={-2} position={[0, targetH / 2, lengthMm / 2000]} material={matCut}>
+        <planeGeometry args={[targetW, targetH]} />
       </mesh>
       {/* Interior backing — seals the hole so the hollow model interior is not visible */}
       <mesh position={[0, targetH / 2, lengthMm / 2000 - WALL_T - 0.05]}>
