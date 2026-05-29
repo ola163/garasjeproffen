@@ -93,7 +93,6 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
   const matFrame    = useMemo(() => new THREE.MeshStandardMaterial({ color: FRAME_COLOR,   roughness: 0.5 }), []);
   const matSill     = useMemo(() => new THREE.MeshStandardMaterial({ color: SILL_COLOR,    roughness: 0.55 }), []);
   const matReveal   = useMemo(() => new THREE.MeshStandardMaterial({ color: REVEAL_COLOR,  roughness: 0.7 }), []);
-  const matInterior = useMemo(() => new THREE.MeshBasicMaterial({ color: "#0d0808" }), []);
   const matCut      = useMemo(() => {
     const m = new THREE.MeshBasicMaterial();
     m.colorWrite  = false;
@@ -148,9 +147,6 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
             <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace]} rotation={[0, dir === 1 ? 0 : Math.PI, 0]} material={matCut}>
               <planeGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02]} />
             </mesh>,
-            <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.4)]} material={matInterior}>
-              <boxGeometry args={[w + FB * 2, h + FB * 2, 0.02]} />
-            </mesh>,
             ...frontRevealsMeshes,
             <WindowGLB key={key} position={[x, cy, wCz]} rotY={rotY} />,
             <mesh key={`${key}-si`} position={[x, cy - h / 2 - SILL_H / 2, wFace + dir * (SILL_EXTRA / 2 - FRAME_DEPTH / 2)]} material={matSill} castShadow>
@@ -161,9 +157,6 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
           meshes.push(
             <mesh key={`${key}-cut`} renderOrder={-2} position={[x, cy, wFace]} rotation={[0, dir === 1 ? 0 : Math.PI, 0]} material={matCut}>
               <planeGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02]} />
-            </mesh>,
-            <mesh key={`${key}-int`} position={[x, cy, wFace - dir * (WALL_T + 0.4)]} material={matInterior}>
-              <boxGeometry args={[w + FB * 2, h + FB * 2, 0.02]} />
             </mesh>,
             ...frontRevealsMeshes,
             <mesh key={`${key}-frL`} position={[x - (w / 2 + FB / 2), cy, revZ]} material={matFrame} castShadow>
@@ -216,9 +209,6 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
             <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace, cy, z]} rotation={[0, dir === 1 ? Math.PI / 2 : -Math.PI / 2, 0]} material={matCut}>
               <planeGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02]} />
             </mesh>,
-            <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.4), cy, z]} material={matInterior}>
-              <boxGeometry args={[0.02, h + FB * 2, w + FB * 2]} />
-            </mesh>,
             ...sideRevealMeshes,
             <WindowGLB key={key} position={[wCx, cy, z]} rotY={rotY} />,
             <mesh key={`${key}-si`} position={[wFace + dir * (SILL_EXTRA / 2 - FRAME_DEPTH / 2), cy - h / 2 - SILL_H / 2, z]} material={matSill} castShadow>
@@ -229,9 +219,6 @@ function GarageWindowElements({ elements, lengthM, widthM, halfLOverride, halfWO
           meshes.push(
             <mesh key={`${key}-cut`} renderOrder={-2} position={[wFace, cy, z]} rotation={[0, dir === 1 ? Math.PI / 2 : -Math.PI / 2, 0]} material={matCut}>
               <planeGeometry args={[w + FB * 2 + 0.02, h + FB * 2 + 0.02]} />
-            </mesh>,
-            <mesh key={`${key}-int`} position={[wFace - dir * (WALL_T + 0.4), cy, z]} material={matInterior}>
-              <boxGeometry args={[0.02, h + FB * 2, w + FB * 2]} />
             </mesh>,
             ...sideRevealMeshes,
             <mesh key={`${key}-frL`} position={[revX, cy, z - (w / 2 + FB / 2)]} material={matFrame} castShadow>
