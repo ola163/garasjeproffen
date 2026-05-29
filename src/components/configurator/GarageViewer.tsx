@@ -728,11 +728,35 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
           hasFlatRoof={hasFlatGarage}
           portOffsetX={portOffsetX}
         />
-        {/* Interior floor — concrete colour matching garage slab, visible through window openings */}
+        {/* Interior floor */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} receiveShadow>
           <planeGeometry args={[widthMm / 1000, lengthMm / 1000]} />
-          <meshStandardMaterial color="#6b6b6b" roughness={0.85} metalness={0.0} />
+          <meshStandardMaterial color="#6b6b6b" roughness={0.85} />
         </mesh>
+        {/* Interior walls — same colour as exterior, block see-through from any angle */}
+        {(() => {
+          const W = widthMm / 1000; const L = lengthMm / 1000;
+          const H = 3.0; const T = 0.13;
+          const col = "#dde1e7"; const r = 0.6;
+          return (<>
+            {/* front */}
+            <mesh position={[0, H / 2, L / 2 - T]} rotation={[0, Math.PI, 0]}>
+              <planeGeometry args={[W, H]} /><meshStandardMaterial color={col} roughness={r} side={THREE.DoubleSide} />
+            </mesh>
+            {/* back */}
+            <mesh position={[0, H / 2, -(L / 2 - T)]}>
+              <planeGeometry args={[W, H]} /><meshStandardMaterial color={col} roughness={r} side={THREE.DoubleSide} />
+            </mesh>
+            {/* right */}
+            <mesh position={[W / 2 - T, H / 2, 0]} rotation={[0, -Math.PI / 2, 0]}>
+              <planeGeometry args={[L, H]} /><meshStandardMaterial color={col} roughness={r} side={THREE.DoubleSide} />
+            </mesh>
+            {/* left */}
+            <mesh position={[-(W / 2 - T), H / 2, 0]} rotation={[0, Math.PI / 2, 0]}>
+              <planeGeometry args={[L, H]} /><meshStandardMaterial color={col} roughness={r} side={THREE.DoubleSide} />
+            </mesh>
+          </>);
+        })()}
 
         <GarageDimensionLines lengthMm={lengthMm} widthMm={widthMm} wallHalfL={wallHalfL} wallHalfW={wallHalfW} />
 
