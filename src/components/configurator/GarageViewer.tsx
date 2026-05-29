@@ -670,7 +670,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
 
       {/* Measurement result panel */}
       {showMeasureTool && measureActive && (
-        <div className="absolute bottom-12 left-3 z-10 rounded-lg bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 p-3 text-xs min-w-[170px]">
+        <div className="absolute top-12 right-2 z-10 rounded-lg bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 p-3 text-xs min-w-[170px]">
           {measurePoints.length === 0 && <p className="text-gray-400 italic">Klikk på et punkt i 3D-visningen</p>}
           {measurePoints.length === 1 && <p className="text-gray-400 italic">Klikk på et nytt punkt</p>}
           {measurePoints.length === 2 && (() => {
