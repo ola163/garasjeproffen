@@ -12,7 +12,7 @@ import { computePortOffset } from "./DoorWindowAdder";
 useGLTF.preload("/models/Vindu_100x50glb.glb");
 useGLTF.preload("/models/Carport_GLB.glb");
 useGLTF.preload("/models/Garasje_Flatt_tak.glb");
-useGLTF.preload("/models/Garasje_saltakV2.glb");
+useGLTF.preload("/models/Garasje_saltakV3.glb");
 useGLTF.preload("/models/Garasjeport_2500x2125.glb");
 
 interface GarageViewerProps {
@@ -302,7 +302,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
 }) {
   const modelUrl = buildingType === "carport"
     ? "/models/Carport_GLB.glb"
-    : roofType === "flattak" ? "/models/Garasje_Flatt_tak.glb" : "/models/Garasje_saltakV2.glb";
+    : roofType === "flattak" ? "/models/Garasje_Flatt_tak.glb" : "/models/Garasje_saltakV3.glb";
   const { scene: rawScene } = useGLTF(modelUrl);
 
   const { scene, sizeX, sizeZ, cx, cz, minY, eaveRelZ } = useMemo(() => {
@@ -446,7 +446,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit", roofType = "flattak", eaveFrontZ }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort"; roofType?: string; eaveFrontZ?: number }) {
+function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit", roofType = "flattak" }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort"; roofType?: string }) {
   const { scene: rawScene } = useGLTF("/models/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
@@ -497,9 +497,10 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
     return { clone, ox, oy, oz };
   }, [rawScene, targetW, targetH, doorColor]);
 
-  // Both: fixed offset from wall face (lengthMm/2000) → scales correctly with garage length.
+  // Fixed offset from wall face → scales correctly with garage length.
+  // Saltak: ~5 mm behind wall face (flush). Flattak: 65 mm behind wall face.
   const doorZ = roofType === "saltak"
-    ? lengthMm / 2000 - WALL_T - 0.030
+    ? lengthMm / 2000 - 0.030
     : lengthMm / 2000 - WALL_T / 2 - 0.030;
   const doorGroupRef = useRef<THREE.Group>(null);
   const doorYRef = useRef(0);
@@ -627,7 +628,6 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
   const orbitRef = useRef<OrbitControlsImpl>(null);
   const [wallHalfL, setWallHalfL] = useState<number | null>(null);
   const [wallHalfW, setWallHalfW] = useState<number | null>(null);
-  const [eaveFrontZ, setEaveFrontZ] = useState<number | null>(null);
   const [measureActive, setMeasureActive] = useState(false);
   const [measurePoints, setMeasurePoints] = useState<THREE.Vector3[]>([]);
 
@@ -635,13 +635,11 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
   useEffect(() => {
     setWallHalfL(null);
     setWallHalfW(null);
-    setEaveFrontZ(null);
   }, [roofType, buildingType]);
 
-  const handleWallFaces = useCallback((halfL: number, halfW: number, eaveZ: number) => {
+  const handleWallFaces = useCallback((halfL: number, halfW: number) => {
     setWallHalfL(halfL);
     setWallHalfW(halfW);
-    setEaveFrontZ(eaveZ);
   }, []);
 
   const handleMeasurePoint = useCallback((p: THREE.Vector3) => {
@@ -720,7 +718,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
               onWallFaces={handleWallFaces}
             />
             {hasGarage && (
-              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} roofType={roofType} eaveFrontZ={eaveFrontZ ?? undefined} />
+              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} roofType={roofType} />
             )}
           </Suspense>
         </GltfErrorBoundary>
