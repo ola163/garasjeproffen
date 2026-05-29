@@ -25,31 +25,31 @@ const MIN_CLEARANCE = 300;
 type DemoEl = { side: WallSide; category: ElementCategory; placement: "left" | "right" | "both" };
 const DEMO_STEPS: Array<{
   width: number; length: number; roofType: "flattak" | "saltak";
-  doorWidth: number; doorHeight: number;
+  doorWidth: number; doorHeight: number; doorColor: "hvit" | "sort";
   label: string; desc: string;
   elements: DemoEl[];
   q: string; a: string;
 }> = [
-  { width: 5000, length: 6000, roofType: "flattak", doorWidth: 2500, doorHeight: 2125,
+  { width: 5000, length: 6000, roofType: "flattak", doorWidth: 2500, doorHeight: 2125, doorColor: "sort",
     label: "Enkel garasje", desc: "5 × 6 m med flatt tak – plass til én bil og god lagringsplass",
     elements: [],
     q: "Ka e skilnaden mellom flattak å saltak?", a: "Saltak tole meir snø å regn — flattak e enklast å byggje og gir meir takhøgd innvendig" },
-  { width: 6200, length: 7800, roofType: "flattak", doorWidth: 2500, doorHeight: 2125,
+  { width: 6200, length: 7800, roofType: "flattak", doorWidth: 2500, doorHeight: 2125, doorColor: "sort",
     label: "Populær størrelse", desc: "6,2 × 7,8 m – ein av våre mest bestilte garasjar",
     elements: [{ side: "back", category: "window2", placement: "both" }],
     q: "Ka materiale e veggane laga av?", a: "Impregnert trepanel på stender — sterk å varig konstruksjon som tole jærvêret" },
-  { width: 7800, length: 9600, roofType: "flattak", doorWidth: 5000, doorHeight: 2250,
+  { width: 7800, length: 9600, roofType: "flattak", doorWidth: 5000, doorHeight: 2250, doorColor: "sort",
     label: "Dobbel garasje", desc: "7,8 × 9,6 m med dobbel port – plass te to bilar",
     elements: [
       { side: "back", category: "window2", placement: "both" },
       { side: "right", category: "door", placement: "right" },
     ],
     q: "Treng eg fundament før montering?", a: "Jå, du treng plate eller ringmur. Me gir deg rettleiing å kan hjelpe med grunnarbeide" },
-  { width: 5600, length: 6000, roofType: "saltak", doorWidth: 2500, doorHeight: 2125,
+  { width: 5600, length: 6000, roofType: "saltak", doorWidth: 2500, doorHeight: 2125, doorColor: "sort",
     label: "Saltak garasje", desc: "Tradisjonell stil som høve te dei fleste hus på Jæren",
     elements: [{ side: "back", category: "window1", placement: "both" }],
     q: "Ka takvinkel e standard på saltak?", a: "Vanlegvis 14–22 grader. Me tilpasse vinkelen te eksisterande bygg på eigedomen din" },
-  { width: 7200, length: 8400, roofType: "saltak", doorWidth: 5000, doorHeight: 2250,
+  { width: 7200, length: 8400, roofType: "saltak", doorWidth: 5000, doorHeight: 2250, doorColor: "hvit",
     label: "Stor saltak med dobbel port", desc: "7,2 × 8,4 m – romsleg løysing med plass te alt",
     elements: [
       { side: "back", category: "window2", placement: "both" },
@@ -729,7 +729,7 @@ export default function ConfiguratorShell({ buildingType = "garasje" }: { buildi
           </button>
         )}
 
-        {(viewMode === "test" || viewMode === "demo") && <GarageViewer {...viewerProps} demoDoorOpen={false} />}
+        {(viewMode === "test" || viewMode === "demo") && <GarageViewer {...viewerProps} demoDoorOpen={false} doorColor={viewMode === "demo" ? DEMO_STEPS[demoStep].doorColor : viewerProps.doorColor} />}
         {viewMode === "dev" && <LocalGarageViewer {...viewerProps} />}
         {viewMode === "kart" && (
           <GarageMapbox
