@@ -370,9 +370,35 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
         });
       }
     });
-    return { scene: s, sizeX: size0.x, sizeZ: size0.z, cx: center0.x, cz: center0.z, minY: box0.min.y };
+    // Scan lower 25 % of model height — safely below any eave/overhang —
+    // to find the true wall face extents (excluding roof overhangs from bbox).
+    const yWallThresh = box0.min.y + size0.y * 0.25;
+    let minWX = Infinity, maxWX = -Infinity, minWZ = Infinity, maxWZ = -Infinity;
+    const _sv = new THREE.Vector3();
+    s.traverse(child => {
+      const mesh = child as Mesh;
+      if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+      const pos = mesh.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        _sv.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+        if (_sv.y < yWallThresh) {
+          if (_sv.x < minWX) minWX = _sv.x;
+          if (_sv.x > maxWX) maxWX = _sv.x;
+          if (_sv.z < minWZ) minWZ = _sv.z;
+          if (_sv.z > maxWZ) maxWZ = _sv.z;
+        }
+      }
+    });
+    // Use wall span + wall centre when scan found geometry; fall back to bbox.
+    const wallSpanX = (maxWX > minWX) ? maxWX - minWX : size0.x;
+    const wallSpanZ = (maxWZ > minWZ) ? maxWZ - minWZ : size0.z;
+    const wallCxX   = (maxWX > minWX) ? (minWX + maxWX) / 2 : center0.x;
+    const wallCxZ   = (maxWZ > minWZ) ? (minWZ + maxWZ) / 2 : center0.z;
+
+    return { scene: s, sizeX: wallSpanX, sizeZ: wallSpanZ, cx: wallCxX, cz: wallCxZ, minY: box0.min.y };
   }, [rawScene, modelUrl]);
 
+  // scaleX/Z derived from actual wall span → wall face lands exactly at ±widthMm/2000 / ±lengthMm/2000
   const scaleX = sizeX > 0 ? widthMm  / 1000 / sizeX : 1;
   const scaleZ = sizeZ > 0 ? lengthMm / 1000 / sizeZ : 1;
   const rotRad = ((rotationDeg ?? 0) * Math.PI) / 180;
@@ -418,7 +444,7 @@ function GarageModel({ lengthMm, widthMm, roofType, buildingType, rotationDeg, o
   );
 }
 
-function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit", roofType = "flattak" }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort"; roofType?: string }) {
+function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, demoDoorOpen = false, doorColor = "hvit", roofType = "flattak", wallFaceZ }: { lengthMm: number; doorWidthMm: number; doorHeightMm: number; portOffsetX?: number; demoDoorOpen?: boolean; doorColor?: "hvit" | "sort"; roofType?: string; wallFaceZ?: number | null }) {
   const { scene: rawScene } = useGLTF("/Garasjeport_2500x2125.glb");
   const targetW = doorWidthMm / 1000;
   const targetH = doorHeightMm / 1000;
@@ -466,7 +492,8 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
     return { clone, ox, oy, oz };
   }, [rawScene, targetW, targetH, doorColor]);
 
-  const doorZ = (roofType === "saltak" ? lengthMm / 2000 - WALL_T : lengthMm / 2000 - WALL_T / 2) - 0.030;
+  const zRef  = wallFaceZ ?? lengthMm / 2000;
+  const doorZ = (roofType === "saltak" ? zRef - WALL_T : zRef - WALL_T / 2) - 0.030;
   const doorGroupRef = useRef<THREE.Group>(null);
   const doorYRef = useRef(0);
   const demoDoorOpenRef = useRef(demoDoorOpen);
@@ -482,7 +509,7 @@ function GaragePortFlat({ lengthMm, doorWidthMm, doorHeightMm, portOffsetX = 0, 
   return (
     <group position={[portOffsetX, 0, 0]}>
       {/* Stencil cutter — punches hole through full wall at door opening */}
-      <mesh renderOrder={-2} position={[0, targetH / 2, lengthMm / 2000 - WALL_T / 2]} material={matCut}>
+      <mesh renderOrder={-2} position={[0, targetH / 2, zRef - WALL_T / 2]} material={matCut}>
         <boxGeometry args={[targetW, targetH, WALL_T + 0.1]} />
       </mesh>
       {/* Door panel — animates in Y */}
@@ -678,7 +705,7 @@ export default function GarageViewer({ lengthMm, widthMm, doorWidthMm, doorHeigh
               onWallFaces={handleWallFaces}
             />
             {hasGarage && (
-              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} roofType={roofType} />
+              <GaragePortFlat lengthMm={lengthMm} doorWidthMm={doorWidthMm} doorHeightMm={doorHeightMm} portOffsetX={portOffsetX} demoDoorOpen={demoDoorOpen} doorColor={doorColor} roofType={roofType} wallFaceZ={wallHalfL} />
             )}
           </Suspense>
         </GltfErrorBoundary>
