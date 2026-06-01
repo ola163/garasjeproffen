@@ -220,6 +220,20 @@ export async function GET() {
     .filter((e) => !e.hosting)
     .sort((a, b) => b.count - a.count);
 
+  // ── Daily unique IPs for the last 30 days ────────────────────────────────
+  const dailyMap = new Map<string, Set<string>>();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now); d.setDate(now.getDate() - i);
+    dailyMap.set(d.toISOString().slice(0, 10), new Set());
+  }
+  for (const row of rows) {
+    const email = row.user_email ?? consentIpToEmail.get(row.ip) ?? ipToCustomer.get(row.ip)?.email ?? null;
+    if (email && ADMIN_EMAILS.includes(email)) continue;
+    const key = row.visited_at.slice(0, 10);
+    if (dailyMap.has(key)) dailyMap.get(key)!.add(row.ip);
+  }
+  const dailyVisitors = Array.from(dailyMap.entries()).map(([date, ips]) => ({ date, count: ips.size }));
+
   // ── Top pages & referrers ─────────────────────────────────────────────────
   const pageMap = new Map<string, number>();
   const referrerMap = new Map<string, number>();
@@ -244,6 +258,7 @@ export async function GET() {
     uniqueIpMonth: uniqueMonth.size,
     uniqueIps,
     registeredUsers,
+    dailyVisitors,
     topPages:     Array.from(pageMap.entries()).map(([path, count]) => ({ path, count })).sort((a, b) => b.count - a.count).slice(0, 20),
     topReferrers: Array.from(referrerMap.entries()).map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count).slice(0, 20),
   });

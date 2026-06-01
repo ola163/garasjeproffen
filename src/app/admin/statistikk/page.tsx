@@ -29,6 +29,7 @@ interface StatsData {
   uniqueIpWeek: number;
   uniqueIpMonth: number;
   uniqueIps: IpEntry[];
+  dailyVisitors: { date: string; count: number }[];
   registeredUsers: { email: string; name: string }[];
   topPages: { path: string; count: number }[];
   topReferrers: { domain: string; count: number }[];
@@ -51,6 +52,57 @@ function fmt(iso: string) {
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function VisitorChart({ daily }: { daily: { date: string; count: number }[] }) {
+  if (!daily || daily.length === 0) return null;
+  const max = Math.max(...daily.map(d => d.count), 1);
+  const W = 700; const H = 120; const pad = 28; const barW = Math.floor((W - pad * 2) / daily.length) - 1;
+
+  return (
+    <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Unike besøkende — siste 30 dager</p>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${W} ${H + 24}`} className="w-full" style={{ minWidth: 400 }}>
+          {/* Y gridlines */}
+          {[0, 0.25, 0.5, 0.75, 1].map(f => {
+            const y = pad + (H - pad) * (1 - f);
+            return <line key={f} x1={pad} y1={y} x2={W - pad} y2={y} stroke="#f3f4f6" strokeWidth={1} />;
+          })}
+          {/* Bars */}
+          {daily.map((d, i) => {
+            const x = pad + i * (barW + 1);
+            const barH = max > 0 ? Math.max(2, Math.round(((H - pad) * d.count) / max)) : 2;
+            const y = pad + (H - pad) - barH;
+            const isToday = i === daily.length - 1;
+            return (
+              <g key={d.date}>
+                <rect x={x} y={y} width={barW} height={barH}
+                  fill={isToday ? "#f97316" : d.count > 0 ? "#fb923c" : "#fde8d8"}
+                  rx={2} opacity={0.9} />
+                {d.count > 0 && barH > 14 && (
+                  <text x={x + barW / 2} y={y + barH / 2 + 4} textAnchor="middle" fontSize={9} fill="white" fontWeight="600">{d.count}</text>
+                )}
+                {d.count > 0 && barH <= 14 && (
+                  <text x={x + barW / 2} y={y - 2} textAnchor="middle" fontSize={9} fill="#f97316" fontWeight="600">{d.count}</text>
+                )}
+              </g>
+            );
+          })}
+          {/* X axis date labels — show every 5th + first + last */}
+          {daily.map((d, i) => {
+            if (i !== 0 && i !== daily.length - 1 && i % 5 !== 0) return null;
+            const x = pad + i * (barW + 1) + barW / 2;
+            const label = new Date(d.date).toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit" });
+            return <text key={d.date} x={x} y={H + 20} textAnchor="middle" fontSize={9} fill="#9ca3af">{label}</text>;
+          })}
+          {/* Y axis max label */}
+          <text x={pad - 4} y={pad + 4} textAnchor="end" fontSize={9} fill="#9ca3af">{max}</text>
+          <text x={pad - 4} y={pad + (H - pad) + 4} textAnchor="end" fontSize={9} fill="#9ca3af">0</text>
+        </svg>
+      </div>
+    </div>
+  );
 }
 
 function GeoTag({ geo }: { geo: GeoInfo | null }) {
@@ -211,6 +263,8 @@ export default function StatistikkPage() {
                 <p className="mt-0.5 text-xs text-gray-400">unike IPs</p>
               </div>
             </div>
+
+            <VisitorChart daily={data.dailyVisitors ?? []} />
 
             {/* Tabs */}
             <div className="mb-4 flex gap-2 flex-wrap">
