@@ -89,19 +89,12 @@ function VisitorChart({ daily }: { daily: { date: string; count: number }[] }) {
               </g>
             );
           })}
-          {/* X axis: day number under every bar, full DD.MM on 1st of month + first + last */}
+          {/* X axis date labels — show every 5th + first + last */}
           {daily.map((d, i) => {
+            if (i !== 0 && i !== daily.length - 1 && i % 5 !== 0) return null;
             const x = pad + i * (barW + 1) + barW / 2;
-            const dt = new Date(d.date);
-            const dayNum = dt.getDate();
-            const isFirst = i === 0;
-            const isLast = i === daily.length - 1;
-            const isMonthStart = dayNum === 1;
-            const label = (isFirst || isLast || isMonthStart)
-              ? dt.toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit" })
-              : String(dayNum);
-            const color = (isFirst || isLast || isMonthStart) ? "#6b7280" : "#9ca3af";
-            return <text key={d.date} x={x} y={H + 20} textAnchor="middle" fontSize={9} fill={color} fontWeight={isMonthStart ? "600" : "400"}>{label}</text>;
+            const label = new Date(d.date).toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit" });
+            return <text key={d.date} x={x} y={H + 20} textAnchor="middle" fontSize={9} fill="#9ca3af">{label}</text>;
           })}
           {/* Y axis max label */}
           <text x={pad - 4} y={pad + 4} textAnchor="end" fontSize={9} fill="#9ca3af">{max}</text>
