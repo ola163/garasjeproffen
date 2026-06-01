@@ -119,6 +119,30 @@ export default function StatistikkPage() {
   const [relinking, setRelinking] = useState(false);
   const [relinkResult, setRelinkResult] = useState<string | null>(null);
   const [assigningIp, setAssigningIp] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"lastSeen" | "count" | "geo" | "name">("lastSeen");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function toggleSort(col: typeof sortBy) {
+    if (sortBy === col) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setSortBy(col); setSortDir("desc"); }
+  }
+
+  function SortTh({ col, children }: { col: typeof sortBy; children: React.ReactNode }) {
+    const active = sortBy === col;
+    return (
+      <th
+        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:text-gray-800 transition-colors"
+        onClick={() => toggleSort(col)}
+      >
+        <span className="flex items-center gap-1">
+          {children}
+          <span className={`transition-opacity ${active ? "opacity-100" : "opacity-30"}`}>
+            {active && sortDir === "asc" ? "↑" : "↓"}
+          </span>
+        </span>
+      </th>
+    );
+  }
 
   function loadStats() {
     setLoading(true);
@@ -208,8 +232,21 @@ export default function StatistikkPage() {
         }
       }
     }
-    return Array.from(emailMap.values()).sort((a, b) => b.totalCount - a.totalCount);
+    return Array.from(emailMap.values());
   }, [data]);
+
+  const sortedUserGroups = useMemo(() => {
+    const arr = [...userGroups];
+    const dir = sortDir === "desc" ? -1 : 1;
+    arr.sort((a, b) => {
+      if (sortBy === "count")    return dir * (b.totalCount - a.totalCount);
+      if (sortBy === "lastSeen") return dir * (b.lastSeen.localeCompare(a.lastSeen));
+      if (sortBy === "geo")      return dir * ((a.geo?.city ?? "").localeCompare(b.geo?.city ?? ""));
+      if (sortBy === "name")     return dir * ((a.names[0] ?? a.email).localeCompare(b.names[0] ?? b.email));
+      return 0;
+    });
+    return arr;
+  }, [userGroups, sortBy, sortDir]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -312,11 +349,18 @@ export default function StatistikkPage() {
             {/* Brukere tab */}
             {tab === "brukere" && (
               <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-                {userGroups.length === 0 ? (
+                {sortedUserGroups.length === 0 ? (
                   <p className="px-4 py-8 text-center text-sm text-gray-400">Ingen innloggede brukere registrert ennå.</p>
                 ) : (
+                  <>
+                  <table className="w-full text-sm"><thead className="bg-gray-50 border-b border-gray-200"><tr>
+                    <SortTh col="name">Bruker</SortTh>
+                    <SortTh col="geo">Sted</SortTh>
+                    <SortTh col="lastSeen">Sist sett</SortTh>
+                    <SortTh col="count">Besøk</SortTh>
+                  </tr></thead></table>
                   <div className="divide-y divide-gray-100">
-                    {userGroups.map((user) => {
+                    {sortedUserGroups.map((user) => {
                       const key = `u:${user.email}`;
                       const isOpen = expanded === key;
                       return (
@@ -387,6 +431,7 @@ export default function StatistikkPage() {
                       );
                     })}
                   </div>
+                  </>
                 )}
               </div>
             )}
@@ -399,18 +444,32 @@ export default function StatistikkPage() {
                 .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
               const utland = data.uniqueIps.filter((e) => e.countryCode && e.countryCode !== "NO" && !homepageOnly(e));
               const forside = data.uniqueIps.filter(homepageOnly);
-              const entries = tab === "iper" ? norske : tab === "utland" ? utland : forside;
+              const rawEntries = tab === "iper" ? norske : tab === "utland" ? utland : forside;
               const emptyMsg = tab === "iper" ? "Ingen norske besøk registrert ennå." : tab === "utland" ? "Ingen besøk fra utlandet." : "Ingen som kun besøkte forsiden.";
+              const dir = sortDir === "desc" ? -1 : 1;
+              const entries = [...rawEntries].sort((a, b) => {
+                if (sortBy === "count")    return dir * (b.count - a.count);
+                if (sortBy === "lastSeen") return dir * b.lastSeen.localeCompare(a.lastSeen);
+                if (sortBy === "geo")      return dir * (a.geo?.city ?? "").localeCompare(b.geo?.city ?? "");
+                if (sortBy === "name")     return dir * (a.names?.[0] ?? a.ip).localeCompare(b.names?.[0] ?? b.ip);
+                return 0;
+              });
 
               return (
                 <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP-adresse / Bruker</th>
-                        <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sted</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Besøk</th>
-                        <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sist sett</th>
+                        <SortTh col="name">IP-adresse / Bruker</SortTh>
+                        <th className="hidden sm:table-cell px-4 py-3 cursor-pointer select-none hover:text-gray-800 transition-colors" onClick={() => toggleSort("geo")}>
+                          <span className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">Sted <span className={sortBy === "geo" ? "opacity-100" : "opacity-30"}>{sortBy === "geo" && sortDir === "asc" ? "↑" : "↓"}</span></span>
+                        </th>
+                        <th className="px-4 py-3 cursor-pointer select-none hover:text-gray-800 transition-colors text-right" onClick={() => toggleSort("count")}>
+                          <span className="flex items-center justify-end gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">Besøk <span className={sortBy === "count" ? "opacity-100" : "opacity-30"}>{sortBy === "count" && sortDir === "asc" ? "↑" : "↓"}</span></span>
+                        </th>
+                        <th className="hidden sm:table-cell px-4 py-3 cursor-pointer select-none hover:text-gray-800 transition-colors" onClick={() => toggleSort("lastSeen")}>
+                          <span className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">Sist sett <span className={sortBy === "lastSeen" ? "opacity-100" : "opacity-30"}>{sortBy === "lastSeen" && sortDir === "asc" ? "↑" : "↓"}</span></span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
