@@ -353,12 +353,18 @@ export default function StatistikkPage() {
                   <p className="px-4 py-8 text-center text-sm text-gray-400">Ingen innloggede brukere registrert ennå.</p>
                 ) : (
                   <>
-                  <table className="w-full text-sm"><thead className="bg-gray-50 border-b border-gray-200"><tr>
-                    <SortTh col="name">Bruker</SortTh>
-                    <SortTh col="geo">Sted</SortTh>
-                    <SortTh col="lastSeen">Sist sett</SortTh>
-                    <SortTh col="count">Besøk</SortTh>
-                  </tr></thead></table>
+                  <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-400">
+                    <span>Sorter:</span>
+                    {(["name","geo","lastSeen","count"] as const).map(col => {
+                      const labels = { name: "Navn", geo: "Sted", lastSeen: "Sist sett", count: "Besøk" };
+                      return (
+                        <button key={col} onClick={() => toggleSort(col)}
+                          className={`flex items-center gap-0.5 font-medium transition-colors ${sortBy === col ? "text-green-600" : "hover:text-gray-600"}`}>
+                          {labels[col]} {sortBy === col ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <div className="divide-y divide-gray-100">
                     {sortedUserGroups.map((user) => {
                       const key = `u:${user.email}`;
