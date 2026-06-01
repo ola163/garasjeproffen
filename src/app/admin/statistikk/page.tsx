@@ -136,7 +136,7 @@ export default function StatistikkPage() {
       >
         <span className="flex items-center gap-1">
           {children}
-          <span className={`transition-opacity ${active ? "opacity-100" : "opacity-30"}`}>
+          <span className={`transition-opacity ${active ? "opacity-100 text-green-500" : "opacity-30"}`}>
             {active && sortDir === "asc" ? "↑" : "↓"}
           </span>
         </span>
@@ -462,13 +462,13 @@ export default function StatistikkPage() {
                       <tr>
                         <SortTh col="name">IP-adresse / Bruker</SortTh>
                         <th className="hidden sm:table-cell px-4 py-3 cursor-pointer select-none hover:text-gray-800 transition-colors" onClick={() => toggleSort("geo")}>
-                          <span className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">Sted <span className={sortBy === "geo" ? "opacity-100" : "opacity-30"}>{sortBy === "geo" && sortDir === "asc" ? "↑" : "↓"}</span></span>
+                          <span className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">Sted <span className={sortBy === "geo" ? "opacity-100 text-green-500" : "opacity-30"}>{sortBy === "geo" && sortDir === "asc" ? "↑" : "↓"}</span></span>
                         </th>
                         <th className="px-4 py-3 cursor-pointer select-none hover:text-gray-800 transition-colors text-right" onClick={() => toggleSort("count")}>
-                          <span className="flex items-center justify-end gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">Besøk <span className={sortBy === "count" ? "opacity-100" : "opacity-30"}>{sortBy === "count" && sortDir === "asc" ? "↑" : "↓"}</span></span>
+                          <span className="flex items-center justify-end gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">Besøk <span className={sortBy === "count" ? "opacity-100 text-green-500" : "opacity-30"}>{sortBy === "count" && sortDir === "asc" ? "↑" : "↓"}</span></span>
                         </th>
                         <th className="hidden sm:table-cell px-4 py-3 cursor-pointer select-none hover:text-gray-800 transition-colors" onClick={() => toggleSort("lastSeen")}>
-                          <span className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">Sist sett <span className={sortBy === "lastSeen" ? "opacity-100" : "opacity-30"}>{sortBy === "lastSeen" && sortDir === "asc" ? "↑" : "↓"}</span></span>
+                          <span className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">Sist sett <span className={sortBy === "lastSeen" ? "opacity-100 text-green-500" : "opacity-30"}>{sortBy === "lastSeen" && sortDir === "asc" ? "↑" : "↓"}</span></span>
                         </th>
                       </tr>
                     </thead>
