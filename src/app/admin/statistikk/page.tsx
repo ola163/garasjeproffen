@@ -96,9 +96,12 @@ function VisitorChart({ daily }: { daily: { date: string; count: number }[] }) {
             const label = new Date(d.date).toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit" });
             return <text key={d.date} x={x} y={H + 20} textAnchor="middle" fontSize={9} fill="#9ca3af">{label}</text>;
           })}
-          {/* Y axis max label */}
-          <text x={pad - 4} y={pad + 4} textAnchor="end" fontSize={9} fill="#9ca3af">{max}</text>
-          <text x={pad - 4} y={pad + (H - pad) + 4} textAnchor="end" fontSize={9} fill="#9ca3af">0</text>
+          {/* Y axis labels for all gridlines */}
+          {[0, 0.25, 0.5, 0.75, 1].map(f => {
+            const y = pad + (H - pad) * (1 - f);
+            const val = Math.round(max * f);
+            return <text key={f} x={pad - 4} y={y + 4} textAnchor="end" fontSize={9} fill="#9ca3af">{val}</text>;
+          })}
         </svg>
       </div>
     </div>
